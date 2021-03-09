@@ -309,6 +309,10 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	rdl = memnew(ResultDialog);
 	p_control->add_child(rdl);
 
+	script_dialog_re = memnew(ScriptDecompRecursiveDialog);
+	script_dialog_re->connect("confirmed", this, "_decompile_dir");
+	p_control->add_child(script_dialog_re);
+
 	script_dialog_d = memnew(ScriptDecompDialog);
 	script_dialog_d->connect("confirmed", this, "_decompile_files");
 	p_control->add_child(script_dialog_d);
@@ -456,6 +460,8 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_button->set_text(RTR("GDScript"));
 		menu_button->set_icon(gui_icons["Script"]);
 		menu_popup = menu_button->get_popup();
+
+		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile all scripts in folder..."), MENU_DECOMP_RECURSE_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Compile .GD script files..."), MENU_COMP_GDS);
 		menu_popup->connect("id_pressed", this, "menu_option_pressed");
@@ -483,6 +489,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_icon_item(gui_icons["Pack"], RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
 		menu_popup->add_icon_item(gui_icons["Pack"], RTR("Explore PCK archive..."), MENU_EXT_PCK);
 		menu_popup->add_separator();
+		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile all scripts in folder..."), MENU_DECOMP_RECURSE_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Compile .GD script files..."), MENU_COMP_GDS);
 		menu_popup->add_separator();
@@ -547,6 +554,9 @@ void GodotREEditor::menu_option_pressed(int p_id) {
 		} break;
 		case MENU_EXT_PCK: {
 			pck_file_selection->popup_centered(Size2(800, 600));
+		} break;
+		case MENU_DECOMP_RECURSE_GDS:{
+			script_dialog_re->popup_centered(Size2(800, 600));
 		} break;
 		case MENU_DECOMP_GDS: {
 			script_dialog_d->popup_centered(Size2(800, 600));
@@ -622,19 +632,116 @@ void GodotREEditor::show_warning(const String &p_text, const String &p_title, co
 /* Decompile                                                             */
 /*************************************************************************/
 
-void GodotREEditor::_decompile_files() {
-
-	Vector<String> files = script_dialog_d->get_file_list();
-	String dir = script_dialog_d->get_target_dir();
-
+String GodotREEditor::check_overwrites(Vector<String> files, String dir) {
 	DirAccess *da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	String overwrite_list = String();
 	for (int i = 0; i < files.size(); i++) {
-		String target_name = dir.plus_file(files[i].get_file().get_basename() + ".gd");
+		String target_name;
+		if (dir == "") {
+			files[i].get_base_dir().plus_file(files[i].get_file().get_basename() + ".gd");
+		}
+		else {
+			target_name = dir.plus_file(files[i].get_file().get_basename() + ".gd");
+		}
 		if (da->file_exists(target_name)) {
 			overwrite_list += target_name + "\n";
 		}
 	}
+	return overwrite_list;
+}
+
+void GodotREEditor::_decompile_dir() {
+	
+	String dir = script_dialog_re->get_source_dir();
+	Vector<String> filters;
+	filters.push_back("gdc");
+	filters.push_back("gde");
+	Vector<String> files = get_directory_listing(dir, filters);
+	String overwrite_list = check_overwrites(files, dir);
+
+	if (overwrite_list.length() == 0) {
+		_decompile_process_dir();
+	} else {
+		ovd->set_message(overwrite_list);
+		ovd->connect("confirmed", this, "_decompile_process_dir", Vector<Variant>(), CONNECT_ONESHOT);
+		ovd->popup_centered();
+	}
+}
+
+void GodotREEditor::_decompile_process_dir(){
+	String dir = script_dialog_re->get_source_dir();
+	Vector<String> filters;
+	filters.push_back("gdc");
+	filters.push_back("gde");
+
+	Vector<String> files = get_directory_listing(dir, filters);
+	GDScriptDecomp *dce = create_decomp_for_commit(script_dialog_re->get_bytecode_version());
+
+	if (!dce) {
+		show_warning("", RTR("Decompile"), RTR("Invalid bytecode version!"));
+		return;
+	}
+	
+	print_warning("GDScriptDecomp{" + itos(script_dialog_re->get_bytecode_version()) + "}", RTR("Decompile"));
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_decompile", RTR("Decompiling files..."), files.size(), true));
+	_decompile(dce, pr, files, Vector<uint8_t>(), String());
+	memdelete(dce);
+	memdelete(pr);
+}
+
+void GodotREEditor::_decompile(GDScriptDecomp *dce, EditorProgressGDDC *p_pr, const Vector<String> &files, const Vector<uint8_t> &key, const String &destdir){
+
+	String failed_files;
+
+	for (int i = 0; i < files.size(); i++) {
+		print_warning(RTR("decompiling") + " " + files[i].get_file(), RTR("Decompile"));
+
+		String target_name;
+		if (destdir == ""){
+			target_name = files[i].get_base_dir().plus_file(files[i].get_file().get_basename() + ".gd");
+		} else {
+			target_name = destdir.plus_file(files[i].get_file().get_basename() + ".gd");
+
+		}
+
+		bool cancel = p_pr->step(files[i].get_file(), i, true);
+		if (cancel) {
+			break;
+		}
+
+		Error err;
+		if (files[i].ends_with(".gde")) {
+			err = dce->decompile_byte_code_encrypted(files[i], key);
+		} else {
+			err = dce->decompile_byte_code(files[i]);
+		}
+
+		if (err == OK) {
+			String scr = dce->get_script_text();
+			FileAccess *file = FileAccess::open(target_name, FileAccess::WRITE, &err);
+			if (err) {
+				failed_files += files[i] + " (FileAccess error)\n";
+			}
+			file->store_string(scr);
+			file->close();
+			memdelete(file);
+		} else {
+			failed_files += files[i] + " (" + dce->get_error_message() + ")\n";
+		}
+	}
+
+
+	if (failed_files.length() > 0) {
+		show_warning(failed_files, RTR("Decompile"), RTR("At least one error was detected!"));
+	} else {
+		show_warning(RTR("No errors detected."), RTR("Decompile"), RTR("The operation completed successfully!"));
+	}
+}
+void GodotREEditor::_decompile_files() {
+	Vector<String> files = script_dialog_d->get_file_list();
+	String dir = script_dialog_d->get_target_dir();
+
+	String overwrite_list = check_overwrites(files, dir);
 
 	if (overwrite_list.length() == 0) {
 		_decompile_process();
@@ -650,6 +757,9 @@ void GodotREEditor::_decompile_process() {
 	Vector<String> files = script_dialog_d->get_file_list();
 	Vector<uint8_t> key = script_dialog_d->get_key();
 	String dir = script_dialog_d->get_target_dir();
+	Vector<String> new_files = get_directory_listing(dir);
+
+
 
 	print_warning("GDScriptDecomp{" + itos(script_dialog_d->get_bytecode_version()) + "}", RTR("Decompile"));
 
@@ -1968,6 +2078,9 @@ void GodotREEditor::_notification(int p_notification) {
 }
 
 void GodotREEditor::_bind_methods() {
+
+	ClassDB::bind_method(D_METHOD("_decompile_dir"), &GodotREEditor::_decompile_dir);
+	ClassDB::bind_method(D_METHOD("_decompile_process_dir"), &GodotREEditor::_decompile_process_dir);
 
 	ClassDB::bind_method(D_METHOD("_decompile_files"), &GodotREEditor::_decompile_files);
 	ClassDB::bind_method(D_METHOD("_decompile_process"), &GodotREEditor::_decompile_process);
