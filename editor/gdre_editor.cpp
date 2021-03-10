@@ -22,6 +22,7 @@
 #include "scene/resources/audio_stream_sample.h"
 
 #include "core/version_generated.gen.h"
+#include "pcfg_loader.h"
 
 #if ((VERSION_MAJOR < 3) || (VERSION_MAJOR >= 4))
 #error Unsupported Godot version
@@ -40,6 +41,7 @@
 #include "core/message_queue.h"
 #include "core/os/os.h"
 #include "main/main.h"
+
 
 ProgressDialog *ProgressDialog::singleton = NULL;
 
@@ -1168,6 +1170,20 @@ void GodotREEditor::_pck_select_request(const String &p_path) {
 	pck_dialog->popup_centered_minsize();
 }
 
+
+void convert_cfb_to_cfg(const String path) {
+	ProjectConfigLoader pcfgldr;
+	Error e1 = pcfgldr.load_cfb(path);
+	if (e1 == OK) {
+		printf("good");
+	}
+	Error e2 = pcfgldr.save_cfb(path.get_base_dir());
+	if (e2 == OK) {
+		printf("good");
+	}
+}
+
+
 void GodotREEditor::_pck_extract_files() {
 
 	Vector<String> files = pck_dialog->get_selected_files();
@@ -1234,6 +1250,9 @@ void GodotREEditor::_pck_extract_files_process() {
 			memdelete(fa);
 		} else {
 			failed_files += files[i] + " (FileAccess error)\n";
+		}
+		if (target_name.get_file() == "engine.cfb" || target_name.get_file() == "project.binary") {
+			convert_cfb_to_cfg(target_name);
 		}
 	}
 	memdelete(pr);
