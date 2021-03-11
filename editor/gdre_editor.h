@@ -125,7 +125,7 @@ struct EditorProgressGDDC {
 #ifdef TOOLS_ENABLED
 		if (EditorNode::get_singleton()) {
 			EditorNode::progress_task_step(task, p_state, p_step, p_force_refresh);
-			return true;
+			return false;
 		} else {
 #else
 		{

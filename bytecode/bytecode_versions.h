@@ -3,7 +3,7 @@
 /*************************************************************************/
 
 #include "bytecode/bytecode_base.h"
-
+#include "core/ustring.h"
 #include "bytecode/bytecode_015d36d.h"
 #include "bytecode/bytecode_054a2ac.h"
 #include "bytecode/bytecode_0b806ee.h"
@@ -63,7 +63,7 @@ GDScriptDecomp *create_decomp_for_commit(uint64_t p_commit_hash);
 struct GDScriptDecompVersion {
 
 	uint64_t commit;
-	String name;
+	const char* name;
 };
 
 static GDScriptDecompVersion decomp_versions[] = {

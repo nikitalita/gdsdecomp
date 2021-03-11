@@ -433,7 +433,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup = menu_button->get_popup();
 		menu_popup->add_icon_item(gui_icons["Logo"], RTR("About Godot RE Tools"), MENU_ABOUT_RE);
 		menu_popup->add_icon_item(gui_icons["Logo"], RTR("Quit"), MENU_EXIT_RE);
-		menu_popup->connect("id_pressed", this, "menu_option_pressed");
+		menu_popup->connect("item_pressed", this, "menu_option_pressed");
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
@@ -442,7 +442,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup = menu_button->get_popup();
 		menu_popup->add_icon_item(gui_icons["Pack"], RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
 		menu_popup->add_icon_item(gui_icons["Pack"], RTR("Explore PCK archive..."), MENU_EXT_PCK);
-		menu_popup->connect("id_pressed", this, "menu_option_pressed");
+		menu_popup->connect("item_pressed", this, "menu_option_pressed");
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
@@ -453,7 +453,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile all scripts in folder..."), MENU_DECOMP_RECURSE_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
 		menu_popup->add_icon_item(gui_icons["Script"], RTR("Compile .GD script files..."), MENU_COMP_GDS);
-		menu_popup->connect("id_pressed", this, "menu_option_pressed");
+		menu_popup->connect("item_pressed", this, "menu_option_pressed");
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
@@ -465,7 +465,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_separator();
 		menu_popup->add_icon_item(gui_icons["ResOther"], RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
 		menu_popup->add_icon_item(gui_icons["ResOther"], RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
-		menu_popup->connect("id_pressed", this, "menu_option_pressed");
+		menu_popup->connect("item_pressed", this, "menu_option_pressed");
 		p_menu->add_child(menu_button);
 	} else {
 		menu_button = memnew(MenuButton);
@@ -486,7 +486,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_separator();
 		menu_popup->add_icon_item(gui_icons["ResOther"], RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
 		menu_popup->add_icon_item(gui_icons["ResOther"], RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
-		menu_popup->connect("id_pressed", this, "menu_option_pressed");
+		menu_popup->connect("item_pressed", this, "menu_option_pressed");
 		p_menu->add_child(menu_button);
 		if (p_menu->get_child_count() >= 2) {
 			p_menu->move_child(menu_button, p_menu->get_child_count() - 2);
@@ -1302,9 +1302,11 @@ void GodotREEditor::_res_smpl_2_wav_process() {
 			continue;
 		}
 
-		Ref<SampleSaver> sample = ria->get_resource();
-
-		sample->save_to_wav(res_files[i].basename() + ".wav");
+		Ref<Sample> sample = ria->get_resource();
+		err = SampleSaver::save_to_wav(res_files[i].basename() + ".wav", sample);
+		if (err != OK){
+			failed_files += res_files[i] + " (save wave file error)\n";
+		}
 	}
 
 	memdelete(pr);

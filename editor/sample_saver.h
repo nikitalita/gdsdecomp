@@ -4,13 +4,9 @@
 
 #include "scene/resources/sample.h"
 
-class SampleSaver: public Sample {
-    OBJ_TYPE(SampleSaver, Resource);
-	RES_BASE_EXTENSION("smp");
-
-public:
-	Error save_to_wav(const String &p_path);
-
+static class SampleSaver{
+    public:
+	static Error save_to_wav(const String &p_path, const Ref<Sample> &sample);
 };
 
 #endif
