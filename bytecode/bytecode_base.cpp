@@ -4,17 +4,16 @@
 
 #include "bytecode_base.h"
 
-#include "core/engine.h"
 #include "core/io/file_access_encrypted.h"
 #include "core/os/file_access.h"
 
 void GDScriptDecomp::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("decompile_byte_code", "path"), &GDScriptDecomp::decompile_byte_code);
-	ClassDB::bind_method(D_METHOD("decompile_byte_code_encrypted", "path", "key"), &GDScriptDecomp::decompile_byte_code_encrypted);
+	ObjectTypeDB::bind_method(_MD("decompile_byte_code", "path"), &GDScriptDecomp::decompile_byte_code);
+	ObjectTypeDB::bind_method(_MD("decompile_byte_code_encrypted", "path", "key"), &GDScriptDecomp::decompile_byte_code_encrypted);
 
-	ClassDB::bind_method(D_METHOD("get_script_text"), &GDScriptDecomp::get_script_text);
-	ClassDB::bind_method(D_METHOD("get_error_message"), &GDScriptDecomp::get_error_message);
+	ObjectTypeDB::bind_method(_MD("get_script_text"), &GDScriptDecomp::get_script_text);
+	ObjectTypeDB::bind_method(_MD("get_error_message"), &GDScriptDecomp::get_error_message);
 }
 
 void GDScriptDecomp::_ensure_space(String &p_code) {
@@ -45,7 +44,7 @@ Error GDScriptDecomp::decompile_byte_code_encrypted(const String &p_path, Vector
 	}
 
 	bytecode.resize(fae->get_len());
-	fae->get_buffer(bytecode.ptrw(), bytecode.size());
+	fae->get_buffer(bytecode.ptr(), bytecode.size());
 	fae->close();
 	memdelete(fae);
 

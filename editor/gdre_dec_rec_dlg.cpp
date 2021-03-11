@@ -9,7 +9,7 @@
 ScriptDecompRecursiveDialog::ScriptDecompRecursiveDialog() {
 
 	set_title(RTR("Decompile GDScript"));
-	set_resizable(true);
+	//set_resizable(true);
 
 	source_folder_selection = memnew(FileDialog);
 	source_folder_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
@@ -68,7 +68,7 @@ ScriptDecompRecursiveDialog::~ScriptDecompRecursiveDialog() {
 
 int ScriptDecompRecursiveDialog::get_bytecode_version() const {
 
-	return scrver->get_selected_id();
+	return scrver->get_selected_ID();
 }
 
 String ScriptDecompRecursiveDialog::get_source_dir() const {
@@ -104,7 +104,7 @@ Vector<uint8_t> ScriptDecompRecursiveDialog::get_key() const {
 				ct = 10 + ct - 'a';
 			v |= ct;
 		}
-		key.write[i] = v;
+		key[i] = v;
 	}
 	return key;
 }
@@ -144,7 +144,7 @@ void ScriptDecompRecursiveDialog::_validate_input() {
 		script_key_error->add_color_override("font_color", error_color);
 		ok = false;
 	}
-	if (scrver->get_selected_id() == 0xfffffff) {
+	if (scrver->get_selected_ID() == 0xfffffff) {
 		error_message += RTR("No bytecode version selected") + "\n";
 		script_key_error->add_color_override("font_color", error_color);
 		ok = false;
@@ -179,11 +179,11 @@ void ScriptDecompRecursiveDialog::_notification(int p_notification) {
 
 void ScriptDecompRecursiveDialog::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("get_source_dir"), &ScriptDecompRecursiveDialog::get_source_dir);
-	ClassDB::bind_method(D_METHOD("get_key"), &ScriptDecompRecursiveDialog::get_key);
+	ObjectTypeDB::bind_method(_MD("get_source_dir"), &ScriptDecompRecursiveDialog::get_source_dir);
+	ObjectTypeDB::bind_method(_MD("get_key"), &ScriptDecompRecursiveDialog::get_key);
 
-	ClassDB::bind_method(D_METHOD("_script_encryption_key_changed", "key"), &ScriptDecompRecursiveDialog::_script_encryption_key_changed);
-	ClassDB::bind_method(D_METHOD("_dir_select_pressed"), &ScriptDecompRecursiveDialog::_dir_select_pressed);
-	ClassDB::bind_method(D_METHOD("_dir_select_request", "path"), &ScriptDecompRecursiveDialog::_dir_select_request);
-	ClassDB::bind_method(D_METHOD("_bytcode_changed", "id"), &ScriptDecompRecursiveDialog::_bytcode_changed);
+	ObjectTypeDB::bind_method(_MD("_script_encryption_key_changed", "key"), &ScriptDecompRecursiveDialog::_script_encryption_key_changed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_pressed"), &ScriptDecompRecursiveDialog::_dir_select_pressed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_request", "path"), &ScriptDecompRecursiveDialog::_dir_select_request);
+	ObjectTypeDB::bind_method(_MD("_bytcode_changed", "id"), &ScriptDecompRecursiveDialog::_bytcode_changed);
 }

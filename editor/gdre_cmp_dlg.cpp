@@ -7,7 +7,7 @@
 ScriptCompDialog::ScriptCompDialog() {
 
 	set_title(RTR("Compile GDScript"));
-	set_resizable(true);
+	//set_resizable(true);
 
 	target_folder_selection = memnew(FileDialog);
 	target_folder_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
@@ -125,7 +125,7 @@ Vector<uint8_t> ScriptCompDialog::get_key() const {
 				ct = 10 + ct - 'a';
 			v |= ct;
 		}
-		key.write[i] = v;
+		key[i] = v;
 	}
 	return key;
 }
@@ -135,7 +135,7 @@ void ScriptCompDialog::_add_files_pressed() {
 	file_selection->popup_centered(Size2(800, 600));
 }
 
-void ScriptCompDialog::_add_files_request(const PoolVector<String> &p_files) {
+void ScriptCompDialog::_add_files_request(const Vector<String> &p_files) {
 
 	for (int i = 0; i < p_files.size(); i++) {
 		file_list->add_item(p_files[i]);
@@ -217,15 +217,15 @@ void ScriptCompDialog::_notification(int p_notification) {
 
 void ScriptCompDialog::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("get_file_list"), &ScriptCompDialog::get_file_list);
-	ClassDB::bind_method(D_METHOD("get_target_dir"), &ScriptCompDialog::get_target_dir);
-	ClassDB::bind_method(D_METHOD("get_key"), &ScriptCompDialog::get_key);
+	ObjectTypeDB::bind_method(_MD("get_file_list"), &ScriptCompDialog::get_file_list);
+	ObjectTypeDB::bind_method(_MD("get_target_dir"), &ScriptCompDialog::get_target_dir);
+	ObjectTypeDB::bind_method(_MD("get_key"), &ScriptCompDialog::get_key);
 
-	ClassDB::bind_method(D_METHOD("_add_files_pressed"), &ScriptCompDialog::_add_files_pressed);
-	ClassDB::bind_method(D_METHOD("_add_files_request", "files"), &ScriptCompDialog::_add_files_request);
-	ClassDB::bind_method(D_METHOD("_remove_file_pressed"), &ScriptCompDialog::_remove_file_pressed);
-	ClassDB::bind_method(D_METHOD("_clear_pressed"), &ScriptCompDialog::_clear_pressed);
-	ClassDB::bind_method(D_METHOD("_script_encryption_key_changed", "key"), &ScriptCompDialog::_script_encryption_key_changed);
-	ClassDB::bind_method(D_METHOD("_dir_select_pressed"), &ScriptCompDialog::_dir_select_pressed);
-	ClassDB::bind_method(D_METHOD("_dir_select_request", "path"), &ScriptCompDialog::_dir_select_request);
+	ObjectTypeDB::bind_method(_MD("_add_files_pressed"), &ScriptCompDialog::_add_files_pressed);
+	ObjectTypeDB::bind_method(_MD("_add_files_request", "files"), &ScriptCompDialog::_add_files_request);
+	ObjectTypeDB::bind_method(_MD("_remove_file_pressed"), &ScriptCompDialog::_remove_file_pressed);
+	ObjectTypeDB::bind_method(_MD("_clear_pressed"), &ScriptCompDialog::_clear_pressed);
+	ObjectTypeDB::bind_method(_MD("_script_encryption_key_changed", "key"), &ScriptCompDialog::_script_encryption_key_changed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_pressed"), &ScriptCompDialog::_dir_select_pressed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_request", "path"), &ScriptCompDialog::_dir_select_request);
 }

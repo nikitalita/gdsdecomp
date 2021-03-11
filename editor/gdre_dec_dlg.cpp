@@ -8,7 +8,7 @@
 ScriptDecompDialog::ScriptDecompDialog() {
 
 	set_title(RTR("Decompile GDScript"));
-	set_resizable(true);
+	//set_resizable(true);
 
 	target_folder_selection = memnew(FileDialog);
 	target_folder_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
@@ -96,7 +96,7 @@ ScriptDecompDialog::~ScriptDecompDialog() {
 
 int ScriptDecompDialog::get_bytecode_version() const {
 
-	return scrver->get_selected_id();
+	return scrver->get_selected_ID();
 }
 
 Vector<String> ScriptDecompDialog::get_file_list() const {
@@ -141,7 +141,7 @@ Vector<uint8_t> ScriptDecompDialog::get_key() const {
 				ct = 10 + ct - 'a';
 			v |= ct;
 		}
-		key.write[i] = v;
+		key[i] = v;
 	}
 	return key;
 }
@@ -151,7 +151,7 @@ void ScriptDecompDialog::_add_files_pressed() {
 	file_selection->popup_centered(Size2(800, 600));
 }
 
-void ScriptDecompDialog::_add_files_request(const PoolVector<String> &p_files) {
+void ScriptDecompDialog::_add_files_request(const Vector<String> &p_files) {
 
 	for (int i = 0; i < p_files.size(); i++) {
 		file_list->add_item(p_files[i]);
@@ -220,7 +220,7 @@ void ScriptDecompDialog::_validate_input() {
 		ok = false;
 	}
 
-	if (scrver->get_selected_id() == 0xfffffff) {
+	if (scrver->get_selected_ID() == 0xfffffff) {
 		error_message += RTR("No bytecode version selected") + "\n";
 		script_key_error->add_color_override("font_color", error_color);
 		ok = false;
@@ -253,16 +253,16 @@ void ScriptDecompDialog::_notification(int p_notification) {
 
 void ScriptDecompDialog::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("get_file_list"), &ScriptDecompDialog::get_file_list);
-	ClassDB::bind_method(D_METHOD("get_target_dir"), &ScriptDecompDialog::get_target_dir);
-	ClassDB::bind_method(D_METHOD("get_key"), &ScriptDecompDialog::get_key);
+	ObjectTypeDB::bind_method(_MD("get_file_list"), &ScriptDecompDialog::get_file_list);
+	ObjectTypeDB::bind_method(_MD("get_target_dir"), &ScriptDecompDialog::get_target_dir);
+	ObjectTypeDB::bind_method(_MD("get_key"), &ScriptDecompDialog::get_key);
 
-	ClassDB::bind_method(D_METHOD("_add_files_pressed"), &ScriptDecompDialog::_add_files_pressed);
-	ClassDB::bind_method(D_METHOD("_add_files_request", "files"), &ScriptDecompDialog::_add_files_request);
-	ClassDB::bind_method(D_METHOD("_remove_file_pressed"), &ScriptDecompDialog::_remove_file_pressed);
-	ClassDB::bind_method(D_METHOD("_clear_pressed"), &ScriptDecompDialog::_clear_pressed);
-	ClassDB::bind_method(D_METHOD("_script_encryption_key_changed", "key"), &ScriptDecompDialog::_script_encryption_key_changed);
-	ClassDB::bind_method(D_METHOD("_dir_select_pressed"), &ScriptDecompDialog::_dir_select_pressed);
-	ClassDB::bind_method(D_METHOD("_dir_select_request", "path"), &ScriptDecompDialog::_dir_select_request);
-	ClassDB::bind_method(D_METHOD("_bytcode_changed", "id"), &ScriptDecompDialog::_bytcode_changed);
+	ObjectTypeDB::bind_method(_MD("_add_files_pressed"), &ScriptDecompDialog::_add_files_pressed);
+	ObjectTypeDB::bind_method(_MD("_add_files_request", "files"), &ScriptDecompDialog::_add_files_request);
+	ObjectTypeDB::bind_method(_MD("_remove_file_pressed"), &ScriptDecompDialog::_remove_file_pressed);
+	ObjectTypeDB::bind_method(_MD("_clear_pressed"), &ScriptDecompDialog::_clear_pressed);
+	ObjectTypeDB::bind_method(_MD("_script_encryption_key_changed", "key"), &ScriptDecompDialog::_script_encryption_key_changed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_pressed"), &ScriptDecompDialog::_dir_select_pressed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_request", "path"), &ScriptDecompDialog::_dir_select_request);
+	ObjectTypeDB::bind_method(_MD("_bytcode_changed", "id"), &ScriptDecompDialog::_bytcode_changed);
 }

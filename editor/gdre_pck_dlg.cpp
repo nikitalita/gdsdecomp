@@ -7,7 +7,7 @@
 PackDialog::PackDialog() {
 
 	set_title(RTR("PCK explorer"));
-	set_resizable(true);
+	//set_resizable(true);
 	updating = false;
 	have_malformed_names = false;
 
@@ -306,12 +306,12 @@ void PackDialog::_notification(int p_notification) {
 
 void PackDialog::_bind_methods() {
 
-	ClassDB::bind_method(D_METHOD("get_selected_files"), &PackDialog::get_selected_files);
-	ClassDB::bind_method(D_METHOD("get_target_dir"), &PackDialog::get_target_dir);
-	ClassDB::bind_method(D_METHOD("set_version", "version"), &PackDialog::set_version);
-	ClassDB::bind_method(D_METHOD("set_info", "info"), &PackDialog::set_info);
+	ObjectTypeDB::bind_method(_MD("get_selected_files"), &PackDialog::get_selected_files);
+	ObjectTypeDB::bind_method(_MD("get_target_dir"), &PackDialog::get_target_dir);
+	ObjectTypeDB::bind_method(_MD("set_version", "version"), &PackDialog::set_version);
+	ObjectTypeDB::bind_method(_MD("set_info", "info"), &PackDialog::set_info);
 
-	ClassDB::bind_method(D_METHOD("_dir_select_pressed"), &PackDialog::_dir_select_pressed);
-	ClassDB::bind_method(D_METHOD("_dir_select_request", "path"), &PackDialog::_dir_select_request);
-	ClassDB::bind_method(D_METHOD("_item_edited"), &PackDialog::_item_edited);
+	ObjectTypeDB::bind_method(_MD("_dir_select_pressed"), &PackDialog::_dir_select_pressed);
+	ObjectTypeDB::bind_method(_MD("_dir_select_request", "path"), &PackDialog::_dir_select_request);
+	ObjectTypeDB::bind_method(_MD("_item_edited"), &PackDialog::_item_edited);
 }

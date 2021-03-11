@@ -22,10 +22,10 @@
 #include "scene/gui/progress_bar.h"
 #include "scene/gui/spin_box.h"
 #include "scene/gui/text_edit.h"
-#include "scene/gui/texture_rect.h"
+#include "scene/gui/texture_frame.h"
 
 #ifdef TOOLS_ENABLED
-#include "editor/editor_export.h"
+#include "editor/editor_import_export.h"
 #include "editor/editor_node.h"
 #include "editor/editor_scale.h"
 #else
@@ -45,7 +45,7 @@
 #ifndef TOOLS_ENABLED
 class ProgressDialog : public Popup {
 
-	GDCLASS(ProgressDialog, Popup);
+	OBJ_TYPE(ProgressDialog, Popup);
 	struct Task {
 
 		String task;
@@ -83,7 +83,7 @@ public:
 #endif
 
 class ResultDialog : public AcceptDialog {
-	GDCLASS(ResultDialog, AcceptDialog)
+	OBJ_TYPE(ResultDialog, AcceptDialog)
 
 	Label *lbl;
 	TextEdit *message;
@@ -100,7 +100,7 @@ public:
 };
 
 class OverwriteDialog : public AcceptDialog {
-	GDCLASS(OverwriteDialog, AcceptDialog)
+	OBJ_TYPE(OverwriteDialog, AcceptDialog)
 
 	Label *lbl;
 	TextEdit *message;
@@ -124,14 +124,18 @@ struct EditorProgressGDDC {
 
 #ifdef TOOLS_ENABLED
 		if (EditorNode::get_singleton()) {
-			return EditorNode::progress_task_step(task, p_state, p_step, p_force_refresh);
+			EditorNode::progress_task_step(task, p_state, p_step, p_force_refresh);
+			return true;
 		} else {
 #else
 		{
 #endif
-
-			return (progress_dialog) ? progress_dialog->task_step(task, p_state, p_step, p_force_refresh) : false;
+			progress_dialog->task_step(task, p_state, p_step, p_force_refresh);
+			if (progress_dialog){
+				return true;
+			}	
 		}
+		return false;
 	}
 
 	EditorProgressGDDC(Control *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false) {
@@ -139,7 +143,7 @@ struct EditorProgressGDDC {
 #ifdef TOOLS_ENABLED
 		if (EditorNode::get_singleton()) {
 			progress_dialog = NULL;
-			EditorNode::progress_add_task(p_task, p_label, p_amount, p_can_cancel);
+			EditorNode::progress_add_task(p_task, p_label, p_amount);
 		} else {
 #else
 		{
@@ -152,7 +156,7 @@ struct EditorProgressGDDC {
 				progress_dialog = ProgressDialog::get_singleton();
 			}
 			if (progress_dialog)
-				progress_dialog->add_task(p_task, p_label, p_amount, p_can_cancel);
+				progress_dialog->add_task(p_task, p_label, p_amount);
 		}
 		task = p_task;
 	}
@@ -171,7 +175,7 @@ struct EditorProgressGDDC {
 };
 
 class GodotREEditor : public Node {
-	GDCLASS(GodotREEditor, Node)
+	OBJ_TYPE(GodotREEditor, Node)
 
 private:
 	struct PackedFile {
@@ -222,7 +226,7 @@ private:
 	FileDialog *bin_res_file_selection;
 	FileDialog *txt_res_file_selection;
 
-	FileDialog *stex_file_selection;
+	FileDialog *tex_file_selection;
 	FileDialog *ostr_file_selection;
 	FileDialog *smpl_file_selection;
 
@@ -255,20 +259,17 @@ private:
 	uint64_t _pck_create_process_folder(EditorProgressGDDC *p_pr, const String &p_path, const String &p_rel, uint64_t p_offset, bool &p_cancel);
 	void _pck_save_request(const String &p_path);
 
-	PoolVector<String> res_files;
+	Vector<String> res_files;
 
-	void _res_bin_2_txt_request(const PoolVector<String> &p_files);
+	void _res_bin_2_txt_request(const Vector<String> &p_files);
 	void _res_bin_2_txt_process();
-	void _res_txt_2_bin_request(const PoolVector<String> &p_files);
+	void _res_txt_2_bin_request(const Vector<String> &p_files);
 	void _res_txt_2_bin_process();
 
-	void _res_stex_2_png_request(const PoolVector<String> &p_files);
-	void _res_stxt_2_png_process();
+	void _res_tex_2_png_request(const Vector<String> &p_files);
+	void _res_tex_2_png_process();
 
-	void _res_ostr_2_ogg_request(const PoolVector<String> &p_files);
-	void _res_ostr_2_ogg_process();
-
-	void _res_smpl_2_wav_request(const PoolVector<String> &p_files);
+	void _res_smpl_2_wav_request(const Vector<String> &p_files);
 	void _res_smpl_2_wav_process();
 	String check_overwrites(Vector<String> files, String dir = "");
 
@@ -318,7 +319,7 @@ public:
 /*************************************************************************/
 
 class GodotREEditorStandalone : public Control {
-	GDCLASS(GodotREEditorStandalone, Control)
+	OBJ_TYPE(GodotREEditorStandalone, Control)
 
 	GodotREEditor *editor_ctx;
 	HBoxContainer *menu_hb;

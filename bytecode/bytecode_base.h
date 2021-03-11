@@ -9,7 +9,7 @@
 #include "core/object.h"
 
 class GDScriptDecomp : public Object {
-	GDCLASS(GDScriptDecomp, Object);
+	OBJ_TYPE(GDScriptDecomp, Object);
 
 protected:
 	static void _bind_methods();

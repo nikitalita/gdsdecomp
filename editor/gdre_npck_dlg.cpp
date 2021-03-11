@@ -11,7 +11,7 @@
 NewPackDialog::NewPackDialog() {
 
 	set_title(RTR("Create new PCK..."));
-	set_resizable(true);
+	//set_resizable(true);
 
 	VBoxContainer *script_vb = memnew(VBoxContainer);
 
@@ -25,7 +25,7 @@ NewPackDialog::NewPackDialog() {
 	ver_base->set_min(0);
 	ver_base->set_max(1);
 	ver_base->set_step(1);
-	ver_base->set_value(1);
+	ver_base->set_val(1);
 	ver_base->connect("value_changed", this, "_val_change");
 	script_vb->add_margin_child(RTR("PCK version (\"0\" - Godot 2.x; \"1\" - Godot 3.x+):"), ver_base);
 
@@ -35,7 +35,7 @@ NewPackDialog::NewPackDialog() {
 	ver_major->set_min(0);
 	ver_major->set_max(99999);
 	ver_major->set_step(1);
-	ver_major->set_value(VERSION_MAJOR);
+	ver_major->set_val(VERSION_MAJOR);
 	ver_major->connect("value_changed", this, "_val_change");
 	dir_hbc->add_child(ver_major);
 
@@ -43,7 +43,7 @@ NewPackDialog::NewPackDialog() {
 	ver_minor->set_min(0);
 	ver_minor->set_max(99999);
 	ver_minor->set_step(1);
-	ver_minor->set_value(VERSION_MINOR);
+	ver_minor->set_val(VERSION_MINOR);
 	ver_minor->connect("value_changed", this, "_val_change");
 	dir_hbc->add_child(ver_minor);
 
@@ -51,7 +51,7 @@ NewPackDialog::NewPackDialog() {
 	ver_rev->set_min(0);
 	ver_rev->set_max(99999);
 	ver_rev->set_step(1);
-	ver_rev->set_value(0);
+	ver_rev->set_val(0);
 	ver_rev->connect("value_changed", this, "_val_change");
 	dir_hbc->add_child(ver_rev);
 
@@ -100,13 +100,13 @@ void NewPackDialog::_val_change(double p_val) {
 	Color error_color = Color(1, 0, 0);
 #endif
 	Color def_color = ver_major->get_line_edit()->get_color("font_color");
-	if ((ver_major->get_value() <= 2 && ver_base->get_value() != 0) || (ver_major->get_value() > 2 && ver_base->get_value() != 1)) {
+	if ((ver_major->get_val() <= 2 && ver_base->get_val() != 0) || (ver_major->get_val() > 2 && ver_base->get_val() != 1)) {
 		ver_base->get_line_edit()->set("custom_colors/font_color", error_color);
 	} else {
 		ver_base->get_line_edit()->set("custom_colors/font_color", def_color);
 	}
 
-	if ((ver_major->get_value() < 3 || (ver_major->get_value() == 3 && ver_minor->get_value() < 2)) && (ver_rev->get_value() != 0)) {
+	if ((ver_major->get_val() < 3 || (ver_major->get_val() == 3 && ver_minor->get_val() < 2)) && (ver_rev->get_val() != 0)) {
 		ver_rev->get_line_edit()->set("custom_colors/font_color", error_color);
 	} else {
 		ver_rev->get_line_edit()->set("custom_colors/font_color", def_color);
@@ -138,19 +138,19 @@ void NewPackDialog::set_message(const String &p_text) {
 }
 
 int NewPackDialog::get_version_pack() const {
-	return ver_base->get_value();
+	return ver_base->get_val();
 }
 
 int NewPackDialog::get_version_major() const {
-	return ver_major->get_value();
+	return ver_major->get_val();
 }
 
 int NewPackDialog::get_version_minor() const {
-	return ver_minor->get_value();
+	return ver_minor->get_val();
 }
 
 int NewPackDialog::get_version_rev() const {
-	return ver_rev->get_value();
+	return ver_rev->get_val();
 }
 
 String NewPackDialog::get_watermark() const {
@@ -162,7 +162,7 @@ void NewPackDialog::_notification(int p_notification) {
 }
 
 void NewPackDialog::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("_exe_select_pressed"), &NewPackDialog::_exe_select_pressed);
-	ClassDB::bind_method(D_METHOD("_exe_select_request", "path"), &NewPackDialog::_exe_select_request);
-	ClassDB::bind_method(D_METHOD("_val_change", "val"), &NewPackDialog::_val_change);
+	ObjectTypeDB::bind_method(_MD("_exe_select_pressed"), &NewPackDialog::_exe_select_pressed);
+	ObjectTypeDB::bind_method(_MD("_exe_select_request", "path"), &NewPackDialog::_exe_select_request);
+	ObjectTypeDB::bind_method(_MD("_val_change", "val"), &NewPackDialog::_val_change);
 }

@@ -24,7 +24,7 @@
 #endif
 
 class ScriptDecompDialog : public AcceptDialog {
-	GDCLASS(ScriptDecompDialog, AcceptDialog)
+	OBJ_TYPE(ScriptDecompDialog, AcceptDialog)
 
 	FileDialog *target_folder_selection;
 	FileDialog *file_selection;
@@ -45,7 +45,7 @@ class ScriptDecompDialog : public AcceptDialog {
 
 	void _validate_input();
 	void _add_files_pressed();
-	void _add_files_request(const PoolVector<String> &p_files);
+	void _add_files_request(const Vector<String> &p_files);
 	void _remove_file_pressed();
 	void _clear_pressed();
 	void _script_encryption_key_changed(const String &p_key);

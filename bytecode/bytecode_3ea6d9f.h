@@ -9,7 +9,7 @@
 #include "bytecode_base.h"
 
 class GDScriptDecomp_3ea6d9f : public GDScriptDecomp {
-	GDCLASS(GDScriptDecomp_3ea6d9f, GDScriptDecomp);
+	OBJ_TYPE(GDScriptDecomp_3ea6d9f, GDScriptDecomp);
 
 protected:
 	static void _bind_methods(){};

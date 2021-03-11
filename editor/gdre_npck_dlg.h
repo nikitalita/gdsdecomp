@@ -25,7 +25,7 @@
 #endif
 
 class NewPackDialog : public AcceptDialog {
-	GDCLASS(NewPackDialog, AcceptDialog)
+	OBJ_TYPE(NewPackDialog, AcceptDialog)
 
 	TextEdit *message;
 

@@ -54,7 +54,7 @@ private:
 };
 
 class PckDumper : public Object {
-	GDCLASS(PckDumper, Object)
+	OBJ_TYPE(PckDumper, Object)
 
 	String path;
 	uint32_t pck_ver;

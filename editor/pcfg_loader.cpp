@@ -1,7 +1,6 @@
 #include "pcfg_loader.h"
 #include <core/os/input_event.h>
 #include <core/os/input_event.h>
-#include <core/engine.h>
 #include <core/os/keyboard.h>
 #include <core/io/compression.h>
 #include <core/os/file_access.h>
@@ -30,7 +29,8 @@ Error ProjectConfigLoader::_load_settings_binary(const String &p_path) {
 	if (hdr[0] != 'E' || hdr[1] != 'C' || hdr[2] != 'F' || hdr[3] != 'G') {
 
 		memdelete(f);
-		ERR_FAIL_V_MSG(ERR_FILE_CORRUPT, "Corrupted header in binary project.binary (not ECFG).");
+		ERR_EXPLAIN("Corrupted header in binary project.binary (not ECFG).");
+		ERR_FAIL_V(ERR_FILE_CORRUPT);
 	}
 
 	uint32_t count = f->get_32();
@@ -48,10 +48,11 @@ Error ProjectConfigLoader::_load_settings_binary(const String &p_path) {
 		uint32_t vlen = f->get_32();
 		Vector<uint8_t> d;
 		d.resize(vlen);
-		f->get_buffer(d.ptrw(), vlen);
+		f->get_buffer(d.ptr(), vlen);
 		Variant value;
-		err = decode_variant(value, d.ptr(), d.size(), NULL, true);
-		ERR_CONTINUE_MSG(err != OK, "Error decoding property: " + key + ".");
+		err = decode_variant(value, d.ptr(), d.size(), NULL);
+		ERR_EXPLAIN("Error decoding property: " + key + ".");
+		ERR_CONTINUE(err != OK);
 		props[key] = VariantContainer(value, last_builtin_order++, true);
 	}
 
@@ -71,8 +72,8 @@ struct _VCSort {
 };
 
 Error ProjectConfigLoader::save_custom(const String &p_path) {
-
-	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
+	ERR_EXPLAIN("Project settings save path cannot be empty.");
+	ERR_FAIL_COND_V(p_path == "", ERR_INVALID_PARAMETER);
 
 	Set<_VCSort> vclist;
 
@@ -119,8 +120,8 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const Map<S
 
 	Error err;
 	FileAccess *file = FileAccess::open(p_file, FileAccess::WRITE, &err);
-
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Couldn't save project.godot - " + p_file + ".");
+	ERR_EXPLAIN("Couldn't save project.godot - " + p_file + ".")
+	ERR_FAIL_COND_V(err != OK, err);
 
 	file->store_line("; Engine configuration file.");
 	file->store_line("; It's best edited using the editor UI and not directly,");
@@ -152,7 +153,8 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const Map<S
 
 			String vstr;
 			VariantWriter::write_to_string(value, vstr);
-			file->store_string(F->get().property_name_encode() + "=" + vstr + "\n");
+			
+			file->store_string(F->get()+ "=" + vstr + "\n");
 		}
 	}
 
@@ -161,6 +163,163 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const Map<S
 
 	return OK;
 }
+
+
+
+static String _encode_variant(const Variant &p_variant) {
+
+	switch (p_variant.get_type()) {
+
+		case Variant::BOOL: {
+			bool val = p_variant;
+			return (val ? "true" : "false");
+		} break;
+		case Variant::INT: {
+			int val = p_variant;
+			return itos(val);
+		} break;
+		case Variant::REAL: {
+			float val = p_variant;
+			return rtos(val) + (val == int(val) ? ".0" : "");
+		} break;
+		case Variant::VECTOR2: {
+			Vector2 val = p_variant;
+			return String("Vector2(") + rtos(val.x) + String(", ") + rtos(val.y) + String(")");
+		} break;
+		case Variant::VECTOR3: {
+			Vector3 val = p_variant;
+			return String("Vector3(") + rtos(val.x) + String(", ") + rtos(val.y) + String(", ") + rtos(val.z) + String(")");
+		} break;
+		case Variant::STRING: {
+			String val = p_variant;
+			return "\"" + val.xml_escape() + "\"";
+		} break;
+		case Variant::COLOR: {
+
+			Color val = p_variant;
+			return "#" + val.to_html();
+		} break;
+		case Variant::STRING_ARRAY:
+		case Variant::INT_ARRAY:
+		case Variant::REAL_ARRAY:
+		case Variant::ARRAY: {
+			Array arr = p_variant;
+			String str = "[";
+			for (int i = 0; i < arr.size(); i++) {
+
+				if (i > 0)
+					str += ", ";
+				str += _encode_variant(arr[i]);
+			}
+			str += "]";
+			return str;
+		} break;
+		case Variant::DICTIONARY: {
+			Dictionary d = p_variant;
+			String str = "{";
+			List<Variant> keys;
+			d.get_key_list(&keys);
+			for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
+
+				if (E != keys.front())
+					str += ", ";
+				str += _encode_variant(E->get());
+				str += ":";
+				str += _encode_variant(d[E->get()]);
+			}
+			str += "}";
+			return str;
+		} break;
+		case Variant::IMAGE: {
+			String str = "img(";
+
+			Image img = p_variant;
+			if (!img.empty()) {
+
+				String format;
+				switch (img.get_format()) {
+
+					case Image::FORMAT_GRAYSCALE: format = "grayscale"; break;
+					case Image::FORMAT_INTENSITY: format = "intensity"; break;
+					case Image::FORMAT_GRAYSCALE_ALPHA: format = "grayscale_alpha"; break;
+					case Image::FORMAT_RGB: format = "rgb"; break;
+					case Image::FORMAT_RGBA: format = "rgba"; break;
+					case Image::FORMAT_INDEXED: format = "indexed"; break;
+					case Image::FORMAT_INDEXED_ALPHA: format = "indexed_alpha"; break;
+					case Image::FORMAT_BC1: format = "bc1"; break;
+					case Image::FORMAT_BC2: format = "bc2"; break;
+					case Image::FORMAT_BC3: format = "bc3"; break;
+					case Image::FORMAT_BC4: format = "bc4"; break;
+					case Image::FORMAT_BC5: format = "bc5"; break;
+					case Image::FORMAT_CUSTOM: format = "custom custom_size=" + itos(img.get_data().size()) + ""; break;
+					default: {
+					}
+				}
+
+				str += format + ", ";
+				str += itos(img.get_mipmaps()) + ", ";
+				str += itos(img.get_width()) + ", ";
+				str += itos(img.get_height()) + ", ";
+				DVector<uint8_t> data = img.get_data();
+				int ds = data.size();
+				DVector<uint8_t>::Read r = data.read();
+				for (int i = 0; i < ds; i++) {
+					uint8_t byte = r[i];
+					const char hex[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+					char bstr[3] = { hex[byte >> 4], hex[byte & 0xF], 0 };
+					str += bstr;
+				}
+			}
+			str += ")";
+			return str;
+		} break;
+		case Variant::INPUT_EVENT: {
+
+			InputEvent ev = p_variant;
+
+			switch (ev.type) {
+
+				case InputEvent::KEY: {
+
+					String mods;
+					if (ev.key.mod.control)
+						mods += "C";
+					if (ev.key.mod.shift)
+						mods += "S";
+					if (ev.key.mod.alt)
+						mods += "A";
+					if (ev.key.mod.meta)
+						mods += "M";
+					if (mods != "")
+						mods = ", " + mods;
+
+					return "key(" + keycode_get_string(ev.key.scancode) + mods + ")";
+				} break;
+				case InputEvent::MOUSE_BUTTON: {
+
+					return "mbutton(" + itos(ev.device) + ", " + itos(ev.mouse_button.button_index) + ")";
+				} break;
+				case InputEvent::JOYSTICK_BUTTON: {
+
+					return "jbutton(" + itos(ev.device) + ", " + itos(ev.joy_button.button_index) + ")";
+				} break;
+				case InputEvent::JOYSTICK_MOTION: {
+
+					return "jaxis(" + itos(ev.device) + ", " + itos(ev.joy_motion.axis * 2 + (ev.joy_motion.axis_value < 0 ? 0 : 1)) + ")";
+				} break;
+				default: {
+
+					return "nil";
+				} break;
+			}
+		} break;
+		default: {
+		}
+	}
+
+	return "nil"; //don't know wha to do with this
+}
+
 
 ProjectConfigLoader::ProjectConfigLoader() {
 }

@@ -232,15 +232,15 @@ Error GDScriptDecomp_a3f1ee5::decompile_buffer(Vector<uint8_t> p_buffer) {
 		Vector<uint8_t> cs;
 		cs.resize(len);
 		for (int j = 0; j < len; j++) {
-			cs.write[j] = b[j] ^ 0xb6;
+			cs[j] = b[j] ^ 0xb6;
 		}
 
-		cs.write[cs.size() - 1] = 0;
+		cs[cs.size() - 1] = 0;
 		String s;
 		s.parse_utf8((const char *)cs.ptr());
 		b += len;
 		total_len -= len + 4;
-		identifiers.write[i] = s;
+		identifiers[i] = s;
 	}
 
 	constants.resize(constant_count);
@@ -255,7 +255,7 @@ Error GDScriptDecomp_a3f1ee5::decompile_buffer(Vector<uint8_t> p_buffer) {
 		}
 		b += len;
 		total_len -= len;
-		constants.write[i] = v;
+		constants[i] = v;
 	}
 
 	ERR_FAIL_COND_V(line_count * 8 > total_len, ERR_INVALID_DATA);
@@ -280,10 +280,10 @@ Error GDScriptDecomp_a3f1ee5::decompile_buffer(Vector<uint8_t> p_buffer) {
 		if ((*b) & TOKEN_BYTE_MASK) { //little endian always
 			ERR_FAIL_COND_V(total_len < 4, ERR_INVALID_DATA);
 
-			tokens.write[i] = decode_uint32(b) & ~TOKEN_BYTE_MASK;
+			tokens[i] = decode_uint32(b) & ~TOKEN_BYTE_MASK;
 			b += 4;
 		} else {
-			tokens.write[i] = *b;
+			tokens[i] = *b;
 			b += 1;
 			total_len--;
 		}

@@ -3,7 +3,7 @@
 /*************************************************************************/
 
 #include "register_types.h"
-#include "core/class_db.h"
+#include "core/object_type_db.h"
 
 #include "bytecode/bytecode_versions.h"
 #include "editor/gdre_editor.h"
@@ -18,15 +18,15 @@ void gdsdecomp_init_callback() {
 
 void register_gdsdecomp_types() {
 
-	ClassDB::register_virtual_class<GDScriptDecomp>();
+	ObjectTypeDB::register_virtual_type<GDScriptDecomp>();
 	register_decomp_versions();
 
-	ClassDB::register_class<GodotREEditorStandalone>();
+	ObjectTypeDB::register_type<GodotREEditorStandalone>();
 
-	ClassDB::register_class<PackDialog>();
-	ClassDB::register_class<NewPackDialog>();
-	ClassDB::register_class<ScriptCompDialog>();
-	ClassDB::register_class<ScriptDecompDialog>();
+	ObjectTypeDB::register_type<PackDialog>();
+	ObjectTypeDB::register_type<NewPackDialog>();
+	ObjectTypeDB::register_type<ScriptCompDialog>();
+	ObjectTypeDB::register_type<ScriptDecompDialog>();
 #ifdef TOOLS_ENABLED
 	EditorNode::add_init_callback(&gdsdecomp_init_callback);
 #endif

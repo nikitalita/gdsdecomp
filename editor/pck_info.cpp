@@ -18,15 +18,15 @@ bool PckDumper::_get_magic_number(FileAccess * pck) {
 	if (magic != 0x43504447) {
 		//maybe at he end.... self contained exe
 		pck->seek_end();
-		pck->seek(pck->get_position() - 4);
+		pck->seek(pck->get_pos() - 4);
 		magic = pck->get_32();
 		if (magic != 0x43504447) {
 			return false;
 		}
-		pck->seek(pck->get_position() - 12);
+		pck->seek(pck->get_pos() - 12);
 
 		uint64_t ds = pck->get_64();
-		pck->seek(pck->get_position() - ds - 8);
+		pck->seek(pck->get_pos() - ds - 8);
 
 		magic = pck->get_32();
 		if (magic != 0x43504447) {
@@ -39,7 +39,7 @@ bool PckDumper::_get_magic_number(FileAccess * pck) {
 
 
 bool PckDumper::_pck_file_check_md5(FileAccess *pck, const PackedFile & f) {
-	size_t oldpos = pck->get_position();
+	size_t oldpos = pck->get_pos();
 	pck->seek(f.offset);
 
 #if ((VERSION_MAJOR == 3) && (VERSION_MINOR == 2))
@@ -86,10 +86,10 @@ bool PckDumper::_pck_file_check_md5(FileAccess *pck, const PackedFile & f) {
 		md5_match &= (hash[j] == f.md5[j]);
 		file_md5 += String::num_uint64(hash[j], 16);
 #else
-		md5_match &= (md5.digest[j] == md5_saved[j]);
-		file_md5 += String::num_uint64(md5.digest[j], 16);
+		md5_match &= (md5.digest[j] == f.md5[j]);
+		file_md5 = String::md5(md5.digest);
 #endif
-		saved_md5 += String::num_uint64(f.md5[j], 16);
+		saved_md5 = String::md5(f.md5);
 	}
 	return md5_match;
 }

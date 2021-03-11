@@ -9,7 +9,7 @@
 typedef Map<String, Variant> CustomMap;
 
 class ProjectConfigLoader : Object {
-    GDCLASS(ProjectConfigLoader, Object);
+    OBJ_TYPE(ProjectConfigLoader, Object);
 	struct VariantContainer {
 		int order;
 		bool persist;

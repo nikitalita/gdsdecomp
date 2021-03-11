@@ -24,7 +24,7 @@
 #endif
 
 class ScriptDecompRecursiveDialog : public AcceptDialog {
-	GDCLASS(ScriptDecompRecursiveDialog, AcceptDialog)
+	OBJ_TYPE(ScriptDecompRecursiveDialog, AcceptDialog)
 
 	FileDialog *source_folder_selection;
 	FileDialog *file_selection;

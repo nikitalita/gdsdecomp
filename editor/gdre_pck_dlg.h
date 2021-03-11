@@ -24,7 +24,7 @@
 #endif
 
 class PackDialog : public AcceptDialog {
-	GDCLASS(PackDialog, AcceptDialog)
+	OBJ_TYPE(PackDialog, AcceptDialog)
 
 	FileDialog *target_folder_selection;
 

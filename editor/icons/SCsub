@@ -71,8 +71,8 @@ def make_gdre_icons_action(target, source, env):
 
 make_gdre_icons_builder = Builder(action=make_gdre_icons_action,
                                     suffix='.h',
-                                    src_suffix='.svg')
+                                    src_suffix='.png')
 env['BUILDERS']['MakeEditorIconsBuilder'] = make_gdre_icons_builder
-env.Alias('gdre_icons', [env.MakeEditorIconsBuilder('icons.gen.h', Glob("*.svg"))])
+env.Alias('gdre_icons', [env.MakeEditorIconsBuilder('icons.gen.h', Glob("*.png"))])
 
 Export('env')
