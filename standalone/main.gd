@@ -84,6 +84,11 @@ func convert_bin_res_files(files: Array, root: String):
 	for path in failed_files:
 		_convert_bin_res_file(path, root, files, converted_files, new_failed_files)
 	
+	# Then, do the whole thing again because it's finicky as hell 
+	new_failed_files.clear()
+	for path in files:
+		_convert_bin_res_file(path, root, files, converted_files, new_failed_files)
+
 	#report:
 	print("*****FAILED TO CONVERT*****")
 	for path in new_failed_files:
@@ -113,76 +118,100 @@ func list_dir_rel(root: String, filter:String="", rel:String ="") -> Array:
 		list.append_array(list_dir_rel(root, filter, rel.plus_file(subdir)))
 	return list
 
-func test_scnthing(output_dir:String):
-	var list = list_dir_rel(output_dir, "scn,res")
-	for f in list:
-		print("*** " + f)
-	convert_bin_res_files(list, output_dir)
 
-
-func dump_files(exe_file:String, output_dir:String):
+func dump_files(exe_file:String, output_dir:String, no_decomp:bool = false, convert_bin_res:bool = false):
 	var thing = PckDumper.new()
-	if thing.load_pck(exe_file) == OK:
-		print("Loaded this shit!")
-		var version:String = thing.get_engine_version();
-		print("Version: " + version)
-		#thing.check_md5_all_files()
-		if thing.pck_dump_to_dir(output_dir) != OK:
-			print("error dumping to dir")
-			return
-		print("haldo")
-		var decomp;
-		if version.begins_with("2.1"):
-			print("Version 2.1.x detected")
-			decomp = GDScriptDecomp_ed80f45.new()
-		elif version.begins_with("3.2"):
-			print("Version 3.2.x detected")
-			decomp = GDScriptDecomp_5565f55.new()
-		else:
-			print("unknown version, no decomp")
-			return
-		
-		for f in thing.get_loaded_files():
-			var da:Directory = Directory.new()
-			da.open(output_dir)
-			if f.get_extension() == "gdc":
-				print("decompiling " + f)
-				if decomp.decompile_byte_code(output_dir.plus_file(f)) != OK: 
-					print("error decompiling " + f)
-				else:
-					var text = decomp.get_script_text()
-					var gdfile:File = File.new()
-					if gdfile.open(output_dir.plus_file(f.replace(".gdc",".gd")), File.WRITE) == OK:
-						gdfile.store_string(text)
-						gdfile.close()
-						da.remove(f)
-						if da.file_exists(f.replace(".gdc",".gd.remap")):
-							da.remove(f.replace(".gdc",".gd.remap"))
-						print("successfully decompiled " + f)
-					else:
-						print("error failed to save "+ f)
+	if thing.load_pck(exe_file) != OK:
+		print("ERROR: failed to load pak")
+		return
+	print("Loaded pak!")
+	var version: String = thing.get_engine_version();
+	print("Version: " + version)
+	#thing.check_md5_all_files()
+	if thing.pck_dump_to_dir(output_dir) != OK:
+		print("error dumping to dir")
+		return
+	if no_decomp:
+		return
+	var decomp: GDScriptDecomp;
+	if version.begins_with("1.0"):
+		print("Version 1.0.x detected")
+		decomp = GDScriptDecomp_e82dc40.new()
+	elif version.begins_with("1.0"):
+		print("Version 1.1.x detected")
+		decomp = GDScriptDecomp_65d48d6.new()	
+	elif version.begins_with("2.0"):
+		print("Version 2.0.x detected")
+		decomp = GDScriptDecomp_23441ec.new()
+	elif version.begins_with("2.1"):
+		print("Version 2.1.x detected")
+		decomp = GDScriptDecomp_ed80f45.new()
+	elif version.begins_with("3.2"):
+		print("Version 3.2.x detected")
+		decomp = GDScriptDecomp_5565f55.new()
+	elif version.begins_with("3.1"):
+		print("Version 3.1.x detected")
+		decomp = GDScriptDecomp_514a3fb.new()
+	elif version.begins_with("3.0"):
+		print("Version 3.0.x detected")
+		decomp = GDScriptDecomp_054a2ac.new()
 	else:
-		print("ERROR: failed to load exe")
+		print("unknown version, no decomp")
+		return
+
+	for f in thing.get_loaded_files():
+		var da:Directory = Directory.new()
+		da.open(output_dir)
+		if f.get_extension() == "gdc":
+			print("decompiling " + f)
+			if decomp.decompile_byte_code(output_dir.plus_file(f)) != OK: 
+				print("error decompiling " + f)
+			else:
+				var text = decomp.get_script_text()
+				var gdfile:File = File.new()
+				if gdfile.open(output_dir.plus_file(f.replace(".gdc",".gd")), File.WRITE) == OK:
+					gdfile.store_string(text)
+					gdfile.close()
+					da.remove(f)
+					if da.file_exists(f.replace(".gdc",".gd.remap")):
+						da.remove(f.replace(".gdc",".gd.remap"))
+					print("successfully decompiled " + f)
+				else:
+					print("error failed to save "+ f)
+
+	if convert_bin_res:
+		var list = list_dir_rel(output_dir, "scn,res")
+		convert_bin_res_files(list, output_dir)	
+
 
 func handle_cli():
 	var args = OS.get_cmdline_args()
 	var exe_file:String = ""
 	var output_dir: String = ""
+	var no_decomp = false;
+	var convert_bin_res = false;
 	for i in range(args.size()):
 		var arg:String = args[i]
 		if arg == "--help":
-			print("Usage: GDRE_Tools.exe --no-window --extract=<PAK_OR_EXE> --output-dir=<DIR>")
+			print("Usage: GDRE_Tools.exe --no-window --extract=<PAK_OR_EXE> --output-dir=<DIR> [options]")
+			print("--no-decomp           No GDScript decompilation")
+			print("--convert-bin-res     convert binary .scn/.res to .tscn/.tres")
 			get_tree().quit()
-		if arg.begins_with("--extract"):
+		elif arg.begins_with("--extract"):
 			exe_file = get_arg_value(arg)
-		if arg.begins_with("--output-dir"):
+		elif arg.begins_with("--output-dir"):
 			output_dir = get_arg_value(arg)
+		elif arg == "--no-decomp":
+			no_decomp = true
+		elif arg == "--convert-bin-res":
+			convert_bin_res = true
+
 	if exe_file != "":
 		if output_dir == "":
 			print("Error: use --output-dir=<dir> when using --extract")
 			get_tree().quit()
 		else:
-			dump_files(exe_file, output_dir)
+			dump_files(exe_file, output_dir, no_decomp, convert_bin_res)
 	get_tree().quit()	
 
 
