@@ -88,6 +88,7 @@ NewPackDialog::NewPackDialog() {
 	script_vb->add_margin_child(RTR("Extra tag:"), wmark);
 
 	add_child(script_vb);
+	set_child_rect(script_vb);
 
 	get_ok()->set_text(RTR("Save..."));
 	add_cancel(RTR("Cancel"));

@@ -55,6 +55,7 @@ ScriptDecompRecursiveDialog::ScriptDecompRecursiveDialog() {
 
 
 	add_child(script_vb);
+	set_child_rect(script_vb);
 
 	get_ok()->set_text(RTR("Decompile"));
 	_validate_input();

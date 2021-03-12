@@ -15,16 +15,13 @@ Vector<String> get_directory_listing(const String dir, const Vector<String> &fil
 			continue;
 		} else if (da->current_is_dir()){
 			Vector<String> dirlist = get_directory_listing(dir, filters, rel.plus_file(f));
-			ret.resize(ret.size() + dirlist.size());
 			for (int i = 0; i < dirlist.size(); i++){
 				ret.push_back(dirlist[i]);
 			}
 		} else {
 			if (filters.size() > 0){
 				for (int i = 0; i < filters.size(); i++){
-					Vector<String> dumb =  f.get_file().split(".");
-					String extension = dumb.get(dumb.size()-1);
-					if (filters[i] == extension){
+					if (filters[i] == f.extension()) {
 						ret.push_back(dir.plus_file(rel).plus_file(f));
 						break;
 					}

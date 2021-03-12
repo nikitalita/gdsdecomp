@@ -190,6 +190,7 @@ Error PckDumper::pck_dump_to_dir(const String &dir) {
 				fa->store_buffer(buf, got);
 				rq_size -= 16384;
 			}
+			fa->close();
 			memdelete(fa);
 		} else {
 			failed_files += files.get(i).path + " (FileAccess error)\n";

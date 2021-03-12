@@ -3,12 +3,14 @@
 Import('env')
 Import('env_modules')
 
-SConscript('editor/icons/SCsub')
-
 env_gdsdecomp = env_modules.Clone()
-
+env_gdsdecomp.icon_sources = []
 env_gdsdecomp.Append(CPPPATH=["."])
 env_gdsdecomp.add_source_files(env.modules_sources, "*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "bytecode/*.cpp")
-
 env_gdsdecomp.add_source_files(env.modules_sources, "editor/*.cpp")
+
+Export('env_gdsdecomp')
+SConscript('editor/icons/SCsub')
+
+Export('env_gdsdecomp')

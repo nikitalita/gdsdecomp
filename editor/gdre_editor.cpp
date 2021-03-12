@@ -14,7 +14,7 @@
 
 #include "core/io/file_access_encrypted.h"
 #include "core/io/resource_format_binary.h"
-#include "icons/icons.gen.h"
+#include "gdre_icons.h"
 #include "scene/resources/scene_format_text.h"
 
 #include "scene/resources/sample.h"
@@ -193,6 +193,7 @@ ResultDialog::ResultDialog() {
 	script_vb->add_child(message);
 
 	add_child(script_vb);
+	set_child_rect(script_vb);
 };
 
 ResultDialog::~ResultDialog() {
@@ -232,6 +233,7 @@ OverwriteDialog::OverwriteDialog() {
 	script_vb->add_child(message);
 
 	add_child(script_vb);
+	set_child_rect(script_vb);
 
 	get_ok()->set_text(RTR("Overwrite"));
 	add_cancel(RTR("Cancel"));
@@ -289,14 +291,7 @@ GodotREEditor::GodotREEditor(Control *p_control, HBoxContainer *p_menu) {
 void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu) {
 
 	//Init editor icons
-
-	for (int i = 0; i < gdre_icons_count; i++) {
-		Ref<ImageTexture> icon = memnew(ImageTexture);
-		Image img;
-		img.load(gdre_icons_sources[i]);
-		icon->create_from_image(img);
-		gui_icons[gdre_icons_names[i]] = icon;
-	}
+	gui_icons = get_gdre_icons();
 
 	//Init dialogs
 
@@ -389,6 +384,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 
 		VBoxContainer *about_vbc = memnew(VBoxContainer);
 		about_dialog->add_child(about_vbc);
+		about_dialog->set_child_rect(about_vbc);
 
 		HBoxContainer *about_hbc = memnew(HBoxContainer);
 		about_vbc->add_child(about_hbc);
@@ -681,7 +677,7 @@ void GodotREEditor::_decompile(GDScriptDecomp *dce, EditorProgressGDDC *p_pr, co
 
 	for (int i = 0; i < files.size(); i++) {
 		print_warning(RTR("decompiling") + " " + files[i].get_file(), RTR("Decompile"));
-
+		String file_name = files[i];
 		String target_name;
 		if (destdir == ""){
 			target_name = files[i].get_base_dir().plus_file(files[i].get_file().basename() + ".gd");
@@ -1232,6 +1228,7 @@ void GodotREEditor::_pck_extract_files_process() {
 				fa->store_buffer(buf, got);
 				rq_size -= 16384;
 			}
+			fa->close();
 			memdelete(fa);
 		} else {
 			failed_files += files[i] + " (FileAccess error)\n";
@@ -1240,6 +1237,7 @@ void GodotREEditor::_pck_extract_files_process() {
 			convert_cfb_to_cfg(target_name);
 		}
 	}
+	memdelete(da);
 	memdelete(pr);
 	memdelete(pck);
 
@@ -1790,6 +1788,7 @@ void GodotREEditor::_pck_save_request(const String &p_path) {
 				f->store_buffer(buf, got);
 				rq_size -= 16384;
 			}
+			fa->close();
 			memdelete(fa);
 		} else {
 			failed_files += pck_save_files[i].name + " (FileAccess error)\n";

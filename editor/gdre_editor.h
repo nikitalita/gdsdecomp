@@ -130,12 +130,12 @@ struct EditorProgressGDDC {
 #else
 		{
 #endif
-			progress_dialog->task_step(task, p_state, p_step, p_force_refresh);
 			if (progress_dialog){
-				return true;
+				progress_dialog->task_step(task, p_state, p_step, p_force_refresh);
+				return false;
 			}	
 		}
-		return false;
+		return true;
 	}
 
 	EditorProgressGDDC(Control *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false) {

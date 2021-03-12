@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 Import('env')
+Import('env_gdsdecomp')
 from compat import StringIO
 
 def make_gdre_icons_action(target, source, env):
@@ -8,71 +9,86 @@ def make_gdre_icons_action(target, source, env):
     import os
 
     dst = target[0].srcnode().abspath
-    svg_icons = source
-
-    icons_string = StringIO()
-
-    for f in svg_icons:
-
-        fname = str(f)
-
-        icons_string.write('\t"')
-
-        with open(fname, 'rb') as svgf:
-            b = svgf.read(1)
-            while(len(b) == 1):
-                icons_string.write("\\" + str(hex(ord(b)))[1:])
-                b = svgf.read(1)
-
-
-        icons_string.write('"')
-        if fname != svg_icons[-1]:
-            icons_string.write(",")
-        icons_string.write('\n')
+    pixmaps = source
 
     s = StringIO()
-    s.write("/* THIS FILE IS GENERATED DO NOT EDIT */\n")
-    s.write("#ifndef _GDRE_EDITOR_ICONS_H\n")
-    s.write("#define _GDRE_EDITOR_ICONS_H\n")
-    s.write("static const int gdre_icons_count = {};\n".format(len(svg_icons)))
-    s.write("static const char *gdre_icons_sources[] = {\n")
-    s.write(icons_string.getvalue())
-    s.write('};\n\n')
-    s.write("static const char *gdre_icons_names[] = {\n")
 
-    # this is used to store the indices of thumbnail icons
-    index = 0
-    for f in svg_icons:
+    s.write("#include \"gdre_icons.h\"\n\n")
+    s.write("#include \"editor_scale.h\"\n\n")
+    s.write("#include \"scene/resources/theme.h\"\n\n")
 
-        fname = str(f)
+    hidpi_list = []
 
-        icon_name = os.path.basename(fname)[5:-4].title().replace("_", "")
-        # some special cases
-        if icon_name in ['Int', 'Bool', 'Float']:
-            icon_name = icon_name.lower()
+    for x in pixmaps:
 
-        s.write('\t"{0}"'.format(icon_name))
+        x = str(x)
+        var_str = os.path.basename(x)[:-4] + "_png"
+        # print(var_str)
 
-        if fname != svg_icons[-1]:
-            s.write(",")
-        s.write('\n')
+        s.write("static const unsigned char " + var_str + "[]={\n")
 
-        index += 1
+        pngf = open(x, "rb")
 
-    s.write('};\n')
+        b = pngf.read(1)
+        while(len(b) == 1):
+            s.write(hex(ord(b)))
+            b = pngf.read(1)
+            if (len(b) == 1):
+                s.write(",")
 
-    s.write("#endif\n")
+        s.write("\n};\n\n")
 
-    with open(dst, "w") as f:
-        f.write(s.getvalue())
+        pngf.close()
+        var_str = os.path.basename(x)[:-4] + "_hidpi_png"
+        try:
 
+            pngf = open(os.path.dirname(x) + "/2x/" + os.path.basename(x), "rb")
+
+            s.write("static const unsigned char " + var_str + "[]={\n")
+
+            b = pngf.read(1)
+            while(len(b) == 1):
+                s.write(hex(ord(b)))
+                b = pngf.read(1)
+                if (len(b) == 1):
+                    s.write(",")
+
+            s.write("\n};\n\n\n")
+            hidpi_list.append(x)
+
+        except:
+            s.write("static const unsigned char* " + var_str + "=NULL;\n\n\n")
+
+    s.write("static Ref<ImageTexture> make_icon(const uint8_t* p_png,const uint8_t* p_hidpi_png) {\n")
+    s.write("\tRef<ImageTexture> texture( memnew( ImageTexture ) );\n")
+    s.write("\tImage img((editor_is_hidpi()&&p_hidpi_png)?p_hidpi_png:p_png);\n")
+    s.write("\tif (editor_is_hidpi() && !p_hidpi_png) { img.convert(Image::FORMAT_RGBA); img.expand_x2_hq2x(); }\n")
+    s.write("\ttexture->create_from_image( img,ImageTexture::FLAG_FILTER );\n")
+    s.write("\treturn texture;\n")
+    s.write("}\n\n")
+
+    s.write("Map<String, Ref<ImageTexture>> get_gdre_icons() {\n\n")
+    s.write("\tMap<String, Ref<ImageTexture>> gdre_icons;")
+
+    for x in pixmaps:
+
+        x = os.path.basename(str(x))
+        type = x[5:-4].title().replace("_", "")
+        var_str = x[:-4] + "_png"
+        var_str_hidpi = x[:-4] + "_hidpi_png"
+        s.write("\tgdre_icons.insert(\"" + type + "\",make_icon(" + var_str + "," + var_str_hidpi + "));\n")
+    s.write("\treturn gdre_icons;")
+    s.write("\n\n}\n\n")
+
+    f = open(dst, "w")
+    f.write(s.getvalue())
+    f.close()
     s.close()
-    icons_string.close()
 
 make_gdre_icons_builder = Builder(action=make_gdre_icons_action,
-                                    suffix='.h',
+                                    suffix='.cpp',
                                     src_suffix='.png')
-env['BUILDERS']['MakeEditorIconsBuilder'] = make_gdre_icons_builder
-env.Alias('gdre_icons', [env.MakeEditorIconsBuilder('icons.gen.h', Glob("*.png"))])
-
-Export('env')
+env_gdsdecomp['BUILDERS']['MakeGdreIconsBuilder'] = make_gdre_icons_builder
+env_gdsdecomp.Alias('gdre_icons', [env_gdsdecomp.MakeGdreIconsBuilder('#modules/gdsdecomp/editor/gdre_icons.gen.cpp', Glob("*.png"))])
+env_gdsdecomp.add_source_files(env.modules_sources, "modules/gdsdecomp/editor/gdre_icons.gen.cpp")
+#env.modules_sources.append("#modules/gdsdecomp/editor/gdre_icons.gen.cpp")
