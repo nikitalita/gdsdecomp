@@ -14,7 +14,9 @@ def make_gdre_icons_action(target, source, env):
     s = StringIO()
 
     s.write("#include \"gdre_icons.h\"\n\n")
+    s.write("#ifdef TOOLS_ENABLED\n\n")
     s.write("#include \"editor_scale.h\"\n\n")
+    s.write("#endif\n\n")
     s.write("#include \"scene/resources/theme.h\"\n\n")
 
     hidpi_list = []
@@ -59,10 +61,19 @@ def make_gdre_icons_action(target, source, env):
         except:
             s.write("static const unsigned char* " + var_str + "=NULL;\n\n\n")
 
+    s.write("static bool check_hidpi(){\n")
+
+    s.write("#ifdef TOOLS_ENABLED\n")
+    s.write("\treturn editor_is_hidpi();\n")
+    s.write("#else\n")
+    s.write("\treturn false;\n")
+    s.write("#endif\n")
+    s.write("}\n\n")
+
     s.write("static Ref<ImageTexture> make_icon(const uint8_t* p_png,const uint8_t* p_hidpi_png) {\n")
     s.write("\tRef<ImageTexture> texture( memnew( ImageTexture ) );\n")
-    s.write("\tImage img((editor_is_hidpi()&&p_hidpi_png)?p_hidpi_png:p_png);\n")
-    s.write("\tif (editor_is_hidpi() && !p_hidpi_png) { img.convert(Image::FORMAT_RGBA); img.expand_x2_hq2x(); }\n")
+    s.write("\tImage img((check_hidpi()&&p_hidpi_png)?p_hidpi_png:p_png);\n")
+    s.write("\tif (check_hidpi() && !p_hidpi_png) { img.convert(Image::FORMAT_RGBA); img.expand_x2_hq2x(); }\n")
     s.write("\ttexture->create_from_image( img,ImageTexture::FLAG_FILTER );\n")
     s.write("\treturn texture;\n")
     s.write("}\n\n")

@@ -70,12 +70,6 @@ void ProgressDialog::_popup() {
 }
 
 void ProgressDialog::add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel) {
-
-	if (MessageQueue::get_singleton()->is_flushing()) {
-		ERR_PRINT("Do not use progress dialog (task) while flushing the message queue or using call_deferred()!");
-		return;
-	}
-
 	ERR_FAIL_COND(tasks.has(p_task));
 	ProgressDialog::Task t;
 	t.vb = memnew(VBoxContainer);
@@ -83,7 +77,7 @@ void ProgressDialog::add_task(const String &p_task, const String &p_label, int p
 	t.vb->add_margin_child(p_label, vb2);
 	t.progress = memnew(ProgressBar);
 	t.progress->set_max(p_steps);
-	t.progress->set_value(p_steps);
+	t.progress->set_val(p_steps);
 	vb2->add_child(t.progress);
 	t.state = memnew(Label);
 	t.state->set_clip_text(true);
@@ -116,15 +110,15 @@ bool ProgressDialog::task_step(const String &p_task, const String &p_state, int 
 
 	Task &t = tasks[p_task];
 	if (p_step < 0)
-		t.progress->set_value(t.progress->get_value() + 1);
+		t.progress->set_val(t.progress->get_val() + 1);
 	else
-		t.progress->set_value(p_step);
+		t.progress->set_val(p_step);
 
 	t.state->set_text(p_state);
 	last_progress_tick = OS::get_singleton()->get_ticks_usec();
-	if (cancel_hb->is_visible()) {
-		OS::get_singleton()->force_process_input();
-	}
+	//if (cancel_hb->is_visible()) {
+	//	OS::get_singleton()->force_process_input();
+	//}
 	Main::iteration(); // this will not work on a lot of platforms, so it's only meant for the editor
 	return cancelled;
 }
@@ -148,14 +142,14 @@ void ProgressDialog::_cancel_pressed() {
 }
 
 void ProgressDialog::_bind_methods() {
-	ClassDB::bind_method("_cancel_pressed", &ProgressDialog::_cancel_pressed);
+	ObjectTypeDB::bind_method("_cancel_pressed", &ProgressDialog::_cancel_pressed);
 }
 
 ProgressDialog::ProgressDialog() {
 
 	main = memnew(VBoxContainer);
 	add_child(main);
-	main->set_anchors_and_margins_preset(Control::PRESET_WIDE);
+	main->set_area_as_parent_rect();
 	set_exclusive(true);
 	last_progress_tick = 0;
 	singleton = this;
