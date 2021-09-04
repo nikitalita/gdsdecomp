@@ -77,8 +77,15 @@ Error PckDumper::check_md5_all_files() {
 }
 
 Error PckDumper::pck_dump_to_dir(const String &dir) {
+	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(), dir);
+}
+
+Error PckDumper::pck_extract_files_to_dir(Vector<String> files, const String &dir){
+	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(files), dir);
+}
+
+Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const String &dir) {
 	DirAccess *da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	auto files = GDRESettings::get_singleton()->get_file_info_list();
 	Vector<uint8_t> key = get_key();
 	if (!da) {
 		return ERR_FILE_CANT_WRITE;
