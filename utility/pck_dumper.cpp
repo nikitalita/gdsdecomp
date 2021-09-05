@@ -13,6 +13,13 @@
 #include "core/crypto/crypto_core.h"
 #include "gdre_settings.h"
 
+#define STEP_OR_BREAK(pr, file_name, i) 	\
+	if (pr) {								\
+		if (pr->step(file_name, i, true))	\
+			break;							\
+	}
+	
+
 bool PckDumper::_pck_file_check_md5(Ref<PackedFileInfo> &file) {
 	Error err;
 	FileAccess *pck_f = FileAccess::open(file->get_path(), FileAccess::READ, &err);
@@ -61,30 +68,51 @@ Error PckDumper::load_pck(const String &p_path) {
 	return GDRESettings::get_singleton()->load_pack(p_path);
 }
 
-Error PckDumper::check_md5_all_files() {
+Error PckDumper::check_md5_all_files(){
+	return _check_md5_all_files();
+}
+
+Error PckDumper::_check_md5_all_files(EditorProgressGDDC * pr) {
 	Error err = OK;
 	auto files = GDRESettings::get_singleton()->get_file_info_list();
+	String failed_files = "";
+	if (pr) {
+		pr->set_task("re_read_pck_md5", RTR("Reading PCK archive, click cancel to skip MD5 checking..."), files.size(), true);
+	}
 	for (int i = 0; i < files.size(); i++) {
+		STEP_OR_BREAK(pr, files[i]->path, i);
 		files.write[i]->set_md5_match(_pck_file_check_md5(files.write[i]));
 		if (files[i]->md5_passed) {
 			print_line("Verified " + files[i]->path);
 		} else {
 			print_error("Checksum failed for " + files[i]->path);
+			failed_files += files[i]->path + "\n";
 			err = ERR_BUG;
 		}
+	}
+	if (err != OK && pr){
+		pr->set_warning("Checksum failed for files:", failed_files);
 	}
 	return err;
 }
 
 Error PckDumper::pck_dump_to_dir(const String &dir) {
-	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(), dir);
+	return _pck_dump_to_dir(dir);
+}
+
+Error PckDumper::_pck_dump_to_dir(const String &dir, EditorProgressGDDC * pr) {
+	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(), dir, pr);
 }
 
 Error PckDumper::pck_extract_files_to_dir(Vector<String> files, const String &dir){
-	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(files), dir);
+	return _pck_extract_files_to_dir(files, dir);
 }
 
-Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const String &dir) {
+Error PckDumper::_pck_extract_files_to_dir(Vector<String> files, const String &dir, EditorProgressGDDC * pr){
+	return pck_extract_to_dir(GDRESettings::get_singleton()->get_file_info_list(files), dir, pr);
+}
+
+Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const String &dir, EditorProgressGDDC * pr) {
 	DirAccess *da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	Vector<uint8_t> key = get_key();
 	if (!da) {
@@ -92,8 +120,14 @@ Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const Str
 	}
 	String failed_files;
 	Error err;
+
+	if (pr) {
+		pr->set_task("re_ext_pck", "Extracting files...", files.size(), true);
+	}
+
 	for (int i = 0; i < files.size(); i++) {
 		FileAccess *pck_f = FileAccess::open(files.get(i)->get_path(), FileAccess::READ, &err);
+		STEP_OR_BREAK(pr, files.get(i)->get_path(), i);
 		if (!pck_f) {
 			failed_files += files.get(i)->get_path() + " (FileAccess error)\n";
 			continue;
@@ -140,10 +174,11 @@ Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const Str
 
 	if (failed_files.length() > 0) {
 		print_error("At least one error was detected while extracting pack!\n" + failed_files);
-		//show_warning(failed_files, RTR("Read PCK"), RTR("At least one error was detected!"));
+		if (pr){
+			pr->set_warning("At least one error was detected!", failed_files);
+		}
 	} else {
 		print_line("No errors detected!");
-		//show_warning(RTR("No errors detected."), RTR("Read PCK"), RTR("The operation completed successfully!"));
 	}
 	return OK;
 }

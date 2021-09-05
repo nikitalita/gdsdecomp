@@ -23,8 +23,11 @@
 
 #include "core/version_generated.gen.h"
 #include "utility/pcfg_loader.h"
+#include "utility/pck_dumper.h"
+
 #include "utility/resource_loader_compat.h"
 #include "utility/texture_loader_compat.h"
+#include "utility/gdre_settings.h"
 
 #if VERSION_MAJOR < 4
 #error Unsupported Godot version
@@ -302,6 +305,8 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 
 	pck_dialog = memnew(PackDialog);
 	pck_dialog->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files));
+	//pck_dialog->connect("cancelled", callable_mp(this, &GodotREEditor::_pck_extract_files));
+
 	p_control->add_child(pck_dialog);
 
 	pck_source_folder = memnew(FileDialog);
@@ -793,8 +798,33 @@ void GodotREEditor::_compile_process() {
 /*************************************************************************/
 /* PCK explorer                                                          */
 /*************************************************************************/
-
 void GodotREEditor::_pck_select_request(const String &p_path) {
+	Vector<uint8_t> key = key_dialog->get_key();
+	GDRESettings::get_singleton()->set_encryption_key(key);
+	Error err = GDRESettings::get_singleton()->load_pack(p_path);
+	if (err == ERR_BUG){
+		ERR_FAIL();
+	} else if (err != OK){
+		show_warning("PCK may be encrypted, enter key in key dialog", RTR("Read PCK"), RTR("Error opening PCK file: ") + p_path);
+		return;
+	}
+	PckDumper pck_dumper;
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent));
+	// err = pck_dumper._check_md5_all_files(pr);
+	// if (err != OK){
+	// 	print_warning(pr->warning_message, pr->warning_label);
+	// }
+	// uint32_t version = GDRESettings::get_singleton()->get_pack_version();
+	// uint32_t v_major = GDRESettings::get_singleton()->get_ver_major();
+	// uint32_t v_minor = GDRESettings::get_singleton()->get_ver_minor();
+	// uint32_t v_rev = GDRESettings::get_singleton()->get_ver_rev();
+	//pck_dialog->set_info(String("    ") + RTR("Total files: ") + itos(file_count) + "; " + RTR("Checked: ") + itos(files_checked) + "; " + RTR("Broken: ") + itos(files_broken));
+	memdelete(pr);
+	pck_dialog->add_files(true);
+	pck_dialog->popup_centered(Size2(600, 400));
+
+}
+void GodotREEditor::_pck_select_request2(const String &p_path) {
 
 	pck_file = String();
 	pck_dialog->clear();
@@ -1116,12 +1146,36 @@ void GodotREEditor::_pck_extract_files() {
 	}
 
 	if (overwrite_list.length() == 0) {
-		_pck_extract_files_process();
+		_pck_extract_files_proc();
 	} else {
 		ovd->set_message(overwrite_list);
-		ovd->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files_process), Vector<Variant>(), CONNECT_ONESHOT);
+		ovd->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files_proc), Vector<Variant>(), CONNECT_ONESHOT);
 		ovd->popup_centered();
 	}
+}
+
+void GodotREEditor::_pck_extract_files_proc(){
+	auto files = pck_dialog->get_selected_file_infos();
+	String dir = pck_dialog->get_target_dir();
+
+	String failed_files;
+
+	Vector<uint8_t> key = key_dialog->get_key();
+
+	GDRESettings::get_singleton()->set_encryption_key(key);
+	PckDumper * pck_dumper = memnew(PckDumper());
+
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent));
+	Error err = pck_dumper->pck_extract_to_dir(files, dir, pr);
+	if (pr->warning){
+		show_warning(pr->warning_message, RTR("Read PCK"), RTR(pr->warning_label));
+	}
+	GDRESettings::get_singleton()->unload_pack();
+	pck_files.clear();
+	pck_file = String();
+	memdelete(pck_dumper);
+	memdelete(pr);
+	ERR_FAIL_COND_MSG(err != OK, "Failed to extract pack");
 }
 
 void GodotREEditor::_pck_extract_files_process() {

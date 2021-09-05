@@ -3,6 +3,7 @@
 /*************************************************************************/
 
 #include "gdre_pck_dlg.h"
+#include "utility/gdre_settings.h"
 
 PackDialog::PackDialog() {
 
@@ -106,6 +107,47 @@ void PackDialog::clear() {
 	_validate_selection();
 }
 
+void PackDialog::add_files(bool checksum_skipped){
+	auto files = GDRESettings::get_singleton()->get_file_info_list();
+
+	updating = true;
+	int file_count = 0;
+	int files_checked = 0;
+	int files_broken = 0;
+	
+	for (int i = 0; i < files.size(); i++){
+		String p_name = files.get(i)->get_path().replace("res://", "");
+		uint64_t p_size = files.get(i)->get_size();
+		bool p_enc = files.get(i)->is_encrypted();
+		bool p_malformed_name = files.get(i)->is_malformed();
+		String p_error = "";
+		Ref<Texture> p_icon;
+		if (!checksum_skipped && !files.get(i)->is_checksum_validated()){
+			p_icon = get_theme_icon("REFileBroken", "EditorIcons");
+			p_error += RTR("MD5 mismatch\n");
+		} 
+		if (p_malformed_name) {
+			p_icon = get_theme_icon("REFileBroken", "EditorIcons");
+			p_error += RTR("Malformed path") + " \"" + files.get(i)->get_raw_path() + "\"";
+		}
+		if (p_error == "") {
+			if (checksum_skipped){
+				p_icon = get_theme_icon("REFile", "EditorIcons");	
+			} else {
+				p_icon = get_theme_icon("REFileOk", "EditorIcons");
+			}
+		} else {
+			files_broken++;
+		}
+		add_file_to_item(root, p_name, p_name, p_size, p_icon, p_error, p_enc);
+	}
+	file_count = files.size();
+	files_checked = files.size();
+	set_info(String("    ") + RTR("Total files: ") + itos(file_count) + "; " + RTR("Checked: ") + itos(files_checked) + "; " + RTR("Broken: ") + itos(files_broken));
+	set_version(GDRESettings::get_singleton()->get_version_string());
+	updating = false;
+}
+
 void PackDialog::add_file(const String &p_name, uint64_t p_size, Ref<Texture> p_icon, String p_error, bool p_malformed_name, bool p_enc) {
 
 	if (p_malformed_name) {
@@ -142,7 +184,6 @@ void PackDialog::add_file_to_item(TreeItem *p_item, const String &p_fullname, co
 		item->set_tooltip(0, p_error);
 		item->set_tooltip(1, p_error);
 		item->set_text(2, p_enc ? "Encrypted" : "");
-
 		_validate_selection();
 	} else {
 		String fld_name = p_name.substr(0, pp);
@@ -180,7 +221,7 @@ void PackDialog::_dir_select_request(const String &p_path) {
 }
 
 size_t PackDialog::_selected(TreeItem *p_item) {
-
+	int index = p_item->get_index();
 	size_t selected = 0;
 	String path = p_item->get_metadata(0);
 	if ((path != String()) && p_item->is_checked(0)) { //not a dir
@@ -277,6 +318,29 @@ Vector<String> PackDialog::get_selected_files() const {
 	return ret;
 }
 
+Vector<Ref<PackedFileInfo>> PackDialog::get_selected_file_infos() const {
+	auto files = GDRESettings::get_singleton()->get_file_info_list();
+	_get_selected_file_infos(files, root);
+	return files;
+}
+
+void PackDialog::_get_selected_file_infos(Vector<Ref<PackedFileInfo>> &p_list, TreeItem *p_item) const {
+	String name = p_item->get_metadata(0);
+	if (!p_item->is_checked(0) && (name != String())) {
+		for (int i = 0; i < p_list.size(); i++){
+			if (p_list.get(i)->get_path().replace("res://","") == name){
+				p_list.remove(i);
+				break;
+			}
+		}
+	}
+	TreeItem *it = p_item->get_first_child();
+	while (it) {
+		_get_selected_file_infos(p_list, it);
+		it = it->get_next();
+	}
+}
+
 void PackDialog::_get_selected_files(Vector<String> &p_list, TreeItem *p_item) const {
 
 	String name = p_item->get_metadata(0);
@@ -312,6 +376,7 @@ void PackDialog::_notification(int p_notification) {
 void PackDialog::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_selected_files"), &PackDialog::get_selected_files);
+	//ClassDB::bind_method(D_METHOD("get_selected_file_infos"), &PackDialog::get_selected_file_infos);
 	ClassDB::bind_method(D_METHOD("get_target_dir"), &PackDialog::get_target_dir);
 	ClassDB::bind_method(D_METHOD("set_version", "version"), &PackDialog::set_version);
 	ClassDB::bind_method(D_METHOD("set_info", "info"), &PackDialog::set_info);

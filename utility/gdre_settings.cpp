@@ -77,7 +77,17 @@ String get_standalone_pck_path() {
 
 	return exec_dir.plus_file(exec_basename + ".pck");
 }
-
+bool get_standalone_pck_exists() {
+	String path = get_standalone_pck_path();
+	String dir = path.get_base_dir();
+	DirAccess * da = DirAccess::open(dir);
+	if (!da) {
+		return false;
+	}
+	bool exists = da->exists(path);
+	memdelete(da);
+	return exists;
+}
 // This loads the pack into PackedData so that the paths are globally accessible with FileAccess.
 // This is VERY hacky. We have to make a new PackedData singleton when loading a pack, and then
 // delete it and make another new one while unloading.
@@ -107,16 +117,20 @@ Error GDRESettings::load_pack(const String &p_path) {
 	// which will cause a double free if we use that and then memdelete the new PackedData
 	new_singleton->add_pack_source(memnew(ZipArchive));
 #endif
-
+	Error err;
 	// If we're not in the editor, we have to add project pack back
 	if (!in_editor) {
-		// using the base PackedSourcePCK here
-		new_singleton->add_pack(get_standalone_pck_path(), false, 0);
+		// If it does exist, that means that we're not debugging and not using the --path option
+		if (get_standalone_pck_exists()){
+			// using the base PackedSourcePCK here
+			err = new_singleton->add_pack(get_standalone_pck_path(), false, 0);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_BUG, "FATAL: Failed to load our standalone pack!");
+		}
 	}
 	// set replace to true so that project.binary gets overwritten in case its loaded
 	// Project settings have already been loaded by this point and this won't affect them,
 	// so it's fine
-	new_singleton->add_pack(pack_path, true, 0);
+	err = new_singleton->add_pack(pack_path, true, 0);
 
 	// If we're in a first load, the old PackedData singleton is still held by main.cpp
 	// If we delete it, we'll cause a double free when the program closes because main.cpp deletes it
@@ -125,6 +139,7 @@ Error GDRESettings::load_pack(const String &p_path) {
 	} else {
 		first_load = false;
 	}
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load pack " + pack_path);
 
 	return OK;
 }
@@ -213,8 +228,9 @@ Vector<Ref<PackedFileInfo> > GDRESettings::get_file_info_list(const Vector<Strin
 	Vector<Ref<PackedFileInfo> > ret;
 	for (int i = 0; i < files.size(); i++) {
 		for (int j = 0; j < filters.size(); j++) {
-			if (files.get(i)->get_path().get_file().match(filters[j])) {
+			if (files.get(i)->get_path().replace("res://", "").match(filters[j])) {
 				ret.push_back(files.get(i));
+				break;
 			}
 		}
 	}

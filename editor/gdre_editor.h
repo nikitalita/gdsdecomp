@@ -70,7 +70,7 @@ public:
 	void add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel = false);
 	bool task_step(const String &p_task, const String &p_state, int p_step = -1, bool p_force_redraw = true);
 	void end_task(const String &p_task);
-
+	// bool is_cancelled() {return cancelled;}
 	ProgressDialog();
 };
 #else
@@ -115,34 +115,56 @@ struct EditorProgressGDDC {
 
 	String task;
 	ProgressDialog *progress_dialog;
-	bool step(const String &p_state, int p_step = -1, bool p_force_refresh = true) {
+	Control *parent;
+	bool warning;
+	String warning_label;
+	String warning_message;
 
+	void set_warning(const String &p_warning, const String &p_message){
+		warning = true;
+		warning_label = p_warning;
+		warning_message = p_message;
+	}
+
+	bool step(const String &p_state, int p_step = -1, bool p_force_refresh = true) {
 #ifdef TOOLS_ENABLED
 		if (EditorNode::get_singleton()) {
 			return EditorNode::progress_task_step(task, p_state, p_step, p_force_refresh);
-		} else {
-#else
-		{
+		} 
+		else
 #endif
-
+		{
 			return (progress_dialog) ? progress_dialog->task_step(task, p_state, p_step, p_force_refresh) : false;
 		}
 	}
+	// bool is_cancelled(){
+	// 	return (progress_dialog) ? progress_dialog->is_cancelled() : true;
+	// }
+	EditorProgressGDDC(Control *p_parent){
+		parent = p_parent;
+		warning = false;
+	}
 
 	EditorProgressGDDC(Control *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false) {
+		parent = p_parent;
+		warning = false;
+		set_task(p_task, p_label, p_amount, p_can_cancel);
+	}
+
+	void set_task(const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false) {
 
 #ifdef TOOLS_ENABLED
 		if (EditorNode::get_singleton()) {
 			progress_dialog = NULL;
 			EditorNode::progress_add_task(p_task, p_label, p_amount, p_can_cancel);
-		} else {
-#else
-		{
+		}
+		else
 #endif
+		{
 			if (!ProgressDialog::get_singleton()) {
 				progress_dialog = memnew(ProgressDialog);
-				if (p_parent)
-					p_parent->add_child(progress_dialog);
+				if (parent)
+					parent->add_child(progress_dialog);
 			} else {
 				progress_dialog = ProgressDialog::get_singleton();
 			}
@@ -241,9 +263,13 @@ private:
 
 	void _compile_files();
 	void _compile_process();
+	void _pck_select_req(const String &p_path);
 
 	void _pck_select_request(const String &p_path);
+	void _pck_select_request2(const String &p_path);
+
 	void _pck_extract_files();
+	void _pck_extract_files_proc();
 	void _pck_extract_files_process();
 
 	void _pck_create_request(const String &p_path);

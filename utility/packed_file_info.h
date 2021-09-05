@@ -49,7 +49,7 @@ public:
 		memcpy(ret.ptrw(), pf.md5, 16);
 		return ret;
 	}
-	bool is_malformed() { return !malformed_path; }
+	bool is_malformed() { return malformed_path; }
 	bool is_encrypted() { return pf.encrypted; }
 	bool is_checksum_validated() { return md5_passed; }
 

@@ -16,6 +16,8 @@
 #include "scene/gui/spin_box.h"
 #include "scene/gui/text_edit.h"
 
+
+#include "utility/packed_file_info.h"
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
 #include "editor/editor_scale.h"
@@ -51,19 +53,22 @@ class PackDialog : public AcceptDialog {
 
 	size_t _selected(TreeItem *p_item);
 	void _get_selected_files(Vector<String> &p_list, TreeItem *p_item) const;
-
+	void _get_selected_file_infos(Vector<Ref<PackedFileInfo>> &p_list, TreeItem *p_item) const;
 protected:
 	void _notification(int p_notification);
 	static void _bind_methods();
 
 public:
 	void clear();
+	void add_files(bool checksum_skipped = false);
 	void add_file(const String &p_name, uint64_t p_size, Ref<Texture> p_icon, String p_error, bool p_malformed_name, bool p_enc);
 	void add_file_to_item(TreeItem *p_item, const String &p_fullname, const String &p_name, uint64_t p_size, Ref<Texture> p_icon, String p_error, bool p_enc);
 	void set_version(const String &p_version);
 	void set_info(const String &p_info);
 
 	Vector<String> get_selected_files() const;
+	Vector<Ref<PackedFileInfo>> get_selected_file_infos() const;
+
 	String get_target_dir() const;
 
 	PackDialog();

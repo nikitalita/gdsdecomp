@@ -10,7 +10,7 @@
 #include "core/templates/map.h"
 
 #include "gdre_packed_data.h"
-
+#include "editor/gdre_editor.h"
 class PckDumper : public RefCounted {
 	GDCLASS(PckDumper, RefCounted)
 	bool skip_malformed_paths = false;
@@ -31,11 +31,13 @@ public:
 	FileAccess *get_file_access(const String &p_path, PackedFileInfo *p_file);
 
 	Error load_pck(const String &p_path);
+	Error _check_md5_all_files(EditorProgressGDDC * pr = nullptr);
 	Error check_md5_all_files();
-	Error pck_dump_to_dir2(const String &dir);
 	Error pck_dump_to_dir(const String &dir);
-	Error pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const String &dir);
+	Error _pck_dump_to_dir(const String &dir, EditorProgressGDDC * pr = nullptr);
 	Error pck_extract_files_to_dir(Vector<String> files, const String &dir);
+	Error _pck_extract_files_to_dir(Vector<String> files, const String &dir, EditorProgressGDDC * pr = nullptr);
+	Error pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const String &dir, EditorProgressGDDC * pr = nullptr);
 	
 	Error pck_load_and_dump(const String &p_path, const String &dir);
 	bool is_loaded();
