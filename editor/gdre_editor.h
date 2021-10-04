@@ -266,11 +266,10 @@ private:
 	void _pck_select_req(const String &p_path);
 
 	void _pck_select_request(const String &p_path);
-	void _pck_select_request2(const String &p_path);
 
+	void _pck_extract_cancel();
 	void _pck_extract_files();
 	void _pck_extract_files_proc();
-	void _pck_extract_files_process();
 
 	void _pck_create_request(const String &p_path);
 	void _pck_save_prep();

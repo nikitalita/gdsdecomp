@@ -83,7 +83,11 @@ Error PckDumper::_check_md5_all_files(EditorProgressGDDC * pr) {
 		STEP_OR_BREAK(pr, files[i]->path, i);
 		files.write[i]->set_md5_match(_pck_file_check_md5(files.write[i]));
 		if (files[i]->md5_passed) {
-			print_line("Verified " + files[i]->path);
+			// if we print to console while also update the progress dialog, we kill performance, so don't do both.
+			// TODO: Figure out how to fix this
+			if (!pr){
+				print_line("Verified " + files[i]->path);
+			}	
 		} else {
 			print_error("Checksum failed for " + files[i]->path);
 			failed_files += files[i]->path + "\n";
@@ -150,7 +154,11 @@ Error PckDumper::pck_extract_to_dir(Vector<Ref<PackedFileInfo>> files, const Str
 		}
 		memdelete(fa);
 		memdelete(pck_f);
-		print_line("Extracted " + target_name);
+		// if we print to console while also update the progress dialog, we kill performance, so don't do both.
+		// TODO: Figure out how to fix this
+		if (!pr){
+			print_line("Extracted " + target_name);
+		}
 		if (target_name.get_file() == "engine.cfb" || target_name.get_file() == "project.binary") {
 			ProjectConfigLoader *pcfgldr = memnew(ProjectConfigLoader);
 			uint32_t ver_major = GDRESettings::get_singleton()->get_ver_major();
