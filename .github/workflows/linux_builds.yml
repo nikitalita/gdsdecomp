@@ -155,20 +155,21 @@ jobs:
           scons target=release tools=no tests=no 
           ls -l bin/
 
-      - name: Download editor from previous job
-        uses: actions/download-artifact@v2
-        with:
-          name: gdsdecomp-linux-editor
-          path: ${{github.workspace}}/bineditor/
+      # - name: Download editor from previous job
+      #   uses: actions/download-artifact@v2
+      #   with:
+      #     name: gdsdecomp-linux-editor
+      #     path: ${{github.workspace}}/bineditor/
 
-      - name: Export standalone GDRE Tools
-        run: |
-          cd modules/gdsdecomp/standalone
-          ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 --no-window --export "Linux/X11" .export/gdre_tools.x86_64
+      # - name: Export standalone GDRE Tools
+      #   run: |
+      #     cd modules/gdsdecomp/standalone
+      #     chmod a+x ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64
+      #     ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 --no-window --export "Linux/X11" .export/gdre_tools.x86_64
 
-      - uses: actions/upload-artifact@v2
-        with:
-          name: ${{ github.job }}
-          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
-          retention-days: 1000
+      # - uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ github.job }}
+      #     path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
+      #     retention-days: 1000
 

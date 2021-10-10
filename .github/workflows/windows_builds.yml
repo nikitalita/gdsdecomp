@@ -82,7 +82,16 @@ jobs:
             tests: false
             sconsflags: debug_symbols=no
     steps:
-      - uses: actions/checkout@v2
+      - name: checkout-godot
+        uses: actions/checkout@v2
+        with:
+          repository: godotengine/godot
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
+
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v2
+        with:
+          path: modules/gdsdecomp
 
       - name: Setup Godot build cache
         uses: ./.github/actions/godot-cache
@@ -103,20 +112,20 @@ jobs:
           tests: ${{ matrix.tests }}
           scons-cache-limit: 4096
 
-      - name: Download editor from previous job
-        uses: actions/download-artifact@v2
-        with:
-          name: GDRE_tools-windows-editor
-          path: ${{github.workspace}}/bineditor/
+      # - name: Download editor from previous job
+      #   uses: actions/download-artifact@v2
+      #   with:
+      #     name: GDRE_tools-windows-editor
+      #     path: ${{github.workspace}}/bineditor/
       
-      - name: Export standalone GDRE Tools
-        run: |
-          cd ${{github.workspace}}\modules\gdsdecomp\standalone
-          ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.x86_64
+      # - name: Export standalone GDRE Tools
+      #   run: |
+      #     cd ${{github.workspace}}\modules\gdsdecomp\standalone
+      #     ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.exe
 
-      - uses: actions/upload-artifact@v2
-        with:
-          name: ${{ github.job }}
-          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
-          retention-days: 90
+      # - uses: actions/upload-artifact@v2
+      #   with:
+      #     name: ${{ github.job }}
+      #     path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
+      #     retention-days: 90
 
