@@ -2,10 +2,11 @@
 
 CLANG_FORMAT=clang-format-6.0
 
-if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
-    # Check the whole commit range against $TRAVIS_BRANCH, the base merge branch
-    # We could use $TRAVIS_COMMIT_RANGE but it doesn't play well with force pushes
-    RANGE="$(git rev-parse $TRAVIS_BRANCH) HEAD"
+# If this wasn't triggered by a pull request...
+if [ -z "$GITHUB_HEAD_REF" ] && [ -n "$GITHUB_REF" ]; then
+    # Check the whole commit range against $GITHUB_REF, the base merge branch
+    RANGE="$(git rev-parse $GITHUB_REF) HEAD"
+# If this was triggerd by a pull request...
 else
     # Test only the last commit
     RANGE=HEAD

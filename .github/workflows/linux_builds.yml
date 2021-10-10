@@ -4,17 +4,16 @@ on: [push, pull_request]
 # Global Settings
 env:
   GODOT_BASE_BRANCH: master
-  SCONSFLAGS: platform=linuxbsd verbose=yes warnings=extra werror=yes debug_symbols=no --jobs=2 module_text_server_fb_enabled=yes
+  SCONSFLAGS: platform=linuxbsd verbose=yes warnings=extra werror=no debug_symbols=no --jobs=2 module_text_server_fb_enabled=yes
   SCONS_CACHE_LIMIT: 4096
 
 jobs:
   gdsdecomp-linux-editor:
     runs-on: "ubuntu-20.04"
-    name: Editor (target=release_debug, tools=yes, tests=yes)
+    name: GDSDecomp with Editor (target=release_debug, tools=yes)
 
     steps:
       - name: checkout-godot
-        if: steps.cache-lavapipe.outputs.cache-hit != 'true'
         uses: actions/checkout@v2
         with:
           repository: godotengine/godot
@@ -73,7 +72,7 @@ jobs:
         env:
           SCONS_CACHE: ${{github.workspace}}/.scons_cache/
         run: |
-          scons tools=yes tests=yes target=release_debug
+          scons tools=yes tests=no target=release_debug
           ls -l bin/
 
       - uses: actions/upload-artifact@v2
