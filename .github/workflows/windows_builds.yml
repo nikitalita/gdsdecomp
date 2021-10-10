@@ -134,6 +134,7 @@ jobs:
       - name: Export standalone GDRE Tools
         run: |
           cd ${{github.workspace}}\modules\gdsdecomp\standalone
+          ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe -e -q
           ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.exe
 
       - uses: actions/upload-artifact@v2
