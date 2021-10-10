@@ -4,7 +4,9 @@ on: [push, pull_request]
 # Global Settings
 env:
   GODOT_BASE_BRANCH: master
-  SCONSFLAGS: platform=linuxbsd verbose=yes warnings=extra werror=no debug_symbols=no --jobs=2 module_text_server_fb_enabled=yes
+  GODOT_MAIN_SYNC_REF: 26f4848d013c5a234c2399717372ef72985cb655
+  SCONSFLAGS: platform=linuxbsd debug_symbols=no verbose=yes warnings=extra werror=no --jobs=2 module_text_server_fb_enabled=yes
+  #SCONSFLAGS_STANDALONE: platform=windows bits=64 tools=no disable_3d=yes target=release_debug debug_symbols=no optimize=size no_editor_splash=yes use_llvm=yes
   SCONS_CACHE_LIMIT: 4096
 
 jobs:
@@ -17,7 +19,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: godotengine/godot
-          ref: 26f4848d013c5a234c2399717372ef72985cb655
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
 
       - name: checkout-gdsdecomp
         uses: actions/checkout@v2
@@ -75,8 +77,99 @@ jobs:
           scons tools=yes tests=no target=release_debug
           ls -l bin/
 
+      - name: Prepare artifact
+        if: ${{ matrix.artifact }}
+        run: |
+          strip bin/godot.*
+
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ github.job }}
           path: bin/*
           retention-days: 1000
+
+  GDRE_tools-linux-standalone:
+    depends-on: gdsdecomp-linux-editor
+    runs-on: "ubuntu-20.04"
+    name: GDRE Tools Standalone
+
+    steps:
+      - name: checkout-godot
+        uses: actions/checkout@v2
+        with:
+          repository: godotengine/godot
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
+
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v2
+        with:
+          path: modules/gdsdecomp
+
+      # Azure repositories are not reliable, we need to prevent azure giving us packages.
+      - name: Make apt sources.list use the default Ubuntu repositories
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/*
+          sudo cp -f misc/ci/sources.list /etc/apt/sources.list
+          sudo apt-get update
+
+      # Install all packages (except scons)
+      - name: Configure dependencies
+        run: |
+          sudo apt-get install build-essential pkg-config libx11-dev libxcursor-dev \
+            libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev libpulse-dev \
+            libudev-dev libxi-dev libxrandr-dev yasm clang-format-8
+
+      # Upload cache on completion and check it out now
+      - name: Load .scons_cache directory
+        id: linux-editor-cache
+        uses: actions/cache@v2
+        with:
+          path: ${{github.workspace}}/.scons_cache/
+          key: ${{github.job}}-${{github.ref}}-${{github.sha}}
+          restore-keys: |
+            ${{github.job}}-${{github.ref}}-${{github.sha}}
+            ${{github.job}}-${{github.ref}}
+            ${{github.job}}
+
+      # Use python 3.x release (works cross platform; best to keep self contained in it's own step)
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v2
+        with:
+          # Semantic version range syntax or exact version of a Python version
+          python-version: '3.x'
+          # Optional - x64 or x86 architecture, defaults to x64
+          architecture: 'x64'
+
+      # Setup scons, print python version and scons version info, so if anything is broken it won't run the build.
+      - name: Configuring Python packages
+        run: |
+          python -c "import sys; print(sys.version)"
+          python -m pip install scons
+          python --version
+          scons --version
+
+      # We should always be explicit with our flags usage here since it's gonna be sure to always set those flags
+      - name: Compile Godot export template
+        env:
+          SCONS_CACHE: ${{github.workspace}}/.scons_cache/
+        run: |
+          scons target=release tools=no tests=no 
+          ls -l bin/
+
+      - name: Download editor from previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: gdsdecomp-linux-editor
+          path: bineditor/
+
+      - name: Export standalone GDRE Tools
+        run:
+          cd modules/gdsdecomp/standalone
+          ../../../bin/godot.windows.opt.tools.64.exe --no-window --export "Linux/X11" .export/gdre_tools.x86_64
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.job }}
+          path: modules/gdsdecomp/standalone/.export/*
+          retention-days: 1000
+
