@@ -169,6 +169,6 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ github.job }}
-          path: modules/gdsdecomp/standalone/.export/*
+          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
           retention-days: 1000
 
