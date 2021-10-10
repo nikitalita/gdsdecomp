@@ -1,0 +1,122 @@
+name: 🏁 Windows Builds
+on: [push, pull_request]
+
+# Global Settings
+# SCONS_CACHE for windows must be set in the build environment
+env:
+  GODOT_BASE_BRANCH: master
+  GODOT_MAIN_SYNC_REF: 26f4848d013c5a234c2399717372ef72985cb655
+  SCONSFLAGS: verbose=yes warnings=all werror=no module_text_server_fb_enabled=yes
+  SCONS_CACHE_MSVC_CONFIG: true
+
+concurrency:
+  group: ci-${{github.actor}}-${{github.head_ref || github.run_number}}-${{github.ref}}-windows
+  cancel-in-progress: true
+
+jobs:
+  GDRE_tools-windows-editor:
+    # Windows 10 with latest image
+    runs-on: "windows-latest"
+    name: Editor (target=release_debug, tools=yes, tests=yes)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cache-name: windows-editor
+            target: release_debug
+            tools: true
+            tests: false
+            bin: "./bin/godot.windows.opt.tools.64.exe"
+
+    steps:
+      - name: checkout-godot
+        uses: actions/checkout@v2
+        with:
+          repository: godotengine/godot
+          ref: ${{env.GODOT_MAIN_SYNC_REF}}
+
+      - name: checkout-gdsdecomp
+        uses: actions/checkout@v2
+        with:
+          path: modules/gdsdecomp
+
+      - name: Setup Godot build cache
+        uses: ./.github/actions/godot-cache
+        with:
+          cache-name: ${{ matrix.cache-name }}
+        continue-on-error: true
+
+      - name: Setup python and scons
+        uses: ./.github/actions/godot-deps
+
+      - name: Compilation
+        uses: ./.github/actions/godot-build
+        with:
+          sconsflags: ${{ env.SCONSFLAGS }} ${{ matrix.sconsflags }}
+          platform: windows
+          target: ${{ matrix.target }}
+          tools: ${{ matrix.tools }}
+          tests: ${{ matrix.tests }}
+          scons-cache-limit: 4096
+      - name: Prepare artifact
+        run: |
+          Remove-Item bin/* -Include *.exp,*.lib,*.pdb -Force
+      - name: Upload artifact
+        uses: ./.github/actions/upload-artifact
+        with:
+          name: ${{ github.job }}
+
+  # Seperate job because this one depends on the previous
+  GDRE_tools-windows-standalone:
+    needs: GDRE_tools-windows-editor
+    # Windows 10 with latest image
+    runs-on: "windows-latest"
+    name: GDRE Tools standalone
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - cache-name: windows-template
+            target: release
+            tools: false
+            tests: false
+            sconsflags: debug_symbols=no
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Setup Godot build cache
+        uses: ./.github/actions/godot-cache
+        with:
+          cache-name: ${{ matrix.cache-name }}
+        continue-on-error: true
+
+      - name: Setup python and scons
+        uses: ./.github/actions/godot-deps
+
+      - name: Compile godot export template
+        uses: ./.github/actions/godot-build
+        with:
+          sconsflags: ${{ env.SCONSFLAGS }} ${{ matrix.sconsflags }}
+          platform: windows
+          target: ${{ matrix.target }}
+          tools: ${{ matrix.tools }}
+          tests: ${{ matrix.tests }}
+          scons-cache-limit: 4096
+
+      - name: Download editor from previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: GDRE_tools-windows-editor
+          path: ${{github.workspace}}/bineditor/
+      
+      - name: Export standalone GDRE Tools
+        run: |
+          cd ${{github.workspace}}\modules\gdsdecomp\standalone
+          ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.x86_64
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.job }}
+          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
+          retention-days: 90
+

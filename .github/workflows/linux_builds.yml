@@ -77,7 +77,6 @@ jobs:
           ls -l bin/
 
       - name: Prepare artifact
-        if: ${{ matrix.artifact }}
         run: |
           strip bin/godot.*
 
@@ -122,6 +121,7 @@ jobs:
       - name: Load .scons_cache directory
         id: linux-editor-cache
         uses: actions/cache@v2
+        continue-on-error: true
         with:
           path: ${{github.workspace}}/.scons_cache/
           key: ${{github.job}}-${{github.ref}}-${{github.sha}}
@@ -159,12 +159,12 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: gdsdecomp-linux-editor
-          path: bineditor/
+          path: ${{github.workspace}}/bineditor/
 
       - name: Export standalone GDRE Tools
         run: |
           cd modules/gdsdecomp/standalone
-          ../../../bineditor/godot.windows.opt.tools.64.exe --no-window --export "Linux/X11" .export/gdre_tools.x86_64
+          ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 --no-window --export "Linux/X11" .export/gdre_tools.x86_64
 
       - uses: actions/upload-artifact@v2
         with:
