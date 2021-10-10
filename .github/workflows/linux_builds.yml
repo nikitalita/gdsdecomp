@@ -6,7 +6,6 @@ env:
   GODOT_BASE_BRANCH: master
   GODOT_MAIN_SYNC_REF: 26f4848d013c5a234c2399717372ef72985cb655
   SCONSFLAGS: platform=linuxbsd debug_symbols=no verbose=yes warnings=extra werror=no --jobs=2 module_text_server_fb_enabled=yes
-  #SCONSFLAGS_STANDALONE: platform=windows bits=64 tools=no disable_3d=yes target=release_debug debug_symbols=no optimize=size no_editor_splash=yes use_llvm=yes
   SCONS_CACHE_LIMIT: 4096
 
 jobs:
@@ -163,7 +162,7 @@ jobs:
           path: bineditor/
 
       - name: Export standalone GDRE Tools
-        run:
+        run: |
           cd modules/gdsdecomp/standalone
           ../../../bineditor/godot.windows.opt.tools.64.exe --no-window --export "Linux/X11" .export/gdre_tools.x86_64
 
