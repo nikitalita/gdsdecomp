@@ -89,7 +89,7 @@ jobs:
           retention-days: 1000
 
   GDRE_tools-linux-standalone:
-    depends-on: gdsdecomp-linux-editor
+    needs: gdsdecomp-linux-editor
     runs-on: "ubuntu-20.04"
     name: GDRE Tools Standalone
 
@@ -165,7 +165,7 @@ jobs:
       - name: Export standalone GDRE Tools
         run:
           cd modules/gdsdecomp/standalone
-          ../../../bin/godot.windows.opt.tools.64.exe --no-window --export "Linux/X11" .export/gdre_tools.x86_64
+          ../../../bineditor/godot.windows.opt.tools.64.exe --no-window --export "Linux/X11" .export/gdre_tools.x86_64
 
       - uses: actions/upload-artifact@v2
         with:
