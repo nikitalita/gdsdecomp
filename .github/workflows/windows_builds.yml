@@ -8,6 +8,7 @@ env:
   GODOT_MAIN_SYNC_REF: 26f4848d013c5a234c2399717372ef72985cb655
   SCONSFLAGS: verbose=yes warnings=all werror=no module_text_server_fb_enabled=yes
   SCONS_CACHE_MSVC_CONFIG: true
+  SWIFTSHADER_URL: https://artprodsu6weu.artifacts.visualstudio.com/A22fc38be-5a1f-46f4-9c73-5178c0f7346e/0f71ca99-a6cd-4648-9ce3-12c03b9eced3/_apis/artifact/cGlwZWxpbmVhcnRpZmFjdDovL2JvbnRhcmthL3Byb2plY3RJZC8wZjcxY2E5OS1hNmNkLTQ2NDgtOWNlMy0xMmMwM2I5ZWNlZDMvYnVpbGRJZC8xNzI5L2FydGlmYWN0TmFtZS9zd2lmdHNoYWRlci0yMDIxLTEwLTA5XzA4LTAxLUxMVk0xMC43eg2/content?format=zip
 
 concurrency:
   group: ci-${{github.actor}}-${{github.head_ref || github.run_number}}-${{github.ref}}-windows
@@ -112,20 +113,32 @@ jobs:
           tests: ${{ matrix.tests }}
           scons-cache-limit: 4096
 
-      # - name: Download editor from previous job
-      #   uses: actions/download-artifact@v2
-      #   with:
-      #     name: GDRE_tools-windows-editor
-      #     path: ${{github.workspace}}/bineditor/
-      
-      # - name: Export standalone GDRE Tools
-      #   run: |
-      #     cd ${{github.workspace}}\modules\gdsdecomp\standalone
-      #     ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.exe
+      - name: Download editor from previous job
+        uses: actions/download-artifact@v2
+        with:
+          name: GDRE_tools-windows-editor
+          path: ${{github.workspace}}/bineditor/
 
-      # - uses: actions/upload-artifact@v2
-      #   with:
-      #     name: ${{ github.job }}
-      #     path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
-      #     retention-days: 90
+      # Download, unzip and setup SwiftShader library [4466040]
+      - name: Download SwiftShader
+        run: |
+          choco install --yes 7zip
+          Invoke-WebRequest -Outfile swiftshader.zip ${{env.SWIFTSHADER_URL}}
+          7z x swiftshader.zip
+          rm swiftshader.zip
+          mv swiftshader-*/swiftshader-*.7z swiftshader.7z
+          7z x swiftshader.7z -oswiftshader
+          rm swiftshader.7z
+          mv swiftshader/x64/bin/vulkan-1.dll bineditor/
+
+      - name: Export standalone GDRE Tools
+        run: |
+          cd ${{github.workspace}}\modules\gdsdecomp\standalone
+          ${{github.workspace}}\bineditor\godot.windows.opt.tools.64.exe --no-window --export "Windows Desktop" .export/gdre_tools.exe
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ github.job }}
+          path: ${{github.workspace}}/modules/gdsdecomp/standalone/.export/*
+          retention-days: 90
 
