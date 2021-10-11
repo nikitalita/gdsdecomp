@@ -176,8 +176,9 @@ jobs:
           cd modules/gdsdecomp/standalone
           chmod a+x ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64
           export DRI_PRIME=0 
-          xvfb-run ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 -e -q
-          xvfb-run ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 --no-window --export "Linux/X11" .export/gdre_tools.x86_64
+          mkdir .export
+          xvfb-run ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 -e -q --audio-driver Dummy || echo OK
+          xvfb-run ${{github.workspace}}/bineditor/godot.linuxbsd.opt.tools.64 --audio-driver Dummy --export "Linux/X11" .export/gdre_tools.x86_64 || echo OK
 
       - uses: actions/upload-artifact@v2
         with:
