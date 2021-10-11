@@ -148,12 +148,17 @@ jobs:
           scons --version
 
       # We should always be explicit with our flags usage here since it's gonna be sure to always set those flags
+      # target release makes CLI flags not work; use release_debug instead and then just strip it
       - name: Compile Godot export template
         env:
           SCONS_CACHE: ${{github.workspace}}/.scons_cache/
         run: |
-          scons target=release tools=no tests=no 
+          scons target=release_debug tools=no tests=no 
           ls -l bin/
+
+      - name: strip debug symbols
+        run: |
+          strip bin/godot.*
 
       - name: Download editor from previous job
         uses: actions/download-artifact@v2

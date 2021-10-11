@@ -78,7 +78,7 @@ jobs:
       matrix:
         include:
           - cache-name: windows-template
-            target: release
+            target: release_debug
             tools: false
             tests: false
             sconsflags: debug_symbols=no
@@ -103,6 +103,7 @@ jobs:
       - name: Setup python and scons
         uses: ./.github/actions/godot-deps
 
+      # target release makes CLI flags not work; use release_debug instead and then just strip it
       - name: Compile godot export template
         uses: ./.github/actions/godot-build
         with:
