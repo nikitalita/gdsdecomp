@@ -5,14 +5,16 @@ CLANG_FORMAT=clang-format-6.0
 # If this wasn't triggered by a pull request...
 if [ -z "$GITHUB_HEAD_REF" ] && [ -n "$GITHUB_REF" ]; then
     # Check the whole commit range against $GITHUB_REF, the base merge branch
+	echo "Checking all of $GITHUB_REF"
     RANGE="$(git rev-parse $GITHUB_REF) HEAD"
 # If this was triggerd by a pull request...
 else
     # Test only the last commit
     RANGE=HEAD
 fi
+echo "Checking $RANGE"
 
-FILES=$(git diff-tree --no-commit-id --name-only -r $RANGE | grep -v subprojects/ | grep -E "\.(c|h|cpp|hpp|cc|hh|cxx|m|mm|inc)$")
+FILES=$(git diff-tree --no-commit-id --name-only -r $RANGE | grep -E "\.(c|h|cpp|hpp|cc|hh|cxx|m|mm|inc)$")
 echo "Checking files:\n$FILES"
 
 # create a random filename to store our generated patch

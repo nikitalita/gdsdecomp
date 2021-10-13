@@ -1,5 +1,10 @@
 name: 🐧 Linux Builds
 on: [push, pull_request]
+  paths_exclude:
+      - '**.md'
+      - 'LICENSE'
+      - '.scripts/clang_format.sh'
+      - '**/static_checks.yml'
 
 # Global Settings
 env:
@@ -84,7 +89,7 @@ jobs:
         with:
           name: ${{ github.job }}
           path: bin/*
-          retention-days: 1000
+          retention-days: 90
 
   GDRE_tools-linux-standalone:
     needs: gdsdecomp-linux-editor

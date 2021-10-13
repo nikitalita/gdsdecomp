@@ -1,5 +1,17 @@
 name: 🏁 Windows Builds
-on: [push, pull_request]
+on:
+  push:
+    paths-exclude:
+      - '**.md'
+      - 'LICENSE'
+      - '.scripts/clang_format.sh'
+      - '**/static_checks.yml'
+  pull_request:
+    paths-exclude:
+      - '**.md'
+      - 'LICENSE'
+      - '.scripts/clang_format.sh'
+      - '**/static_checks.yml'
 
 # Global Settings
 # SCONS_CACHE for windows must be set in the build environment
