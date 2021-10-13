@@ -1,10 +1,24 @@
 name: 🐧 Linux Builds
 on: [push, pull_request]
-  paths_exclude:
-      - '**.md'
-      - 'LICENSE'
-      - '.scripts/clang_format.sh'
-      - '**/static_checks.yml'
+  push:
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.scripts/clang_format.sh'
+      - '!.github/**'
+      - '.github/workflows/actions/**'
+      - '.github/workflows/linux_builds.yml'
+  pull_request:
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.scripts/clang_format.sh'
+      - '!.github/**'
+      - '.github/workflows/actions/**'
+      - '.github/workflows/linux_builds.yml'
+
 
 # Global Settings
 env:

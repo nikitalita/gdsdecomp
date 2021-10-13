@@ -3,15 +3,18 @@
 CLANG_FORMAT=clang-format-6.0
 
 # If this wasn't triggered by a pull request...
-if [ -z "$GITHUB_HEAD_REF" ] && [ -n "$GITHUB_REF" ]; then
-    # Check the whole commit range against $GITHUB_REF, the base merge branch
-	echo "Checking all of $GITHUB_REF"
+if [ -z "$GITHUB_BASE_REF" ] && [ -n "$GITHUB_REF" ]; then
+    # Check the whole commit range against $GITHUB_REF, the base branch
     RANGE="$(git rev-parse $GITHUB_REF) HEAD"
 # If this was triggerd by a pull request...
+elif [ -n "$GITHUB_REF" ]; then
+    # Test from the the last commit of base branch to head of pull request
+    RANGE="$(git rev-parse $GITHUB_BASE_REF) HEAD"
+# Otherwise, check last commit
 else
-    # Test only the last commit
-    RANGE=HEAD
+	RANGE=HEAD
 fi
+
 echo "Checking $RANGE"
 
 FILES=$(git diff-tree --no-commit-id --name-only -r $RANGE | grep -E "\.(c|h|cpp|hpp|cc|hh|cxx|m|mm|inc)$")

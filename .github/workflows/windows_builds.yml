@@ -1,17 +1,23 @@
 name: 🏁 Windows Builds
 on:
   push:
-    paths-exclude:
-      - '**.md'
-      - 'LICENSE'
-      - '.scripts/clang_format.sh'
-      - '**/static_checks.yml'
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.scripts/clang_format.sh'
+      - '!.github/**'
+      - '.github/workflows/actions/**'
+      - '.github/workflows/windows_builds.yml'
   pull_request:
-    paths-exclude:
-      - '**.md'
-      - 'LICENSE'
-      - '.scripts/clang_format.sh'
-      - '**/static_checks.yml'
+    paths:
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!.scripts/clang_format.sh'
+      - '!.github/**'
+      - '.github/workflows/actions/**'
+      - '.github/workflows/windows_builds.yml'
 
 # Global Settings
 # SCONS_CACHE for windows must be set in the build environment
