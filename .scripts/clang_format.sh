@@ -2,12 +2,8 @@
 
 CLANG_FORMAT=clang-format-6.0
 
-# If this wasn't triggered by a pull request...
-if [ -z "$GITHUB_BASE_REF" ] && [ -n "$GITHUB_REF" ]; then
-    # Check the whole commit range against $GITHUB_REF, the base branch
-    RANGE="$(git rev-parse $GITHUB_REF) HEAD"
-# If this was triggerd by a pull request...
-elif [ -n "$GITHUB_REF" ]; then
+# If this was triggered by a pull request...
+if [ -n "$GITHUB_BASE_REF" ]; then
     # Test from the the last commit of base branch to head of pull request
     RANGE="$(git rev-parse $GITHUB_BASE_REF) HEAD"
 # Otherwise, check last commit
