@@ -12,7 +12,6 @@ else
 fi
 
 echo "Checking $RANGE"
-git log
 FILES=$(git diff-tree --no-commit-id --name-only -r $RANGE | grep -E "\.(c|h|cpp|hpp|cc|hh|cxx|m|mm|inc)$")
 echo "Checking files:\n$FILES"
 
