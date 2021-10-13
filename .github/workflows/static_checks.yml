@@ -9,5 +9,8 @@ jobs:
     steps:
     - name: checkout-gdsdecomp
       uses: actions/checkout@v2
+      with:
+      # get all history
+        fetch-depth: 0
     - name: check clang_format
       run: bash ./.scripts/clang_format.sh
