@@ -266,7 +266,7 @@ Error ImageParserV2::parse_image_v2(FileAccess *f, Variant &r_v, bool hacks_for_
 		uint32_t height = f->get_32();
 		uint32_t mipmaps = f->get_32();
 		uint32_t format = f->get_32();
-		Image::Format fmt;
+		Image::Format fmt = Image::FORMAT_MAX;
 		switch (format) {
 			//convert old image format types to new ones
 			case V2Image::IMAGE_FORMAT_GRAYSCALE: {
