@@ -14,7 +14,6 @@ jobs:
         fetch-depth: 0
     # Azure repositories are not reliable, we need to prevent azure giving us packages.
     - name: Install Linux deps
-      if: matrix.platform == 'linux'
       run: |
         sudo rm -f /etc/apt/sources.list.d/*
         sudo cp -f misc/ci/sources.list /etc/apt/sources.list
