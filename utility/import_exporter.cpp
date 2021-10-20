@@ -144,8 +144,9 @@ Error ImportExporter::load_import_file_v2(const String &p_path) {
 	ResourceFormatLoaderCompat rlc;
 	err = rlc.get_import_info(p_path, project_dir, iinfo);
 
+	// If the metadata loaded corectly...
 	if (err == OK) {
-		// If this is a "converted" file, then it won't have import metadata...
+		// If this has valid import data; would only return OK and not have import data here if it was a ".converted." file
 		if (iinfo->has_import_data()) {
 			// If this is a path outside of the project directory, we change it to the ".assets" directory in the project dir
 			if (iinfo->get_source_file().begins_with("../") ||
@@ -157,7 +158,7 @@ Error ImportExporter::load_import_file_v2(const String &p_path) {
 			files.push_back(iinfo);
 			return OK;
 		}
-		// The file loaded, but there was no metadata and it was not a ".converted." file
+	// The file loaded, but there was no metadata and it was not a ".converted." file
 	} else if (err == ERR_PRINTER_ON_FIRE) {
 		WARN_PRINT("Could not load metadata from " + p_path);
 		String new_ext;
