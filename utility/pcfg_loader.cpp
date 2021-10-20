@@ -129,6 +129,17 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 	return _save_settings_text(p_path, proops, ver_major, ver_minor);
 }
 
+bool ProjectConfigLoader::has_setting(String p_var){
+	return this->props.has(StringName(p_var));
+}
+
+Variant ProjectConfigLoader::get_setting(const String &p_var, const Variant &p_default){
+	if (this->has_setting(p_var)){
+		return this->props[StringName(p_var)].variant;
+	}
+	return Variant();
+}
+
 Error ProjectConfigLoader::_save_settings_text(const String &p_file, const Map<String, List<String> > &proops, const uint32_t ver_major, const uint32_t ver_minor) {
 
 	Error err;
