@@ -12,11 +12,8 @@ jobs:
       with:
       # get all history
         fetch-depth: 0
-    # Azure repositories are not reliable, we need to prevent azure giving us packages.
     - name: Install Linux deps
       run: |
-        sudo rm -f /etc/apt/sources.list.d/*
-        sudo cp -f misc/ci/sources.list /etc/apt/sources.list
         sudo apt-get update
         sudo apt-get install clang-format-6.0
     - name: check clang_format
