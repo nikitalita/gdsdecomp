@@ -19,43 +19,7 @@
 #include <core/io/file_access.h>
 #include <core/os/os.h>
 #include <core/version_generated.gen.h>
-
-Vector<String> ImportExporter::get_recursive_dir_list(const String dir, const Vector<String> &wildcards = Vector<String>(), const bool absolute = true, const String rel = "") {
-	Vector<String> ret;
-	Error err;
-	DirAccess *da = DirAccess::open(dir.plus_file(rel), &err);
-	ERR_FAIL_COND_V_MSG(!da, ret, "Failed to open directory " + dir);
-
-	if (!da) {
-		return ret;
-	}
-	String base = absolute ? dir : "";
-	da->list_dir_begin();
-	String f = da->get_next();
-	while (!f.is_empty()) {
-		if (f == "." || f == "..") {
-			f = da->get_next();
-			continue;
-		} else if (da->current_is_dir()) {
-			ret.append_array(get_recursive_dir_list(dir, wildcards, absolute, rel.plus_file(f)));
-		} else {
-			if (wildcards.size() > 0) {
-				for (int i = 0; i < wildcards.size(); i++) {
-					if (f.get_file().match(wildcards[i])) {
-						ret.append(base.plus_file(rel).plus_file(f));
-						break;
-					}
-				}
-			} else {
-				ret.append(base.plus_file(rel).plus_file(f));
-			}
-		}
-		f = da->get_next();
-	}
-	da->list_dir_end();
-	memdelete(da);
-	return ret;
-}
+#include "util_functions.h"
 
 Array ImportExporter::get_import_files() {
 	return files;
@@ -67,7 +31,7 @@ bool ImportExporter::check_if_dir_is_v2(const String &dir) {
 	wildcards.push_back("*.converted.*");
 	wildcards.push_back("*.tex");
 	wildcards.push_back("*.smp");
-	if (get_recursive_dir_list(dir, wildcards).size() > 0) {
+	if (gdreutil::get_recursive_dir_list(dir, wildcards).size() > 0) {
 		return true;
 	} else {
 		return false;
@@ -110,12 +74,7 @@ Error ImportExporter::load_import_files(const String &dir, const uint32_t p_ver_
 		if ((dir == "" || dir.begins_with("res://")) && GDRESettings::get_singleton()->is_pack_loaded()) {
 			file_names = GDRESettings::get_singleton()->get_file_list(get_v2_wildcards());
 		} else {
-			file_names = get_recursive_dir_list(dir, get_v2_wildcards(), false);
-		}
-		for (int i = 0; i < file_names.size(); i++) {
-			if (load_import_file_v2(file_names[i]) != OK) {
-				WARN_PRINT("Can't load V2 converted file: " + file_names[i]);
-			}
+			file_names = gdreutil::get_recursive_dir_list(dir, get_v2_wildcards(), false);
 		}
 	} else {
 		Vector<String> wildcards;
@@ -123,178 +82,106 @@ Error ImportExporter::load_import_files(const String &dir, const uint32_t p_ver_
 		if ((dir == "" || dir.begins_with("res://")) && GDRESettings::get_singleton()->is_pack_loaded()) {
 			file_names = GDRESettings::get_singleton()->get_file_list(wildcards);
 		} else {
-			file_names = get_recursive_dir_list(dir, wildcards, false);
-		}
-		for (int i = 0; i < file_names.size(); i++) {
-			if (load_import_file(file_names[i]) != OK) {
-				WARN_PRINT("Can't load import file: " + file_names[i]);
-			}
+			file_names = gdreutil::get_recursive_dir_list(dir, wildcards, false);
 		}
 	}
+	for (int i = 0; i < file_names.size(); i++) {
+		if (load_import_file(file_names[i]) != OK) {
+			WARN_PRINT("Can't load import file: " + file_names[i]);
+		}
+	}
+	Vector<String> wildcards;
+	wildcards.push_back("*.gd");
+	gd_files = gdreutil::get_recursive_dir_list(dir, wildcards, false);
 	return OK;
 }
 
-Error ImportExporter::load_import_file_v2(const String &p_path) {
-	Error err;
-	String dest;
-	String type;
-	Vector<String> spl = p_path.get_file().split(".");
-	Ref<ImportInfo> iinfo;
-	iinfo.instantiate();
-
-	// This is an import file, possibly has import metadata
-	ResourceFormatLoaderCompat rlc;
-	err = rlc.get_import_info(p_path, project_dir, iinfo);
-
-	if (err == OK) {
-		// If this is a "converted" file, then it won't have import metadata...
-		if (iinfo->has_import_data()) {
-			// If this is a path outside of the project directory, we change it to the ".assets" directory in the project dir
-			if (iinfo->get_source_file().begins_with("../") ||
-					(iinfo->get_source_file().is_absolute_path() && GDRESettings::get_singleton()->is_fs_path(iinfo->get_source_file()))) {
-				dest = String(".assets").plus_file(p_path.replace("res://", "").get_base_dir().plus_file(iinfo->get_source_file().get_file()));
-				iinfo->source_file = dest;
-			}
-			files.push_back(iinfo);
-			return OK;
-		}
-		// The file loaded, but there was no metadata and it was not a ".converted." file
-	} else if (err == ERR_PRINTER_ON_FIRE) {
-		WARN_PRINT("Could not load metadata from " + p_path);
-		String new_ext;
-		if (p_path.get_extension() == "tex") {
-			new_ext = "png";
-		} else if (p_path.get_extension() == "smp") {
-			new_ext = "wav";
-		} else if (p_path.get_extension() == "cbm") {
-			new_ext = "cube";
-		} else {
-			new_ext = "fixme";
-		}
-		//others??
-		dest = String(".assets").plus_file(p_path.replace("res://", "").get_base_dir().plus_file(spl[0] + "." + new_ext));
-		// File either didn't load or metadata was corrupt
-	} else {
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Can't open imported file " + p_path);
-	}
-
-	//This is a converted file
-	if (p_path.get_file().find(".converted.") != -1) {
-		// if this doesn't match "filename.ext.converted.newext"
-		ERR_FAIL_COND_V_MSG(spl.size() != 4, ERR_CANT_RESOLVE, "Can't open imported file " + p_path);
-		dest = p_path.get_base_dir().plus_file(spl[0] + "." + spl[1]);
-	}
-
-	// either it's an import file without metadata or a converted file
-	iinfo->source_file = dest;
-	// If it's a converted file without metadata, it won't have this, and we need it for checking if the file is lossy or not
-	if (iinfo->importer == "") {
-		if (p_path.get_extension() == "scn") {
-			iinfo->importer = "scene";
-		} else if (p_path.get_extension() == "res") {
-			iinfo->importer = "resource";
-		} else if (p_path.get_extension() == "tex") {
-			iinfo->importer = "texture";
-		} else if (p_path.get_extension() == "smp") {
-			iinfo->importer = "sample";
-		} else if (p_path.get_extension() == "fnt") {
-			iinfo->importer = "font";
-		} else if (p_path.get_extension() == "msh") {
-			iinfo->importer = "mesh";
-		} else if (p_path.get_extension() == "xl") {
-			iinfo->importer = "translation";
-		} else if (p_path.get_extension() == "pbm") {
-			iinfo->importer = "bitmask";
-		} else if (p_path.get_extension() == "cbm") {
-			iinfo->importer = "cubemap";
-		} else {
-			iinfo->importer = "none";
-		}
-	}
-
-	files.push_back(iinfo);
-
-	return OK;
-}
 
 Error ImportExporter::load_import_file(const String &p_path) {
-	Ref<ConfigFile> cf;
-	cf.instantiate();
-	String path = GDRESettings::get_singleton()->get_res_path(p_path);
-	Error err = cf->load(path);
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + path);
 	Ref<ImportInfo> i_info;
 	i_info.instantiate();
-	i_info->import_md_path = path;
-	i_info->import_path = cf->get_value("remap", "path", "");
-	i_info->type = ClassDB::get_compatibility_remapped_class(cf->get_value("remap", "type", ""));
-	i_info->importer = cf->get_value("remap", "importer", "");
-	i_info->source_file = cf->get_value("deps", "source_file", "");
-	i_info->dest_files = cf->get_value("deps", "dest_files", Array());
-	i_info->v3metadata_prop = cf->get_value("remap", "metadata", Dictionary());
-	i_info->version = ver_major;
-	// special handler for imports with more than one path
-	// path won't be found if there are two or more
-	if (i_info->import_path == "") {
-		bool lossy_texture = false;
-		List<String> remap_keys;
-		cf->get_section_keys("remap", &remap_keys);
-		ERR_FAIL_COND_V_MSG(remap_keys.size() == 0, ERR_BUG, "Failed to load import data from " + path);
-
-		// check metadata first
-		if (i_info->v3metadata_prop.size() != 0 && i_info->v3metadata_prop.has("imported_formats")) {
-			Array fmts = i_info->v3metadata_prop["imported_formats"];
-			for (int i = 0; i < fmts.size(); i++) {
-				String f_fmt = fmts[i];
-				if (remap_keys.find("path." + f_fmt)) {
-					i_info->import_path = cf->get_value("remap", "path." + f_fmt, "");
-					// if it's a texture that's vram compressed, there's a chance that it may have a ghost .stex file
-					if (i_info->v3metadata_prop.get("vram_texture", false)) {
-						lossy_texture = true;
-					}
-					break;
-				}
-				WARN_PRINT("Did not find path for imported format " + f_fmt);
-			}
-		}
-		//otherwise, check destination files
-		if (i_info->import_path == "" && i_info->dest_files.size() != 0) {
-			i_info->import_path = i_info->dest_files[0];
-		}
-		// special case for textures: if we have multiple formats, and it's a lossy import,
-		// we look to see if there's a ghost .stex file with the same prefix.
-		// Godot 3.x and 4.x will often import it as a lossless stex first, then imports it
-		// as lossy textures, and this sometimes ends up in the exported project.
-		// It's just not listed in the .import file.
-		if (i_info->import_path != "" && lossy_texture) {
-			String basedir = i_info->import_path.get_base_dir();
-			Vector<String> split = i_info->import_path.get_file().split(".");
-			if (split.size() == 4) {
-				// for example, "res://.import/Texture.png-cefbe538e1226e204b4081ac39cf177b.s3tc.stex"
-				// will become "res://.import/Texture.png-cefbe538e1226e204b4081ac39cf177b.stex"
-				String new_path = basedir.plus_file(split[0] + "." + split[1] + "." + split[3]);
-				// if we have the ghost .stex, set it to be the import path
-				if (GDRESettings::get_singleton()->has_res_path(new_path)) {
-					i_info->import_path = new_path;
-				}
-			}
-		}
-	}
-
-	// If we fail to find the import path, throw error
-	ERR_FAIL_COND_V_MSG(i_info->import_path == "" || i_info->type == String(), ERR_FILE_CORRUPT, p_path + ": file is corrupt");
-	if (cf->has_section("params")) {
-		List<String> param_keys;
-		cf->get_section_keys("params", &param_keys);
-		i_info->params = Dictionary();
-		for (auto E = param_keys.front(); E; E = E->next()) {
-			i_info->params[E->get()] = cf->get_value("params", E->get(), "");
-		}
-	}
-	i_info->cf = cf;
-
+	i_info->load_from_file(p_path, ver_major);
 	files.push_back(i_info);
 	return OK;
+}
+
+// Only necessary on Godot >=3.x
+// Check for imports we want to rename when we convert them
+// Like texture.jpg -> texture.png
+Error ImportExporter::rename_imports(const String &output_dir) {
+	String out_dir = output_dir == "" ? output_dir : GDRESettings::get_singleton()->get_project_path();
+	Map<String, String> rename_map;
+	Map<String, Ref<ImportInfo>> iinfos;
+	Error err;
+	for (int i = 0; i < files.size(); i++) {
+		Ref<ImportInfo> iinfo = files[i];
+		String path = iinfo->get_path();
+		String source = iinfo->get_source_file();
+		String type = iinfo->get_type();
+		String importer = iinfo->importer;
+		auto loss_type = iinfo->get_import_loss_type();
+		if (loss_type != ImportInfo::LOSSLESS) {
+			if (!opt_lossy) {
+				continue;
+			}
+		}
+		if (opt_export_textures && importer == "texture") {
+			String new_source;
+			if (source.get_extension() == "jpg" || source.get_extension() == "jpeg"){
+				new_source = source.replace(source.get_file() , source.get_file().get_basename() + ".png");
+				rename_map.insert(source, new_source);
+				iinfos.insert(source, iinfo);
+			}
+		}
+	}
+	for (auto E = rename_map.front(); E; E = E->next()) {
+		String source = E->key();
+		String new_source = E->get();
+		Ref<ImportInfo> iinfo = iinfos[source];
+		err = iinfo->rename_source(new_source);
+		if (err){
+			rename_map.remove(E);
+		}
+	}
+	for (int i = 0; i < files.size(); i++) {
+		Ref<ImportInfo> iinfo = files[i];
+		// TODO:
+		// 1) check if resource is binary
+		ResourceFormatLoaderBinary rflb;
+		err = rflb.rename_dependencies(iinfo->import_path, rename_map);
+		if (err == ERR_FILE_UNRECOGNIZED){
+			String txt = FileAccess::get_file_as_string(iinfo->import_path, &err);
+			if (!err){
+				continue;
+			}
+			for (auto E = rename_map.front(); E; E = E->next()) {
+				String source = E->key().replace("res://", "");
+				String new_source = E->get().replace("res://", "");
+				txt.replace(source, new_source);
+			}
+			FileAccess * f = FileAccess::open(iinfo->import_path, FileAccess::WRITE, &err);
+			if (!err) {
+				f->store_string(txt);
+				memdelete(f);
+			}
+		}
+	}
+	for (int i = 0; i < gd_files.size(); i++) {
+		String txt = FileAccess::get_file_as_string(gd_files[i], &err);
+		if (!err){
+			continue;
+		}
+		for (auto E = rename_map.front(); E; E = E->next()) {
+			String source = E->key().replace("res://", "");
+			String new_source = E->get().replace("res://", "");
+			txt.replace(source, new_source);
+		}
+		FileAccess * f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
+		if (!err){
+			f->store_string(txt);
+		}
+		memdelete(f);
+	}
 }
 
 // export all the imported resources
@@ -474,62 +361,6 @@ Ref<ImportInfo> ImportExporter::get_import_info(const String &p_path) {
 	}
 	// not found
 	return Ref<ImportInfo>();
-}
-
-// Godot v3-v4 import data rewriting
-// TODO: rethink this, this isn't going to work by itself
-// currently only needed for v3-v4 textures that were imported from something other than PNGs
-// i.e. ground.jpg -> ground.png
-// Need to either:
-// 1) Implement renaming dependencies in the RFLC and load every other resource type after textures
-// and rewrite the resource if necessary,
-// 2) do remapping trickery,
-// 3) just save them as lossy files?
-Error ImportExporter::rewrite_import_data(const String &rel_dest_path, const String &output_dir, const Ref<ImportInfo> &iinfo) {
-	String new_source = rel_dest_path;
-	String new_import_file = iinfo->import_md_path.get_base_dir().plus_file(rel_dest_path.get_file() + ".import");
-	Array new_dest_files;
-	ERR_FAIL_COND_V_MSG(iinfo->dest_files.size() == 0, ERR_BUG, "Failed to change import data for " + rel_dest_path);
-	for (int i = 0; i < iinfo->dest_files.size(); i++) {
-		String old_dest = iinfo->dest_files[i];
-		String new_dest = old_dest.replace(iinfo->source_file.get_file(), new_source.get_file());
-		ERR_FAIL_COND_V_MSG(old_dest == new_dest, ERR_BUG, "Failed to change import data for " + rel_dest_path);
-		new_dest_files.append(new_dest);
-	}
-	Ref<ConfigFile> import_file;
-	import_file.instantiate();
-	Error err = import_file->load(iinfo->import_md_path);
-	ERR_FAIL_COND_V_MSG(err, ERR_BUG, "Failed to load import file " + iinfo->import_md_path);
-
-	import_file->set_value("deps", "source_file", new_source);
-	import_file->set_value("deps", "dest_files", new_dest_files);
-	if (new_dest_files.size() > 1) {
-		List<String> remap_keys;
-		import_file->get_section_keys("remap", &remap_keys);
-		ERR_FAIL_COND_V_MSG(remap_keys.size() == 0, ERR_BUG, "Failed to change import data for " + rel_dest_path);
-		// we likely have multiple paths
-		if (iinfo->v3metadata_prop.has("imported_formats")) {
-			Vector<String> fmts = iinfo->v3metadata_prop["imported_formats"];
-			for (int i = 0; i < fmts.size(); i++) {
-				auto E = remap_keys.find("path." + fmts[i]);
-				if (E) {
-					String path_prop = E->get();
-					String old_path = import_file->get_value("remap", path_prop, String());
-					String new_path = old_path.replace(iinfo->source_file.get_file(), new_source.get_file());
-					ERR_FAIL_COND_V_MSG(old_path == new_path, ERR_BUG, "Failed to change import data for " + rel_dest_path);
-					import_file->set_value("remap", path_prop, new_path);
-				} else {
-					ERR_FAIL_V_MSG(ERR_BUG, "Expected to see path for import format" + fmts[i]);
-				}
-			}
-		}
-	} else {
-		String old_path = iinfo->import_path;
-		String new_path = old_path.replace(iinfo->source_file.get_file(), new_source.get_file());
-		ERR_FAIL_COND_V_MSG(old_path == new_path, ERR_BUG, "Failed to change import data for " + rel_dest_path);
-		import_file->set_value("remap", "path", new_path);
-	}
-	return import_file->save(iinfo->import_md_path);
 }
 
 // Makes a copy of the import metadata and changes the source to the new path

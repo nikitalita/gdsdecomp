@@ -13,6 +13,8 @@
 class ImportExporter : public RefCounted {
 	GDCLASS(ImportExporter, RefCounted)
 	Array files;
+	Vector<String> gd_files;
+
 	String project_dir;
 	bool opt_bin2text = true;
 	bool opt_export_textures = true;
@@ -37,13 +39,12 @@ class ImportExporter : public RefCounted {
 	Error rewrite_v2_import_metadata(const String &p_path, const String &p_dst, const String &p_res_name, const String &output_dir);
 	Error export_texture(const String &output_dir, Ref<ImportInfo> &iinfo);
 	Error export_sample(const String &output_dir, Ref<ImportInfo> &iinfo);
-
+	Error get_gd_scripts(const String &output_dir);
 	Error _convert_tex_to_png(const String &output_dir, const String &p_path, const String &p_dst, String *r_name);
-	Error rewrite_import_data(const String &rel_dest_path, const String &output_dir, const Ref<ImportInfo> &iinfo);
+	Error rewrite_import_data(const String &rel_dest_path, const String &output_dir, Ref<ImportInfo> &iinfo);
 	Ref<ResourceImportMetadatav2> change_v2import_data(const String &p_path, const String &rel_dest_path, const String &p_res_name, const String &output_dir, const bool change_extension);
 
 	static Error ensure_dir(const String &dst_dir);
-	static Vector<String> get_recursive_dir_list(const String dir, const Vector<String> &wildcards, const bool absolute, const String rel);
 	static bool check_if_dir_is_v2(const String &dir);
 	static Vector<String> get_v2_wildcards();
 	String _get_path(const String &output_dir, const String &p_path);
@@ -61,6 +62,8 @@ public:
 	Array get_import_files();
 	Ref<ImportInfo> get_import_info(const String &p_path);
 	Error export_imports(const String &output_dir = "");
+	Error rename_imports(const String &output_dir = "");
+
 	void print_report();
 
 	void reset();
