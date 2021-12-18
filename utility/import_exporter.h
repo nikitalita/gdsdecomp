@@ -22,6 +22,9 @@ class ImportExporter : public RefCounted {
 	bool opt_export_ogg = true;
 	bool opt_export_mp3 = true;
 	bool opt_lossy = true;
+	bool opt_export_jpg = true;
+	bool opt_export_webp = true;
+
 	bool opt_rewrite_imd = true;
 	int ver_major = 0;
 	int ver_minor = 0;
@@ -41,7 +44,8 @@ class ImportExporter : public RefCounted {
 	Error export_texture(const String &output_dir, Ref<ImportInfo> &iinfo);
 	Error export_sample(const String &output_dir, Ref<ImportInfo> &iinfo);
 	Error get_gd_scripts(const String &output_dir);
-	Error _convert_tex_to_png(const String &output_dir, const String &p_path, const String &p_dst, String *r_name);
+	Error _convert_tex(const String &output_dir, const String &p_path, const String &p_dst, String *r_name, bool lossy);
+	Error _convert_tex_to_jpg(const String &output_dir, const String &p_path, const String &p_dst, String *r_name);
 	Error rewrite_import_data(const String &rel_dest_path, const String &output_dir, Ref<ImportInfo> &iinfo);
 	Ref<ResourceImportMetadatav2> change_v2import_data(const String &p_path, const String &rel_dest_path, const String &p_res_name, const String &output_dir, const bool change_extension);
 
