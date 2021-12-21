@@ -99,7 +99,7 @@ public:
 	Error reload();
 	virtual String to_string() override;
 	int get_import_loss_type() const;
-	Error ImportInfo::rename_source(const String &p_new_source);
+	Error rename_source(const String &p_new_source);
 
 protected:
 	static void _bind_methods() {
