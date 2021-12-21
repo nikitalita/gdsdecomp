@@ -71,6 +71,7 @@ private:
 	Dictionary v3metadata_prop; // 'metadata' property of "remap" tag in an import file
 	void _init();
 	Error load_from_file_v2(const String &p_path);
+
 public:
 	enum LossType {
 		UNKNOWN = -1,
@@ -99,6 +100,7 @@ public:
 	virtual String to_string() override;
 	int get_import_loss_type() const;
 	Error ImportInfo::rename_source(const String &p_new_source);
+
 protected:
 	static void _bind_methods() {
 		ClassDB::bind_method(D_METHOD("get_ver_major"), &ImportInfo::get_ver_major);

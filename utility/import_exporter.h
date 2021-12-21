@@ -54,7 +54,7 @@ class ImportExporter : public RefCounted {
 	static bool check_if_dir_is_v2(const String &dir);
 	static Vector<String> get_v2_wildcards();
 	String _get_path(const String &output_dir, const String &p_path);
-	Error rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String,String> &p_rename_map);
+	Error rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String, String> &p_rename_map);
 
 protected:
 	static void _bind_methods();

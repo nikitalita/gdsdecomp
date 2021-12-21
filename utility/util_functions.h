@@ -1,20 +1,19 @@
-#include <core/io/file_access.h>
-#include <core/io/resource.h>
+#include "external/toojpeg/toojpeg.h"
 #include <core/io/dir_access.h>
 #include <core/io/file_access.h>
-#include "external/toojpeg/toojpeg.h"
+#include <core/io/resource.h>
 
-namespace gdreutil{
-    
+namespace gdreutil {
+
 static Vector<String> splitmk(const String &p_str, const Vector<String> &p_splitters, bool p_allow_empty, int p_maxsplit) {
 	Vector<String> ret;
 	int from = 0;
 	int len = p_str.length();
 
 	while (true) {
-        int idx;
+		int idx;
 		int end = p_str.findmk(p_splitters, from, &idx);
-        int spl_len = 1;
+		int spl_len = 1;
 		if (end < 0) {
 			end = len;
 		} else {
@@ -45,59 +44,58 @@ static Vector<String> splitmk(const String &p_str, const Vector<String> &p_split
 	return ret;
 }
 
-
 static Vector<String> get_recursive_dir_list(const String dir, const Vector<String> &wildcards = Vector<String>(), const bool absolute = true, const String rel = "", const bool &res = false) {
-    Vector<String> ret;
-    Error err;
-    DirAccess *da = DirAccess::open(dir.plus_file(rel), &err);
-    ERR_FAIL_COND_V_MSG(!da, ret, "Failed to open directory " + dir);
+	Vector<String> ret;
+	Error err;
+	DirAccess *da = DirAccess::open(dir.plus_file(rel), &err);
+	ERR_FAIL_COND_V_MSG(!da, ret, "Failed to open directory " + dir);
 
-    if (!da) {
-        return ret;
-    }
-    String base = absolute ? dir : "";
-    da->list_dir_begin();
-    String f = da->get_next();
-    while (!f.is_empty()) {
-        if (f == "." || f == "..") {
-            f = da->get_next();
-            continue;
-        } else if (da->current_is_dir()) {
-            ret.append_array(get_recursive_dir_list(dir, wildcards, absolute, rel.plus_file(f), res));
-        } else {
-            if (wildcards.size() > 0) {
-                for (int i = 0; i < wildcards.size(); i++) {
-                    if (f.get_file().match(wildcards[i])) {
-                        ret.append((res ? "res://" : "") + base.plus_file(rel).plus_file(f));
-                        break;
-                    }
-                }
-            } else {
-                ret.append((res ? "res://" : "") + base.plus_file(rel).plus_file(f));
-            }
-        }
-        f = da->get_next();
-    }
-    da->list_dir_end();
-    memdelete(da);
-    return ret;
+	if (!da) {
+		return ret;
+	}
+	String base = absolute ? dir : "";
+	da->list_dir_begin();
+	String f = da->get_next();
+	while (!f.is_empty()) {
+		if (f == "." || f == "..") {
+			f = da->get_next();
+			continue;
+		} else if (da->current_is_dir()) {
+			ret.append_array(get_recursive_dir_list(dir, wildcards, absolute, rel.plus_file(f), res));
+		} else {
+			if (wildcards.size() > 0) {
+				for (int i = 0; i < wildcards.size(); i++) {
+					if (f.get_file().match(wildcards[i])) {
+						ret.append((res ? "res://" : "") + base.plus_file(rel).plus_file(f));
+						break;
+					}
+				}
+			} else {
+				ret.append((res ? "res://" : "") + base.plus_file(rel).plus_file(f));
+			}
+		}
+		f = da->get_next();
+	}
+	da->list_dir_end();
+	memdelete(da);
+	return ret;
 }
 FileAccess *_____tmp_file;
 
 Error save_image_as_webp(const String &p_path, const Ref<Image> &p_img, bool lossy = false) {
-    Ref<Image> source_image = p_img->duplicate();
-    Vector<uint8_t> buffer;
-    if (lossy) {
-        buffer = Image::webp_lossy_packer(source_image, 1);
-    } else {
-        buffer = Image::webp_lossless_packer(source_image);
-    }
-    Error err;
-    FileAccess * file = FileAccess::open(p_path, FileAccess::WRITE, &err);
+	Ref<Image> source_image = p_img->duplicate();
+	Vector<uint8_t> buffer;
+	if (lossy) {
+		buffer = Image::webp_lossy_packer(source_image, 1);
+	} else {
+		buffer = Image::webp_lossless_packer(source_image);
+	}
+	Error err;
+	FileAccess *file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err, err, vformat("Can't save WEBP at path: '%s'.", p_path));
-    // skip the 4 byte "WEBP" at the beginning of the buffer, not present in real WEBP files
-    file->store_buffer(buffer.ptr() + 4, buffer.size() - 4);
-    if (file->get_error() != OK && file->get_error() != ERR_FILE_EOF) {
+	// skip the 4 byte "WEBP" at the beginning of the buffer, not present in real WEBP files
+	file->store_buffer(buffer.ptr() + 4, buffer.size() - 4);
+	if (file->get_error() != OK && file->get_error() != ERR_FILE_EOF) {
 		memdelete(file);
 		return ERR_CANT_CREATE;
 	}
@@ -118,40 +116,41 @@ Error save_image_as_jpeg(const String &p_path, const Ref<Image> &p_img) {
 
 	int width = source_image->get_width();
 	int height = source_image->get_height();
-    bool isRGB;
-    if (source_image->detect_alpha()) {
-        WARN_PRINT("Alpha channel detected, will not be saved to jpeg...");
-    }
+	bool isRGB;
+	if (source_image->detect_alpha()) {
+		WARN_PRINT("Alpha channel detected, will not be saved to jpeg...");
+	}
 	switch (source_image->get_format()) {
 		case Image::FORMAT_L8:
-            isRGB = false;
-            break;
+			isRGB = false;
+			break;
 		case Image::FORMAT_LA8:
-            isRGB = false;
-            source_image->convert(Image::FORMAT_L8);
-            break;
+			isRGB = false;
+			source_image->convert(Image::FORMAT_L8);
+			break;
 		case Image::FORMAT_RGB8:
-            isRGB = true;
-            break;
+			isRGB = true;
+			break;
 		case Image::FORMAT_RGBA8:
 		default:
-            source_image->convert(Image::FORMAT_RGB8);
-            isRGB = true;
+			source_image->convert(Image::FORMAT_RGB8);
+			isRGB = true;
 			break;
 	}
-    
+
 	const Vector<uint8_t> image_data = source_image->get_data();
 	const uint8_t *reader = image_data.ptr();
 	// we may be passed a buffer with existing content we're expected to append to
-    Error err;
-    _____tmp_file = FileAccess::open(p_path, FileAccess::WRITE, &err);
+	Error err;
+	_____tmp_file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err, err, vformat("Can't save JPEG at path: '%s'.", p_path));
 
 	int success = 0;
 	{ // scope writer lifetime
-        bool success = TooJpeg::writeJpeg([](unsigned char oneByte){
-            _____tmp_file->store_8(oneByte);
-        }, image_data.ptr(), width, height, isRGB, 100, false);
+		bool success = TooJpeg::writeJpeg([](unsigned char oneByte) {
+			_____tmp_file->store_8(oneByte);
+		},
+				image_data.ptr(), width, height, isRGB, 100, false);
 		ERR_FAIL_COND_V_MSG(!success, ERR_BUG, "Failed to convert image to JPEG");
 	}
 
@@ -166,5 +165,4 @@ Error save_image_as_jpeg(const String &p_path, const Ref<Image> &p_img) {
 	return OK;
 }
 
-
-}
+} //namespace gdreutil

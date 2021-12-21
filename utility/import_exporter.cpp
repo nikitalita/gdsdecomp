@@ -15,11 +15,11 @@
 #include "scene/resources/audio_stream_sample.h"
 #include "texture_loader_compat.h"
 #include "thirdparty/minimp3/minimp3_ex.h"
+#include "util_functions.h"
 #include <core/io/dir_access.h>
 #include <core/io/file_access.h>
 #include <core/os/os.h>
 #include <core/version_generated.gen.h>
-#include "util_functions.h"
 
 Array ImportExporter::get_import_files() {
 	return files;
@@ -91,13 +91,12 @@ Error ImportExporter::load_import_files(const String &dir, const uint32_t p_ver_
 			WARN_PRINT("Can't load import file: " + file_names[i]);
 		}
 	}
-	
+
 	Vector<String> wildcards;
 	wildcards.push_back("*.gd");
 	gd_files = gdreutil::get_recursive_dir_list(dir, wildcards, false);
 	return OK;
 }
-
 
 Error ImportExporter::load_import_file(const String &p_path) {
 	Ref<ImportInfo> i_info;
@@ -183,7 +182,7 @@ Error ImportExporter::export_imports(const String &p_out_dir) {
 		if (err == ERR_PRINTER_ON_FIRE) {
 			rewrote_metadata.push_back(iinfo);
 			success.push_back(iinfo);
-		// necessary to rewrite import metadata but failed
+			// necessary to rewrite import metadata but failed
 		} else if (err == ERR_DATABASE_CANT_WRITE) {
 			success.push_back(iinfo);
 			failed_rewrite_md.push_back(iinfo);
@@ -202,30 +201,30 @@ Error ImportExporter::export_imports(const String &p_out_dir) {
 	return OK;
 }
 
-Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir){
+Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir) {
 	Error err;
 	Vector<String> wildcards;
 	wildcards.push_back("*.gd");
 	String abs_plugin_path = output_dir.plus_file("addons").plus_file(plugin_dir);
 	auto gd_scripts = gdreutil::get_recursive_dir_list(abs_plugin_path, wildcards, false);
 	String main_script;
-	for (int j = 0; j < gd_scripts.size(); j++){
+	for (int j = 0; j < gd_scripts.size(); j++) {
 		String gd_script_abs_path = abs_plugin_path.plus_file(gd_scripts[j]);
 		String gd_text = FileAccess::get_file_as_string(gd_script_abs_path, &err);
-		ERR_FAIL_COND_V_MSG(err, err, "failed to open gd_script " + gd_script_abs_path +"!");
+		ERR_FAIL_COND_V_MSG(err, err, "failed to open gd_script " + gd_script_abs_path + "!");
 		if (gd_text.find("extends EditorPlugin") != -1) {
 			main_script = gd_scripts[j];
 			break;
 		}
 	}
-	ERR_FAIL_COND_V_MSG(main_script == "", ERR_FILE_NOT_FOUND, "Failed to find main script for plugin " + plugin_dir +"!");
+	ERR_FAIL_COND_V_MSG(main_script == "", ERR_FILE_NOT_FOUND, "Failed to find main script for plugin " + plugin_dir + "!");
 	String plugin_cfg_text = String("[plugin]\n\n") +
-							"name=\"" + plugin_dir.replace("_", " ").replace(".", " ") +"\"\n" + 
-							"description=\"" + plugin_dir.replace("_", " ").replace(".", " ") +" plugin\"\n" +
-							"author=\"Unknown\"\n" +
-							"version=\"1.0\"\n" +
-							"script=\"" + main_script + "\"";
-	FileAccess * f = FileAccess::open(abs_plugin_path.plus_file("plugin.cfg"), FileAccess::WRITE, &err);
+			"name=\"" + plugin_dir.replace("_", " ").replace(".", " ") + "\"\n" +
+			"description=\"" + plugin_dir.replace("_", " ").replace(".", " ") + " plugin\"\n" +
+			"author=\"Unknown\"\n" +
+			"version=\"1.0\"\n" +
+			"script=\"" + main_script + "\"";
+	FileAccess *f = FileAccess::open(abs_plugin_path.plus_file("plugin.cfg"), FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err, err, "can't open plugin.cfg for writing");
 	f->store_string(plugin_cfg_text);
 	f->close();
@@ -236,23 +235,23 @@ Error ImportExporter::recreate_plugin_config(const String &output_dir, const Str
 // Recreates the "plugin.cfg" files for each plugin to avoid loading errors.
 Error ImportExporter::recreate_plugin_configs(const String &output_dir) {
 	Error err;
-	if (!DirAccess::exists(output_dir.plus_file("addons"))){
+	if (!DirAccess::exists(output_dir.plus_file("addons"))) {
 		return OK;
 	}
 	Vector<String> dirs;
 	DirAccess *da = DirAccess::open(output_dir.plus_file("addons"), &err);
 	da->list_dir_begin();
-    String f = da->get_next();
-    while (!f.is_empty()) {
-        if (f != "." && f != ".." && da->current_is_dir()){
+	String f = da->get_next();
+	while (!f.is_empty()) {
+		if (f != "." && f != ".." && da->current_is_dir()) {
 			dirs.append(f);
 		}
 		f = da->get_next();
 	}
 	da->list_dir_end();
-	for (int i = 0; i < dirs.size(); i++){
+	for (int i = 0; i < dirs.size(); i++) {
 		err = recreate_plugin_config(output_dir, dirs[i]);
-		if (err){
+		if (err) {
 			WARN_PRINT("Failed to recreate plugin.cfg for " + dirs[i]);
 		}
 	}
@@ -265,7 +264,7 @@ Error ImportExporter::export_texture(const String &output_dir, Ref<ImportInfo> &
 	String dest = source;
 	bool rewrite_metadata = false;
 	bool lossy = false;
-	
+
 	// Rewrite the metadata for v2
 	// This is essentially mandatory for v2 resources because they can be imported outside the
 	// project directory tree and the import metadata often points to locations that don't exist.
@@ -311,7 +310,7 @@ Error ImportExporter::export_texture(const String &output_dir, Ref<ImportInfo> &
 	err = _convert_tex(output_dir, path, dest, &r_name, lossy);
 	ERR_FAIL_COND_V(err, err);
 	// If lossy, also convert it as a png
-	if (lossy){
+	if (lossy) {
 		dest = source.get_basename() + ".png";
 		if (!dest.replace("res://", "").begins_with(".assets")) {
 			String prefix = ".assets";
@@ -324,19 +323,19 @@ Error ImportExporter::export_texture(const String &output_dir, Ref<ImportInfo> &
 		ERR_FAIL_COND_V(err != OK, err);
 	}
 	if (iinfo->ver_major == 2) {
-		if (rewrite_metadata){
+		if (rewrite_metadata) {
 			err = rewrite_v2_import_metadata(path, iinfo->preferred_dest, r_name, output_dir);
 			ERR_FAIL_COND_V_MSG(err != OK, ERR_DATABASE_CANT_WRITE, "Failed to rewrite import metadata for " + iinfo->source_file);
 			return ERR_PRINTER_ON_FIRE;
 		}
 		return ERR_DATABASE_CANT_WRITE;
 	} else if (iinfo->ver_major >= 3) {
-		if (rewrite_metadata){
+		if (rewrite_metadata) {
 			err = remap_resource(output_dir, iinfo);
 			ERR_FAIL_COND_V_MSG(err != OK, ERR_DATABASE_CANT_WRITE, "Failed to remap resource " + iinfo->source_file);
 			return ERR_PRINTER_ON_FIRE;
-		// If we saved the file to something other than png
-		} else if (iinfo->source_file != iinfo->preferred_dest){
+			// If we saved the file to something other than png
+		} else if (iinfo->source_file != iinfo->preferred_dest) {
 			return ERR_DATABASE_CANT_WRITE;
 		}
 	}
@@ -371,11 +370,11 @@ Ref<ImportInfo> ImportExporter::get_import_info(const String &p_path) {
 }
 
 // Makes a copy of the import metadata and changes the source to the new path
-Ref<ResourceImportMetadatav2> ImportExporter::change_v2import_data(const String &p_path, 
-																   const String &rel_dest_path, 
-																   const String &p_res_name, 
-																   const String &output_dir, 
-																   const bool change_extension) {
+Ref<ResourceImportMetadatav2> ImportExporter::change_v2import_data(const String &p_path,
+		const String &rel_dest_path,
+		const String &p_res_name,
+		const String &output_dir,
+		const bool change_extension) {
 	Ref<ResourceImportMetadatav2> imd;
 	auto iinfo = get_import_info(p_path);
 	if (iinfo.is_null()) {
@@ -471,11 +470,11 @@ Error ImportExporter::_convert_tex(const String &output_dir, const String &p_pat
 	}
 	err = ensure_dir(dst_dir);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
-	if (dest_path.get_extension() == "jpg" || dest_path.get_extension() == "jpeg"){
+	if (dest_path.get_extension() == "jpg" || dest_path.get_extension() == "jpeg") {
 		err = gdreutil::save_image_as_jpeg(dest_path, img);
-	} else if (dest_path.get_extension() == "webp"){
+	} else if (dest_path.get_extension() == "webp") {
 		err = gdreutil::save_image_as_webp(dest_path, img, lossy);
-	} else if (dest_path.get_extension() == "png"){
+	} else if (dest_path.get_extension() == "png") {
 		err = img->save_png(dest_path);
 	} else {
 		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Invalid file name: " + dest_path);
@@ -485,7 +484,6 @@ Error ImportExporter::_convert_tex(const String &output_dir, const String &p_pat
 	print_line("Converted " + p_path + " to " + p_dst);
 	return OK;
 }
-
 
 Error ImportExporter::convert_tex_to_png(const String &output_dir, const String &p_path, const String &p_dst) {
 	return _convert_tex(output_dir, p_path, p_dst, nullptr);
@@ -662,7 +660,7 @@ Error ImportExporter::remap_resource(const String &output_dir, Ref<ImportInfo> &
 	String dest_path = output_dir.plus_file(iinfo->preferred_dest.replace("res://", ""));
 	String remap_text = "[remap]\n\npath=\"" + iinfo->preferred_dest + "\"\n";
 	Error err;
-	FileAccess * f = FileAccess::open(output_dir.plus_file(iinfo->source_file.replace("res://", "")) + ".remap", FileAccess::WRITE, &err);
+	FileAccess *f = FileAccess::open(output_dir.plus_file(iinfo->source_file.replace("res://", "")) + ".remap", FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V(err, err);
 	f->store_string(remap_text);
 	f->close();
@@ -671,13 +669,13 @@ Error ImportExporter::remap_resource(const String &output_dir, Ref<ImportInfo> &
 }
 
 // rename dependency in resource file
-Error ImportExporter::rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String,String> &p_rename_map){
+Error ImportExporter::rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String, String> &p_rename_map) {
 	ResourceFormatLoaderBinary rflb;
 	Error err;
 	// This will also check if the file is a Godot binary resource or not
 	err = rflb.rename_dependencies(p_iinfo->import_path, p_rename_map);
 	// If not a binary resource, try opening it as a text file
-	if (err == ERR_FILE_UNRECOGNIZED){
+	if (err == ERR_FILE_UNRECOGNIZED) {
 		String txt = FileAccess::get_file_as_string(p_iinfo->import_path, &err);
 		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " is neither a text file nor a binary formatted Godot resource");
 		for (auto E = p_rename_map.front(); E; E = E->next()) {
@@ -685,7 +683,7 @@ Error ImportExporter::rename_dependency_in_resource(const Ref<ImportInfo> p_iinf
 			String new_source = E->get().replace("res://", "");
 			txt.replace(source, new_source);
 		}
-		FileAccess * f = FileAccess::open(p_iinfo->import_path, FileAccess::WRITE, &err);
+		FileAccess *f = FileAccess::open(p_iinfo->import_path, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " cannot be opened for writing.");
 		f->store_string(txt);
 		memdelete(f);
@@ -715,14 +713,14 @@ Error ImportExporter::rename_imports(const String &output_dir) {
 		}
 		if (opt_export_textures && importer == "texture") {
 			String new_source;
-			if (source.get_extension() == "jpg"){
-				new_source = source.replace(source.get_file() , source.get_file().get_basename() + ".png");
+			if (source.get_extension() == "jpg") {
+				new_source = source.replace(source.get_file(), source.get_file().get_basename() + ".png");
 				rename_map.insert(source, new_source);
 				iinfos.insert(source, iinfo);
 			} else if (source.get_extension() == "jpeg") {
 				//Who does this? we can't rename these to "*.png" because it changes string length in binary files
 				//Add an underscore at the end of the filename
-				new_source = source.replace(source.get_file() , source.get_file().get_basename() + "_.png");
+				new_source = source.replace(source.get_file(), source.get_file().get_basename() + "_.png");
 				rename_map.insert(source, new_source);
 				iinfos.insert(source, iinfo);
 			}
@@ -734,17 +732,17 @@ Error ImportExporter::rename_imports(const String &output_dir) {
 		String new_source = E->get();
 		Ref<ImportInfo> iinfo = iinfos[source];
 		err = iinfo->rename_source(new_source);
-		if (err){
+		if (err) {
 			failed_remaps.append(E->key());
 		}
 	}
 	// remove any failed remaps
-	for (int i = 0; i < failed_remaps.size(); i++){
+	for (int i = 0; i < failed_remaps.size(); i++) {
 		String key = failed_remaps[i];
 		rename_map.erase(key);
 	}
 
-	// Go through all the resources and rename 
+	// Go through all the resources and rename
 	for (int i = 0; i < files.size(); i++) {
 		rename_dependency_in_resource(files[i], rename_map);
 	}
@@ -752,7 +750,7 @@ Error ImportExporter::rename_imports(const String &output_dir) {
 	// Go through all the gdscript files and rename the source files
 	for (int i = 0; i < gd_files.size(); i++) {
 		String txt = FileAccess::get_file_as_string(gd_files[i], &err);
-		if (!err){
+		if (!err) {
 			continue;
 		}
 		for (auto E = rename_map.front(); E; E = E->next()) {
@@ -760,8 +758,8 @@ Error ImportExporter::rename_imports(const String &output_dir) {
 			String new_source = E->get().replace("res://", "");
 			txt.replace(source, new_source);
 		}
-		FileAccess * f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
-		if (!err){
+		FileAccess *f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
+		if (!err) {
 			f->store_string(txt);
 		}
 		memdelete(f);
