@@ -25,7 +25,8 @@ class ImportExporter : public RefCounted {
 	bool opt_export_jpg = true;
 	bool opt_export_webp = true;
 
-	bool opt_rewrite_imd = true;
+	bool opt_rewrite_imd_v2 = true;
+	bool opt_rewrite_imd_v3 = false;
 	int ver_major = 0;
 	int ver_minor = 0;
 	Vector<String> files_lossy_exported;
@@ -53,11 +54,13 @@ class ImportExporter : public RefCounted {
 	static bool check_if_dir_is_v2(const String &dir);
 	static Vector<String> get_v2_wildcards();
 	String _get_path(const String &output_dir, const String &p_path);
+	Error rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String,String> &p_rename_map);
 
 protected:
 	static void _bind_methods();
 
 public:
+	Error remap_resource(const String &output_dir, Ref<ImportInfo> &iinfo);
 	Error convert_res_bin_2_txt(const String &output_dir, const String &p_path, const String &p_dst);
 	Error convert_tex_to_png(const String &output_dir, const String &p_path, const String &p_dst);
 	Error convert_sample_to_wav(const String &output_dir, const String &p_path, const String &p_dst);

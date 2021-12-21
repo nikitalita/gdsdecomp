@@ -77,8 +77,25 @@ int ImportInfo::get_import_loss_type() const {
     return UNKNOWN;
 }
 
+void ImportInfo::_init()
+{
+	import_path = "";
+	import_md_path = "";
+	type = "";
+	importer = "";
+	source_file = "";
+	ver_major = 0;
+	ver_minor = 0;
+	dest_files = Vector<String>();
+	preferred_dest = "";
+	params = Dictionary();
+	cf.instantiate();
+	v2metadata.instantiate();
+	v3metadata_prop = Dictionary();
+}
 
 Error ImportInfo::load_from_file(const String &p_path, int v_major, int v_minor = 0) {
+	_init();
 	ver_major = v_major;
 	ver_minor = v_minor; // TODO: we could get the minor version number from the binary resource on v3-v4?
     if (ver_major == 2){

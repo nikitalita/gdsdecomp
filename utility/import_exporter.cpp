@@ -107,90 +107,9 @@ Error ImportExporter::load_import_file(const String &p_path) {
 	return OK;
 }
 
-// Only necessary on Godot >=3.x
-// Check for imports we want to rename when we convert them
-// Like texture.jpg -> texture.png
-Error ImportExporter::rename_imports(const String &output_dir) {
-	String out_dir = output_dir == "" ? output_dir : GDRESettings::get_singleton()->get_project_path();
-	Map<String, String> rename_map;
-	Map<String, Ref<ImportInfo>> iinfos;
-	Error err;
-	for (int i = 0; i < files.size(); i++) {
-		Ref<ImportInfo> iinfo = files[i];
-		String path = iinfo->get_path();
-		String source = iinfo->get_source_file();
-		String type = iinfo->get_type();
-		String importer = iinfo->importer;
-		auto loss_type = iinfo->get_import_loss_type();
-		if (loss_type != ImportInfo::LOSSLESS) {
-			if (!opt_lossy) {
-				continue;
-			}
-		}
-		if (opt_export_textures && importer == "texture") {
-			String new_source;
-			if (source.get_extension() == "jpg"){
-				new_source = source.replace(source.get_file() , source.get_file().get_basename() + ".png");
-				rename_map.insert(source, new_source);
-				iinfos.insert(source, iinfo);
-			} else if (source.get_extension() == "jpeg") {
-				//Who does this? we can't rename these to "png" because it changes string length in binary files
-			}
-		}
-	}
-	for (auto E = rename_map.front(); E; E = E->next()) {
-		String source = E->key();
-		String new_source = E->get();
-		Ref<ImportInfo> iinfo = iinfos[source];
-		err = iinfo->rename_source(new_source);
-		if (err){
-			rename_map.remove(E);
-		}
-	}
-	for (int i = 0; i < files.size(); i++) {
-		Ref<ImportInfo> iinfo = files[i];
-		// TODO:
-		// 1) check if resource is binary
-		ResourceFormatLoaderBinary rflb;
-		err = rflb.rename_dependencies(iinfo->import_path, rename_map);
-		if (err == ERR_FILE_UNRECOGNIZED){
-			String txt = FileAccess::get_file_as_string(iinfo->import_path, &err);
-			if (!err){
-				continue;
-			}
-			for (auto E = rename_map.front(); E; E = E->next()) {
-				String source = E->key().replace("res://", "");
-				String new_source = E->get().replace("res://", "");
-				txt.replace(source, new_source);
-			}
-			FileAccess * f = FileAccess::open(iinfo->import_path, FileAccess::WRITE, &err);
-			if (!err) {
-				f->store_string(txt);
-				memdelete(f);
-			}
-		}
-	}
-	for (int i = 0; i < gd_files.size(); i++) {
-		String txt = FileAccess::get_file_as_string(gd_files[i], &err);
-		if (!err){
-			continue;
-		}
-		for (auto E = rename_map.front(); E; E = E->next()) {
-			String source = E->key().replace("res://", "");
-			String new_source = E->get().replace("res://", "");
-			txt.replace(source, new_source);
-		}
-		FileAccess * f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
-		if (!err){
-			f->store_string(txt);
-		}
-		memdelete(f);
-	}
-}
-
 // export all the imported resources
-Error ImportExporter::export_imports(const String &output_dir) {
-	String out_dir = output_dir == "" ? output_dir : GDRESettings::get_singleton()->get_project_path();
+Error ImportExporter::export_imports(const String &p_out_dir) {
+	String output_dir = p_out_dir == "" ? p_out_dir : GDRESettings::get_singleton()->get_project_path();
 	Error err = OK;
 	if (opt_lossy) {
 		WARN_PRINT_ONCE("Converting lossy imports, you may lose fidelity for indicated assets when re-importing upon loading the project");
@@ -218,7 +137,7 @@ Error ImportExporter::export_imports(const String &output_dir) {
 				case TextureLoaderCompat::FORMAT_V3_STREAM_TEXTURE2D:
 				case TextureLoaderCompat::FORMAT_V4_STREAM_TEXTURE2D: {
 					// Export texture
-					err = export_texture(out_dir, iinfo);
+					err = export_texture(output_dir, iinfo);
 				} break;
 				case TextureLoaderCompat::FORMAT_NOT_TEXTURE:
 					if (err == ERR_FILE_UNRECOGNIZED) {
@@ -263,7 +182,7 @@ Error ImportExporter::export_imports(const String &output_dir) {
 		if (err == ERR_PRINTER_ON_FIRE) {
 			rewrote_metadata.push_back(iinfo);
 			success.push_back(iinfo);
-			// necessary to rewrite import metadata but failed
+		// necessary to rewrite import metadata but failed
 		} else if (err == ERR_DATABASE_CANT_WRITE) {
 			success.push_back(iinfo);
 			failed_rewrite_md.push_back(iinfo);
@@ -288,65 +207,80 @@ Error ImportExporter::export_texture(const String &output_dir, Ref<ImportInfo> &
 	String dest = source;
 	bool rewrite_metadata = false;
 	bool lossy = false;
-	// We currently only rewrite the metadata for v2
+	
+	// Rewrite the metadata for v2
 	// This is essentially mandatory for v2 resources because they can be imported outside the
 	// project directory tree and the import metadata often points to locations that don't exist.
-	if (iinfo->ver_major == 2) {
+	if (iinfo->ver_major == 2 && opt_rewrite_imd_v2) {
 		rewrite_metadata = true;
 	}
 
-	// We only convert textures to png, so we need to rename the destination
+	// for Godot 2.x resources, we can easily rewrite the metadata to point to a renamed file with a different extension,
+	// but this isn't the case for 3.x and greater, so we have to save in the original (lossy) format.
 	if (source.get_extension() != "png") {
-		if ((source.get_extension() == "jpg" || source.get_extension() == "jpeg") && opt_export_jpg) {
-			// nothing
-		} else if (source.get_extension() == "webp" && opt_export_webp) {
-			// if the engine is <3.4, it can't handle lossless encoded WEBPs
-			if (ver_major < 4 || (ver_major == 3 && !(ver_minor >= 4))){
+		if (iinfo->ver_major > 2) {
+			if ((source.get_extension() == "jpg" || source.get_extension() == "jpeg") && opt_export_jpg) {
 				lossy = true;
-			}
-		} else {
-			dest = source.get_basename() + ".png";
-			// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
-			rewrite_metadata = true;
-			// version 3-4 import rewrite not yet implemented, we catch this down below
-			// Instead...
-			if (iinfo->ver_major > 2) {
-				// save it under .assets, which won't be picked up for import by the godot editor
-				if (!dest.replace("res://", "").begins_with(".assets")) {
-					String prefix = ".assets";
-					if (dest.begins_with("res://")) {
-						prefix = "res://.assets";
+			} else if (source.get_extension() == "webp" && opt_export_webp) {
+				// if the engine is <3.4, it can't handle lossless encoded WEBPs
+				if (ver_major < 4 && !(ver_major == 3 && ver_minor >= 4)) {
+					lossy = true;
+				}
+			} else {
+				dest = source.get_basename() + ".png";
+				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
+				if (opt_rewrite_imd_v3) {
+					rewrite_metadata = true;
+				} else {
+					// save it under .assets, which won't be picked up for import by the godot editor
+					if (!dest.replace("res://", "").begins_with(".assets")) {
+						String prefix = ".assets";
+						if (dest.begins_with("res://")) {
+							prefix = "res://.assets";
+						}
+						dest = prefix.plus_file(dest.replace("res://", ""));
 					}
-					dest = prefix.plus_file(dest.replace("res://", ""));
 				}
 			}
+		} else { //version 2
+			dest = source.get_basename() + ".png";
 		}
-
 	}
 
 	iinfo->preferred_dest = dest;
 	String r_name;
 	Error err;
 	err = _convert_tex(output_dir, path, dest, &r_name, lossy);
-	if (err != OK || !rewrite_metadata) {
-		return err;
-	} else if (rewrite_metadata && iinfo->ver_major == 2) {
-		err = rewrite_v2_import_metadata(path, dest, r_name, output_dir);
-		if (err == OK) {
+	ERR_FAIL_COND_V(err, err);
+	// If lossy, also convert it as a png
+	if (lossy){
+		dest = source.get_basename() + ".png";
+		if (!dest.replace("res://", "").begins_with(".assets")) {
+			String prefix = ".assets";
+			if (dest.begins_with("res://")) {
+				prefix = "res://.assets";
+			}
+			dest = prefix.plus_file(dest.replace("res://", ""));
+		}
+		err = _convert_tex(output_dir, path, dest, &r_name, false);
+		ERR_FAIL_COND_V(err != OK, err);
+	}
+	if (iinfo->ver_major == 2) {
+		if (rewrite_metadata){
+			err = rewrite_v2_import_metadata(path, iinfo->preferred_dest, r_name, output_dir);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_DATABASE_CANT_WRITE, "Failed to rewrite import metadata for " + iinfo->source_file);
 			return ERR_PRINTER_ON_FIRE;
 		}
 		return ERR_DATABASE_CANT_WRITE;
-	} else {
-		if (iinfo->ver_major != 2) {
-			WARN_PRINT_ONCE("Godot 3.x/4.x import data rewrite not yet implemented");
-			WARN_PRINT_ONCE("These assets will not be re-imported when loading the project");
+	} else if (iinfo->ver_major >= 3) {
+		if (rewrite_metadata){
+			err = remap_resource(output_dir, iinfo);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_DATABASE_CANT_WRITE, "Failed to remap resource " + iinfo->source_file);
+			return ERR_PRINTER_ON_FIRE;
+		// If we saved the file to something other than png
+		} else if (iinfo->source_file != iinfo->preferred_dest){
+			return ERR_DATABASE_CANT_WRITE;
 		}
-		print_line("Exported " + path + " as " + dest + " but not rewriting import metadata");
-		// ! version 3-4 import rewrite not yet implemented
-		return ERR_DATABASE_CANT_WRITE;
-		//Error err = rewrite_import_data(dest, output_dir, iinfo);
-		//ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to rewrite import metadata " + iinfo->import_md_path);
-		//print_line("rewrote metadata file " + iinfo->import_md_path);
 	}
 	return err;
 }
@@ -379,7 +313,11 @@ Ref<ImportInfo> ImportExporter::get_import_info(const String &p_path) {
 }
 
 // Makes a copy of the import metadata and changes the source to the new path
-Ref<ResourceImportMetadatav2> ImportExporter::change_v2import_data(const String &p_path, const String &rel_dest_path, const String &p_res_name, const String &output_dir, const bool change_extension) {
+Ref<ResourceImportMetadatav2> ImportExporter::change_v2import_data(const String &p_path, 
+																   const String &rel_dest_path, 
+																   const String &p_res_name, 
+																   const String &output_dir, 
+																   const bool change_extension) {
 	Ref<ResourceImportMetadatav2> imd;
 	auto iinfo = get_import_info(p_path);
 	if (iinfo.is_null()) {
@@ -649,7 +587,7 @@ void ImportExporter::reset() {
 	opt_export_ogg = true;
 	opt_export_mp3 = true;
 	opt_lossy = true;
-	opt_rewrite_imd = true;
+	opt_rewrite_imd_v2 = true;
 	GDRESettings::get_singleton()->set_project_path("");
 	files_lossy_exported.clear();
 	files_rewrote_metadata.clear();
@@ -658,4 +596,117 @@ void ImportExporter::reset() {
 ImportExporter::ImportExporter() {}
 ImportExporter::~ImportExporter() {
 	reset();
+}
+
+Error ImportExporter::remap_resource(const String &output_dir, Ref<ImportInfo> &iinfo) {
+	//just create a remap file
+	String dst_dir = output_dir.plus_file(iinfo->preferred_dest.get_base_dir().replace("res://", ""));
+	String dest_path = output_dir.plus_file(iinfo->preferred_dest.replace("res://", ""));
+	String remap_text = "[remap]\n\npath=\"" + iinfo->preferred_dest + "\"\n";
+	Error err;
+	FileAccess * f = FileAccess::open(output_dir.plus_file(iinfo->source_file.replace("res://", "")) + ".remap", FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V(err, err);
+	f->store_string(remap_text);
+	f->close();
+	memdelete(f);
+	return OK;
+}
+
+// rename dependency in resource file
+Error ImportExporter::rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String,String> &p_rename_map){
+	ResourceFormatLoaderBinary rflb;
+	Error err;
+	// This will also check if the file is a Godot binary resource or not
+	err = rflb.rename_dependencies(p_iinfo->import_path, p_rename_map);
+	// If not a binary resource, try opening it as a text file
+	if (err == ERR_FILE_UNRECOGNIZED){
+		String txt = FileAccess::get_file_as_string(p_iinfo->import_path, &err);
+		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " is neither a text file nor a binary formatted Godot resource");
+		for (auto E = p_rename_map.front(); E; E = E->next()) {
+			String source = E->key().replace("res://", "");
+			String new_source = E->get().replace("res://", "");
+			txt.replace(source, new_source);
+		}
+		FileAccess * f = FileAccess::open(p_iinfo->import_path, FileAccess::WRITE, &err);
+		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " cannot be opened for writing.");
+		f->store_string(txt);
+		memdelete(f);
+	}
+	return OK;
+}
+
+// Only necessary on Godot >=3.x
+// Check for imports we want to rename when we convert them
+// Like texture.jpg -> texture.png
+Error ImportExporter::rename_imports(const String &output_dir) {
+	String out_dir = output_dir == "" ? output_dir : GDRESettings::get_singleton()->get_project_path();
+	Map<String, String> rename_map;
+	Map<String, Ref<ImportInfo>> iinfos;
+	Error err;
+	for (int i = 0; i < files.size(); i++) {
+		Ref<ImportInfo> iinfo = files[i];
+		String path = iinfo->get_path();
+		String source = iinfo->get_source_file();
+		String type = iinfo->get_type();
+		String importer = iinfo->importer;
+		auto loss_type = iinfo->get_import_loss_type();
+		if (loss_type != ImportInfo::LOSSLESS) {
+			if (!opt_lossy) {
+				continue;
+			}
+		}
+		if (opt_export_textures && importer == "texture") {
+			String new_source;
+			if (source.get_extension() == "jpg"){
+				new_source = source.replace(source.get_file() , source.get_file().get_basename() + ".png");
+				rename_map.insert(source, new_source);
+				iinfos.insert(source, iinfo);
+			} else if (source.get_extension() == "jpeg") {
+				//Who does this? we can't rename these to "*.png" because it changes string length in binary files
+				//Add an underscore at the end of the filename
+				new_source = source.replace(source.get_file() , source.get_file().get_basename() + "_.png");
+				rename_map.insert(source, new_source);
+				iinfos.insert(source, iinfo);
+			}
+		}
+	}
+	Vector<String> failed_remaps;
+	for (auto E = rename_map.front(); E; E = E->next()) {
+		String source = E->key();
+		String new_source = E->get();
+		Ref<ImportInfo> iinfo = iinfos[source];
+		err = iinfo->rename_source(new_source);
+		if (err){
+			failed_remaps.append(E->key());
+		}
+	}
+	// remove any failed remaps
+	for (int i = 0; i < failed_remaps.size(); i++){
+		String key = failed_remaps[i];
+		rename_map.erase(key);
+	}
+
+	// Go through all the resources and rename 
+	for (int i = 0; i < files.size(); i++) {
+		rename_dependency_in_resource(files[i], rename_map);
+	}
+
+	// Go through all the gdscript files and rename the source files
+	for (int i = 0; i < gd_files.size(); i++) {
+		String txt = FileAccess::get_file_as_string(gd_files[i], &err);
+		if (!err){
+			continue;
+		}
+		for (auto E = rename_map.front(); E; E = E->next()) {
+			String source = E->key().replace("res://", "");
+			String new_source = E->get().replace("res://", "");
+			txt.replace(source, new_source);
+		}
+		FileAccess * f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
+		if (!err){
+			f->store_string(txt);
+		}
+		memdelete(f);
+	}
+	return OK;
 }

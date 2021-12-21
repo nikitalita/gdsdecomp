@@ -47,14 +47,15 @@ Error save_image_as_webp(const String &p_path, const Ref<Image> &p_img, bool los
     Ref<Image> source_image = p_img->duplicate();
     Vector<uint8_t> buffer;
     if (lossy) {
-        buffer = _webp_lossy_pack(source_image, 1);
+        buffer = Image::webp_lossy_packer(source_image, 1);
     } else {
-        buffer = _webp_lossless_pack(source_image);
+        buffer = Image::webp_lossless_packer(source_image);
     }
     Error err;
     FileAccess * file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err, err, vformat("Can't save WEBP at path: '%s'.", p_path));
-    file->store_buffer(buffer.ptr(), buffer.size());
+    // skip the 4 byte "WEBP" at the beginning of the buffer, not present in real WEBP files
+    file->store_buffer(buffer.ptr() + 4, buffer.size() - 4);
     if (file->get_error() != OK && file->get_error() != ERR_FILE_EOF) {
 		memdelete(file);
 		return ERR_CANT_CREATE;
@@ -110,7 +111,7 @@ Error save_image_as_jpeg(const String &p_path, const Ref<Image> &p_img) {
         bool success = TooJpeg::writeJpeg([](unsigned char oneByte){
             _____tmp_file->store_8(oneByte);
         }, image_data.ptr(), width, height, isRGB, 100, false);
-		ERR_FAIL_COND_V_MSG(success, ERR_BUG, "Failed to convert image to JPEG");
+		ERR_FAIL_COND_V_MSG(!success, ERR_BUG, "Failed to convert image to JPEG");
 	}
 
 	if (_____tmp_file->get_error() != OK && _____tmp_file->get_error() != ERR_FILE_EOF) {
