@@ -3,8 +3,49 @@
 #include <core/io/dir_access.h>
 #include <core/io/file_access.h>
 #include "external/toojpeg/toojpeg.h"
-#include <modules/webp/image_loader_webp.cpp>
+
 namespace gdreutil{
+    
+static Vector<String> splitmk(const String &p_str, const Vector<String> &p_splitters, bool p_allow_empty, int p_maxsplit) {
+	Vector<String> ret;
+	int from = 0;
+	int len = p_str.length();
+
+	while (true) {
+        int idx;
+		int end = p_str.findmk(p_splitters, from, &idx);
+        int spl_len = 1;
+		if (end < 0) {
+			end = len;
+		} else {
+			spl_len = p_splitters[idx].length();
+		}
+		if (p_allow_empty || (end > from)) {
+			if (p_maxsplit <= 0) {
+				ret.push_back(p_str.substr(from, end - from));
+			} else {
+				// Put rest of the string and leave cycle.
+				if (p_maxsplit == ret.size()) {
+					ret.push_back(p_str.substr(from, len));
+					break;
+				}
+
+				// Otherwise, push items until positive limit is reached.
+				ret.push_back(p_str.substr(from, end - from));
+			}
+		}
+
+		if (end == len) {
+			break;
+		}
+
+		from = end + spl_len;
+	}
+
+	return ret;
+}
+
+
 static Vector<String> get_recursive_dir_list(const String dir, const Vector<String> &wildcards = Vector<String>(), const bool absolute = true, const String rel = "", const bool &res = false) {
     Vector<String> ret;
     Error err;
