@@ -675,7 +675,7 @@ Error ResourceLoaderBinaryCompat::repair_property(const String &rtype, const Str
 			// Unknown why this failed, just report it
 			ERR_EXIT_REPAIR_PROPERTY(ERR_BUG, "Property '" + name + "' failed to be set for some unknown reason");
 		}
-	memdelete(listpinfo);
+		memdelete(listpinfo);
 	}
 	memdelete(pinfo);
 	return err;
@@ -711,7 +711,6 @@ Error ResourceLoaderBinaryCompat::load() {
 			}
 		} else {
 			path = local_path;
-
 		}
 		internal_resources.write[i].path = path;
 
@@ -843,10 +842,10 @@ RES ResourceLoaderBinaryCompat::set_dummy_ext(const uint32_t erindex) {
 		return external_resources[erindex].cache;
 	}
 	String id;
-	if (using_uids){
+	if (using_uids) {
 		id = itos(external_resources[erindex].uid);
 	} else {
-		id = itos(erindex+1);
+		id = itos(erindex + 1);
 	}
 	RES dummy = make_dummy(external_resources[erindex].path, external_resources[erindex].type, id);
 	external_resources.write[erindex].cache = dummy;
