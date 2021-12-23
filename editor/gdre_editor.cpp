@@ -26,7 +26,7 @@
 #include "utility/pcfg_loader.h"
 #include "utility/resource_loader_compat.h"
 #include "utility/texture_loader_compat.h"
-
+#include "editor/converter.h"
 #if VERSION_MAJOR < 4
 #error Unsupported Godot version
 #endif
@@ -320,6 +320,14 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_file_selection->set_show_hidden_files(true);
 	p_control->add_child(pck_file_selection);
 
+	convert_v4_res_file_selection = memnew(FileDialog);
+	convert_v4_res_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
+	convert_v4_res_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILES);
+	convert_v4_res_file_selection->add_filter("*.escn,*.tscn,*.tres,*.gd,*.shader,*.gdshader,*.cs,project.godot,*.csproj;Convertable resources");
+	convert_v4_res_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_convert_2_v4_request));
+	convert_v4_res_file_selection->set_show_hidden_files(true);
+	p_control->add_child(convert_v4_res_file_selection);
+
 	bin_res_file_selection = memnew(FileDialog);
 	bin_res_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
 	bin_res_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILES);
@@ -443,6 +451,9 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_button->set_text(RTR("Resources"));
 		menu_button->set_icon(p_control->get_theme_icon("REResBT", "EditorIcons"));
 		menu_popup = menu_button->get_popup();
+		menu_popup->add_separator();
+		menu_popup->add_icon_item(p_control->get_theme_icon("REResBT", "EditorIcons"), RTR("Convert Godot 3.x files to Godot 4.x..."), MENU_CONV_TO_4);
+		menu_popup->add_separator();
 		menu_popup->add_icon_item(p_control->get_theme_icon("REResBT", "EditorIcons"), RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
 		menu_popup->add_icon_item(p_control->get_theme_icon("REResTB", "EditorIcons"), RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
 		menu_popup->add_separator();
@@ -468,6 +479,8 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_icon_item(p_control->get_theme_icon("REScript", "EditorIcons"), RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
 		menu_popup->add_icon_item(p_control->get_theme_icon("REScript", "EditorIcons"), RTR("Compile .GD script files..."), MENU_COMP_GDS);
 		menu_popup->set_item_disabled(menu_popup->get_item_index(MENU_COMP_GDS), true); //TEMP RE-ENABLE WHEN IMPLEMENTED
+		menu_popup->add_separator();
+		menu_popup->add_icon_item(p_control->get_theme_icon("REResBT", "EditorIcons"), RTR("Convert Godot 3.x files to Godot 4.x..."), MENU_CONV_TO_4);
 		menu_popup->add_separator();
 		menu_popup->add_icon_item(p_control->get_theme_icon("REResBT", "EditorIcons"), RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
 		menu_popup->add_icon_item(p_control->get_theme_icon("REResTB", "EditorIcons"), RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
@@ -530,6 +543,9 @@ void GodotREEditor::menu_option_pressed(int p_id) {
 		} break;
 		case MENU_COMP_GDS: {
 			script_dialog_c->popup_centered(Size2(600, 400));
+		} break;
+		case MENU_CONV_TO_4: {
+			convert_v4_res_file_selection->popup_centered(Size2(600, 400));
 		} break;
 		case MENU_CONV_TO_TXT: {
 			bin_res_file_selection->popup_centered(Size2(600, 400));
@@ -1354,6 +1370,11 @@ void GodotREEditor::_res_stxt_2_png_process() {
 	}
 }
 
+void GodotREEditor::_res_convert_2_v4_request(const Vector<String> &p_files) {
+	GodotConverter4 converter;
+	converter.convert_files(p_files);
+}
+
 void GodotREEditor::_res_bin_2_txt_request(const Vector<String> &p_files) {
 	DirAccess *da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	String overwrite_list = String();
@@ -2046,6 +2067,8 @@ void GodotREEditor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_pck_save_request", "path"), &GodotREEditor::_pck_save_request);
 
 	ClassDB::bind_method(D_METHOD("_toggle_about_dialog_on_start"), &GodotREEditor::_toggle_about_dialog_on_start);
+
+	ClassDB::bind_method(D_METHOD("_res_convert_2_v4_request", "files"), &GodotREEditor::_res_convert_2_v4_request);
 
 	ClassDB::bind_method(D_METHOD("_res_bin_2_txt_request", "files"), &GodotREEditor::_res_bin_2_txt_request);
 	ClassDB::bind_method(D_METHOD("_res_bin_2_txt_process"), &GodotREEditor::_res_bin_2_txt_process);

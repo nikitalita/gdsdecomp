@@ -216,6 +216,8 @@ private:
 
 	FileDialog *pck_save_file_selection;
 
+	FileDialog *convert_v4_res_file_selection;
+
 	FileDialog *bin_res_file_selection;
 	FileDialog *txt_res_file_selection;
 
@@ -248,6 +250,9 @@ private:
 
 	Vector<String> res_files;
 
+
+	void _res_convert_2_v4_request(const Vector<String> &p_files);
+	
 	void _res_bin_2_txt_request(const Vector<String> &p_files);
 	void _res_bin_2_txt_process();
 	void _res_txt_2_bin_request(const Vector<String> &p_files);
@@ -288,7 +293,8 @@ public:
 		MENU_SMPL_TO_WAV,
 		MENU_ABOUT_RE,
 		MENU_EXIT_RE,
-		MENU_KEY
+		MENU_KEY,
+		MENU_CONV_TO_4
 	};
 
 	_FORCE_INLINE_ static GodotREEditor *get_singleton() { return singleton; }
