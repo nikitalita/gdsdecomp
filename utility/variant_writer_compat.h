@@ -5,6 +5,14 @@
 #include "core/io/resource.h"
 #include "core/variant/variant.h"
 
+class VariantParserCompat : VariantParser {
+	static Error fake_parse_object(Token &token, Variant &value, Stream *p_stream, int &line, String &r_err_str, ResourceParser *p_res_parser);
+
+public:
+	static Error parse_tag(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, ResourceParser *p_res_parser = nullptr, bool p_simple_tag = false);
+	static Error parse_tag_assign_eof(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, String &r_assign, Variant &r_value, ResourceParser *p_res_parser = nullptr, bool p_simple_tag = false);
+};
+
 class VariantWriterCompat {
 public:
 	typedef Error (*StoreStringFunc)(void *ud, const String &p_string);
