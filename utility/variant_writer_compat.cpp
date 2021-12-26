@@ -144,6 +144,7 @@ Error VariantParserCompat::parse_tag_assign_eof(Stream *p_stream, int &line, Str
 					} else {
 						err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
 					}
+					return err;
 				}
 				// end hacks
 				err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
