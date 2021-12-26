@@ -86,6 +86,10 @@ Error ImportExporter::load_import_files(const String &dir, const uint32_t p_ver_
 		}
 	}
 
+	Vector<String> wildcards;
+	wildcards.push_back("*.gd");
+	gd_files = gdreutil::get_recursive_dir_list(dir, wildcards, false);
+
 	for (int i = 0; i < file_names.size(); i++) {
 		if (load_import_file(file_names[i]) != OK) {
 			WARN_PRINT("Can't load import file: " + file_names[i]);
@@ -327,7 +331,7 @@ Error ImportExporter::export_texture(const String &output_dir, Ref<ImportInfo> &
 		return ERR_DATABASE_CANT_WRITE;
 	} else if (iinfo->ver_major >= 3) {
 		if (rewrite_metadata) {
-			err = ERR_DATABASE_CANT_WRITE;
+			err = remap_resource(output_dir, iinfo);
 			ERR_FAIL_COND_V_MSG(err != OK, ERR_DATABASE_CANT_WRITE, "Failed to remap resource " + iinfo->source_file);
 			return ERR_PRINTER_ON_FIRE;
 			// If we saved the file to something other than png
@@ -625,6 +629,119 @@ void ImportExporter::print_report() {
 		}
 	}
 	print_line("*********************************\n\n");
+}
+
+Error ImportExporter::remap_resource(const String &output_dir, Ref<ImportInfo> &iinfo) {
+	//just create a remap file
+	String dst_dir = output_dir.plus_file(iinfo->preferred_dest.get_base_dir().replace("res://", ""));
+	String dest_path = output_dir.plus_file(iinfo->preferred_dest.replace("res://", ""));
+	String remap_text = "[remap]\n\npath=\"" + iinfo->preferred_dest + "\"\n";
+	Error err;
+	FileAccess *f = FileAccess::open(output_dir.plus_file(iinfo->source_file.replace("res://", "")) + ".remap", FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V(err, err);
+	f->store_string(remap_text);
+	f->close();
+	memdelete(f);
+	return OK;
+}
+
+// rename dependency in resource file
+Error ImportExporter::rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String, String> &p_rename_map) {
+	ResourceFormatLoaderBinary rflb;
+	Error err;
+	// This will also check if the file is a Godot binary resource or not
+	err = rflb.rename_dependencies(p_iinfo->import_path, p_rename_map);
+	// If not a binary resource, try opening it as a text file
+	if (err == ERR_FILE_UNRECOGNIZED) {
+		String txt = FileAccess::get_file_as_string(p_iinfo->import_path, &err);
+		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " is neither a text file nor a binary formatted Godot resource");
+		for (auto E = p_rename_map.front(); E; E = E->next()) {
+			String source = E->key().replace("res://", "");
+			String new_source = E->get().replace("res://", "");
+			txt.replace(source, new_source);
+		}
+		FileAccess *f = FileAccess::open(p_iinfo->import_path, FileAccess::WRITE, &err);
+		ERR_FAIL_COND_V_MSG(err, err, "File " + p_iinfo->import_path + " cannot be opened for writing.");
+		f->store_string(txt);
+		memdelete(f);
+	}
+	return OK;
+}
+
+// Only necessary on Godot >=3.x
+// Check for imports we want to rename when we convert them
+// Like texture.jpg -> texture.png
+Error ImportExporter::rename_imports(const String &output_dir) {
+	String out_dir = output_dir == "" ? output_dir : GDRESettings::get_singleton()->get_project_path();
+	Map<String, String> rename_map;
+	Map<String, Ref<ImportInfo>> iinfos;
+	Error err;
+	for (int i = 0; i < files.size(); i++) {
+		Ref<ImportInfo> iinfo = files[i];
+		String path = iinfo->get_path();
+		String source = iinfo->get_source_file();
+		String type = iinfo->get_type();
+		String importer = iinfo->importer;
+		auto loss_type = iinfo->get_import_loss_type();
+		if (loss_type != ImportInfo::LOSSLESS) {
+			if (!opt_lossy) {
+				continue;
+			}
+		}
+		if (opt_export_textures && importer == "texture") {
+			String new_source;
+			if (source.get_extension() == "jpg") {
+				new_source = source.replace(source.get_file(), source.get_file().get_basename() + ".png");
+				rename_map.insert(source, new_source);
+				iinfos.insert(source, iinfo);
+			} else if (source.get_extension() == "jpeg") {
+				//Who does this? we can't rename these to "*.png" because it changes string length in binary files
+				//Add an underscore at the end of the filename
+				new_source = source.replace(source.get_file(), source.get_file().get_basename() + "_.png");
+				rename_map.insert(source, new_source);
+				iinfos.insert(source, iinfo);
+			}
+		}
+	}
+	Vector<String> failed_remaps;
+	for (auto E = rename_map.front(); E; E = E->next()) {
+		String source = E->key();
+		String new_source = E->get();
+		Ref<ImportInfo> iinfo = iinfos[source];
+		err = iinfo->rename_source(new_source);
+		if (err) {
+			failed_remaps.append(E->key());
+		}
+	}
+	// remove any failed remaps
+	for (int i = 0; i < failed_remaps.size(); i++) {
+		String key = failed_remaps[i];
+		rename_map.erase(key);
+	}
+
+	// Go through all the resources and rename
+	for (int i = 0; i < files.size(); i++) {
+		rename_dependency_in_resource(files[i], rename_map);
+	}
+
+	// Go through all the gdscript files and rename the source files
+	for (int i = 0; i < gd_files.size(); i++) {
+		String txt = FileAccess::get_file_as_string(gd_files[i], &err);
+		if (!err) {
+			continue;
+		}
+		for (auto E = rename_map.front(); E; E = E->next()) {
+			String source = E->key().replace("res://", "");
+			String new_source = E->get().replace("res://", "");
+			txt.replace(source, new_source);
+		}
+		FileAccess *f = FileAccess::open(gd_files[i], FileAccess::WRITE, &err);
+		if (!err) {
+			f->store_string(txt);
+		}
+		memdelete(f);
+	}
+	return OK;
 }
 
 void ImportExporter::_bind_methods() {

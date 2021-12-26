@@ -27,6 +27,7 @@ class ImportExporter : public RefCounted {
 	bool opt_rewrite_imd_v3 = false;
 	int ver_major = 0;
 	int ver_minor = 0;
+	Vector<String> gd_files;
 	Vector<String> files_lossy_exported;
 	Vector<String> files_rewrote_metadata;
 	int import_count;
@@ -58,7 +59,11 @@ protected:
 public:
 	Error recreate_plugin_config(const String &output_dir, const String &plugin_dir);
 	Error recreate_plugin_configs(const String &output_dir);
+
+	Error rename_imports(const String &output_dir);
+	Error rename_dependency_in_resource(const Ref<ImportInfo> p_iinfo, const Map<String, String> &p_rename_map);
 	Error remap_resource(const String &output_dir, Ref<ImportInfo> &iinfo);
+
 	Error convert_res_txt_2_bin(const String &output_dir, const String &p_path, const String &p_dst);
 	Error convert_res_bin_2_txt(const String &output_dir, const String &p_path, const String &p_dst);
 	Error convert_tex_to_png(const String &output_dir, const String &p_path, const String &p_dst);
