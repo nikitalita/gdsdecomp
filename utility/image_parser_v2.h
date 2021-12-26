@@ -1,13 +1,11 @@
-
-
-#ifndef V2_IMAGE_PARSER_H
-#define V2_IMAGE_PARSER_H
+#ifndef IMAGE_PARSER_V2_H
+#define IMAGE_PARSER_V2_H
 
 #include "core/io/file_access.h"
+#include "core/io/image.h"
 #include "core/io/resource.h"
 #include "core/variant/variant.h"
 #include "core/variant/variant_parser.h"
-
 namespace V2Image {
 enum Format {
 	IMAGE_ENCODING_EMPTY = 0,
@@ -40,54 +38,6 @@ enum Format {
 	IMAGE_FORMAT_V2_MAX = 22,
 	IMAGE_FORMAT_CUSTOM = 30
 };
-const char *format_names[Format::IMAGE_FORMAT_V2_MAX] = {
-	"Grayscale",
-	"Intensity",
-	"GrayscaleAlpha",
-	"RGB",
-	"RGBA",
-	"Indexed",
-	"IndexedAlpha",
-	"YUV422",
-	"YUV444",
-	"BC1",
-	"BC2",
-	"BC3",
-	"BC4",
-	"BC5",
-	"PVRTC2",
-	"PVRTC2Alpha",
-	"PVRTC4",
-	"PVRTC4Alpha",
-	"ETC",
-	"ATC",
-	"ATCAlphaExp",
-	"ATCAlphaInterp",
-};
-const char *format_identifiers[Format::IMAGE_FORMAT_V2_MAX] = {
-	"GRAYSCALE",
-	"INTENSITY",
-	"GRAYSCALE_ALPHA",
-	"RGB",
-	"RGBA",
-	"INDEXED",
-	"INDEXED_ALPHA",
-	"YUV422",
-	"YUV444",
-	"BC1",
-	"BC2",
-	"BC3",
-	"BC4",
-	"BC5",
-	"PVRTC2",
-	"PVRTC2_ALPHA",
-	"PVRTC4",
-	"PVRTC4_ALPHA",
-	"ETC",
-	"ATC",
-	"ATC_ALPHA_EXPLICIT",
-	"ATC_ALPHA_INTERPOLATED"
-};
 } // namespace V2Image
 
 class ImageParserV2 {
@@ -106,4 +56,4 @@ public:
 	static Error write_image_v2_to_bin(FileAccess *f, const Variant &r_v, const PropertyHint p_hint);
 };
 
-#endif // V2_IMAGE_PARSER_H
+#endif // IMAGE_PARSER_V2_H

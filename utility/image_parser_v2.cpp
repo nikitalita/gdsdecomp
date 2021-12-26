@@ -1,6 +1,54 @@
 
 #include "image_parser_v2.h"
-#include "core/io/image.h"
+
+const char *format_names[V2Image::IMAGE_FORMAT_V2_MAX] = {
+	"Grayscale",
+	"Intensity",
+	"GrayscaleAlpha",
+	"RGB",
+	"RGBA",
+	"Indexed",
+	"IndexedAlpha",
+	"YUV422",
+	"YUV444",
+	"BC1",
+	"BC2",
+	"BC3",
+	"BC4",
+	"BC5",
+	"PVRTC2",
+	"PVRTC2Alpha",
+	"PVRTC4",
+	"PVRTC4Alpha",
+	"ETC",
+	"ATC",
+	"ATCAlphaExp",
+	"ATCAlphaInterp",
+};
+const char *format_identifiers[V2Image::IMAGE_FORMAT_V2_MAX] = {
+	"GRAYSCALE",
+	"INTENSITY",
+	"GRAYSCALE_ALPHA",
+	"RGB",
+	"RGBA",
+	"INDEXED",
+	"INDEXED_ALPHA",
+	"YUV422",
+	"YUV444",
+	"BC1",
+	"BC2",
+	"BC3",
+	"BC4",
+	"BC5",
+	"PVRTC2",
+	"PVRTC2_ALPHA",
+	"PVRTC4",
+	"PVRTC4_ALPHA",
+	"ETC",
+	"ATC",
+	"ATC_ALPHA_EXPLICIT",
+	"ATC_ALPHA_INTERPOLATED"
+};
 
 void _advance_padding(FileAccess *f, uint32_t p_len) {
 	uint32_t extra = 4 - (p_len % 4);
@@ -16,7 +64,7 @@ V2Image::Format ImageParserV2::get_format_from_string(const String &fmt_id) {
 		return V2Image::IMAGE_FORMAT_CUSTOM;
 	}
 	for (int i = 0; i < V2Image::IMAGE_FORMAT_V2_MAX; i++) {
-		if (V2Image::format_names[i] == fmt_id) {
+		if (format_names[i] == fmt_id) {
 			return (V2Image::Format)i;
 		}
 	}
@@ -27,7 +75,7 @@ String ImageParserV2::get_format_name(V2Image::Format p_format) {
 		return "Custom";
 	}
 	ERR_FAIL_INDEX_V(p_format, V2Image::IMAGE_FORMAT_V2_MAX, String());
-	return V2Image::format_names[p_format];
+	return format_names[p_format];
 }
 
 String ImageParserV2::get_format_identifier(V2Image::Format p_format) {
@@ -35,7 +83,7 @@ String ImageParserV2::get_format_identifier(V2Image::Format p_format) {
 		return "CUSTOM";
 	}
 	ERR_FAIL_INDEX_V(p_format, V2Image::IMAGE_FORMAT_V2_MAX, String());
-	return V2Image::format_identifiers[p_format];
+	return format_identifiers[p_format];
 }
 
 Ref<Image> ImageParserV2::convert_indexed_image(const Vector<uint8_t> &p_imgdata, int p_width, int p_height, int p_mipmaps, V2Image::Format p_format, Error *r_error) {

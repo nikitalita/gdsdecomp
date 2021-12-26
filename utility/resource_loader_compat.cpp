@@ -1,16 +1,17 @@
 #include "resource_loader_compat.h"
+#include "gdre_settings.h"
+#include "image_parser_v2.h"
+#include "texture_loader_compat.h"
+#include "variant_writer_compat.h"
+
 #include "core/crypto/crypto_core.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access_compressed.h"
 #include "core/string/ustring.h"
 #include "core/variant/variant_parser.h"
 #include "core/version.h"
-#include "gdre_packed_data.h"
-#include "gdre_settings.h"
-#include "image_parser_v2.h"
 #include "scene/resources/resource_format_text.h"
-#include "texture_loader_compat.h"
-#include "variant_writer_compat.h"
+
 Error ResourceFormatLoaderCompat::convert_bin_to_txt(const String &p_path, const String &dst, const String &output_dir, float *r_progress) {
 	Error error = OK;
 	String dst_path = dst;
@@ -2321,7 +2322,7 @@ Error ResourceLoaderCompat::open_text(FileAccess *p_f, bool p_skip_first_tag) {
 	if (err) {
 		error = err;
 		_printerr();
-		return;
+		return err;
 	}
 
 	if (tag.fields.has("format")) {
@@ -2331,7 +2332,7 @@ Error ResourceLoaderCompat::open_text(FileAccess *p_f, bool p_skip_first_tag) {
 			error_text = "Saved with newer format version";
 			_printerr();
 			error = ERR_PARSE_ERROR;
-			return;
+			return err;
 			// Text format
 		} else if (ver_format == 3) {
 			using_named_scene_ids = true;
@@ -2347,7 +2348,7 @@ Error ResourceLoaderCompat::open_text(FileAccess *p_f, bool p_skip_first_tag) {
 			error_text = "Missing 'type' field in 'gd_resource' tag";
 			_printerr();
 			error = ERR_PARSE_ERROR;
-			return;
+			return err;
 		}
 
 		res_type = tag.fields["type"];
@@ -2356,7 +2357,7 @@ Error ResourceLoaderCompat::open_text(FileAccess *p_f, bool p_skip_first_tag) {
 		error_text = "Unrecognized file type: " + tag.name;
 		_printerr();
 		error = ERR_PARSE_ERROR;
-		return;
+		return err;
 	}
 
 	if (tag.fields.has("uid")) {
@@ -2380,6 +2381,7 @@ Error ResourceLoaderCompat::open_text(FileAccess *p_f, bool p_skip_first_tag) {
 			error = ERR_FILE_CORRUPT;
 		}
 	}
+	return err;
 }
 
 Error ResourceLoaderCompat::_parse_sub_resource_dummys(void *p_self, VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str) {

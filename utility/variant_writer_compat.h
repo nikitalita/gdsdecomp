@@ -4,6 +4,7 @@
 #include "core/io/file_access.h"
 #include "core/io/resource.h"
 #include "core/variant/variant.h"
+#include "core/variant/variant_parser.h"
 
 class VariantParserCompat : VariantParser {
 	static Error fake_parse_object(Token &token, Variant &value, Stream *p_stream, int &line, String &r_err_str, ResourceParser *p_res_parser);
