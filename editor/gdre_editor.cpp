@@ -22,7 +22,6 @@
 #include "scene/resources/audio_stream_sample.h"
 
 #include "core/version_generated.gen.h"
-#include "editor/converter.h"
 #include "utility/oggstr_loader_compat.h"
 #include "utility/pcfg_loader.h"
 #include "utility/resource_loader_compat.h"
