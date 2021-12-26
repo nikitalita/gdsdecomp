@@ -6,6 +6,7 @@
 #include "core/string/string_buffer.h"
 #include "core/variant/variant_parser.h"
 #include "image_parser_v2.h"
+#include "input_event_parser_v2.h"
 #include "resource_loader_compat.h"
 
 namespace ToV4 {
@@ -20,16 +21,16 @@ enum Type {
 	STRING,
 	// math types
 	VECTOR2,
-	VECTOR2I, //Unused
+	VECTOR2I, // Unused
 	RECT2,
-	RECT2I, //Unused
+	RECT2I, // Unused
 	VECTOR3,
-	VECTOR3I, //Unused
+	VECTOR3I, // Unused
 	TRANSFORM2D,
 	PLANE,
 	QUAT, // 10
-	_AABB, //sorry naming convention fail :( not like it's used often
-	BASIS, //Basis
+	_AABB, // sorry naming convention fail :( not like it's used often
+	BASIS, // Basis
 	TRANSFORM,
 	// misc types
 	COLOR,
@@ -38,26 +39,26 @@ enum Type {
 	_RID,
 	OBJECT,
 	INPUT_EVENT, // v2 struct which isn't mapped
-	SIGNAL, //Unused
+	SIGNAL, // Unused
 	DICTIONARY, // 20
 	ARRAY,
 	// V3 arrays
 	POOL_BYTE_ARRAY = 26, // 20
 	POOL_INT_ARRAY = 27,
-	POOL_INT64_ARRAY = 28, //Unused
+	POOL_INT64_ARRAY = 28, // Unused
 	POOL_REAL_ARRAY = 29,
-	POOL_REAL64_ARRAY = 30, //Unused
+	POOL_REAL64_ARRAY = 30, // Unused
 	POOL_STRING_ARRAY = 31,
 	POOL_VECTOR2_ARRAY = 32,
 	POOL_VECTOR3_ARRAY = 33, // 25
 	POOL_COLOR_ARRAY = 34,
 	VARIANT_MAX = 35,
 	// V2 arrays
-	RAW_ARRAY = 26, //Byte array
+	RAW_ARRAY = 26, // Byte array
 	INT_ARRAY = 27,
-	INT64_ARRAY = 28, //unused
+	INT64_ARRAY = 28, // unused
 	REAL_ARRAY = 29,
-	REAL64_ARRAY = 30, //Unused
+	REAL64_ARRAY = 30, // Unused
 	STRING_ARRAY = 31, // 25
 	VECTOR2_ARRAY = 32,
 	VECTOR3_ARRAY = 33,
@@ -68,13 +69,107 @@ enum Type {
 	MATRIX3 = 15,
 };
 }
+
+// Don't think this is necessary at the moment? The only objects that get stored inline in text resources are Position3D objects and those are unchanged from Godot 2.x
+Error VariantParserCompat::fake_parse_object(Token &token, Variant &r_value, Stream *p_stream, int &line, String &r_err_str, ResourceParser *p_res_parser) {
+	return parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
+}
+Error VariantParserCompat::parse_tag(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, ResourceParser *p_res_parser = nullptr, bool p_simple_tag = false) {
+	return VariantParser::parse_tag(p_stream, line, r_err_str, r_tag, p_res_parser, p_simple_tag);
+}
+
+Error VariantParserCompat::parse_tag_assign_eof(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, String &r_assign, Variant &r_value, ResourceParser *p_res_parser = nullptr, bool p_simple_tag = false) {
+	// assign..
+	r_assign = "";
+	String what;
+
+	while (true) {
+		char32_t c;
+		if (p_stream->saved) {
+			c = p_stream->saved;
+			p_stream->saved = 0;
+		} else {
+			c = p_stream->get_char();
+		}
+
+		if (p_stream->is_eof()) {
+			return ERR_FILE_EOF;
+		}
+
+		if (c == ';') { // comment
+			while (true) {
+				char32_t ch = p_stream->get_char();
+				if (p_stream->is_eof()) {
+					return ERR_FILE_EOF;
+				}
+				if (ch == '\n') {
+					break;
+				}
+			}
+			continue;
+		}
+
+		if (c == '[' && what.length() == 0) {
+			// it's a tag!
+			p_stream->saved = '['; // go back one
+			Error err = parse_tag(p_stream, line, r_err_str, r_tag, p_res_parser, p_simple_tag);
+			return err;
+		}
+
+		if (c > 32) {
+			if (c == '"') { // quoted
+				p_stream->saved = '"';
+				Token tk;
+				Error err = get_token(p_stream, tk, line, r_err_str);
+				if (err) {
+					return err;
+				}
+				if (tk.type != TK_STRING) {
+					r_err_str = "Error reading quoted string";
+					return ERR_INVALID_DATA;
+				}
+
+				what = tk.value;
+
+			} else if (c != '=') {
+				what += String::chr(c);
+			} else {
+				r_assign = what;
+				Token token;
+				get_token(p_stream, token, line, r_err_str);
+				Error err;
+				// VariantParserCompat hacks for compatibility
+				if (token.type == TK_IDENTIFIER) {
+					String id = token.value;
+					// Old V2 Image
+					if (id == "Image") {
+						err = ImageParserV2::parse_image_construct_v2(p_stream, r_value, true, true, line, r_err_str);
+					} else if (id == "InputEvent") {
+						err = InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str);
+					} else if (id == "Object") {
+						err = fake_parse_object(token, r_value, p_stream, line, r_err_str, p_res_parser);
+					} else {
+						err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
+					}
+				}
+				// end hacks
+				err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
+				return err;
+			}
+		} else if (c == '\n') {
+			line++;
+		}
+	}
+	return OK;
+}
+
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
 static String rtosfix(double p_value) {
 	if (p_value == 0.0)
-		return "0"; //avoid negative zero (-0) being written, which may annoy git, svn, etc. for changes when they don't exist.
+		return "0"; // avoid negative zero (-0) being written, which may annoy git, svn, etc. for changes when they don't exist.
 	else
 		return rtoss(p_value);
 }
@@ -205,34 +300,34 @@ Error VariantWriterCompat::write_compat(const Variant &p_variant, const uint32_t
 
 			RES res = p_variant;
 			if (res.is_valid()) {
-				//is resource
+				// is resource
 				String res_text;
-				//Hack for V2 Images
+				// Hack for V2 Images
 				if (ver_major == 2 && res->is_class("Image")) {
 					res_text = ImageParserV2::image_v2_to_string(res);
 				} else if (p_encode_res_func) {
-					//try external function
+					// try external function
 					res_text = p_encode_res_func(p_encode_res_ud, res);
 				} else if (res->is_class("FakeResource")) {
-					//this is really just for debugging
+					// this is really just for debugging
 					res_text = "Resource( \"" + ((Ref<FakeResource>)res)->get_real_path() + "\")";
 				}
 
-				//try path because it's a file
+				// try path because it's a file
 				if (res_text == String() && res->get_path().is_resource_file()) {
-					//external resource
+					// external resource
 					String path = res->get_path();
 					res_text = "Resource( \"" + path + "\")";
 				}
 
-				//could come up with some sort of text
+				// could come up with some sort of text
 				if (res_text != String()) {
 					p_store_string_func(p_store_string_ud, res_text);
 					break;
 				}
 			}
 
-			//store as generic object
+			// store as generic object
 
 			p_store_string_func(p_store_string_ud, "Object(" + obj->get_class() + ",");
 
@@ -241,7 +336,7 @@ Error VariantWriterCompat::write_compat(const Variant &p_variant, const uint32_t
 			bool first = true;
 			for (List<PropertyInfo>::Element *E = props.front(); E; E = E->next()) {
 				if (E->get().usage & PROPERTY_USAGE_STORAGE || E->get().usage & PROPERTY_USAGE_SCRIPT_VARIABLE) {
-					//must be serialized
+					// must be serialized
 
 					if (first) {
 						first = false;
@@ -358,7 +453,7 @@ Error VariantWriterCompat::write_compat(const Variant &p_variant, const uint32_t
 
 			const String *ptr = data.ptr();
 			String s;
-			//write_string("\n");
+			// write_string("\n");
 
 			for (int i = 0; i < len; i++) {
 				if (i > 0)
