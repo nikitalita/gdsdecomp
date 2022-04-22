@@ -1,6 +1,6 @@
 #include "resource_data.h"
 
-RES ResourceData::make_dummy(const String &path, const String &type, const String &id) {
+RES ResourceLoadData::make_dummy(const String &path, const String &type, const String &id) {
 	Ref<FakeResource> dummy;
 	dummy.instantiate();
 	dummy->set_real_path(path);
@@ -9,7 +9,8 @@ RES ResourceData::make_dummy(const String &path, const String &type, const Strin
 	return dummy;
 }
 
-RES ResourceData::set_dummy_ext(const uint32_t erindex) {
+RES ResourceLoadData::set_dummy_ext(const uint32_t erindex) {
+	ERR_FAIL_INDEX_V(erindex, external_resources.size(), RES());
 	if (external_resources[erindex].cache.is_valid()) {
 		return external_resources[erindex].cache;
 	}
@@ -27,7 +28,7 @@ RES ResourceData::set_dummy_ext(const uint32_t erindex) {
 	return dummy;
 }
 
-RES ResourceData::set_dummy_ext(const String &path, const String &exttype) {
+RES ResourceLoadData::set_dummy_ext(const String &path, const String &exttype) {
 	for (int i = 0; i < external_resources.size(); i++) {
 		if (external_resources[i].path == path) {
 			if (external_resources[i].cache.is_valid()) {
@@ -47,61 +48,61 @@ RES ResourceData::set_dummy_ext(const String &path, const String &exttype) {
 	return er.cache;
 }
 
-// RES ResourceData::get_external_resource(const int subindex) {
-// 	if (external_resources[subindex - 1].cache.is_valid()) {
-// 		return external_resources[subindex - 1].cache;
-// 	}
-// 	// We don't do multithreading, so if this external resource is not cached (either dummy or real)
-// 	// then we return a blank resource
-// 	return RES();
-// }
-// String ResourceData::get_external_resource_path(const RES &res) {
-// 	for (int i = 0; i < external_resources.size(); i++) {
-// 		if (external_resources[i].cache == res) {
-// 			return external_resources[i].path;
-// 		}
-// 	}
-// 	return String();
-// }
-// RES ResourceData::get_external_resource(const String &path) {
+RES ResourceLoadData::get_external_resource(const int subindex) {
+	if (external_resources[subindex - 1].cache.is_valid()) {
+		return external_resources[subindex - 1].cache;
+	}
+	// We don't do multithreading, so if this external resource is not cached (either dummy or real)
+	// then we return a blank resource
+	return RES();
+}
+String ResourceLoadData::get_external_resource_path(const RES &res) {
+	for (int i = 0; i < external_resources.size(); i++) {
+		if (external_resources[i].cache == res) {
+			return external_resources[i].path;
+		}
+	}
+	return String();
+}
+RES ResourceLoadData::get_external_resource(const String &path) {
+	for (int i = 0; i < external_resources.size(); i++) {
+		if (external_resources[i].path == path) {
+			return external_resources[i].cache;
+		}
+	}
+	// We don't do multithreading, so if this external resource is not cached (either dummy or real)
+	// then we return a blank resource
+	return RES();
+}
+
+RES ResourceLoadData::get_external_resource_by_id(const String &id) {
+	for (int i = 0; i < external_resources.size(); i++) {
+		if (external_resources[i].id == id) {
+			return external_resources[i].cache;
+		}
+	}
+	return RES();
+}
+
+bool ResourceLoadData::has_external_resource(const RES &res) {
+	for (int i = 0; i < external_resources.size(); i++) {
+		if (external_resources[i].cache == res) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// bool ResourceLoadData::has_external_resource(const String &path) {
 // 	for (int i = 0; i < external_resources.size(); i++) {
 // 		if (external_resources[i].path == path) {
-// 			return external_resources[i].cache;
-// 		}
-// 	}
-// 	// We don't do multithreading, so if this external resource is not cached (either dummy or real)
-// 	// then we return a blank resource
-// 	return RES();
-// }
-
-// RES ResourceData::get_external_resource_by_id(const String &id) {
-// 	for (int i = 0; i < external_resources.size(); i++) {
-// 		if (external_resources[i].id == id) {
-// 			return external_resources[i].cache;
-// 		}
-// 	}
-// 	return RES();
-// }
-
-// bool ResourceData::has_external_resource(const RES &res) {
-// 	for (int i = 0; i < external_resources.size(); i++) {
-// 		if (external_resources[i].cache == res) {
 // 			return true;
 // 		}
 // 	}
 // 	return false;
 // }
 
-// bool ResourceData::has_external_resource(const String &path) {
-// 	for (int i = 0; i < external_resources.size(); i++) {
-// 		if (external_resources[i].path == path) {
-// 			return true;
-// 		}
-// 	}
-// 	return false;
-// }
-
-// RES ResourceData::get_internal_resource(const int subindex) {
+// RES ResourceLoadData::get_internal_resource(const int subindex) {
 // 	for (auto R = internal_resources.front(); R; R = R->next()) {
 // 		if (R->value() == subindex) {
 // 			return R->key().cache;
@@ -109,7 +110,7 @@ RES ResourceData::set_dummy_ext(const String &path, const String &exttype) {
 // 	}
 // 	return RES();
 // }
-// RES ResourceData::get_internal_resource_by_id(const String &id) {
+// RES ResourceLoadData::get_internal_resource_by_id(const String &id) {
 // 	for (auto R = internal_resources.front(); R; R = R->next()) {
 // 		if (R->key().id == id) {
 // 			return R->key().cache;
@@ -122,28 +123,28 @@ RES ResourceData::set_dummy_ext(const String &path, const String &exttype) {
 // 	return RES();
 // }
 
-// RES ResourceData::get_internal_resource(const String &path) {
+// RES ResourceLoadData::get_internal_resource(const String &path) {
 // 	if (has_internal_resource(path)) {
 // 		return internal_res_cache[path];
 // 	}
 // 	return RES();
 // }
 
-// String ResourceData::get_internal_resource_type(const String &path) {
+// String ResourceLoadData::get_internal_resource_type(const String &path) {
 // 	if (has_internal_resource(path)) {
 // 		return internal_type_cache[path];
 // 	}
 // 	return "None";
 // }
 
-// List<ResourceProperty> ResourceData::get_internal_resource_properties(const String &path) {
+// List<ResourceProperty> ResourceLoadData::get_internal_resource_properties(const String &path) {
 // 	if (has_internal_resource(path)) {
 // 		return internal_index_cached_properties[path];
 // 	}
 // 	return List<ResourceProperty>();
 // }
 
-// bool ResourceData::has_internal_resource(const RES &res) {
+// bool ResourceLoadData::has_internal_resource(const RES &res) {
 // 	for (KeyValue<String, RES> E : internal_res_cache) {
 // 		if (E.value == res) {
 // 			return true;
@@ -152,11 +153,11 @@ RES ResourceData::set_dummy_ext(const String &path, const String &exttype) {
 // 	return false;
 // }
 
-// bool ResourceData::has_internal_resource(const String &path) {
+// bool ResourceLoadData::has_internal_resource(const String &path) {
 // 	return internal_res_cache.has(path);
 // }
 
-// String ResourceData::get_resource_path(const RES &res) {
+// String ResourceLoadData::get_resource_path(const RES &res) {
 // 	if (res.is_null()) {
 // 		return "";
 // 	}

@@ -4,10 +4,16 @@
 #include "resource_import_metadatav2.h"
 
 struct ResourceProperty {
-	String name;
-	Variant::Type type;
+	PropertyInfo prop_info;
 	Variant value;
-	StringName class_name;
+	String get_name() { return prop_info.name; }
+	String get_class_name() { return prop_info.class_name; }
+	Variant::Type get_type() { return prop_info.type; }
+	Variant get_value() { return value; }
+	void set_name(String name) { prop_info.name = name; }
+	void set_class_name(String class_name) { prop_info.class_name = class_name; }
+	void set_type(Variant::Type type) { prop_info.type = type; }
+	void set_value(Variant val) { value = val; }
 };
 
 // this is derived from PackedScene because node instances in PackedScene cannot be returned otherwise
@@ -37,7 +43,7 @@ public:
 	void set_real_path(const String &p) { real_path = p; }
 };
 
-class ResourceData {
+class ResourceLoadData {
 	// friend class ResourceLoaderCompat;
 	// friend class ResourceFormatLoaderCompat;
 
@@ -53,6 +59,7 @@ private:
 
 	struct IntResource {
 		String path;
+		String type;
 		String class_name;
 		uint64_t offset;
 		String id;
@@ -74,7 +81,7 @@ private:
 	int ver_format;
 	int engine_ver_major;
 	int engine_ver_minor;
-	bool is_text;
+	bool _is_text_res;
 	bool fake_load;
 	List<ResourceProperty> props;
 
@@ -108,16 +115,16 @@ public:
 	int engineVerMinor() const { return engine_ver_minor; }
 	void setEngineVerMinor(int engineVerMinor) { engine_ver_minor = engineVerMinor; }
 
-	bool fakeLoad() const { return fake_load; }
-	void setFakeLoad(bool fakeLoad) { fake_load = fakeLoad; }
+	bool is_fake_load() const { return fake_load; }
+	void set_fake_load(bool fakeLoad) { fake_load = fakeLoad; }
 
-	bool isText() const { return is_text; }
+	bool isText() const { return _is_text_res; }
 
 	bool is_using_uids() {
-		return engine_ver_major >= 4 || (ver_format >= 3 && is_text) || (ver_format >= 4 && !is_text);
+		return engine_ver_major >= 4 || (ver_format >= 3 && _is_text_res) || (ver_format >= 4 && !_is_text_res);
 	}
 
-	Error load_ext_resource(const uint32_t i);
+	//Error load_ext_resource(const uint32_t i);
 	Error is_ext_resource_loaded(const uint32_t i);
 	String get_external_resource_path(const RES &res);
 	RES get_external_resource(const int subindex);
@@ -140,5 +147,5 @@ public:
 
 	// String get_path() { return path; }
 	// String get_name() { return name; }
-	// bool is_text_resurce() { return is_text; }
+	// bool _is_text_res_resurce() { return _is_text_res; }
 };
