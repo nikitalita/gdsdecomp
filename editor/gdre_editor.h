@@ -203,6 +203,8 @@ private:
 
 	EncKeyDialog *key_dialog;
 	PackDialog *pck_dialog;
+	FileDialog *fpr_output_dir_selection;
+	FileDialog *fpr_file_selection;
 	FileDialog *pck_file_selection;
 	String pck_file;
 	uint32_t pck_ver_major;
@@ -236,6 +238,8 @@ private:
 
 	void _compile_files();
 	void _compile_process();
+	void _fpr_select_request(const String &p_path);
+	void _fpr_project_recovery();
 
 	void _pck_select_request(const String &p_path);
 	void _pck_extract_files();
@@ -288,7 +292,8 @@ public:
 		MENU_SMPL_TO_WAV,
 		MENU_ABOUT_RE,
 		MENU_EXIT_RE,
-		MENU_KEY
+		MENU_KEY,
+		MENU_FULL_RE
 	};
 
 	_FORCE_INLINE_ static GodotREEditor *get_singleton() { return singleton; }

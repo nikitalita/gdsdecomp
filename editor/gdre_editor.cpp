@@ -321,6 +321,13 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_dialog->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files));
 	p_control->add_child(pck_dialog);
 
+	fpr_output_dir_selection = memnew(FileDialog);
+	fpr_output_dir_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
+	fpr_output_dir_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
+	fpr_output_dir_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_fpr_project_recovery));
+	fpr_output_dir_selection->set_show_hidden_files(true);
+	p_control->add_child(fpr_output_dir_selection);
+
 	pck_source_folder = memnew(FileDialog);
 	pck_source_folder->set_access(FileDialog::ACCESS_FILESYSTEM);
 	pck_source_folder->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
@@ -338,6 +345,15 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_save_file_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_pck_save_request));
 	pck_save_file_selection->set_show_hidden_files(true);
 	p_control->add_child(pck_save_file_selection);
+
+	fpr_file_selection = memnew(FileDialog);
+	fpr_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
+	fpr_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILE);
+	fpr_file_selection->add_filter("*.pck;PCK archive files");
+	fpr_file_selection->add_filter("*.exe,*.bin,*.32,*.64;Self contained executable files");
+	fpr_file_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_fpr_select_request));
+	fpr_file_selection->set_show_hidden_files(true);
+	p_control->add_child(fpr_file_selection);
 
 	pck_file_selection = memnew(FileDialog);
 	pck_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
@@ -440,6 +456,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_button->set_text(RTR("RE Tools"));
 		menu_button->set_icon(icons["RELogo"]);
 		menu_popup = menu_button->get_popup();
+		menu_popup->add_icon_item(icons["RELogo"], RTR("Full Project recovery"), MENU_FULL_RE);
 		menu_popup->add_icon_item(icons["RELogo"], RTR("About Godot RE Tools"), MENU_ABOUT_RE);
 		menu_popup->add_icon_item(icons["RELogo"], RTR("Quit"), MENU_EXIT_RE);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
@@ -485,6 +502,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_button->set_text(RTR("RE Tools"));
 		menu_button->set_icon(icons["RELogo"]);
 		menu_popup = menu_button->get_popup();
+		menu_popup->add_icon_item(icons["RELogo"], RTR("Full Project recovery"), MENU_FULL_RE);
 		menu_popup->add_icon_item(icons["RELogo"], RTR("About Godot RE Tools"), MENU_ABOUT_RE);
 		menu_popup->add_separator();
 
@@ -544,6 +562,9 @@ void GodotREEditor::_toggle_about_dialog_on_start(bool p_enabled) {
 void GodotREEditor::menu_option_pressed(int p_id) {
 	switch (p_id) {
 		case MENU_ONE_CLICK_UNEXPORT: {
+		} break;
+		case MENU_FULL_RE: {
+			key_dialog->popup_centered(Size2(600, 400));
 		} break;
 		case MENU_KEY: {
 			key_dialog->popup_centered(Size2(600, 400));
@@ -796,6 +817,12 @@ void GodotREEditor::_compile_process() {
 		show_warning(RTR("No errors detected."), RTR("Compile"), RTR("The operation completed successfully!"));
 	}
 */
+}
+
+void GodotREEditor::_fpr_select_request(const String &p_path) {
+	pck_file = String();
+	pck_dialog->clear();
+	pck_files.clear();
 }
 
 /*************************************************************************/
@@ -1093,7 +1120,8 @@ void convert_cfb_to_cfg(const String path, const uint32_t ver_major, const uint3
 		printf("Failed to save project config, no project file output.");
 	}
 }
-
+void GodotREEditor::_fpr_project_recovery() {
+}
 void GodotREEditor::_pck_extract_files() {
 	Vector<String> files = pck_dialog->get_selected_files();
 	String dir = pck_dialog->get_target_dir();
