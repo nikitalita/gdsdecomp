@@ -12,6 +12,31 @@
 #include "core/version.h"
 #include "scene/resources/resource_format_text.h"
 
+Error ResourceFormatLoaderCompat::convert_txt_to_bin(const String &p_path, const String &dst, const String &output_dir, float *r_progress) {
+	Error error = OK;
+	String dst_path = dst;
+
+	// Relative path
+
+	if (GDRESettings::get_singleton() && !output_dir.is_empty()) {
+		if (!(dst.is_absolute_path() && GDRESettings::get_singleton()->is_fs_path(dst))) {
+			dst_path = output_dir.plus_file(dst.replace_first("res://", ""));
+		}
+	}
+
+	ResourceLoaderCompat *loader = _open_text(p_path, output_dir, true, &error, r_progress);
+	ERR_RFLBC_COND_V_MSG_CLEANUP(error != OK, error, "Cannot open resource '" + p_path + "'.", loader);
+
+	error = loader->fake_load_text();
+	ERR_RFLBC_COND_V_MSG_CLEANUP(error != OK, error, "Cannot load resource '" + p_path + "'.", loader);
+
+	error = loader->save_to_bin(dst_path);
+
+	memdelete(loader);
+	ERR_FAIL_COND_V_MSG(error != OK, error, "failed to save resource '" + p_path + "' as '" + dst + "'.");
+	return OK;
+}
+
 Error ResourceFormatLoaderCompat::convert_bin_to_txt(const String &p_path, const String &dst, const String &output_dir, float *r_progress) {
 	Error error = OK;
 	String dst_path = dst;
@@ -147,6 +172,36 @@ ResourceLoaderCompat *ResourceFormatLoaderCompat::_open(const String &p_path, co
 	loader->res_path = res_path;
 
 	*r_error = loader->open(f);
+
+	ERR_FAIL_COND_V_MSG(error != OK, loader, "Cannot open resource '" + p_path + "'.");
+
+	return loader;
+}
+
+ResourceLoaderCompat *ResourceFormatLoaderCompat::_open_text(const String &p_path, const String &base_dir, bool fake_load, Error *r_error, float *r_progress) {
+	Error error = OK;
+	if (!r_error) {
+		r_error = &error;
+	}
+	String res_path = GDRESettings::get_singleton()->get_res_path(p_path, base_dir);
+	Ref<FileAccess> f = nullptr;
+	if (res_path != "") {
+		f = FileAccess::open(res_path, FileAccess::READ, r_error);
+	} else {
+		*r_error = ERR_FILE_NOT_FOUND;
+		ERR_FAIL_COND_V_MSG(f.is_null(), nullptr, "Cannot open file '" + res_path + "'.");
+	}
+	// TODO: remove this extra check
+	ERR_FAIL_COND_V_MSG(f.is_null(), nullptr, "Cannot open file '" + res_path + "' (Even after get_res_path() returned a path?).");
+
+	ResourceLoaderCompat *loader = memnew(ResourceLoaderCompat);
+	loader->project_dir = base_dir;
+	loader->progress = r_progress;
+	loader->fake_load = fake_load;
+	loader->local_path = GDRESettings::get_singleton()->localize_path(p_path, base_dir);
+	loader->res_path = res_path;
+
+	*r_error = loader->open_text(f, false);
 
 	ERR_FAIL_COND_V_MSG(error != OK, loader, "Cannot open resource '" + p_path + "'.");
 
@@ -468,6 +523,15 @@ Ref<Resource> ResourceLoaderCompat::instance_internal_resource(const String &pat
 		res = Ref<Resource>(r);
 	}
 	return res;
+}
+
+String ResourceLoaderCompat::get_internal_resource_path(const Ref<Resource> &res) {
+	for (KeyValue<String, Ref<Resource>> E : internal_res_cache) {
+		if (E.value == res) {
+			return E.key;
+		}
+	}
+	return String();
 }
 
 Ref<Resource> ResourceLoaderCompat::get_internal_resource(const int subindex) {
@@ -792,6 +856,7 @@ Error ResourceLoaderCompat::load() {
 				Object *obj = value;
 				rp.class_name = obj->get_class_name();
 			}
+			lrp.push_back(rp);
 			// If not a fake_load, set the properties of the instanced resource
 			if (!fake_load) {
 				// TODO: Translate V2 resource names into V3 resource names
@@ -820,10 +885,9 @@ Error ResourceLoaderCompat::load() {
 		// packed scenes with instances for nodes won't work right without creating an instance of it
 		// So we always instance them regardless if this is a fake load or not.
 		if (main && fake_load && res_type == "PackedScene") {
+			// FakeResource inherits from PackedScene
 			Ref<PackedScene> ps;
 			ps.instantiate();
-			String valstring;
-			// this is the "_embedded" prop
 			ps->set(lrp.front()->get().name, lrp.front()->get().value);
 			resource = ps;
 		} else if (main) {
@@ -1731,10 +1795,12 @@ void ResourceLoaderCompat::save_unicode_string(const String &p_string) {
 	save_ustring(f, p_string);
 }
 
-int ResourceLoaderCompat::get_string_index(const String &p_string) {
+int ResourceLoaderCompat::get_string_index(const String &p_string, bool add) {
 	StringName s = p_string;
 	if (string_map.has(s)) {
 		return string_map.find(p_string);
+	} else if (!add) {
+		return -1;
 	}
 	string_map.push_back(s);
 	return string_map.size() - 1;
@@ -1894,16 +1960,24 @@ Error ResourceLoaderCompat::write_variant_bin(Ref<FileAccess> fa, const Variant 
 				fa->store_16(snc);
 			}
 
-			for (int i = 0; i < np.get_name_count(); i++)
-				fa->store_32(string_map.find(np.get_name(i)));
+			for (int i = 0; i < np.get_name_count(); i++) {
+				ERR_FAIL_COND_V_MSG(get_string_index(np.get_name(i)) == -1, ERR_BUG,
+						"Not in string map!");
+				fa->store_32(get_string_index(np.get_name(i)));
+			}
 			// store all subnames minus any property fields if need be
-			for (int i = 0; i < snc; i++)
-				fa->store_32(string_map.find(np.get_subname(i)));
+			for (int i = 0; i < snc; i++) {
+				ERR_FAIL_COND_V_MSG(get_string_index(np.get_subname(i)) == -1, ERR_BUG,
+						"Not in string map!");
+				fa->store_32(get_string_index(np.get_subname(i)));
+			}
 			// If ver_format 1-2 (i.e. godot 2.x)
 			if (ver_format < VariantBin::FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
 				// If we found a property, store it
 				if (property_idx > -1) {
-					fa->store_32(string_map.find(np.get_subname(property_idx)));
+					ERR_FAIL_COND_V_MSG(get_string_index(np.get_subname(property_idx)) == -1, ERR_BUG,
+							"Not in string map!");
+					fa->store_32(get_string_index(np.get_subname(property_idx)));
 					// otherwise, store zero-length string
 				} else {
 					// 0x80000000 will resolve to a zero length string in the binary parser for any version
@@ -1932,7 +2006,7 @@ Error ResourceLoaderCompat::write_variant_bin(Ref<FileAccess> fa, const Variant 
 					return OK; // don't save it
 				}
 				String rpath = get_resource_path(res);
-				if (rpath.length() && rpath.find("::") == -1) {
+				if (rpath.length() && rpath.find("::") == -1 && !rpath.begins_with("local://")) {
 					if (!has_external_resource(rpath)) {
 						fa->store_32(VariantBin::OBJECT_EMPTY);
 						ERR_FAIL_COND_V_MSG(!has_external_resource(rpath), ERR_BUG, "Cannot find external resource");
@@ -2065,15 +2139,28 @@ void ResourceLoaderCompat::_populate_string_map(const Variant &p_variant, bool p
 				return;
 			}
 
+			List<ResourceProperty> property_list;
 			String path = p_main ? local_path : get_resource_path(res);
 			if (path.is_empty()) {
-				ERR_PRINT("can't find resource " + res->get_name());
-				return;
+				// Image variant converted to image class, it's really loaded, we have to get the properties from this object
+				if (res->get_class() == "Image" && engine_ver_major == 2) {
+					path = local_path;
+					List<PropertyInfo> p_list;
+					((Ref<Image>)res)->get_property_list(&p_list);
+					for (const PropertyInfo &E : p_list) {
+						get_string_index(E.name, true);
+					}
+					break;
+				}
+				if (path.is_empty()) {
+					ERR_PRINT("can't find resource " + res->get_name());
+					return;
+				}
 			}
-			List<ResourceProperty> property_list = get_internal_resource_properties(path);
+			property_list = get_internal_resource_properties(path);
 
 			for (const ResourceProperty &E : property_list) {
-				get_string_index(E.name);
+				get_string_index(E.name, true);
 				_populate_string_map(E.value, false);
 			}
 		} break;
@@ -2102,10 +2189,10 @@ void ResourceLoaderCompat::_populate_string_map(const Variant &p_variant, bool p
 			// take the chance and save node path strings
 			NodePath np = p_variant;
 			for (int i = 0; i < np.get_name_count(); i++) {
-				get_string_index(np.get_name(i));
+				get_string_index(np.get_name(i), true);
 			}
 			for (int i = 0; i < np.get_subname_count(); i++) {
-				get_string_index(np.get_subname(i));
+				get_string_index(np.get_subname(i), true);
 			}
 
 		} break;
@@ -2153,7 +2240,19 @@ Error ResourceLoaderCompat::save_to_bin(const String &p_path, uint32_t p_flags) 
 
 	fw->store_32(engine_ver_major);
 	fw->store_32(engine_ver_minor);
-	fw->store_32(ver_format);
+
+	int bin_format_version = 1;
+	// If we're using named_scene_ids, it's version 4
+	if (using_named_scene_ids) {
+		bin_format_version = 4;
+		// else go by engine major version
+	} else if (engine_ver_major == 3) {
+		bin_format_version = 3;
+	} else if (engine_ver_major == 4) {
+		bin_format_version = 4;
+	}
+
+	fw->store_32(bin_format_version);
 
 	if (fw->get_error() != OK && fw->get_error() != ERR_FILE_EOF) {
 		fw->flush();
@@ -2203,12 +2302,17 @@ Error ResourceLoaderCompat::save_to_bin(const String &p_path, uint32_t p_flags) 
 		Ref<Resource> re = get_internal_resource(internal_resources[i].path);
 		ERR_FAIL_COND_V_MSG(re.is_null(), ERR_CANT_ACQUIRE_RESOURCE, "Can't find internal resource " + internal_resources[i].path);
 		String path = get_resource_path(re);
+		if (path == "" && internal_resources[i].path == local_path) {
+			path = local_path;
+		}
 		if (path == "" || path.find("::") != -1) {
 			save_ustring(fw, "local://" + re->get_scene_unique_id());
 		} else if (path == local_path) {
 			save_ustring(fw, local_path); // main resource
 		} else {
-			WARN_PRINT("Possible malformed path: " + path);
+			if (path.find("local://") == -1) {
+				WARN_PRINT("Possible malformed path: " + path);
+			}
 			save_ustring(fw, path);
 		}
 		ofs_pos.push_back(fw->get_position());
@@ -2227,7 +2331,9 @@ Error ResourceLoaderCompat::save_to_bin(const String &p_path, uint32_t p_flags) 
 		save_ustring(fw, rtype);
 		fw->store_32(lrp.size());
 		for (auto F : lrp) {
-			fw->store_32(string_map.find(F.name));
+			ERR_FAIL_COND_V_MSG(get_string_index(F.name) == -1, ERR_BUG,
+					"Not in string map!");
+			fw->store_32(get_string_index(F.name));
 			write_variant_bin(fw, F.value);
 		}
 	}
@@ -2324,12 +2430,17 @@ Error ResourceLoaderCompat::open_text(Ref<FileAccess> p_f, bool p_skip_first_tag
 		} else if (ver_format == 3) {
 			using_named_scene_ids = true;
 			using_uids = true;
+			engine_ver_major = engine_ver_major == 0 ? 4 : engine_ver_major;
+		} else if (ver_format == 2) {
+			engine_ver_major = engine_ver_major == 0 ? 3 : engine_ver_major;
+		} else if (ver_format == 1) {
+			engine_ver_major = engine_ver_major == 0 ? 2 : engine_ver_major;
 		}
 	}
 
 	if (tag.name == "gd_scene") {
 		is_scene = true;
-
+		res_type = "PackedScene";
 	} else if (tag.name == "gd_resource") {
 		if (!tag.fields.has("type")) {
 			error_text = "Missing 'type' field in 'gd_resource' tag";
@@ -2431,10 +2542,15 @@ Error ResourceLoaderCompat::_parse_ext_resource_dummy(VariantParser::Stream *p_s
 	return OK;
 }
 
-Ref<PackedScene> ResourceLoaderCompat::_parse_node_tag(VariantParser::ResourceParser &parser) {
+Ref<PackedScene> ResourceLoaderCompat::_parse_node_tag(VariantParser::ResourceParser &parser, List<ResourceProperty> &lrp) {
 	Ref<PackedScene> packed_scene;
-	packed_scene.instantiate();
-
+	if (fake_load == true) {
+		Ref<FakeResource> fr;
+		fr.instantiate();
+		packed_scene = fr;
+	} else {
+		packed_scene.instantiate();
+	}
 	while (true) {
 		if (next_tag.name == "node") {
 			int parent = -1;
@@ -2526,6 +2642,19 @@ Ref<PackedScene> ResourceLoaderCompat::_parse_node_tag(VariantParser::ResourcePa
 					int nameidx = packed_scene->get_state()->add_name(assign);
 					int valueidx = packed_scene->get_state()->add_value(value);
 					packed_scene->get_state()->add_node_property(node_id, nameidx, valueidx);
+
+					// We add the values to the resourceproperty list too, as while object properties will be correctly set,
+					// we can't get them out of the packed_scene if they're not instanced without traversing the node list,
+					// packed_scene->get() will just return null
+					ResourceProperty rp;
+					rp.name = assign;
+					rp.type = value.get_type();
+					if (rp.type == Variant::OBJECT) {
+						Object *obj = value;
+						rp.class_name = obj->get_class_name();
+					}
+					rp.value = value;
+					lrp.push_back(rp);
 					// it's assignment
 				} else if (!next_tag.name.is_empty()) {
 					break;
@@ -2631,7 +2760,7 @@ Ref<PackedScene> ResourceLoaderCompat::_parse_node_tag(VariantParser::ResourcePa
 	}
 }
 
-Error ResourceLoaderCompat::fake_load_text(Ref<FileAccess> p_f, const String &p_path) {
+Error ResourceLoaderCompat::fake_load_text() {
 	if (error) {
 		return error;
 	}
@@ -2721,18 +2850,21 @@ Error ResourceLoaderCompat::fake_load_text(Ref<FileAccess> p_f, const String &p_
 			String uid_text = ResourceUID::get_singleton()->id_to_text(res_uid);
 			id = type + "_" + uid_text.replace("uid://", "").replace("<invalid>", "0");
 			main_res = true;
+			local_path = "local://" + id;
 			ir.path = local_path;
 		}
 		ir.offset = 0;
 		internal_resources.push_back(ir);
 		internal_type_cache[ir.path] = type;
 		internal_res_cache[ir.path] = instance_internal_resource(ir.path, type, id);
-
+		if (main_res) {
+			resource = internal_res_cache[ir.path];
+		}
 		while (true) {
 			String assign;
 			Variant value;
 
-			error = VariantParser::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp);
+			error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp);
 
 			if (error) {
 				if (main_res && error == ERR_FILE_EOF) {
@@ -2776,45 +2908,36 @@ Error ResourceLoaderCompat::fake_load_text(Ref<FileAccess> p_f, const String &p_
 			error = ERR_FILE_CORRUPT;
 			return error;
 		}
-
-		Ref<PackedScene> packed_scene = _parse_node_tag(rp);
+		List<ResourceProperty> lrp;
+		Ref<PackedScene> packed_scene = _parse_node_tag(rp, lrp);
 
 		if (!packed_scene.is_valid()) {
 			return error;
 		}
-
+		resource = (Ref<FakeResource>)packed_scene;
 		error = OK;
 		// get it here
-		List<PropertyInfo> props_info;
-		packed_scene->get_property_list(&props_info);
 		IntResource ir;
 		String uid = ResourceUID::get_singleton()->id_to_text(res_uid);
 		String id = "PackedScene_" + uid.replace("uid://", "").replace("<invalid>", "0");
 
 		ir.path = "local://" + id;
+		local_path = ir.path;
 		ir.offset = 0;
 		internal_resources.push_back(ir);
 		internal_type_cache[ir.path] = "PackedScene";
+		((Ref<FakeResource>)packed_scene)->set_real_path(local_path);
+		((Ref<FakeResource>)packed_scene)->set_real_type("PackedScene");
+
 		internal_res_cache[ir.path] = packed_scene;
-		List<ResourceProperty> lrp;
+		// Right now, we're just handling converting back to bin, so clear lrp and store "_bundled";
+		lrp.clear();
+		ResourceProperty embed;
+		embed.value = packed_scene->get_state()->get_bundled_scene();
+		embed.type = embed.value.get_type();
+		embed.name = "_bundled";
+		lrp.push_back(embed);
 
-		int prop_count = 0;
-
-		for (const PropertyInfo &E : props_info) {
-			if (!(E.usage & PROPERTY_USAGE_STORAGE)) {
-				continue;
-			}
-			ResourceProperty rprop;
-
-			rprop.name = E.name;
-			rprop.value = packed_scene->get(rprop.name);
-			rprop.type = rprop.value.get_type();
-			if (rprop.type == Variant::OBJECT) {
-				rprop.class_name = ((Object *)rprop.value)->get_class_name();
-			}
-			lrp.push_back(rprop);
-		}
-		// We keep a list of the properties loaded (which are only variants) in case of a fake load
 		internal_index_cached_properties[ir.path] = lrp;
 	}
 	return OK;

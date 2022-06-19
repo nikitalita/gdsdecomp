@@ -141,7 +141,7 @@ public:
 	String get_res_path(const String &p_path, const String &resource_dir = "");
 	bool has_res_path(const String &p_path, const String &resource_dir = "");
 	Error open_log_file(const String &output_dir);
-	bool is_fs_path(const String &p_path);
+	bool is_fs_path(const String &p_path) const;
 	Error close_log_file();
 	String get_cwd() { return GDRESettings::_get_cwd(); };
 	String get_exec_dir() { return GDRESettings::exec_dir; };

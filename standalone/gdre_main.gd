@@ -9,6 +9,12 @@ func _ready():
 
 	handle_cli()
 
+func test_text_to_bin(txt_to_bin: String, output_dir: String):
+	var importer:ImportExporter = ImportExporter.new()
+	var dst_file = txt_to_bin.get_file().replace("tscn", "scn");
+	importer.convert_res_txt_2_bin(output_dir, txt_to_bin, dst_file)
+	importer.convert_res_bin_2_txt(output_dir, output_dir.plus_file(dst_file), dst_file.replace(".scn", ".tscn"))
+
 func _on_re_editor_standalone_write_log_message(message):
 	$log_window.text += message
 	$log_window.scroll_to_line($log_window.get_line_count() - 1)
@@ -192,6 +198,7 @@ func handle_cli():
 	var exe_file:String = ""
 	var output_dir: String = ""
 	var enc_key: String = ""
+	var txt_to_bin: String = ""
 	for i in range(args.size()):
 		var arg:String = args[i]
 		if arg == "--help":
@@ -203,6 +210,20 @@ func handle_cli():
 			output_dir = normalize_path(get_arg_value(arg))
 		elif arg.begins_with("--key"):
 			enc_key = get_arg_value(arg)
+		elif arg.begins_with("--test-txt-to-bin"):
+			txt_to_bin = get_arg_value(arg)
+	if txt_to_bin != "":
+		if output_dir == "":
+			print("Error: use --output-dir=<dir> when using --extract")
+			print("")
+			print_usage()
+		else:
+			print("txt_to_bin")
+			var main = GDRECLIMain.new()
+			txt_to_bin = main.get_cli_abs_path(txt_to_bin)
+			output_dir = main.get_cli_abs_path(output_dir)
+			test_text_to_bin(txt_to_bin, output_dir)
+			get_tree().quit()
 	if exe_file != "":
 		var main = GDRECLIMain.new()
 		var da:Directory = Directory.new()				
