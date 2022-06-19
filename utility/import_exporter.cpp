@@ -1,10 +1,13 @@
 
 #include "import_exporter.h"
-#include "bytecode/bytecode_versions.h"
+
 #include "core/crypto/crypto_core.h"
 #include "core/io/config_file.h"
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
+#include "core/os/os.h"
 #include "core/variant/variant_parser.h"
-#include "gdre_packed_data.h"
+#include "core/version_generated.gen.h"
 #include "gdre_settings.h"
 #include "modules/minimp3/audio_stream_mp3.h"
 #include "modules/regex/regex.h"
@@ -16,10 +19,6 @@
 #include "texture_loader_compat.h"
 #include "thirdparty/minimp3/minimp3_ex.h"
 #include "util_functions.h"
-#include <core/io/dir_access.h>
-#include <core/io/file_access.h>
-#include <core/os/os.h>
-#include <core/version_generated.gen.h>
 
 Array ImportExporter::get_import_files() {
 	return files;

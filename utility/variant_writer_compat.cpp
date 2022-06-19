@@ -1,13 +1,6 @@
 #include "variant_writer_compat.h"
-#include "core/input/input_event.h"
-#include "core/io/image.h"
-#include "core/io/resource_loader.h"
-#include "core/os/keyboard.h"
-#include "core/string/string_buffer.h"
-#include "core/variant/variant_parser.h"
 #include "image_parser_v2.h"
 #include "input_event_parser_v2.h"
-#include "resource_loader_compat.h"
 
 namespace ToV4 {
 
@@ -21,11 +14,11 @@ enum Type {
 	STRING,
 	// math types
 	VECTOR2,
-	VECTOR2I, // Unused
+	VECTOR2I, // Added in V4
 	RECT2,
-	RECT2I, // Unused
+	RECT2I, // Added in V4
 	VECTOR3,
-	VECTOR3I, // Unused
+	VECTOR3I, // Added in V4
 	TRANSFORM2D,
 	PLANE,
 	QUAT, // 10
@@ -74,11 +67,11 @@ enum Type {
 Error VariantParserCompat::fake_parse_object(VariantParser::Token &token, Variant &r_value, VariantParser::Stream *p_stream, int &line, String &r_err_str, VariantParser::ResourceParser *p_res_parser) {
 	return parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
 }
-Error VariantParserCompat::parse_tag(VariantParser::Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, VariantParser::ResourceParser *p_res_parser, bool p_simple_tag) {
+Error VariantParserCompat::parse_tag(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, ResourceParser *p_res_parser, bool p_simple_tag) {
 	return VariantParser::parse_tag(p_stream, line, r_err_str, r_tag, p_res_parser, p_simple_tag);
 }
 
-Error VariantParserCompat::parse_tag_assign_eof(VariantParser::Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, String &r_assign, Variant &r_value, VariantParser::ResourceParser *p_res_parser, bool p_simple_tag) {
+Error VariantParserCompat::parse_tag_assign_eof(Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, String &r_assign, Variant &r_value, ResourceParser *p_res_parser, bool p_simple_tag) {
 	// assign..
 	r_assign = "";
 	String what;
@@ -308,11 +301,7 @@ Error VariantWriterCompat::write_compat(const Variant &p_variant, const uint32_t
 				} else if (p_encode_res_func) {
 					// try external function
 					res_text = p_encode_res_func(p_encode_res_ud, res);
-				} else if (res->is_class("FakeResource")) {
-					// this is really just for debugging
-					res_text = "Resource( \"" + ((Ref<FakeResource>)res)->get_real_path() + "\")";
 				}
-
 				// try path because it's a file
 				if (res_text == String() && res->get_path().is_resource_file()) {
 					// external resource
