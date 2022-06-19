@@ -47,7 +47,7 @@ TextureLoaderCompat::TextureVersionType TextureLoaderCompat::recognize(const Str
 		return TextureVersionType::FORMAT_V4_COMPRESSED_TEXTURE2D;
 	} else if ((header[0] == 'R' && header[1] == 'S' && header[2] == 'R' && header[3] == 'C') ||
 			(header[0] == 'R' && header[1] == 'S' && header[2] == 'C' && header[3] == 'C')) {
-		//check if this is a V2 texture
+		// check if this is a V2 texture
 		ResourceFormatLoaderCompat rlc;
 		Ref<ImportInfo> i_info;
 		*r_err = rlc.get_import_info(res_path, "", i_info);
@@ -75,7 +75,7 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 		// do something??
 	}
 	if (df & FORMAT_BIT_LOSSLESS || df & FORMAT_BIT_LOSSY) {
-		//look for a PNG or WEBP file inside
+		// look for a PNG or WEBP file inside
 
 		int sw = tw;
 		int sh = th;
@@ -83,7 +83,7 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 		uint32_t mipmaps = f->get_32();
 		uint32_t size = f->get_32();
 
-		//print_line("mipmaps: " + itos(mipmaps));
+		// print_line("mipmaps: " + itos(mipmaps));
 
 		while (mipmaps > 1 && p_size_limit > 0 && (sw > p_size_limit || sh > p_size_limit)) {
 			f->seek(f->get_position() + size);
@@ -95,7 +95,7 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 			mipmaps--;
 		}
 
-		//mipmaps need to be read independently, they will be later combined
+		// mipmaps need to be read independently, they will be later combined
 		Vector<Ref<Image>> mipmap_images;
 		int total_size = 0;
 
@@ -123,7 +123,7 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 			mipmap_images.push_back(img);
 		}
 
-		//print_line("mipmap read total: " + itos(mipmap_images.size()));
+		// print_line("mipmap read total: " + itos(mipmap_images.size()));
 
 		if (mipmap_images.size() == 1) {
 			image = mipmap_images[0];
@@ -191,11 +191,11 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 			{
 				uint8_t *wr = img_data.ptrw();
 				int bytes = f->get_buffer(wr, total_size - ofs);
-				//print_line("requested read: " + itos(total_size - ofs) + " but got: " + itos(bytes));
+				// print_line("requested read: " + itos(total_size - ofs) + " but got: " + itos(bytes));
 
 				int expected = total_size - ofs;
 				if (bytes < expected) {
-					//this is a compatibility workaround for older format, which saved less mipmaps2. It is still recommended the image is reimported.
+					// this is a compatibility workaround for older format, which saved less mipmaps2. It is still recommended the image is reimported.
 					memset(wr + bytes, 0, (expected - bytes));
 				}
 				ERR_FAIL_COND_V(bytes != expected, ERR_FILE_CORRUPT);
@@ -229,7 +229,7 @@ Ref<CompressedTexture2D> TextureLoaderCompat::_load_texture2d(const String &p_pa
 	texture->set("path_to_file", p_path);
 	texture->set("format", image->get_format());
 	size_override = lwc || lhc;
-	//we no longer care about flags, apparently
+	// we no longer care about flags, apparently
 	return texture;
 }
 
@@ -239,7 +239,7 @@ Error TextureLoaderCompat::_load_data_tex_v2(const String &p_path, int &tw, int 
 
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot open file '" + p_path + "'.");
 
-	ResourceLoaderBinaryCompat *loader = memnew(ResourceLoaderBinaryCompat);
+	ResourceLoaderCompat *loader = memnew(ResourceLoaderCompat);
 	loader->fake_load = true;
 	loader->local_path = p_path;
 	loader->res_path = p_path;
@@ -253,7 +253,7 @@ Error TextureLoaderCompat::_load_data_tex_v2(const String &p_path, int &tw, int 
 	th_custom = 0;
 	String name;
 	Vector2 size;
-	//Load the main resource, which should be the ImageTexture
+	// Load the main resource, which should be the ImageTexture
 	List<ResourceProperty> lrp = loader->internal_index_cached_properties[loader->res_path];
 	for (List<ResourceProperty>::Element *PE = lrp.front(); PE; PE = PE->next()) {
 		ResourceProperty pe = PE->get();
@@ -314,8 +314,8 @@ Error TextureLoaderCompat::_load_data_stex2d_v3(const String &p_path, int &tw, i
 	th = f->get_16();
 	th_custom = f->get_16();
 
-	flags = f->get_32(); //texture flags!
-	uint32_t df = f->get_32(); //data format
+	flags = f->get_32(); // texture flags!
+	uint32_t df = f->get_32(); // data format
 	p_size_limit = 0;
 	if (image.is_null()) {
 		image.instantiate();
@@ -347,7 +347,7 @@ Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, i
 	df = f->get_32();
 	// mipmap_limit, this doesn't get used?
 	f->get_32();
-	//reserved
+	// reserved
 	f->get_32();
 	f->get_32();
 	f->get_32();
@@ -370,7 +370,7 @@ Error TextureLoaderCompat::_load_layered_texture_v3(const String &p_path, Vector
 
 	uint8_t header[5] = { 0, 0, 0, 0, 0 };
 	f->get_buffer(header, 4);
-	//already checked
+	// already checked
 
 	int tw = f->get_32();
 	int th = f->get_32();
@@ -386,8 +386,8 @@ Error TextureLoaderCompat::_load_layered_texture_v3(const String &p_path, Vector
 		Ref<Image> image;
 		image.instantiate();
 
-		if (compression == 0) { //COMPRESSION_LOSSLESS
-			//look for a PNG file inside
+		if (compression == 0) { // COMPRESSION_LOSSLESS
+			// look for a PNG file inside
 
 			int mipmaps = f->get_32();
 			Vector<Ref<Image>> mipmap_images;
@@ -433,8 +433,8 @@ Error TextureLoaderCompat::_load_layered_texture_v3(const String &p_path, Vector
 			}
 
 		} else {
-			//look for regular format
-			bool mipmaps = (flags & 1); //Texture::FLAG_MIPMAPS
+			// look for regular format
+			bool mipmaps = (flags & 1); // Texture::FLAG_MIPMAPS
 			int total_size = Image::get_image_data_size(tw, th, format, mipmaps);
 
 			Vector<uint8_t> img_data;
@@ -462,7 +462,7 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 	f->get_buffer(header, 4);
 	ERR_FAIL_COND_V(header[0] != 'G' || header[1] != 'S' || header[2] != 'T' || header[3] != 'L', ERR_FILE_UNRECOGNIZED);
 
-	//stored as stream textures (used for lossless and lossy compression)
+	// stored as stream textures (used for lossless and lossy compression)
 	uint32_t version = f->get_32();
 
 	if (version > 1) {
@@ -474,8 +474,8 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 	f->get_32(); //data format
 	f->get_32(); // mipmap limit, pretty sure it's ignored?
 	int mipmaps = f->get_32();
-	f->get_32(); //ignored
-	f->get_32(); //ignored
+	f->get_32(); // ignored
+	f->get_32(); // ignored
 
 	r_mipmaps = mipmaps != 0;
 
