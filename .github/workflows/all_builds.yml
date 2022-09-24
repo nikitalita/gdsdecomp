@@ -60,10 +60,10 @@ jobs:
 
           - name: "🍎 macOS"
             os: "macos-latest"
-            platform: osx
+            platform: macos
             sconsflags: use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
             sconsflags-template: optimize=size use_lto=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
-            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.osx.opt.tools.64
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.opt.tools.64
             export-preset: "macOS"
             export-name: .export/gdre_tools.x86_64.zip
 
@@ -106,7 +106,7 @@ jobs:
         
       - name: Install Vulkan SDK
         uses: ./.github/actions/install-swiftshader
-        if: matrix.platform == 'osx'
+        if: matrix.platform == 'macos'
         with:
           install_vulkan_sdk: true
           install_swiftshader: false
@@ -147,13 +147,13 @@ jobs:
         uses: ./.github/actions/godot-prepare-artifact
 
       - name: Make macOS template
-        if: matrix.platform == 'osx'
+        if: matrix.platform == 'macos'
         run: |
-          mkdir -p "bin/osx_template.app/Contents/MacOS"
-          cp "bin/godot.osx.opt.debug.64" "bin/osx_template.app/Contents/MacOS/godot_osx_debug.64"
-          cp "bin/godot.osx.opt.debug.64" "bin/osx_template.app/Contents/MacOS/godot_osx_release.64"
+          mkdir -p "bin/macos_template.app/Contents/MacOS"
+          cp "bin/godot.macos.opt.debug.64" "bin/macos_template.app/Contents/MacOS/godot_macos_debug.64"
+          cp "bin/godot.macos.opt.debug.64" "bin/macos_template.app/Contents/MacOS/godot_macos_release.64"
           cd bin/
-          zip -r9 "osx.zip" "osx_template.app/"
+          zip -r9 "macos.zip" "macos_template.app/"
           cd ..
 
       - name: Download rcedit.exe
