@@ -14,7 +14,6 @@
 
 #include "core/io/file_access_encrypted.h"
 #include "core/io/resource_format_binary.h"
-#include "editor/editor_settings.h"
 #include "modules/svg/image_loader_svg.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
 #include "scene/main/canvas_item.h"
@@ -35,6 +34,10 @@
 
 #include "core/crypto/crypto_core.h"
 
+/*************************************************************************/
+#ifdef TOOLS_ENABLED
+#include "editor/editor_settings.h"
+#endif
 /*************************************************************************/
 
 #ifndef TOOLS_ENABLED
