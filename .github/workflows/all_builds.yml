@@ -46,7 +46,7 @@ jobs:
             os: "windows-latest"
             platform: windows
             sconsflags-template: ""
-            command-export: ${env:GITHUB_WORKSPACE}\bin\godot.windows.opt.tools.64.exe
+            command-export: ${env:GITHUB_WORKSPACE}\bin\godot.windows.opt.tools.x86_64.exe
             export-preset: "Windows Desktop"
             export-name: .export\gdre_tools.exe
 
@@ -54,7 +54,7 @@ jobs:
             os: "ubuntu-20.04"
             platform: linux
             sconsflags-template: optimize=size use_lto=yes 
-            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.opt.tools.64
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.opt.tools.x86_64
             export-preset: "Linux/X11"
             export-name: .export/gdre_tools.x86_64
 
@@ -63,9 +63,10 @@ jobs:
             platform: macos
             sconsflags: use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
             sconsflags-template: optimize=size use_lto=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
-            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.opt.tools.64
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.opt.tools.x86_64
             export-preset: "macOS"
             export-name: .export/gdre_tools.x86_64.zip
+            template_bin: godot.macos.opt.x86_64
 
     steps:
       - name: checkout-godot
@@ -150,8 +151,8 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           mkdir -p "bin/macos_template.app/Contents/MacOS"
-          cp "bin/godot.macos.opt.debug.64" "bin/macos_template.app/Contents/MacOS/godot_macos_debug.64"
-          cp "bin/godot.macos.opt.debug.64" "bin/macos_template.app/Contents/MacOS/godot_macos_release.64"
+          cp "${{ matrix.template_bin }}" "bin/macos_template.app/Contents/MacOS/godot_macos_debug.x86_64"
+          cp "${{ matrix.template_bin }}" "bin/macos_template.app/Contents/MacOS/godot_macos_release.x86_64"
           cd bin/
           zip -r9 "macos.zip" "macos_template.app/"
           cd ..
