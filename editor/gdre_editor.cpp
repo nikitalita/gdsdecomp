@@ -813,8 +813,7 @@ void GodotREEditor::_pck_extract_files_process() {
 	if (is_full_recovery && !err) {
 		memdelete(pr);
 		ie.instantiate();
-		ie->load_import_files();
-		pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck_res", RTR("Exporting resources..."), ie->get_import_files().size(), true));
+		pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck_res", RTR("Exporting resources..."), GDRESettings::get_singleton()->get_import_files().size(), true));
 		String error_string;
 		err = ie->_export_imports(dir, files, pr, error_string);
 	}
