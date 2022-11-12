@@ -478,7 +478,7 @@ Error GDScriptDecomp_48f1d02::decompile_buffer(Vector<uint8_t> p_buffer) {
 				line += "const ";
 			} break;
 			case TK_PR_VAR: {
-				if (line != String())
+				if (line != String() && prev_token != TK_PR_ONREADY)
 					line += " ";
 				line += "var ";
 			} break;
