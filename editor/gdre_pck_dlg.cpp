@@ -16,13 +16,14 @@ PackDialog::PackDialog() {
 	updating = false;
 	have_malformed_names = false;
 
+#ifndef WEB_ENABLED
 	target_folder_selection = memnew(FileDialog);
 	target_folder_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
 	target_folder_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
 	target_folder_selection->connect("dir_selected", callable_mp(this, &PackDialog::_dir_select_request));
 	target_folder_selection->set_show_hidden_files(true);
 	add_child(target_folder_selection);
-
+#endif
 	VBoxContainer *script_vb = memnew(VBoxContainer);
 	script_vb->set_v_size_flags(Control::SIZE_EXPAND_FILL);
 
@@ -87,6 +88,7 @@ PackDialog::PackDialog() {
 	options->add_child(full_recovery_options);
 
 	script_vb->add_margin_child(RTR("Options:"), options);
+#ifndef WEB_ENABLED
 	//Target directory
 	HBoxContainer *dir_hbc = memnew(HBoxContainer);
 	target_dir = memnew(LineEdit);
@@ -100,6 +102,7 @@ PackDialog::PackDialog() {
 	dir_hbc->add_child(select_dir);
 
 	script_vb->add_margin_child(RTR("Destination folder:"), dir_hbc);
+#endif
 
 	script_key_error = memnew(Label);
 	script_vb->add_child(script_key_error);
@@ -200,8 +203,11 @@ void PackDialog::_full_recovery_pressed() {
 bool PackDialog::get_is_full_recovery() const {
 	return is_full_recovery;
 }
+
 void PackDialog::_dir_select_pressed() {
+#ifndef WEB_ENABLED
 	target_folder_selection->popup_centered(Size2(600, 400));
+#endif
 }
 
 void PackDialog::_dir_select_request(const String &p_path) {
@@ -280,11 +286,13 @@ void PackDialog::_validate_selection() {
 		error_message += RTR("Some files have malformed names") + "\n";
 		script_key_error->add_theme_color_override("font_color", error_color);
 	}
+#ifndef WEB_ENABLED
 	if (target_dir->get_text().is_empty()) {
 		error_message += RTR("No destination folder selected") + "\n";
 		script_key_error->add_theme_color_override("font_color", error_color);
 		ok = false;
 	}
+#endif
 	if (nothing_selected) {
 		error_message += RTR("No files selected") + "\n";
 		script_key_error->add_theme_color_override("font_color", error_color);

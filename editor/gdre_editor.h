@@ -95,6 +95,7 @@ private:
 	PackDialog *pck_dialog;
 	FileDialog *pck_file_selection;
 	String pck_file;
+	String extract_dir;
 	uint32_t pck_ver_major;
 	uint32_t pck_ver_minor;
 	uint32_t pck_ver_rev;
@@ -184,9 +185,13 @@ public:
 	};
 
 	_FORCE_INLINE_ static GodotREEditor *get_singleton() { return singleton; }
+#ifdef WEB_ENABLED
+	void _drop_files(const Vector<String> &p_files);
+	static void _download_zip();
+#endif
 
 	void init_gui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu);
-
+	void init_webgui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu);
 	void show_about_dialog();
 	void menu_option_pressed(int p_id);
 	void print_log(const String &p_text);

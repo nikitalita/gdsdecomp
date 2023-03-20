@@ -48,6 +48,15 @@
 
 #endif
 
+#ifdef WEB_ENABLED
+#include "core/io/file_access_zip.h"
+#include "platform/web/api/javascript_bridge_singleton.h"
+#include "platform/web/display_server_web.h"
+#include "platform/web/godot_js.h"
+#include "platform/web/os_web.h"
+#include "utility/create_zip.h"
+#endif
+
 /*************************************************************************/
 
 GodotREEditor *GodotREEditor::singleton = NULL;
@@ -173,8 +182,11 @@ GodotREEditor::GodotREEditor(Control *p_control, HBoxContainer *p_menu) {
 	singleton = this;
 	ne_parent = p_control;
 	gdres_singleton = memnew(GDRESettings);
-
+#ifndef WEB_ENABLED
 	init_gui(p_control, p_menu, true);
+#else // WEB_ENABLED
+	init_webgui(p_control, p_menu, true);
+#endif
 }
 
 void init_icons() {
@@ -416,6 +428,39 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	}
 }
 
+#ifdef WEB_ENABLED
+void GodotREEditor::_drop_files(const Vector<String> &p_files) {
+	WARN_PRINT("WE GOT DROP FILES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	if (p_files.size() == 1) {
+		String file = p_files[0];
+		String ext = file.get_extension().to_lower();
+		if (ext == "pck" || ext == "apk") {
+			_pck_select_request(file);
+		}
+	}
+}
+
+#endif
+
+void GodotREEditor::init_webgui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu) {
+	// no menu for web
+#ifdef WEB_ENABLED
+	WARN_PRINT("INIT WEB GUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+	ovd = memnew(OverwriteDialog);
+	p_control->add_child(ovd);
+
+	rdl = memnew(ResultDialog);
+	p_control->add_child(rdl);
+
+	pck_dialog = memnew(PackDialog);
+	pck_dialog->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files));
+	pck_dialog->connect("canceled", callable_mp(this, &GodotREEditor::_pck_unload));
+	p_control->add_child(pck_dialog);
+
+	SceneTree::get_singleton()->get_root()->connect("files_dropped", callable_mp(this, &GodotREEditor::_drop_files));
+#endif
+}
+
 GodotREEditor::~GodotREEditor() {
 	singleton = NULL;
 	memdelete(gdres_singleton);
@@ -550,6 +595,7 @@ void GodotREEditor::show_report(const String &p_text, const String &p_title, con
 	rdl->set_wrap_controls(true);
 	rdl->popup_centered(size);
 }
+
 /*************************************************************************/
 /* Decompile                                                             */
 /*************************************************************************/
@@ -795,7 +841,20 @@ void GodotREEditor::_pck_unload() {
 	GDRESettings::get_singleton()->unload_pack();
 }
 
+#ifdef WEB_ENABLED
+void GodotREEditor::_download_zip() {
+	String project_name = get_singleton()->pck_file.get_file().get_basename();
+	String dir = get_singleton()->extract_dir;
+	download_zip(project_name, dir);
+}
+#endif
 void GodotREEditor::_pck_extract_files() {
+#ifdef WEB_ENABLED
+	_pck_extract_files_process();
+	godot_js_os_fs_sync(&GodotREEditor::_download_zip);
+	// we put this down here because we will overflow the stack if we do it in _pck_extract_files
+	return;
+#else
 	Vector<String> files = pck_dialog->get_selected_files();
 	String dir = pck_dialog->get_target_dir();
 	Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
@@ -816,20 +875,26 @@ void GodotREEditor::_pck_extract_files() {
 
 		ovd->popup_centered();
 	}
+#endif
 }
 
 void GodotREEditor::_pck_extract_files_process() {
 	Vector<String> files = pck_dialog->get_selected_files();
-	String dir = pck_dialog->get_target_dir();
+	String pck_name = pck_file.get_file().get_basename();
+#ifndef WEB_ENABLED
+	extract_dir = pck_dialog->get_target_dir();
+#else
+	extract_dir = String("/userfs").path_join(pck_name + "_" + itos(Math::rand()));
+#endif
 	bool is_full_recovery = pck_dialog->get_is_full_recovery();
-	GDRESettings::get_singleton()->open_log_file(dir);
+	GDRESettings::get_singleton()->open_log_file(extract_dir);
 	String failed_files;
 	pck_dialog->set_visible(false);
 	ovd->set_visible(false);
 	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck", RTR("Extracting files..."), files.size(), true));
 	Ref<PckDumper> pckdumper;
 	pckdumper.instantiate();
-	Error err = pckdumper->_pck_dump_to_dir(dir, files, pr, failed_files);
+	Error err = pckdumper->_pck_dump_to_dir(extract_dir, files, pr, failed_files);
 	Ref<ImportExporter> ie;
 
 	if (is_full_recovery && !err) {
@@ -837,7 +902,7 @@ void GodotREEditor::_pck_extract_files_process() {
 		ie.instantiate();
 		pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck_res", RTR("Exporting resources..."), GDRESettings::get_singleton()->get_import_files().size(), true));
 		String error_string;
-		err = ie->_export_imports(dir, files, pr, error_string);
+		err = ie->_export_imports(extract_dir, files, pr, error_string);
 	}
 	memdelete(pr);
 	pck_file = String();
@@ -1713,6 +1778,9 @@ void GodotREEditor::_notification(int p_notification) {
 }
 
 void GodotREEditor::_bind_methods() {
+#ifdef WEB_ENABLED
+	ClassDB::bind_method(D_METHOD("_drop_files"), &GodotREEditor::_drop_files);
+#endif
 	ClassDB::bind_method(D_METHOD("_decompile_files"), &GodotREEditor::_decompile_files);
 	ClassDB::bind_method(D_METHOD("_decompile_process"), &GodotREEditor::_decompile_process);
 
