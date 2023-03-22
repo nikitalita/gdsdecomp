@@ -885,6 +885,7 @@ bool GDRESettings::is_headless() const {
 String GDRESettings::get_sys_info_string() const {
 	String OS_Name = OS::get_singleton()->get_distribution_name();
 	String OS_Version = OS::get_singleton()->get_version();
+	String model_name = OS::get_singleton()->get_model_name();
 	String adapter_name = RenderingServer::get_singleton()->get_video_adapter_name();
 	String render_driver = OS::get_singleton()->get_current_rendering_driver_name();
 	if (adapter_name.is_empty()) {
@@ -892,8 +893,11 @@ String GDRESettings::get_sys_info_string() const {
 	} else {
 		adapter_name += ", " + render_driver;
 	}
-
-	return OS_Name + " " + OS_Version + ", " + adapter_name;
+	String sys_info_string = OS_Name + " " + OS_Version + ", " + adapter_name;
+	if (!model_name.is_empty() && model_name != "GenericDevice") {
+		sys_info_string += ", " + model_name;
+	}
+	return sys_info_string;
 }
 
 Error GDRESettings::open_log_file(const String &output_dir) {
