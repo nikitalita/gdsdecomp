@@ -4,6 +4,84 @@ var ver_major = 0
 var ver_minor = 0
 var main : GDRECLIMain
 
+var input_box_js_interface = null
+var input_id = null
+var last_rect : Rect2
+var is_clickable : bool = false
+
+
+
+var jscode = """
+var _HTML5FileExchange = {};
+_HTML5FileExchange.make_input_box = function(x, y, width, height, remove_self_on_upload = true) {
+	var input = document.createElement('INPUT', {type: 'file', accept: 'application/pck,application/exe,application/apk,application/zip'});
+	var input_id = 'UPLOAD_INPUT'; // TODO: make unique
+	input.id = input_id;
+	input.type = 'file';
+	input.className = 'manual-file-chooser';
+	input.ariaLabel = 'Choose a file';
+	input.style.position = 'absolute';
+	input.style.visibility = 'visible';
+	input.style.display = 'block';
+	input.style.top = y + 'px';
+	input.style.left = x + 'px';
+	input.style.width = width + 'px';
+	input.style.height = height + 'px';
+	input.style.zIndex = 1000;
+	input.style.cursor = 'pointer';
+	input.style.opacity = 0.0001;
+	input.addEventListener('change', event => {
+		if (event.target.files.length > 0){
+			canceled = false;
+		} else {
+			canceled = true;
+			return;
+		}
+		var file = event.target.files[0];
+		var reader = new FileReader();
+		this.fileType = file.type;
+		var dttransfer = new DataTransfer();
+		var item = dttransfer.items.add(file);
+		item.__proto__.webkitGetAsEntry = () =>{
+			return {
+				isFile: true,
+				file: (callback) => {
+					callback(item.getAsFile());
+				}
+			};
+		}
+		dttransfer.items[0] = item;
+		var drop_event = new DragEvent('drop', {dataTransfer: dttransfer, isTrusted: true});
+		drop_event.isTrusted = true;
+		document.getElementById('canvas').dispatchEvent(drop_event)
+		if (remove_self_on_upload) {
+			document.getElementById(input_id).remove();
+		}
+		});
+	document.body.appendChild(input);
+	return input_id;
+}
+_HTML5FileExchange.resize = function(input_id, x, y, width, height){
+	var id = document.getElementById(input_id);
+	if (id){
+		id.style.top = y + 'px';
+		id.style.left = x + 'px';
+		id.style.width = width + 'px';
+		id.style.height = height + 'px';
+	}
+}
+_HTML5FileExchange.isPresent = function(inputId){
+	return document.getElementById(inputId) != null;
+}
+_HTML5FileExchange.destroy = function(input_id){
+	var id = document.getElementById(input_id);
+	if (id){
+		document.getElementById(input_id).remove();
+	}
+}
+"""
+
+
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
 	var dst_file = txt_to_bin.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
@@ -17,8 +95,65 @@ func _on_re_editor_standalone_write_log_message(message):
 func _on_version_lbl_pressed():
 	OS.shell_open("https://github.com/bruvzg/gdsdecomp")
 
+func _set_drag_drop_icon_visible(visible: bool):
+	if OS.get_name() == "Web":
+		$drag_drop_icon.visible = visible
+
+func _setup_input_box_js_interface():
+	if OS.get_name() == "Web":
+		Engine.get_singleton("JavaScriptBridge").eval(jscode, true)
+		input_box_js_interface = Engine.get_singleton("JavaScriptBridge").get_interface("_HTML5FileExchange")
+
+func _set_drag_drop_icon_clickable(clickable: bool):
+	if OS.get_name() == "Web":
+		if clickable:
+			var rect = $drag_drop_icon.get_rect()
+			if input_id != null:
+				input_box_js_interface.destroy(input_id)
+			input_id = input_box_js_interface.make_input_box(rect.position.x, rect.position.y, rect.size.x, rect.size.y)
+			last_rect = rect
+			is_clickable = true
+		else:
+			if input_id != null:
+				input_box_js_interface.destroy(input_id)
+				input_id = null
+			last_rect = Rect2()
+			is_clickable = false
+
+func _update_drag_drop_icon():
+	if OS.get_name() == "Web":
+		if input_id != null:
+			if is_clickable:
+				# check to see if the input box is still there
+				# if not, that means it's destroyed itself upon upload, clear out the input_id and is_clickable
+				# TODO: possibly emit event
+				# [connection signal="input_box_destroyed" from="." to="re_editor_standalone" method="_on_input_box_destroyed"]
+				if not input_box_js_interface.isPresent(input_id):
+					input_id = null
+					last_rect = Rect2()
+					is_clickable = false
+					return
+				# check to see if the rect has changed
+				var rect = $drag_drop_icon.get_rect()
+				if rect != last_rect:
+					input_id = input_box_js_interface.resize(input_id, rect.position.x, rect.position.y, rect.size.x, rect.size.y)
+					last_rect = rect
+					return
+			else:
+				input_box_js_interface.destroy(input_id)
+			
+
+
+
+func _process(delta):
+	if OS.get_name() == "Web":
+		_update_drag_drop_icon()
+
 func _ready():
 	$version_lbl.text = $re_editor_standalone.get_version()
+	if OS.get_name() == "Web":
+		_set_drag_drop_icon_visible(true)
+		_setup_input_box_js_interface()
 	# If CLI arguments were passed in, just quit
 	if handle_cli():
 		get_tree().quit()
@@ -33,41 +168,6 @@ func get_arg_value(arg):
 func normalize_path(path: String):
 	return path.replace("\\","/")
 	
-# func print_import_info_from_pak(pak_file: String):
-# 	var pckdump = PckDumper.new()
-# 	pckdump.load_pck(pak_file)
-# 	var importer:ImportExporter = ImportExporter.new()
-# 	importer.load_import_files()
-# 	var arr = importer.get_import_files()
-# 	print("size is " + str(arr.size()))
-# 	for ifo in arr:
-# 		var s:String = ifo.get_source_file() + " is "
-# 		if ifo.get_import_loss_type() == 0:
-# 			print(s + "lossless")
-# 		elif ifo.get_import_loss_type() == -1:
-# 			print(s + "unknown")
-# 		else:
-# 			print(s + "lossy")
-# 		print((ifo as ImportInfo).to_string())
-# 	pckdump.clear_data()
-# 	importer.reset()
-	
-# func print_import_info(output_dir: String):
-# 	var importer:ImportExporter = ImportExporter.new()
-# 	importer.load_import_files()
-# 	var arr = importer.get_import_files()
-# 	print("size is " + str(arr.size()))
-# 	for ifo in arr:
-# 		var s:String = ifo.get_source_file() + " is "
-# 		if ifo.get_import_loss_type() == 0:
-# 			print(s + "lossless")
-# 		elif ifo.get_import_loss_type() == -1:
-# 			print(s + "unknown")
-# 		else:
-# 			print(s + "lossy")
-# 		print((ifo as ImportInfo).to_string())
-# 	importer.reset()
-
 func test_decomp(fname):
 	var decomp = GDScriptDecomp_ed80f45.new()
 	var f = fname
@@ -92,8 +192,7 @@ func export_imports(output_dir:String):
 	var importer:ImportExporter = ImportExporter.new()
 	importer.export_imports(output_dir)
 	importer.reset()
-				
-	
+
 func dump_files(output_dir:String) -> int:
 	var err:int = OK;
 	var pckdump = PckDumper.new()

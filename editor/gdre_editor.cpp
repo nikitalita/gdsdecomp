@@ -192,6 +192,69 @@ GodotREEditor::GodotREEditor(Control *p_control, HBoxContainer *p_menu) {
 void init_icons() {
 }
 
+void GodotREEditor::init_about_box(Control *p_control) {
+	//Init about/warning dialog
+
+	about_dialog = memnew(AcceptDialog);
+	p_control->add_child(about_dialog);
+	about_dialog->set_title(RTR("Important: Legal Notice"));
+
+	VBoxContainer *about_vbc = memnew(VBoxContainer);
+	about_dialog->add_child(about_vbc);
+
+	HBoxContainer *about_hbc = memnew(HBoxContainer);
+	about_vbc->add_child(about_hbc);
+
+	TextureRect *about_icon = memnew(TextureRect);
+	about_hbc->add_child(about_icon);
+	about_icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
+	about_icon->set_texture(icons["RELogoBig"]);
+
+	Label *about_label = memnew(Label);
+	about_hbc->add_child(about_label);
+	about_label->set_custom_minimum_size(Size2(600, 100) * EDSCALE);
+	about_label->set_v_size_flags(Control::SIZE_EXPAND_FILL);
+	about_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
+	about_label->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
+	String about_text =
+			String("Godot RE Tools, ") + String(GDRE_VERSION) + String(" \n\n") +
+			RTR(String("Resources, binary code and source code might be protected by copyright and trademark ") +
+					"laws. Before using this software make sure that decompilation is not prohibited by the " +
+					"applicable license agreement, permitted under applicable law or you obtained explicit " +
+					"permission from the copyright owner.\n\n" +
+					"The authors and copyright holders of this software do neither encourage nor condone " +
+					"the use of this software, and disclaim any liability for use of the software in violation of " +
+					"applicable laws.\n\n" +
+					"This software in an alpha stage. Please report any bugs to the GitHub repository\n");
+	about_label->set_text(about_text);
+
+#ifdef TOOLS_ENABLED
+	if (EditorSettings::get_singleton()) {
+		EDITOR_DEF("re/editor/show_info_on_start", true);
+	}
+#endif
+	about_dialog_checkbox = memnew(CheckBox);
+	about_vbc->add_child(about_dialog_checkbox);
+	about_dialog_checkbox->set_text(RTR("Show this warning when starting the editor"));
+	about_dialog_checkbox->connect("toggled", callable_mp(this, &GodotREEditor::_toggle_about_dialog_on_start));
+}
+
+void GodotREEditor::open_issue_url() {
+	String sys_info = GDRESettings::get_singleton()->get_sys_info_string();
+	OS::get_singleton()->shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + sys_info);
+};
+
+const Vector<String> exe_exts = {
+	"exe",
+	"bin",
+	"32",
+	"64",
+	"x86_64",
+	"mono",
+	"aarch64",
+	""
+};
+
 void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu) {
 	//Init dialogs
 
@@ -246,7 +309,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
 	pck_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILE);
 	pck_file_selection->add_filter("*.pck;PCK archive files");
-	pck_file_selection->add_filter("*.exe,*.bin,*.32,*.64;Self contained executable files");
+	pck_file_selection->add_filter("*.exe,*.bin,*.32,*.64,*.x86_64,*.mono;Self contained executable files");
 	pck_file_selection->add_filter("*.apk;Android application files");
 	pck_file_selection->add_filter("*.zip;Zipped Godot project files");
 	pck_file_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_pck_select_request));
@@ -293,52 +356,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	smpl_file_selection->set_show_hidden_files(true);
 	p_control->add_child(smpl_file_selection);
 
-	//Init about/warning dialog
-	{
-		about_dialog = memnew(AcceptDialog);
-		p_control->add_child(about_dialog);
-		about_dialog->set_title(RTR("Important: Legal Notice"));
-
-		VBoxContainer *about_vbc = memnew(VBoxContainer);
-		about_dialog->add_child(about_vbc);
-
-		HBoxContainer *about_hbc = memnew(HBoxContainer);
-		about_vbc->add_child(about_hbc);
-
-		TextureRect *about_icon = memnew(TextureRect);
-		about_hbc->add_child(about_icon);
-		about_icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		about_icon->set_texture(icons["RELogoBig"]);
-
-		Label *about_label = memnew(Label);
-		about_hbc->add_child(about_label);
-		about_label->set_custom_minimum_size(Size2(600, 100) * EDSCALE);
-		about_label->set_v_size_flags(Control::SIZE_EXPAND_FILL);
-		about_label->set_h_size_flags(Control::SIZE_EXPAND_FILL);
-		about_label->set_autowrap_mode(TextServer::AUTOWRAP_WORD_SMART);
-		String about_text =
-				String("Godot RE Tools, ") + String(GDRE_VERSION) + String(" \n\n") +
-				RTR(String("Resources, binary code and source code might be protected by copyright and trademark ") +
-						"laws. Before using this software make sure that decompilation is not prohibited by the " +
-						"applicable license agreement, permitted under applicable law or you obtained explicit " +
-						"permission from the copyright owner.\n\n" +
-						"The authors and copyright holders of this software do neither encourage nor condone " +
-						"the use of this software, and disclaim any liability for use of the software in violation of " +
-						"applicable laws.\n\n" +
-						"This software in an alpha stage. Please report any bugs to the GitHub repository\n");
-		about_label->set_text(about_text);
-
-#ifdef TOOLS_ENABLED
-		if (EditorSettings::get_singleton()) {
-			EDITOR_DEF("re/editor/show_info_on_start", true);
-		}
-#endif
-		about_dialog_checkbox = memnew(CheckBox);
-		about_vbc->add_child(about_dialog_checkbox);
-		about_dialog_checkbox->set_text(RTR("Show this warning when starting the editor"));
-		about_dialog_checkbox->connect("toggled", callable_mp(this, &GodotREEditor::_toggle_about_dialog_on_start));
-	}
-
+	init_about_box(p_control);
 	//Init menu
 	if (p_long_menu) {
 		p_menu->set_anchor(Side::SIDE_TOP, 0);
@@ -428,24 +446,54 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	}
 }
 
+bool check_exe_exts(String ext) {
+	for (auto ext_ext : exe_exts) {
+		if (ext == ext_ext) {
+			return true;
+		}
+	}
+	return false;
+}
+
 #ifdef WEB_ENABLED
+void GodotREEditor::_after_sync_drop_files() {
+	GodotREEditor::get_singleton()->_pck_select_request(GodotREEditor::get_singleton()->pck_file);
+}
+#endif
+
+void GodotREEditor::_set_drag_drop_icon_clickable() {
+	emit_signal("set_drag_drop_icon_clickable", true);
+}
+
+void GodotREEditor::_unset_drag_drop_icon_clickable() {
+	emit_signal("set_drag_drop_icon_clickable", false);
+}
+
 void GodotREEditor::_drop_files(const Vector<String> &p_files) {
-	WARN_PRINT("WE GOT DROP FILES!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 	if (p_files.size() == 1) {
 		String file = p_files[0];
+		String filename = file.get_file();
+		String dir = file.get_base_dir();
 		String ext = file.get_extension().to_lower();
-		if (ext == "pck" || ext == "apk") {
+		if (ext == "pck" || ext == "apk" || ext == "zip" || check_exe_exts(ext)) {
+#ifdef WEB_ENABLED
+			// we need to move this out of the tmp fs into the userfs
+			Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+			String new_file = String("/userfs").path_join(filename);
+			ERR_FAIL_COND_MSG(da->copy(file, new_file), "Failed to copy file " + file + " to userfs.");
+			_unset_drag_drop_icon_clickable();
+			pck_file = new_file;
+			godot_js_os_fs_sync(&GodotREEditor::_after_sync_drop_files);
+#else
 			_pck_select_request(file);
+#endif
 		}
 	}
 }
 
-#endif
-
 void GodotREEditor::init_webgui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu) {
 	// no menu for web
 #ifdef WEB_ENABLED
-	WARN_PRINT("INIT WEB GUI!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 	ovd = memnew(OverwriteDialog);
 	p_control->add_child(ovd);
 
@@ -456,6 +504,14 @@ void GodotREEditor::init_webgui(Control *p_control, HBoxContainer *p_menu, bool 
 	pck_dialog->connect("confirmed", callable_mp(this, &GodotREEditor::_pck_extract_files));
 	pck_dialog->connect("canceled", callable_mp(this, &GodotREEditor::_pck_unload));
 	p_control->add_child(pck_dialog);
+
+	init_about_box(p_control);
+	about_dialog->connect("confirmed", callable_mp(this, &GodotREEditor::_set_drag_drop_icon_clickable));
+	about_dialog->connect("canceled", callable_mp(this, &GodotREEditor::_set_drag_drop_icon_clickable));
+	menu_button = memnew(MenuButton);
+	menu_button->set_text(RTR("Download the desktop version"));
+	menu_button->set_icon(icons["RELogo"]);
+	menu_button->connect("pressed", callable_mp(this, &GodotREEditor::show_about_dialog));
 
 	SceneTree::get_singleton()->get_root()->connect("files_dropped", callable_mp(this, &GodotREEditor::_drop_files));
 #endif
@@ -594,6 +650,10 @@ void GodotREEditor::show_report(const String &p_text, const String &p_title, con
 	size.width -= (size.width / 2);
 	rdl->set_wrap_controls(true);
 	rdl->popup_centered(size);
+#ifdef WEB_ENABLED
+	rdl->connect("confirmed", callable_mp(this, &GodotREEditor::_set_drag_drop_icon_clickable));
+	rdl->connect("canceled", callable_mp(this, &GodotREEditor::_set_drag_drop_icon_clickable));
+#endif
 }
 
 /*************************************************************************/
@@ -789,6 +849,7 @@ void GodotREEditor::_pck_select_request(const String &p_path) {
 		}
 		return;
 	}
+
 	pck_file_selection->set_visible(false);
 	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_read_pck_md5",
 			RTR("Reading PCK archive, click cancel to skip MD5 checking..."),
@@ -842,18 +903,26 @@ void GodotREEditor::_pck_unload() {
 }
 
 #ifdef WEB_ENABLED
+// Called statically after a manual FS sync
 void GodotREEditor::_download_zip() {
 	String project_name = get_singleton()->pck_file.get_file().get_basename();
 	String dir = get_singleton()->extract_dir;
 	download_zip(project_name, dir);
+	Ref<DirAccess> da = DirAccess::open(dir);
+	if (da.is_valid()) {
+		da->erase_contents_recursive();
+		da->change_dir("/userfs");
+		da->remove(get_singleton()->pck_file);
+		da->remove("/userfs/" + project_name + ".zip");
+	}
+	get_singleton()->pck_file = String();
+	get_singleton()->extract_dir = String();
 }
 #endif
+
 void GodotREEditor::_pck_extract_files() {
 #ifdef WEB_ENABLED
 	_pck_extract_files_process();
-	godot_js_os_fs_sync(&GodotREEditor::_download_zip);
-	// we put this down here because we will overflow the stack if we do it in _pck_extract_files
-	return;
 #else
 	Vector<String> files = pck_dialog->get_selected_files();
 	String dir = pck_dialog->get_target_dir();
@@ -905,7 +974,6 @@ void GodotREEditor::_pck_extract_files_process() {
 		err = ie->_export_imports(extract_dir, files, pr, error_string);
 	}
 	memdelete(pr);
-	pck_file = String();
 	String log_path = GDRESettings::get_singleton()->get_log_file_path();
 	String report = "Log file written to " + log_path;
 	report += "\nPlease include this file when reporting an issue!\n\n";
@@ -935,6 +1003,12 @@ void GodotREEditor::_pck_extract_files_process() {
 	}
 	print_warning("Log file written to " + log_path, RTR("Read PCK"));
 	print_warning("Please include this file when reporting an issue!", RTR("Read PCK"));
+#ifdef WEB_ENABLED
+	godot_js_os_fs_sync(&GodotREEditor::_download_zip);
+#else
+	pck_file = String();
+	extract_dir = String();
+#endif
 }
 
 /*************************************************************************/
@@ -1778,9 +1852,11 @@ void GodotREEditor::_notification(int p_notification) {
 }
 
 void GodotREEditor::_bind_methods() {
-#ifdef WEB_ENABLED
 	ClassDB::bind_method(D_METHOD("_drop_files"), &GodotREEditor::_drop_files);
-#endif
+
+	ClassDB::bind_method(D_METHOD("_set_drag_drop_icon_clickable"), &GodotREEditor::_set_drag_drop_icon_clickable);
+	ClassDB::bind_method(D_METHOD("_unset_drag_drop_icon_clickable"), &GodotREEditor::_unset_drag_drop_icon_clickable);
+
 	ClassDB::bind_method(D_METHOD("_decompile_files"), &GodotREEditor::_decompile_files);
 	ClassDB::bind_method(D_METHOD("_decompile_process"), &GodotREEditor::_decompile_process);
 
@@ -1819,6 +1895,7 @@ void GodotREEditor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("convert_file_to_text", "src_path", "dst_path"), &GodotREEditor::convert_file_to_text);
 
 	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
+	ADD_SIGNAL(MethodInfo("set_drag_drop_icon_clickable", PropertyInfo(Variant::BOOL, "clickable")));
 };
 
 /*************************************************************************/
@@ -1828,6 +1905,10 @@ void GodotREEditorStandalone::_notification(int p_notification) {
 		if (editor_ctx)
 			editor_ctx->show_about_dialog();
 	}
+}
+
+void GodotREEditorStandalone::_set_drag_drop_icon_clickable(bool p_enabled) {
+	emit_signal("set_drag_drop_icon_clickable", p_enabled);
 }
 
 void GodotREEditorStandalone::_write_log_message(String p_message) {
@@ -1840,7 +1921,9 @@ String GodotREEditorStandalone::get_version() {
 
 void GodotREEditorStandalone::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_write_log_message"), &GodotREEditorStandalone::_write_log_message);
+	ClassDB::bind_method(D_METHOD("_set_drag_drop_icon_clickable"), &GodotREEditorStandalone::_set_drag_drop_icon_clickable);
 	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
+	ADD_SIGNAL(MethodInfo("set_drag_drop_icon_clickable", PropertyInfo(Variant::BOOL, "clickable")));
 
 	ClassDB::bind_method(D_METHOD("get_version"), &GodotREEditorStandalone::get_version);
 }
@@ -1851,10 +1934,12 @@ GodotREEditorStandalone::GodotREEditorStandalone() {
 	if (GodotREEditor::get_singleton() == nullptr) {
 		editor_ctx = memnew(GodotREEditor(this, menu_hb));
 		editor_ctx->connect("write_log_message", callable_mp(this, &GodotREEditorStandalone::_write_log_message));
+		editor_ctx->connect("set_drag_drop_icon_clickable", callable_mp(this, &GodotREEditorStandalone::_set_drag_drop_icon_clickable));
 		add_child(editor_ctx);
 	} else {
 		editor_ctx = GodotREEditor::get_singleton();
 		editor_ctx->connect("write_log_message", callable_mp(this, &GodotREEditorStandalone::_write_log_message));
+		editor_ctx->connect("set_drag_drop_icon_clickable", callable_mp(this, &GodotREEditorStandalone::_set_drag_drop_icon_clickable));
 	}
 }
 

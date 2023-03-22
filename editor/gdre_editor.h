@@ -154,6 +154,14 @@ private:
 	void _res_smpl_2_wav_request(const Vector<String> &p_files);
 	void _res_smpl_2_wav_process();
 
+#ifdef WEB_ENABLED
+	static void _after_sync_drop_files();
+	static void _download_zip();
+#endif
+	void _drop_files(const Vector<String> &p_files);
+	void _set_drag_drop_icon_clickable();
+	void _unset_drag_drop_icon_clickable();
+
 	Error convert_file_to_binary(const String &p_src_path, const String &p_dst_path);
 	Error convert_file_to_text(const String &p_src_path, const String &p_dst_path);
 
@@ -165,6 +173,8 @@ private:
 protected:
 	void _notification(int p_notification);
 	static void _bind_methods();
+	void init_about_box(Control *p_control);
+	static void open_issue_url();
 
 public:
 	enum MenuOptions {
@@ -185,11 +195,6 @@ public:
 	};
 
 	_FORCE_INLINE_ static GodotREEditor *get_singleton() { return singleton; }
-#ifdef WEB_ENABLED
-	void _drop_files(const Vector<String> &p_files);
-	static void _download_zip();
-#endif
-
 	void init_gui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu);
 	void init_webgui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu);
 	void show_about_dialog();
@@ -215,6 +220,7 @@ protected:
 	static void _bind_methods();
 
 public:
+	void _set_drag_drop_icon_clickable(bool p_enabled);
 	void _write_log_message(String p_message);
 	String get_version();
 

@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3 uid="uid://el6o5uk15g2c"]
+[gd_scene load_steps=4 format=3 uid="uid://el6o5uk15g2c"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1"]
 [ext_resource type="Script" path="res://gdre_main.gd" id="2"]
+[ext_resource type="Texture2D" uid="uid://c15r18loe2ln2" path="res://gdre_drag-drop-line.svg" id="3_wlv4r"]
 
 [node name="root" type="Control"]
 layout_mode = 3
@@ -13,6 +14,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("1")
 script = ExtResource("2")
+metadata/_edit_horizontal_guides_ = []
 
 [node name="log_window" type="RichTextLabel" parent="."]
 layout_mode = 1
@@ -58,5 +60,20 @@ mouse_filter = 1
 text = "$$$"
 flat = true
 
+[node name="drag_drop_icon" type="TextureRect" parent="."]
+visible = false
+texture_filter = 2
+texture_repeat = 1
+layout_mode = 2
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 317.0
+offset_top = 180.0
+offset_right = -323.0
+offset_bottom = -180.0
+texture = ExtResource("3_wlv4r")
+stretch_mode = 3
+
+[connection signal="set_drag_drop_icon_clickable" from="re_editor_standalone" to="." method="_set_drag_drop_icon_clickable"]
 [connection signal="write_log_message" from="re_editor_standalone" to="." method="_on_re_editor_standalone_write_log_message"]
 [connection signal="pressed" from="version_lbl" to="." method="_on_version_lbl_pressed"]

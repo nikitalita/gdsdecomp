@@ -111,5 +111,10 @@ void download_zip(String projectName, String folder_path) {
 	f->get_buffer(buf.ptrw(), buf.size());
 
 	JavaScriptBridge::get_singleton()->download_buffer(buf, zip_path.get_file(), "application/zip");
+	f->close();
+	f = Ref<FileAccess>();
+	Ref<DirAccess> da = DirAccess::open(zip_path.get_base_dir());
+	ERR_FAIL_COND_MSG(!da.is_valid(), "Failed to open dir " + zip_path.get_base_dir());
+	da->remove(zip_path);
 #endif
 }
