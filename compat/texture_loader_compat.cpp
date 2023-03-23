@@ -6,6 +6,7 @@
 #include "utility/gdre_settings.h"
 
 #include "core/io/file_access.h"
+#include "core/io/resource_importer.h"
 
 enum FormatBits {
 	FORMAT_MASK_IMAGE_FORMAT = (1 << 20) - 1,
@@ -22,6 +23,58 @@ enum FormatBits {
 };
 
 void TextureLoaderCompat::_bind_methods() {}
+
+void unpremultiply_alpha(Ref<Image> img) {
+	auto format = img->get_format();
+
+	if (format != Image::FORMAT_RGBA8) {
+		return; //not needed
+	}
+	auto data = img->get_data();
+	auto use_mipmaps = img->has_mipmaps();
+	auto width = img->get_width();
+	auto height = img->get_height();
+	if (data.size() == 0) {
+		return;
+	}
+
+	uint8_t *data_ptr = data.ptrw();
+
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			uint8_t *ptr = &data_ptr[(i * width + j) * 4];
+			// premultiplied alpha was pixel * alpha / 256
+			// unpremulitply is pixel * 256 / alpha
+			ptr[0] = uint16_t(uint16_t(ptr[0]) << 8) / uint16_t(ptr[3]);
+			ptr[1] = uint16_t(uint16_t(ptr[1]) << 8) / uint16_t(ptr[3]);
+			ptr[2] = uint16_t(uint16_t(ptr[2]) << 8) / uint16_t(ptr[3]);
+		}
+	}
+	img->set_data(width, height, use_mipmaps, format, data);
+}
+
+void uninvert_y(Ref<Image> target_image) {
+	const int height = target_image->get_height();
+	const int width = target_image->get_width();
+
+	for (int i = 0; i < width; i++) {
+		for (int j = 0; j < height; j++) {
+			const Color color = target_image->get_pixel(i, j);
+			target_image->set_pixel(i, j, Color(color.r, 1 - color.g, color.b));
+		}
+	}
+}
+
+void uninvert_colors(Ref<Image> image) {
+	int height = image->get_height();
+	int width = image->get_width();
+
+	for (int i = 0; i < width; i++) {
+		for (int j = 0; j < height; j++) {
+			image->set_pixel(i, j, image->get_pixel(i, j).inverted());
+		}
+	}
+}
 
 TextureLoaderCompat::TextureVersionType TextureLoaderCompat::recognize(const String &p_path, Error *r_err) {
 	Error err;
