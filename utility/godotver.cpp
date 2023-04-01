@@ -156,11 +156,11 @@ void SemVer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_prerelease", "prerelease"), &SemVer::set_prerelease);
 	ClassDB::bind_method(D_METHOD("set_build_metadata", "build_metadata"), &SemVer::set_build_metadata);
 
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "major"), "get_major", "set_major");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "minor"), "get_minor", "set_minor");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "patch"), "get_patch", "set_patch");
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "prerelease"), "get_prerelease", "set_prerelease");
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "build_metadata"), "get_build_metadata", "set_build_metadata");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "major"), "set_major", "get_major");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "minor"), "set_minor", "get_minor");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "patch"), "set_patch", "get_patch");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "prerelease"), "set_prerelease", "get_prerelease");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "build_metadata"), "set_build_metadata", "get_build_metadata");
 
 	ClassDB::bind_method(D_METHOD("is_prerelease"), &SemVer::is_prerelease);
 
