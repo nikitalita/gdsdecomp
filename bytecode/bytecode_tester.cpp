@@ -3,6 +3,86 @@
 #include "core/io/file_access.h"
 // We are only using this to test 2.1.x and 3.1.x currently.
 
+/* discontintuities in the functions for bytecode 10 starts here (-1 means varargs):
+
+| 23441ec          | Args | 7124599          | Args | 85585c7          | Args | ed80f45          | Args |
+| ---------------- | ---- | ---------------- | ---- | ---------------- | ---- | ---------------- | ---- |
+| typeof           | 1    | typeof           | 1    | typeof           | 1    | typeof           | 1    |
+| str              | -1   | type_exists      | 1    | type_exists      | 1    | type_exists      | 1    |
+| print            | -1   | str              | -1   | str              | -1   | str              | -1   |
+| printt           | -1   | print            | -1   | print            | -1   | print            | -1   |
+| prints           | -1   | printt           | -1   | printt           | -1   | printt           | -1   |
+| printerr         | -1   | prints           | -1   | prints           | -1   | prints           | -1   |
+| printraw         | -1   | printerr         | -1   | printerr         | -1   | printerr         | -1   |
+| var2str          | 1    | printraw         | -1   | printraw         | -1   | printraw         | -1   |
+| str2var          | 1    | var2str          | 1    | var2str          | 1    | var2str          | 1    |
+| var2bytes        | 1    | str2var          | 1    | str2var          | 1    | str2var          | 1    |
+| bytes2var        | 1    | var2bytes        | 1    | var2bytes        | 1    | var2bytes        | 1    |
+| range            | -1   | bytes2var        | 1    | bytes2var        | 1    | bytes2var        | 1    |
+| load             | 1    | range            | -1   | range            | -1   | range            | -1   |
+| inst2dict        | 1    | load             | 1    | load             | 1    | load             | 1    |
+| dict2inst        | 1    | inst2dict        | 1    | inst2dict        | 1    | inst2dict        | 1    |
+| hash             | 1    | dict2inst        | 1    | dict2inst        | 1    | dict2inst        | 1    |
+| Color8           | 3    | hash             | 1    | hash             | 1    | hash             | 1    |
+| print_stack      | 0    | Color8           | 3    | Color8           | 3    | Color8           | 3    |
+| instance_from_id | 1    | print_stack      | 0    | ColorN           | 1-2  | ColorN           | 1-2  |
+|                  |      | instance_from_id | 1    | print_stack      | 0    | print_stack      | 0    |
+|                  |      |                  |      | instance_from_id | 1    | instance_from_id | 1    |
+*/
+
+/* Discontinuities in the token types for bytecode 10 start here:
+  ( "space" means that there can be newlines between this token and the next )
+| 85585c7  tkn           | next                         | space | ed80f45                | next                                   | space |
+| ---------------------- | --------------------------   | ----- | ---------------------- | -------------------------------------- | ----- |
+| TK_PR_VAR              | TK_IDENTIFIER                | FALSE | TK_PR_VAR              | TK_IDENTIFIER                          |       |
+| TK_PR_PRELOAD          | TK_PARENTHESIS_OPEN          | FALSE | TK_PR_ENUM             | TK_IDENTIFIER OR TK_CURLY_BRACKET_OPEN |       |
+| TK_PR_ASSERT           | TK_PARENTHESIS_OPEN          | TRUE  | TK_PR_PRELOAD          | TK_PARENTHESIS_OPEN                    | FALSE |
+| TK_PR_YIELD            | TK_PARENTHESIS_OPEN          | FALSE | TK_PR_ASSERT           | TK_PARENTHESIS_OPEN                    | TRUE  |
+| TK_PR_SIGNAL           | TK_PARENTHESIS_OPEN          | FALSE | TK_PR_YIELD            | TK_PARENTHESIS_OPEN                    | FALSE |
+| TK_PR_BREAKPOINT       | N/A (not in release exports) | FALSE | TK_PR_SIGNAL           | TK_PARENTHESIS_OPEN                    | FALSE |
+| TK_BRACKET_OPEN        | N/A                          | FALSE | TK_PR_BREAKPOINT       | N/A (not in release exports)           | FALSE |
+| TK_BRACKET_CLOSE       | N/A                          | FALSE | TK_BRACKET_OPEN        | N/A                                    | FALSE |
+| TK_CURLY_BRACKET_OPEN  | N/A                          | FALSE | TK_BRACKET_CLOSE       | N/A                                    | FALSE |
+| TK_CURLY_BRACKET_CLOSE | N/A                          | FALSE | TK_CURLY_BRACKET_OPEN  | N/A                                    | FALSE |
+| TK_PARENTHESIS_OPEN    | N/A                          | FALSE | TK_CURLY_BRACKET_CLOSE | N/A                                    | FALSE |
+| TK_PARENTHESIS_CLOSE   | N/A                          | FALSE | TK_PARENTHESIS_OPEN    | N/A                                    | FALSE |
+| TK_COMMA               | N/A                          | FALSE | TK_PARENTHESIS_CLOSE   | N/A                                    | FALSE |
+| TK_SEMICOLON           | N/A                          | FALSE | TK_COMMA               | N/A                                    | FALSE |
+| TK_PERIOD              | see below                    | FALSE | TK_SEMICOLON           | N/A                                    | FALSE |
+| TK_QUESTION_MARK       | no semantic meaning in 2.x   | FALSE | TK_PERIOD              | see below                              | FALSE |
+| TK_COLON               | N/A                          | FALSE | TK_QUESTION_MARK       | no semantic meaning in 2.x             | FALSE |
+| TK_NEWLINE             | N/A                          | FALSE | TK_COLON               | N/A                                    | FALSE |
+| TK_CONST_PI            | N/A                          | FALSE | TK_NEWLINE             | N/A                                    | FALSE |
+| TK_ERROR               | INVALID                      | FALSE | TK_CONST_PI            | N/A                                    | FALSE |
+| TK_EOF                 | INVALID                      | FALSE | TK_ERROR               | INVALID                                | FALSE |
+| TK_CURSOR              | INVALID                      | FALSE | TK_EOF                 | INVALID                                | FALSE |
+| TK_MAX                 | INVALID                      | FALSE | TK_CURSOR              | INVALID                                | FALSE |
+|                        |                              |       | TK_MAX                 | INVALID                                | FALSE |
+
+TK_PERIOD cases:
+
+if preceding is TK_PARENTHESIS_CLOSE, then TK_PARENTHESIS_OPEN, TK_IDENTIFIER, or TK_BUILT_IN_FUNC must follow
+if preceding is TK_BUILT_IN_TYPE, then TK_IDENTIFIER must follow
+otherwise, TK_IDENTIFIER or TK_BUILT_IN_FUNC must follow
+
+* special case for TK_PR_EXTENDS statements:
+  They made a mistake while writing the parser, and you can technically have multiple periods between identifiers if you're parsing an extends statement.
+  So we must copy the _parse_extends logic from Godot 2.x to validate those statements.
+	The TK_PR_EXTENDS parser does not allow for question marks in TK_PERIOD, so if we find a TK_PERIOD, then we know it's ed80f45.
+
+*/
+
+/***********3.1 testing********
+
+(For sanities sake, we're only going to be testing the beta and release versions of 3.1)
+
+	 discontinuities between functions in bytecode 13 (3.1 only) start here:
+
+
+	discontinuities between tokens in bytecode 13 (3.1 only) start here:
+// TODO: add the next tokens
+*/
+
 uint64_t test_files_2_1(const Vector<String> &p_paths) {
 	uint64_t rev = 0;
 	bool ed80f45_failed = false;
