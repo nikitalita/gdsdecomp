@@ -141,7 +141,7 @@ public:
 	void set_prerelease(String p_par) { prerelease = p_par; }
 	void set_build_metadata(String p_par) { build_metadata = p_par; }
 
-	bool valid() const { return valid; }
+	bool is_valid_semver() const { return valid; }
 
 	static bool parse_valid(const String &p_ver_text, Ref<SemVer> &r_semver);
 	static Ref<SemVer> parse(const String &p_ver_text);

@@ -31,6 +31,7 @@
 #include "godotver.h"
 #ifdef MODULE_REGEX_ENABLED
 RegEx *SemVer::regex = nullptr;
+RegEx *GodotVer::non_strict_regex = nullptr;
 #endif
 
 bool SemVer::parse_digit_only_field(const String &p_field, uint64_t &r_result) {
@@ -134,8 +135,8 @@ int SemVer::cmp(const Ref<SemVer> &p_b) const {
 }
 
 void SemVer::_bind_methods() {
-	ClassDB::bind_static_method(D_METHOD("parse", "ver_text", "strict"), &SemVer::parse, DEFVAL(false));
-	ClassDB::bind_method(D_METHOD("valid"), &SemVer::valid);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("parse", "ver_text"), &SemVer::parse);
+	ClassDB::bind_method(D_METHOD("is_valid_semver"), &SemVer::is_valid_semver);
 	ClassDB::bind_method(D_METHOD("eq", "other"), &SemVer::eq);
 	ClassDB::bind_method(D_METHOD("neq", "other"), &SemVer::neq);
 	ClassDB::bind_method(D_METHOD("gt", "other"), &SemVer::gt);
@@ -252,7 +253,7 @@ Ref<SemVer> SemVer::create(int p_major, int p_minor, int p_patch,
 }
 
 String SemVer::as_text() const {
-	if (!valid()) {
+	if (!is_valid_semver()) {
 		return "";
 	}
 	String ver_text = itos(major) + "." + itos(minor) + "." + itos(patch);
@@ -296,9 +297,9 @@ bool parse_digit_from_godot_prerelease_field(const String &p_field, uint64_t &r_
 }
 
 int GodotVer::cmp(const Ref<SemVer> &p_b) const {
-	if (!p_b.is_valid() || !p_b->valid()) {
-		return valid() ? 1 : 0;
-	} else if (!valid()) {
+	if (!p_b.is_valid() || !p_b->is_valid_semver()) {
+		return is_valid_semver() ? 1 : 0;
+	} else if (!is_valid_semver()) {
 		return -1;
 	}
 
