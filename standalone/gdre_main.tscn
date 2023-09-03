@@ -35,13 +35,6 @@ anchor_right = 1.0
 offset_top = -32.0
 grow_horizontal = 2
 
-[node name="re_editor_standalone" type="GodotREEditorStandalone" parent="."]
-layout_mode = 1
-anchors_preset = 10
-anchor_right = 1.0
-offset_top = -32.0
-grow_horizontal = 2
-
 [node name="version_lbl" type="Button" parent="."]
 layout_mode = 1
 anchors_preset = -1
@@ -56,5 +49,17 @@ mouse_filter = 1
 text = "$$$"
 flat = true
 
-[connection signal="write_log_message" from="re_editor_standalone" to="." method="_on_re_editor_standalone_write_log_message"]
+[node name="MenuBar" type="MenuBar" parent="."]
+layout_mode = 0
+offset_top = -32.0
+offset_right = 1152.0
+
+[node name="Recover" type="PopupMenu" parent="MenuBar"]
+
+[node name="PopupMenu2" type="PopupMenu" parent="MenuBar"]
+
+[node name="PopupMenu" type="PopupMenu" parent="MenuBar"]
+
+[node name="PopupMenu3" type="PopupMenu" parent="MenuBar"]
+
 [connection signal="pressed" from="version_lbl" to="." method="_on_version_lbl_pressed"]
