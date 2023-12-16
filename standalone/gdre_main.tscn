@@ -1,8 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://el6o5uk15g2c"]
+[gd_scene load_steps=7 format=3 uid="uid://el6o5uk15g2c"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1"]
 [ext_resource type="Script" path="res://gdre_main.gd" id="2"]
 [ext_resource type="Texture2D" uid="uid://drxn4ollkvprv" path="res://gdre_icons/gdre_Logo.svg" id="3_bc0t5"]
+[ext_resource type="Texture2D" uid="uid://bp8yf7a2dd6nu" path="res://gdre_icons/gdre_Pack.svg" id="4_nesr8"]
+[ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="4_vsto2"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_x51e8"]
 
@@ -11,24 +13,27 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = 32.0
+offset_top = 40.0
+offset_bottom = 8.0
 grow_horizontal = 2
 grow_vertical = 2
 theme = ExtResource("1")
 script = ExtResource("2")
 
-[node name="SetEncryptionKeyWindow" type="ConfirmationDialog" parent="."]
+[node name="SetEncryptionKeyWindow" type="Window" parent="."]
 title = "Set Encryption Key"
+position = Vector2i(144, 0)
 size = Vector2i(800, 150)
+visible = false
 
 [node name="VBoxContainer" type="VBoxContainer" parent="SetEncryptionKeyWindow"]
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -392.0
-offset_top = 8.0
-offset_right = 392.0
-offset_bottom = 101.0
+offset_left = -350.0
+offset_top = 10.0
+offset_right = 324.0
+offset_bottom = 103.0
 grow_horizontal = 2
 
 [node name="Label" type="Label" parent="SetEncryptionKeyWindow/VBoxContainer"]
@@ -40,6 +45,29 @@ text = "Set Encryption Key (64 char hex string...)"
 custom_minimum_size = Vector2(2.08165e-12, 36)
 layout_mode = 2
 placeholder_text = "<e.g. 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F>"
+
+[node name="Container" type="Container" parent="SetEncryptionKeyWindow/VBoxContainer"]
+custom_minimum_size = Vector2(2.08165e-12, 10)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="SetEncryptionKeyWindow/VBoxContainer"]
+layout_mode = 2
+
+[node name="Container" type="Container" parent="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(175, 2.08165e-12)
+layout_mode = 2
+
+[node name="CancelButton" type="Button" parent="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "Cancel"
+
+[node name="Container2" type="Container" parent="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer"]
+custom_minimum_size = Vector2(200, 2.08165e-12)
+layout_mode = 2
+
+[node name="OK Button" type="Button" parent="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+text = "OK"
 
 [node name="log_window" type="RichTextLabel" parent="."]
 z_index = -1
@@ -59,26 +87,12 @@ selection_enabled = true
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
-offset_top = -32.0
+offset_top = -40.0
 grow_horizontal = 2
-
-[node name="version_lbl" type="Button" parent="."]
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -40.0
-offset_top = -30.768
-offset_bottom = 0.232
-grow_horizontal = 0
-grow_vertical = 0
-mouse_filter = 1
-text = "$$$"
-flat = true
 
 [node name="MenuContainer" type="HBoxContainer" parent="."]
 layout_mode = 0
-offset_top = -32.0
+offset_top = -40.0
 offset_right = 1152.0
 
 [node name="REToolsMenu" type="MenuButton" parent="MenuContainer"]
@@ -109,8 +123,66 @@ popup/item_6/text = "Quit"
 popup/item_6/icon = ExtResource("3_bc0t5")
 popup/item_6/id = 4
 
-[node name="LegalNoticeWindow" type="AcceptDialog" parent="."]
+[node name="PCKMenu" type="MenuButton" parent="MenuContainer"]
+layout_mode = 2
+text = "PCK"
+icon = ExtResource("4_nesr8")
+item_count = 1
+popup/item_0/text = "Create PCK archive from folder... "
+popup/item_0/icon = ExtResource("4_nesr8")
+popup/item_0/id = 0
 
-[connection signal="canceled" from="SetEncryptionKeyWindow" to="." method="_on_setenc_key_cancel_pressed"]
-[connection signal="confirmed" from="SetEncryptionKeyWindow" to="." method="_on_setenc_key_ok_pressed"]
+[node name="version_lbl" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -40.0
+offset_top = -30.768
+offset_bottom = 0.232002
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 1
+text = "$$$"
+flat = true
+
+[node name="LegalNoticeWindow" type="Window" parent="."]
+title = "Important: Legal Notice"
+size = Vector2i(650, 500)
+visible = false
+
+[node name="Label" type="Label" parent="LegalNoticeWindow"]
+offset_left = 100.0
+offset_top = 20.0
+offset_right = 614.0
+offset_bottom = 443.0
+text = "Resources, binary code and source code might be protected by copyright and trademark laws. Before using this software make sure that decompilation is not prohibited by the applicable license agreement, permitted under applicable law or you obtained explicit permission from the copyright owner.
+
+
+The authors and copyright holders of this software do neither encourage nor condone  +
+the use of this software, and disclaim any liability for use of the software in violation of applicable laws.
+
+
+This software in an alpha stage. Please report any bugs to the GitHub repository
+"
+autowrap_mode = 3
+
+[node name="OkButton" type="Button" parent="LegalNoticeWindow"]
+offset_left = 279.5
+offset_top = 450.0
+offset_right = 370.5
+offset_bottom = 483.0
+text = "OK"
+
+[node name="TextureRect" type="TextureRect" parent="LegalNoticeWindow"]
+offset_left = 12.0
+offset_top = 218.0
+offset_right = 76.0
+offset_bottom = 282.0
+texture = ExtResource("4_vsto2")
+
+[connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/CancelButton" to="." method="_on_setenc_key_cancel_pressed"]
+[connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/OK Button" to="." method="_on_setenc_key_ok_pressed"]
+[connection signal="about_to_popup" from="MenuContainer/REToolsMenu" to="." method="_menubutton_about_to_popup"]
+[connection signal="theme_changed" from="MenuContainer/REToolsMenu" to="." method="_on_menu_btn_theme_changed"]
 [connection signal="pressed" from="version_lbl" to="." method="_on_version_lbl_pressed"]

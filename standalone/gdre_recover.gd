@@ -13,6 +13,7 @@ var INFO_TEXT : Label = null
 var POPUP_PARENT_WINDOW : Window = null
 
 var isHiDPI = DisplayServer.screen_get_dpi() >= 240
+#var isHiDPI = false
 var root: TreeItem = null
 var userroot: TreeItem = null
 var num_files:int = 0
@@ -32,6 +33,17 @@ func popup_error_box(message: String, title: String, parent_window: Window, call
 	dialog.popup_centered()
 	return dialog
 
+func _propagate_check(item: TreeItem, checked: bool):
+	item.set_checked(0, checked)
+	var it: TreeItem = item.get_first_child()
+	while (it):
+		_propagate_check(it, checked)
+		it = it.get_next()
+
+func _on_item_edited():
+	var item = FILE_TREE.get_edited()
+	var checked = item.is_checked(0)
+	_propagate_check(item, checked)
 
 # MUST CALL set_root_window() first!!!
 # Called when the node enters the scene tree for the first time.
@@ -64,8 +76,8 @@ func _ready():
 			continue
 		self.remove_child(child)
 		RECOVER_WINDOW.add_child(child)
-		#get_tree().get_root().set("Editor/Constants/Scale", 2)
 	clear()
+	
 	var file_list: Tree = FILE_TREE
 	file_list.set_column_title(0, "File name")
 	file_list.set_column_title(1, "Size")
@@ -77,9 +89,11 @@ func _ready():
 	file_list.set_column_custom_minimum_width(1, 120)
 	file_list.set_column_custom_minimum_width(2, 120)
 	file_list.add_theme_constant_override("draw_relationship_lines", 1)
+	file_list.connect("item_edited", self._on_item_edited)
 	# TODO: remove me
 	if _is_test:
 		load_test()
+	
 	pass # Replace with function body.
 
 # called before _ready
@@ -93,6 +107,7 @@ func show_win():
 	var center = (safe_area.position + safe_area.size - RECOVER_WINDOW.size) / 2
 	RECOVER_WINDOW.set_position(center)
 	RECOVER_WINDOW.show()
+	print("haldo")
 
 func hide_win():
 	RECOVER_WINDOW.hide()
@@ -163,13 +178,11 @@ func clear():
 	root.set_text(0, "res://")
 	root.set_metadata(0, String())
 	
-
 func add_file_to_item(p_item: TreeItem, p_fullname: String, p_name: String, p_size: int, p_icon: Texture2D,  p_error: String, p_enc: bool):
 	var pp: int = p_name.find("/")
 	if (pp == -1):
 		# Add file
 		var item: TreeItem = FILE_TREE.create_item(p_item);
-
 		item.set_cell_mode(0, TreeItem.CELL_MODE_CHECK);
 		item.set_checked(0, true);
 		item.set_editable(0, true);
@@ -276,12 +289,13 @@ func _extract_pressed():
 	dialog.connect("dir_selected", self.extract_and_recover)
 	dialog.connect("canceled", self.cancel_extract)
 	dialog.popup_centered()
+	
 
 func _close_requested():
 	close()
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
-func _process(delta):
+func _process(_delta):
 	pass
 
 func _exit_tree():

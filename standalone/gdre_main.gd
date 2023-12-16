@@ -4,11 +4,12 @@ var ver_major = 0
 var ver_minor = 0
 
 var isHiDPI = DisplayServer.screen_get_dpi() >= 240
+#var isHiDPI = false
 
-# gdre_set_key
-var gdre_set_key = preload("res://gdre_set_key.tscn")
 var gdre_recover = preload("res://gdre_recover.tscn")
 var RECOVERY_DIALOG: Control = null
+var _file_dialog: Window = null
+var REAL_ROOT_WINDOW = null
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
@@ -36,61 +37,82 @@ func _on_recovery_done():
 	else:
 		print("Recovery dialog not instantiated!!!")
 
+var _last_path = ""
+
+func _retry_recover():
+	var path = _last_path
+	_last_path = ""
+	_on_recover_project_file_selected(path)
+
 func _on_recover_project_file_selected(path):
 	# open the recover dialog
-	var recover_dialog
+	if _file_dialog:
+		_last_path = path
+		_file_dialog.connect("tree_exited", self._retry_recover)
+		_file_dialog.hide()
+		_file_dialog.queue_free()
+		_file_dialog = null
+		return
 	assert(gdre_recover.can_instantiate())
 	RECOVERY_DIALOG = gdre_recover.instantiate()
-	RECOVERY_DIALOG.set_root_window(get_window())
-	#recover_dialog.visible = false
-	var root_child = get_tree().get_root().get_children()[0]
-	var before_children = get_tree().get_root().get_children()
-	get_tree().get_root().add_child(RECOVERY_DIALOG)
-	get_tree().get_root().move_child(RECOVERY_DIALOG, root_child.get_index() -1)
-	var after_children = get_tree().get_root().get_children()
+	RECOVERY_DIALOG.set_root_window(REAL_ROOT_WINDOW)
+	REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
+	REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
 	RECOVERY_DIALOG.add_pack(path)
 	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
+
+
+func open_about_window():
+	$LegalNoticeWindow.popup_centered()
+
+func open_setenc_window():
+	$SetEncryptionKeyWindow.popup_centered()
 	
-	print("HALDO!!!!")
-	print("HALDO2!!!!")
-	
+func open_recover_file_dialog():
+
+	# pop open a file dialog
+	_file_dialog = FileDialog.new()
+	_file_dialog.set_use_native_dialog(true)
+	# This is currently broken in Godot, so we use the native dialogs
+	#var prev_size = _file_dialog.size
+	if isHiDPI:
+		_file_dialog.size *= 2.0
+		#_file_dialog.min_size = _file_dialog.size
+		#d_viewport.content_scale_factor = 2.0
+	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
+	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	#_file_dialog.filters = ["*"]
+	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.pck,*.apk;Supported files"]
+	#_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
+	## TODO: remove this
+	_file_dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
+	if (_file_dialog.current_dir.is_empty()):
+		_file_dialog.current_dir = GDRESettings.get_exec_dir()
+	_file_dialog.connect("file_selected", self._on_recover_project_file_selected)
+
+	get_tree().get_root().add_child(_file_dialog)
+	_file_dialog.popup_centered()
+	var cur_size = _file_dialog.size
+	print(cur_size)
 	
 
 func _on_REToolsMenu_item_selected(index):
 	match index:
 		0:
 			# Recover Project...
-			# pop open a file dialog
-			var dialog = FileDialog.new()
-			if isHiDPI:
-				dialog.size *= 4.0
-				dialog.min_size = dialog.size
-
-			dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
-			dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-			dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
-			# TODO: remove this
-			dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
-			if (dialog.current_dir.is_empty()):
-				dialog.current_dir = GDRESettings.get_exec_dir()
-			dialog.connect("file_selected", self._on_recover_project_file_selected)
-			get_tree().get_root().add_child(dialog)
-			if isHiDPI:
-				dialog.get_viewport().content_scale_factor = 2.0
-				
-			dialog.popup_centered()
-
-			
+			open_recover_file_dialog()
 		1:  # set key
 			# Open the set key dialog
-			$SetEncryptionKeyWindow.popup_centered()
+			open_setenc_window()
 		2:  # about
-			$AboutPopup.popup_centered()
+			open_about_window()
 		3:  # Report a bug
 			OS.shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
 		4:  # Quit
 			get_tree().quit()
+			
+
 	
 func _on_re_editor_standalone_write_log_message(message):
 	$log_window.text += message
@@ -113,8 +135,6 @@ func _on_setenc_key_ok_pressed():
 	# close the window
 	$SetEncryptionKeyWindow.hide()
 	
-
-	
 func _on_setenc_key_cancel_pressed():
 	$SetEncryptionKeyWindow.hide()
 
@@ -122,25 +142,60 @@ func _on_setenc_key_cancel_pressed():
 func _on_version_lbl_pressed():
 	OS.shell_open("https://github.com/bruvzg/gdsdecomp")
 
+	#readd_items($MenuContainer/REToolsMenu
+func _resize_menu_times(menu_container:HBoxContainer):
+	for menu_btn: MenuButton in menu_container.get_children():
+
+		var popup : PopupMenu = menu_btn.get_popup()
+		# broken
+		#popup.visible = true
+		#var size = popup.size * 2
+		#popup.size = size
+		#popup.min_size = size
+		#popup.max_size = size * 2
+		#popup.get_viewport().content_scale_factor = 2.0
+		#popup.visible = false
+		# readd_items(menu_btn)
+		if isHiDPI:
+			var old_theme = popup.theme
+			#menu_btn.connect("theme_changed", self._on_menu_btn_theme_changed)
+			var new_theme = old_theme
+			if !new_theme:
+				new_theme = Theme.new()
+			var font_size = new_theme.get_font_size("", "")
+			#new_theme.set_font_size("", "", font_size * 2)
+			new_theme.set_default_font_size(font_size * 2)
+			popup.theme = new_theme
+		var item_count = menu_btn.get_popup().get_item_count()
+		for i in range(item_count):
+			var icon: Texture2D = popup.get_item_icon(i)
+			if icon:
+				var icon_size = icon.get_size()
+				popup.set_item_icon_max_width(i, icon_size.x * (2.0 if isHiDPI else 0.5))
+		print("woop")
+
 func _ready():
+	if handle_cli():
+		get_tree().quit()
+	REAL_ROOT_WINDOW = get_window()
 	var popup_menu_gdremenu:PopupMenu = $MenuContainer/REToolsMenu.get_popup()
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
 
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	# If CLI arguments were passed in, just quit
 	# check if the current screen is hidpi
+	$LegalNoticeWindow/OkButton.connect("pressed", $LegalNoticeWindow.hide)
+	$LegalNoticeWindow.connect("close_requested", $LegalNoticeWindow.hide)
 	if isHiDPI:
 		# set the content scaling factor to 2x
-		var viewport = get_viewport()
+		ThemeDB.fallback_base_scale = 2.0
 		get_viewport().content_scale_factor = 2.0
-		# get the menu container
-		#for menuitem: MenuButton in $MenuContainer.get_children():
-			## get the items in the menu
-			#var popup : PopupMenu = menuitem.get_popup()
-			#popup.content_scale_factor = 2.0
-			#popup.size = popup.size * 4.0
-	if handle_cli():
-		get_tree().quit()
+		get_viewport().size *= 2
+		$SetEncryptionKeyWindow.content_scale_factor = 2.0
+		$SetEncryptionKeyWindow.size *= 2
+		$LegalNoticeWindow.content_scale_factor = 2.0
+		$LegalNoticeWindow.size *=2
+	_resize_menu_times($MenuContainer)
 	
 func get_arg_value(arg):
 	var split_args = arg.split("=")
@@ -151,40 +206,6 @@ func get_arg_value(arg):
 
 func normalize_path(path: String):
 	return path.replace("\\","/")
-# func print_import_info_from_pak(pak_file: String):
-# 	var pckdump = PckDumper.new()
-# 	pckdump.load_pck(pak_file)
-# 	var importer:ImportExporter = ImportExporter.new()
-# 	importer.load_import_files()
-# 	var arr = importer.get_import_files()
-# 	print("size is " + str(arr.size()))
-# 	for ifo in arr:
-# 		var s:String = ifo.get_source_file() + " is "
-# 		if ifo.get_import_loss_type() == 0:
-# 			print(s + "lossless")
-# 		elif ifo.get_import_loss_type() == -1:
-# 			print(s + "unknown")
-# 		else:
-# 			print(s + "lossy")
-# 		print((ifo as ImportInfo).to_string())
-# 	pckdump.clear_data()
-# 	importer.reset()
-	
-# func print_import_info(output_dir: String):
-# 	var importer:ImportExporter = ImportExporter.new()
-# 	importer.load_import_files()
-# 	var arr = importer.get_import_files()
-# 	print("size is " + str(arr.size()))
-# 	for ifo in arr:
-# 		var s:String = ifo.get_source_file() + " is "
-# 		if ifo.get_import_loss_type() == 0:
-# 			print(s + "lossless")
-# 		elif ifo.get_import_loss_type() == -1:
-# 			print(s + "unknown")
-# 		else:
-# 			print(s + "lossy")
-# 		print((ifo as ImportInfo).to_string())
-# 	importer.reset()
 
 func test_decomp(fname):
 	var decomp = GDScriptDecomp_ed80f45.new()
