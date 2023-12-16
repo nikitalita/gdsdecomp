@@ -3,6 +3,7 @@ extends Node
 const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
 const file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
+const gdre_export_report = preload("res://gdre_export_report.tscn")
 
 var FILE_TREE : Tree = null
 var EXTRACT_ONLY : CheckBox = null
@@ -11,6 +12,7 @@ var RECOVER_WINDOW :Window = null
 var VERSION_TEXT: Label = null
 var INFO_TEXT : Label = null
 var POPUP_PARENT_WINDOW : Window = null
+var REPORT_DIALOG = null
 
 var isHiDPI = DisplayServer.screen_get_dpi() >= 240
 #var isHiDPI = false
@@ -107,7 +109,6 @@ func show_win():
 	var center = (safe_area.position + safe_area.size - RECOVER_WINDOW.size) / 2
 	RECOVER_WINDOW.set_position(center)
 	RECOVER_WINDOW.show()
-	print("haldo")
 
 func hide_win():
 	RECOVER_WINDOW.hide()
@@ -244,8 +245,8 @@ func get_selected_files() -> PackedStringArray:
 func extract_and_recover(output_dir: String):
 	GDRESettings.open_log_file(output_dir)
 	var log_path = GDRESettings.get_log_file_path()
-	var report = "Log file written to " + log_path
-	report += "\nPlease include this file when reporting an issue!\n\n"
+	var report_str = "Log file written to " + log_path
+	report_str += "\nPlease include this file when reporting an issue!\n\n"
 	var pck_dumper = PckDumper.new()
 	var files_to_extract = get_selected_files()
 	var err = pck_dumper.pck_dump_to_dir(output_dir, files_to_extract)
@@ -254,21 +255,29 @@ func extract_and_recover(output_dir: String):
 		return
 	# check if ExtractOnly is pressed
 	if (EXTRACT_ONLY.is_pressed()):
-		report += "Total files extracted: " + String.num(files_to_extract.size()) + "\n"
-		popup_error_box(report, "Info", POPUP_PARENT_WINDOW)
+		report_str += "Total files extracted: " + String.num(files_to_extract.size()) + "\n"
+		popup_error_box(report_str, "Info", POPUP_PARENT_WINDOW)
 		# GDRESettings.unload_pack()
 		return
 	# otherwise, continue to recover
 	var import_exporter = ImportExporter.new()
 	import_exporter.export_imports(output_dir, files_to_extract)
-	var notes = import_exporter.get_session_notes_string()
-	report += import_exporter.get_editor_message_string()
-	if (!notes.is_empty()):
-		report += "\n------------IMPORTANT NOTES-----------\n";
-		report += notes;
-	report += "\n************EXPORT REPORT************\n";
-	report += import_exporter.get_report_string();
-	popup_error_box(report, "Info", POPUP_PARENT_WINDOW, self.close)
+	var report = import_exporter.get_report()
+	REPORT_DIALOG = gdre_export_report.instantiate()
+	REPORT_DIALOG.set_root_window(POPUP_PARENT_WINDOW)
+	POPUP_PARENT_WINDOW.add_child(REPORT_DIALOG)
+	POPUP_PARENT_WINDOW.move_child(REPORT_DIALOG, self.get_index() -1)
+	REPORT_DIALOG.add_report(report)
+	REPORT_DIALOG.connect("report_done", self.close)
+	REPORT_DIALOG.show_win()
+	#var notes = report.get_session_notes_string()
+	#report_str += report.get_editor_message_string()
+	#if (!notes.is_empty()):
+		#report_str += "\n------------IMPORTANT NOTES-----------\n";
+		#report_str += notes;
+	#report_str += "\n************EXPORT REPORT************\n";
+	#report_str += report.get_report_string();
+	#popup_error_box(report_str, "Info", POPUP_PARENT_WINDOW, self.close)
 	
 func close():
 	_exit_tree()
