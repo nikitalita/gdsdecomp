@@ -8,6 +8,7 @@ var isHiDPI = DisplayServer.screen_get_dpi() >= 240
 # gdre_set_key
 var gdre_set_key = preload("res://gdre_set_key.tscn")
 var gdre_recover = preload("res://gdre_recover.tscn")
+var RECOVERY_DIALOG: Control = null
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
@@ -19,45 +20,40 @@ func popup_error_box(message: String, title: String, parent_window: Window) -> A
 	var dialog = AcceptDialog.new()
 	dialog.set_text(message)
 	dialog.set_title(title)
-	get_tree().get_root().add_child(dialog)
+	get_tree().get_root().add_child(dialog)	
 	dialog.connect("confirmed", parent_window.show)
 	dialog.connect("canceled", parent_window.show)
 	dialog.popup_centered()
 	return dialog
 
 const ERR_SKIP = 45
+
+func _on_recovery_done():
+	if RECOVERY_DIALOG:
+		RECOVERY_DIALOG.hide_win()
+		get_tree().get_root().remove_child(RECOVERY_DIALOG)
+		RECOVERY_DIALOG = null
+	else:
+		print("Recovery dialog not instantiated!!!")
+
 func _on_recover_project_file_selected(path):
-	var err = GDRESettings.load_pack(path)
-	if (err != OK):
-		popup_error_box("Error: failed to open " + path, "Error", get_window())
-		return
-	var pckdump = PckDumper.new()
-	var popup = popup_error_box("This will take a while, please wait...", "Info", get_window())
-	err = pckdump.check_md5_all_files()
-	popup.hide()
-	if err != OK and err != ERR_SKIP:
-		popup_error_box("Error: MD5 checksum failed, not proceeding...", "Error", get_window())
-		return
-	print(path)
-	print("hlelo!!")
 	# open the recover dialog
 	var recover_dialog
-	if gdre_recover.can_instantiate():
-		recover_dialog = gdre_recover.instantiate()
-	var new_window = Window.new()
-	new_window.set_title("Recover Project")
-	#new_window.set_resizable(true)
-	#new_window.set_custom_minimum_size(Vector2(800, 600))
-	var our_Tree = get_tree()
-	var our_window = get_viewport()
-	var our_root = get_tree().get_root()
-	var new_tree = new_window.get_tree()
-	var new_root = new_tree.get_root()
-	new_window.get_node("root").add_child(recover_dialog)
-	get_tree().get_root().add_child(new_window)
-	new_window.show()
-	if !new_window.visible:
-		GDRESettings.unload_pack()
+	assert(gdre_recover.can_instantiate())
+	RECOVERY_DIALOG = gdre_recover.instantiate()
+	RECOVERY_DIALOG.set_root_window(get_window())
+	#recover_dialog.visible = false
+	var root_child = get_tree().get_root().get_children()[0]
+	var before_children = get_tree().get_root().get_children()
+	get_tree().get_root().add_child(RECOVERY_DIALOG)
+	get_tree().get_root().move_child(RECOVERY_DIALOG, root_child.get_index() -1)
+	var after_children = get_tree().get_root().get_children()
+	RECOVERY_DIALOG.add_pack(path)
+	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
+	RECOVERY_DIALOG.show_win()
+	
+	print("HALDO!!!!")
+	print("HALDO2!!!!")
 	
 	
 
