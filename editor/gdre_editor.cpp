@@ -850,15 +850,15 @@ void GodotREEditor::_pck_extract_files_process() {
 	String report = "Log file written to " + log_path;
 	report += "\nPlease include this file when reporting an issue!\n\n";
 	if (is_full_recovery) {
-		report += ie->get_editor_message();
-		String notes = ie->get_session_notes();
+		report += ie->get_editor_message_string();
+		String notes = ie->get_session_notes_string();
 		if (!notes.is_empty()) {
 			report += "\n------------IMPORTANT NOTES-----------\n";
 			report += notes;
 		}
 		report += "\n************EXPORT REPORT************\n";
 
-		report += ie->get_report();
+		report += ie->get_report_string();
 	}
 
 	_pck_unload();

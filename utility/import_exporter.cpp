@@ -1127,7 +1127,7 @@ String ImportExporter::get_detected_unsupported_resource_string() {
 	}
 	return str;
 }
-String ImportExporter::get_session_notes() {
+String ImportExporter::get_session_notes_string() {
 	String report = "";
 	String unsup = get_detected_unsupported_resource_string();
 	if (!unsup.is_empty()) {
@@ -1167,7 +1167,7 @@ String ImportExporter::get_session_notes() {
 	}
 	return report;
 }
-String ImportExporter::get_editor_message() {
+String ImportExporter::get_editor_message_string() {
 	String report = "";
 	report += "Use Godot editor version " + get_settings()->get_version_string() + String(godotsteam_detected ? "(steam version) " : "") + " to edit the project." + String("\n");
 	if (godotsteam_detected) {
@@ -1180,7 +1180,7 @@ String ImportExporter::get_editor_message() {
 	return report;
 }
 
-String ImportExporter::get_totals() {
+String ImportExporter::get_totals_string() {
 	String report = "";
 	report += vformat("%-40s", "Totals: ") + String("\n");
 	report += vformat("%-40s", "Decompiled scripts: ") + itos(decompiled_scripts.size()) + String("\n");
@@ -1199,13 +1199,13 @@ String ImportExporter::get_totals() {
 	return report;
 }
 
-String ImportExporter::get_report() {
+String ImportExporter::get_report_string() {
 	String report;
 	if (had_encryption_error) {
 		report += "Failed to decompile encrypted scripts!\n";
 		report += "Set the correct key and try again!\n\n";
 	}
-	report += get_totals();
+	report += get_totals_string();
 	report += "-------------\n" + String("\n");
 	if (lossy_imports.size() > 0) {
 		if (opt_lossy) {
@@ -1272,14 +1272,14 @@ String ImportExporter::get_report() {
 
 void ImportExporter::print_report() {
 	print_line("\n\n********************************EXPORT REPORT********************************" + String("\n"));
-	print_line(get_report());
-	String notes = get_session_notes();
+	print_line(get_report_string());
+	String notes = get_session_notes_string();
 	if (!notes.is_empty()) {
 		print_line("\n\n---------------------------------IMPORTANT NOTES----------------------------------" + String("\n"));
 		print_line(notes);
 	}
 	print_line("\n------------------------------------------------------------------------------------" + String("\n"));
-	print_line(get_editor_message());
+	print_line(get_editor_message_string());
 	print_line("*******************************************************************************\n");
 }
 
@@ -1292,10 +1292,10 @@ void ImportExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("convert_sample_to_wav"), &ImportExporter::convert_sample_to_wav);
 	ClassDB::bind_method(D_METHOD("convert_oggstr_to_ogg"), &ImportExporter::convert_oggstr_to_ogg);
 	ClassDB::bind_method(D_METHOD("convert_mp3str_to_mp3"), &ImportExporter::convert_mp3str_to_mp3);
-	ClassDB::bind_method(D_METHOD("get_report"), &ImportExporter::get_report);
-	ClassDB::bind_method(D_METHOD("get_totals"), &ImportExporter::get_totals);
-	ClassDB::bind_method(D_METHOD("get_session_notes"), &ImportExporter::get_session_notes);
-	ClassDB::bind_method(D_METHOD("get_editor_message"), &ImportExporter::get_editor_message);
+	ClassDB::bind_method(D_METHOD("get_report_string"), &ImportExporter::get_report_string);
+	ClassDB::bind_method(D_METHOD("get_totals_string"), &ImportExporter::get_totals_string);
+	ClassDB::bind_method(D_METHOD("get_session_notes_string"), &ImportExporter::get_session_notes_string);
+	ClassDB::bind_method(D_METHOD("get_editor_message_string"), &ImportExporter::get_editor_message_string);
 	ClassDB::bind_method(D_METHOD("reset"), &ImportExporter::reset);
 }
 

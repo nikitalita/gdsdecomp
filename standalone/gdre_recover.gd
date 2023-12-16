@@ -261,13 +261,13 @@ func extract_and_recover(output_dir: String):
 	# otherwise, continue to recover
 	var import_exporter = ImportExporter.new()
 	import_exporter.export_imports(output_dir, files_to_extract)
-	var notes = import_exporter.get_session_notes()
-	report += import_exporter.get_editor_message()
+	var notes = import_exporter.get_session_notes_string()
+	report += import_exporter.get_editor_message_string()
 	if (!notes.is_empty()):
 		report += "\n------------IMPORTANT NOTES-----------\n";
 		report += notes;
 	report += "\n************EXPORT REPORT************\n";
-	report += import_exporter.get_report();
+	report += import_exporter.get_report_string();
 	popup_error_box(report, "Info", POPUP_PARENT_WINDOW, self.close)
 	
 func close():

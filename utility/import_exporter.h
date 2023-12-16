@@ -67,7 +67,7 @@ protected:
 	static void _bind_methods();
 
 public:
-	String get_session_notes();
+	String get_session_notes_string();
 	String get_detected_unsupported_resource_string();
 	Error recreate_plugin_config(const String &output_dir, const String &plugin_dir);
 	Error recreate_plugin_configs(const String &output_dir);
@@ -82,10 +82,10 @@ public:
 
 	Error _export_imports(const String &output_dir, const Vector<String> &files_to_export, EditorProgressGDDC *pr, String &error_string);
 	Error export_imports(const String &output_dir = "", const Vector<String> &files_to_export = {});
-	String get_totals();
+	String get_totals_string();
 	void print_report();
-	String get_editor_message();
-	String get_report();
+	String get_editor_message_string();
+	String get_report_string();
 	void reset_log();
 	void reset();
 	ImportExporter();
