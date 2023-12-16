@@ -161,6 +161,7 @@ GDRESettings::GDRESettings() {
 	addCompatibilityClasses();
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
 	logger = memnew(GDRELogger);
+	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
 }
 
@@ -168,6 +169,7 @@ GDRESettings::~GDRESettings() {
 	remove_current_pack();
 	memdelete(gdre_packeddata_singleton);
 	singleton = nullptr;
+	logger->_disable();
 	// logger doesn't get memdeleted because the OS singleton will do so
 }
 String GDRESettings::get_cwd() {
@@ -881,7 +883,7 @@ String GDRESettings::get_log_file_path() {
 }
 
 bool GDRESettings::is_headless() const {
-	return RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
+	return headless;
 }
 
 String GDRESettings::get_sys_info_string() const {

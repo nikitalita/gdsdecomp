@@ -13,7 +13,7 @@ bool inGuiMode() {
 }
 
 void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
-	if (!should_log(p_err)) {
+	if (disabled || !should_log(p_err)) {
 		return;
 	}
 	if (file.is_valid() || inGuiMode()) {
@@ -68,6 +68,10 @@ void GDRELogger::close_file() {
 		file = Ref<FileAccess>();
 		base_path = "";
 	}
+}
+
+void GDRELogger::_disable() {
+	disabled = true;
 }
 
 GDRELogger::GDRELogger() {}

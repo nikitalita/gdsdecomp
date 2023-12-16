@@ -25,6 +25,7 @@ void gdsdecomp_init_callback() {
 	editor->add_child(memnew(GodotREEditor(editor)));
 };
 #endif
+static GDRESettings *gdre_singleton = nullptr;
 
 void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -55,8 +56,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<NewPackDialog>();
 	ClassDB::register_class<ScriptCompDialog>();
 	ClassDB::register_class<ScriptDecompDialog>();
-
-	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", memnew(GDRESettings)));
+	gdre_singleton = memnew(GDRESettings);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
 
 #ifdef TOOLS_ENABLED
 	EditorNode::add_init_callback(&gdsdecomp_init_callback);
@@ -65,4 +66,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	//NOP
+	if (gdre_singleton) {
+		memdelete(gdre_singleton);
+		gdre_singleton = nullptr;
+	}
 }
