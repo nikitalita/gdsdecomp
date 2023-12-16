@@ -3,6 +3,11 @@ extends Control
 var ver_major = 0
 var ver_minor = 0
 
+var isHiDPI = DisplayServer.screen_get_dpi() >= 240
+
+# gdre_set_key
+var gdre_set_key = preload("res://gdre_set_key.tscn")
+var gdre_recover = preload("res://gdre_recover.tscn")
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
@@ -10,16 +15,134 @@ func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	importer.convert_res_txt_2_bin(output_dir, txt_to_bin, dst_file)
 	importer.convert_res_bin_2_txt(output_dir, output_dir.path_join(dst_file), dst_file.replace(".scn", ".tscn").replace(".res", ".tres"))
 
+func popup_error_box(message: String, title: String, parent_window: Window) -> AcceptDialog:
+	var dialog = AcceptDialog.new()
+	dialog.set_text(message)
+	dialog.set_title(title)
+	get_tree().get_root().add_child(dialog)
+	dialog.connect("confirmed", parent_window.show)
+	dialog.connect("canceled", parent_window.show)
+	dialog.popup_centered()
+	return dialog
+
+const ERR_SKIP = 45
+func _on_recover_project_file_selected(path):
+	var err = GDRESettings.load_pack(path)
+	if (err != OK):
+		popup_error_box("Error: failed to open " + path, "Error", get_window())
+		return
+	var pckdump = PckDumper.new()
+	var popup = popup_error_box("This will take a while, please wait...", "Info", get_window())
+	err = pckdump.check_md5_all_files()
+	popup.hide()
+	if err != OK and err != ERR_SKIP:
+		popup_error_box("Error: MD5 checksum failed, not proceeding...", "Error", get_window())
+		return
+	print(path)
+	print("hlelo!!")
+	# open the recover dialog
+	var recover_dialog
+	if gdre_recover.can_instantiate():
+		recover_dialog = gdre_recover.instantiate()
+	var new_window = Window.new()
+	new_window.set_title("Recover Project")
+	#new_window.set_resizable(true)
+	#new_window.set_custom_minimum_size(Vector2(800, 600))
+	var our_Tree = get_tree()
+	var our_window = get_viewport()
+	var our_root = get_tree().get_root()
+	var new_tree = new_window.get_tree()
+	var new_root = new_tree.get_root()
+	new_window.get_node("root").add_child(recover_dialog)
+	get_tree().get_root().add_child(new_window)
+	new_window.show()
+	if !new_window.visible:
+		GDRESettings.unload_pack()
+	
+	
+
+func _on_REToolsMenu_item_selected(index):
+	match index:
+		0:
+			# Recover Project...
+			# pop open a file dialog
+			var dialog = FileDialog.new()
+			if isHiDPI:
+				dialog.size *= 4.0
+				dialog.min_size = dialog.size
+
+			dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
+			dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+			dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
+			# TODO: remove this
+			dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
+			if (dialog.current_dir.is_empty()):
+				dialog.current_dir = GDRESettings.get_exec_dir()
+			dialog.connect("file_selected", self._on_recover_project_file_selected)
+			get_tree().get_root().add_child(dialog)
+			if isHiDPI:
+				dialog.get_viewport().content_scale_factor = 2.0
+				
+			dialog.popup_centered()
+
+			
+		1:  # set key
+			# Open the set key dialog
+			$SetEncryptionKeyWindow.popup_centered()
+		2:  # about
+			$AboutPopup.popup_centered()
+		3:  # Report a bug
+			OS.shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
+		4:  # Quit
+			get_tree().quit()
+	
 func _on_re_editor_standalone_write_log_message(message):
 	$log_window.text += message
 	$log_window.scroll_to_line($log_window.get_line_count() - 1)
+
+func _on_setenc_key_ok_pressed():
+	# get the current text in the line edit
+	var keytextbox = $SetEncryptionKeyWindow/VBoxContainer/KeyText
+	var key:String = keytextbox.text
+	if key.length() == 0:
+		GDRESettings.reset_encryption_key()
+	# set the key
+	else:
+		var err:int = GDRESettings.set_encryption_key_string(key)
+		if (err != OK):
+			keytextbox.text = ""
+			# pop up an accept dialog
+			popup_error_box("Invalid key!\nKey must be a hex string with 64 characters", "Error", $SetEncryptionKeyWindow)
+			return
+	# close the window
+	$SetEncryptionKeyWindow.hide()
+	
+
+	
+func _on_setenc_key_cancel_pressed():
+	$SetEncryptionKeyWindow.hide()
+
 
 func _on_version_lbl_pressed():
 	OS.shell_open("https://github.com/bruvzg/gdsdecomp")
 
 func _ready():
-	$version_lbl.text = $re_editor_standalone.get_version()
+	var popup_menu_gdremenu:PopupMenu = $MenuContainer/REToolsMenu.get_popup()
+	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
+
+	$version_lbl.text = GDRESettings.get_gdre_version()
 	# If CLI arguments were passed in, just quit
+	# check if the current screen is hidpi
+	if isHiDPI:
+		# set the content scaling factor to 2x
+		var viewport = get_viewport()
+		get_viewport().content_scale_factor = 2.0
+		# get the menu container
+		#for menuitem: MenuButton in $MenuContainer.get_children():
+			## get the items in the menu
+			#var popup : PopupMenu = menuitem.get_popup()
+			#popup.content_scale_factor = 2.0
+			#popup.size = popup.size * 4.0
 	if handle_cli():
 		get_tree().quit()
 	

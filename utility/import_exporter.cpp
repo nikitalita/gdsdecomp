@@ -1292,6 +1292,10 @@ void ImportExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("convert_sample_to_wav"), &ImportExporter::convert_sample_to_wav);
 	ClassDB::bind_method(D_METHOD("convert_oggstr_to_ogg"), &ImportExporter::convert_oggstr_to_ogg);
 	ClassDB::bind_method(D_METHOD("convert_mp3str_to_mp3"), &ImportExporter::convert_mp3str_to_mp3);
+	ClassDB::bind_method(D_METHOD("get_report"), &ImportExporter::get_report);
+	ClassDB::bind_method(D_METHOD("get_totals"), &ImportExporter::get_totals);
+	ClassDB::bind_method(D_METHOD("get_session_notes"), &ImportExporter::get_session_notes);
+	ClassDB::bind_method(D_METHOD("get_editor_message"), &ImportExporter::get_editor_message);
 	ClassDB::bind_method(D_METHOD("reset"), &ImportExporter::reset);
 }
 

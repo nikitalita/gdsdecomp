@@ -1,0 +1,45 @@
+[gd_scene load_steps=2 format=3 uid="uid://dhyp0f26iqdn"]
+
+[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_su5uv"]
+
+[node name="GdreSetKey" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -752.0
+offset_bottom = -348.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_su5uv")
+
+[node name="Window" type="Window" parent="."]
+size = Vector2i(400, 300)
+
+[node name="OKButton" type="Button" parent="Window"]
+offset_left = 69.0
+offset_top = 235.0
+offset_right = 197.0
+offset_bottom = 278.0
+text = "OK"
+
+[node name="CancelButton" type="Button" parent="Window"]
+offset_left = 217.0
+offset_top = 235.0
+offset_right = 345.0
+offset_bottom = 278.0
+text = "Cancel"
+
+[node name="TextEdit" type="TextEdit" parent="Window"]
+offset_left = 18.0
+offset_top = 135.0
+offset_right = 383.0
+offset_bottom = 178.0
+placeholder_text = "64-byte long hex string"
+
+[node name="Label" type="Label" parent="Window"]
+offset_left = 135.0
+offset_top = 99.0
+offset_right = 263.0
+offset_bottom = 142.0
+text = "Encryption Key:"

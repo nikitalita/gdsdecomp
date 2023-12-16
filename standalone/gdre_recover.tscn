@@ -1,0 +1,108 @@
+[gd_scene load_steps=4 format=3 uid="uid://bv7816js3kr4k"]
+
+[ext_resource type="Script" path="res://gdre_recover.gd" id="1_n7eju"]
+
+[sub_resource type="Theme" id="Theme_m335r"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_bvmre"]
+
+[node name="GdreRecover" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = SubResource("Theme_m335r")
+script = ExtResource("1_n7eju")
+
+[node name="FileTree" type="Tree" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 12.0
+offset_top = 109.0
+offset_right = -13.0
+offset_bottom = 555.0
+grow_horizontal = 2
+columns = 3
+column_titles_visible = true
+
+[node name="Window" type="Window" parent="."]
+position = Vector2i(0, 36)
+size = Vector2i(1152, 648)
+visible = false
+
+[node name="VersionLabel" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 23.0
+offset_top = 16.0
+offset_right = 101.0
+offset_bottom = 46.0
+theme_override_font_sizes/bold_font_size = 16
+bbcode_enabled = true
+text = "[b]Version:[/b]"
+
+[node name="VersionText" type="Label" parent="."]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 16.0
+offset_right = 183.0
+offset_bottom = 42.0
+text = "0.0.0"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="InfoLabel" type="RichTextLabel" parent="."]
+layout_mode = 0
+offset_left = 249.0
+offset_top = 15.0
+offset_right = 327.0
+offset_bottom = 45.0
+theme_override_font_sizes/bold_font_size = 16
+bbcode_enabled = true
+text = "[b]Info:[/b]"
+
+[node name="InfoText" type="Label" parent="."]
+layout_mode = 0
+offset_left = 302.0
+offset_top = 14.0
+offset_right = 386.0
+offset_bottom = 40.0
+text = "<info text>"
+
+[node name="RadioButtons" type="HBoxContainer" parent="."]
+layout_mode = 0
+offset_top = 593.0
+offset_right = 420.0
+offset_bottom = 624.0
+
+[node name="ExtractOnly" type="CheckBox" parent="RadioButtons"]
+layout_mode = 2
+button_group = SubResource("ButtonGroup_bvmre")
+text = "Extract Only"
+
+[node name="FullRecovery" type="CheckBox" parent="RadioButtons"]
+layout_mode = 2
+button_pressed = true
+button_group = SubResource("ButtonGroup_bvmre")
+text = "Full Recovery
+"
+
+[node name="ExtractButton" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 1.0
+offset_left = 489.0
+offset_top = 593.0
+offset_right = -546.0
+offset_bottom = 630.0
+text = "Extract"
+
+[node name="FileDialog" type="FileDialog" parent="."]
+
+[connection signal="pressed" from="ExtractButton" to="." method="_extract_pressed"]
