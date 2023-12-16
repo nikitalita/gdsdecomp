@@ -122,6 +122,7 @@ func add_pack(path: String) -> int:
 	var popup = popup_error_box("This will take a while, please wait...", "Info", POPUP_PARENT_WINDOW)
 	err = pckdump.check_md5_all_files()
 	popup.hide()
+	POPUP_PARENT_WINDOW.remove_child(popup)
 	VERSION_TEXT.text = GDRESettings.get_version_string()
 	var arr: Array = GDRESettings.get_file_info_array()
 	for info: PackedFileInfo in arr:
@@ -272,17 +273,11 @@ func extract_and_recover(output_dir: String):
 	REPORT_DIALOG.connect("report_done", self._report_done)
 
 	REPORT_DIALOG.show_win()
-	#var notes = report.get_session_notes_string()
-	#report_str += report.get_editor_message_string()
-	#if (!notes.is_empty()):
-		#report_str += "\n------------IMPORTANT NOTES-----------\n";
-		#report_str += notes;
-	#report_str += "\n************EXPORT REPORT************\n";
-	#report_str += report.get_report_string();
-	#popup_error_box(report_str, "Info", POPUP_PARENT_WINDOW, self.close)
+	hide_win()
 
 func _report_done():
 	if REPORT_DIALOG:
+		REPORT_DIALOG.disconnect("report_done", self._report_done)
 		REPORT_DIALOG.hide_win()
 		POPUP_PARENT_WINDOW.remove_child(REPORT_DIALOG)
 		REPORT_DIALOG = null
@@ -292,6 +287,7 @@ func _report_done():
 
 func close():
 	_exit_tree()
+	hide_win()
 	emit_signal("recovery_done")
 
 func cancel_extract():
@@ -320,4 +316,3 @@ func _process(_delta):
 
 func _exit_tree():
 	GDRESettings.unload_pack()
-	hide_win()
