@@ -263,12 +263,14 @@ func extract_and_recover(output_dir: String):
 	var import_exporter = ImportExporter.new()
 	import_exporter.export_imports(output_dir, files_to_extract)
 	var report = import_exporter.get_report()
+	GDRESettings.close_log_file()
 	REPORT_DIALOG = gdre_export_report.instantiate()
 	REPORT_DIALOG.set_root_window(POPUP_PARENT_WINDOW)
 	POPUP_PARENT_WINDOW.add_child(REPORT_DIALOG)
 	POPUP_PARENT_WINDOW.move_child(REPORT_DIALOG, self.get_index() -1)
 	REPORT_DIALOG.add_report(report)
-	REPORT_DIALOG.connect("report_done", self.close)
+	REPORT_DIALOG.connect("report_done", self._report_done)
+
 	REPORT_DIALOG.show_win()
 	#var notes = report.get_session_notes_string()
 	#report_str += report.get_editor_message_string()
@@ -278,7 +280,16 @@ func extract_and_recover(output_dir: String):
 	#report_str += "\n************EXPORT REPORT************\n";
 	#report_str += report.get_report_string();
 	#popup_error_box(report_str, "Info", POPUP_PARENT_WINDOW, self.close)
-	
+
+func _report_done():
+	if REPORT_DIALOG:
+		REPORT_DIALOG.hide_win()
+		POPUP_PARENT_WINDOW.remove_child(REPORT_DIALOG)
+		REPORT_DIALOG = null
+	else:
+		print("REPORT DONE WITHOUT REPORT_DIALOG?!?!")
+	close()
+
 func close():
 	_exit_tree()
 	emit_signal("recovery_done")

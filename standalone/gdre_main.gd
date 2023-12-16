@@ -93,8 +93,7 @@ func open_recover_file_dialog():
 
 	get_tree().get_root().add_child(_file_dialog)
 	_file_dialog.popup_centered()
-	var cur_size = _file_dialog.size
-	print(cur_size)
+
 	
 
 func _on_REToolsMenu_item_selected(index):
@@ -172,7 +171,6 @@ func _resize_menu_times(menu_container:HBoxContainer):
 			if icon:
 				var icon_size = icon.get_size()
 				popup.set_item_icon_max_width(i, icon_size.x * (2.0 if isHiDPI else 0.5))
-		print("woop")
 
 func _ready():
 	if handle_cli():
@@ -180,6 +178,7 @@ func _ready():
 	REAL_ROOT_WINDOW = get_window()
 	var popup_menu_gdremenu:PopupMenu = $MenuContainer/REToolsMenu.get_popup()
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
+	GDRESettings.connect("write_log_message", self._on_re_editor_standalone_write_log_message)
 
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	# If CLI arguments were passed in, just quit
@@ -196,7 +195,9 @@ func _ready():
 		$LegalNoticeWindow.content_scale_factor = 2.0
 		$LegalNoticeWindow.size *=2
 	_resize_menu_times($MenuContainer)
-	
+
+# CLI stuff below
+
 func get_arg_value(arg):
 	var split_args = arg.split("=")
 	if split_args.size() < 2:

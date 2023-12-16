@@ -1122,6 +1122,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
+	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues

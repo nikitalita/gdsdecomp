@@ -6,7 +6,7 @@
 
 bool inGuiMode() {
 	//check if we are in GUI mode
-	if (GodotREEditor::get_singleton() && GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
+	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
 		return true;
 	}
 	return false;
@@ -30,7 +30,7 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 		va_end(list_copy);
 
 		if (inGuiMode()) {
-			GodotREEditor::get_singleton()->call_deferred(SNAME("emit_signal"), "write_log_message", String(buf));
+			GDRESettings::get_singleton()->call_deferred(SNAME("emit_signal"), "write_log_message", String(buf));
 		}
 		if (file.is_valid()) {
 			file->store_buffer((uint8_t *)buf, len);

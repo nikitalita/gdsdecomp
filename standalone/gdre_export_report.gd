@@ -93,7 +93,7 @@ func load_test():
 	# const path = "/Users/nikita/Workspace/godot-test-bins/satryn.apk"
 	# const output_dir = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract"
 	const output_dir = "/Users/nikita/Workspace/godot-test-bins/test_megaloot"
-	var log_path = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract/gdre_export.log" 
+	var _log_path = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract/gdre_export.log" 
 	# convert log_path to URI
 	var err = GDRESettings.load_pack(path)
 	assert(err == OK)
@@ -132,7 +132,7 @@ func show_win():
 func hide_win():
 	REPORT_WINDOW.hide()
 
-func get_note_header_item_icon(key: String) -> Texture2D:
+func get_note_header_item_icon(_key: String) -> Texture2D:
 	# TODO: add warning and info icons
 	#var warning_icon = POPUP_PARENT_WINDOW.get_theme_icon("Warning", "EditorIcons")
 	#var info_icon = POPUP_PARENT_WINDOW.get_theme_icon("Info", "EditorIcons")
