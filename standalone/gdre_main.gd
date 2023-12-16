@@ -61,6 +61,15 @@ func _on_recover_project_file_selected(path):
 	RECOVERY_DIALOG.add_pack(path)
 	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
+	
+func _on_recover_project_dir_selected(path):
+	# just check if the dir path ends in ".app"
+	if path.ends_with(".app"):
+		_on_recover_project_file_selected(path)
+	else:
+		# pop up an accept dialog
+		popup_error_box("Invalid Selection!!", "Error", REAL_ROOT_WINDOW)
+		return
 
 
 func open_about_window():
@@ -81,15 +90,16 @@ func open_recover_file_dialog():
 		#_file_dialog.min_size = _file_dialog.size
 		#d_viewport.content_scale_factor = 2.0
 	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
-	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_ANY #FileDialog.FILE_MODE_OPEN_FILE
 	#_file_dialog.filters = ["*"]
-	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.pck,*.apk;Supported files"]
+	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.pck,*.apk,*.app;Supported files"]
 	#_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
 	## TODO: remove this
 	_file_dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
 	if (_file_dialog.current_dir.is_empty()):
 		_file_dialog.current_dir = GDRESettings.get_exec_dir()
 	_file_dialog.connect("file_selected", self._on_recover_project_file_selected)
+	_file_dialog.connect("dir_selected", self._on_recover_project_dir_selected)
 
 	get_tree().get_root().add_child(_file_dialog)
 	_file_dialog.popup_centered()
@@ -314,11 +324,12 @@ func recovery(  input_file:String,
 		return
 	#directory
 	if da.dir_exists(input_file):
-		if !da.dir_exists(input_file.path_join(".import")):
-			print("Error: " + input_file + " does not appear to be a project directory")
-			return
-		else:
-			is_dir = true
+		if input_file.get_extension().to_lower() != "app" :
+			if !da.dir_exists(input_file.path_join(".import")):
+				print("Error: " + input_file + " does not appear to be a project directory")
+				return
+			else:
+				is_dir = true
 	#PCK/APK
 	elif not da.file_exists(input_file):
 		print("Error: failed to locate " + input_file)
