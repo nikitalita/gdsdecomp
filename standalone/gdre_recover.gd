@@ -22,6 +22,7 @@ var num_files:int = 0
 var num_broken:int = 0
 var num_malformed:int = 0
 var _is_test:bool = true
+var _file_dialog: FileDialog = null
 
 signal recovery_done()
 
@@ -293,18 +294,34 @@ func close():
 func cancel_extract():
 	close()
 
+
+
+var _last_path: String = ""
+func _on_dialog_close():
+	call_deferred("extract_and_recover", _last_path)
+
+
+func _dir_selected(path: String):
+	if (_file_dialog):
+		_last_path = path
+		_file_dialog.connect("tree_exited", self._on_dialog_close)
+		_file_dialog.hide()
+		_file_dialog.queue_free()
+		_file_dialog = null
+
 func _extract_pressed():
 	# pop open a file dialog to pick a directory
-	var dialog = FileDialog.new()
-	dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
-	dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+	_file_dialog = FileDialog.new()
+	_file_dialog.use_native_dialog = true
+	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
+	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
 	var pck_path = GDRESettings.get_pack_path().get_base_dir()
-	dialog.set_current_dir(pck_path)
-	dialog.set_title("Select a directory to extract to")
-	RECOVER_WINDOW.add_child(dialog)
-	dialog.connect("dir_selected", self.extract_and_recover)
-	dialog.connect("canceled", self.cancel_extract)
-	dialog.popup_centered()
+	_file_dialog.set_current_dir(pck_path)
+	_file_dialog.set_title("Select a directory to extract to")
+	POPUP_PARENT_WINDOW.add_child(_file_dialog)
+	_file_dialog.connect("dir_selected", self._dir_selected)
+	_file_dialog.connect("canceled", self.cancel_extract)
+	_file_dialog.popup_centered()
 	
 
 func _close_requested():
