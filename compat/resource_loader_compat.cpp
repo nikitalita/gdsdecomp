@@ -1153,18 +1153,18 @@ String ResourceLoaderCompat::_write_rlc_resource(const Ref<Resource> &res) {
 	String path = get_resource_path(res);
 	String id;
 	if (has_internal_resource(path)) {
-		id = itos(get_internal_resource_save_order_by_path(path));
+		id = " " + itos(get_internal_resource_save_order_by_path(path)) + " ";
 	} else if (has_external_resource(path)) {
-		id = itos(get_external_resource_save_order_by_path(path));
+		id = " " + itos(get_external_resource_save_order_by_path(path)) + " ";
 	}
 	// Godot 4.x ids are strings, Godot 3.x are integers
 	if (engine_ver_major >= 4) {
 		id = "\"" + id + "\"";
 	}
 	if (has_internal_resource(path)) {
-		return "SubResource( " + id + " )";
+		return "SubResource(" + id + ")";
 	} else if (has_external_resource(path)) {
-		return "ExtResource( " + id + " )";
+		return "ExtResource(" + id + ")";
 	}
 	ERR_FAIL_V_MSG("null", "Resource was not pre cached for the resource section, bug?");
 }
