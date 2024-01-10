@@ -161,6 +161,7 @@ GDRESettings::GDRESettings() {
 	addCompatibilityClasses();
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
 	logger = memnew(GDRELogger);
+	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
 }
 
@@ -168,6 +169,7 @@ GDRESettings::~GDRESettings() {
 	remove_current_pack();
 	memdelete(gdre_packeddata_singleton);
 	singleton = nullptr;
+	logger->_disable();
 	// logger doesn't get memdeleted because the OS singleton will do so
 }
 String GDRESettings::get_cwd() {
@@ -379,6 +381,20 @@ Error GDRESettings::load_pack(const String &p_path) {
 		return ERR_ALREADY_IN_USE;
 	}
 	if (DirAccess::exists(p_path)) {
+		// This may be a ".app" bundle, so we need to check if it's a valid Godot app
+		// and if so, load the pck from inside the bundle
+		if (p_path.get_extension().to_lower() == "app") {
+			String resources_path = p_path.path_join("Contents").path_join("Resources");
+			if (DirAccess::exists(resources_path)) {
+				auto list = gdreutil::get_recursive_dir_list(resources_path, { "*.pck" }, true);
+				if (!list.is_empty()) {
+					if (list.size() > 1) {
+						WARN_PRINT("Found multiple pck files in bundle, using first one!!!");
+					}
+					return load_pack(list[0]);
+				}
+			}
+		}
 		return load_dir(p_path);
 	}
 	print_line("Opening file: " + p_path);
@@ -867,7 +883,7 @@ String GDRESettings::get_log_file_path() {
 }
 
 bool GDRESettings::is_headless() const {
-	return RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
+	return headless;
 }
 
 String GDRESettings::get_sys_info_string() const {
@@ -1122,6 +1138,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
+	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues
