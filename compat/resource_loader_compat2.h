@@ -6,6 +6,24 @@
 #define META_PROPERTY_COMPAT_DATA "metadata/compat"
 #define META_COMPAT "compat"
 
+class CompatFormatLoader;
+class CompatFormatSaver;
+class ResourceCompatLoader {
+public:
+	enum LoadType {
+		FAKE_LOAD,
+		NON_GLOBAL_LOAD,
+		GLTF_LOAD,
+		REAL_LOAD
+	};
+	static Ref<Resource> fake_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
+	static Ref<Resource> non_global_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
+	static Ref<Resource> gltf_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
+	static Ref<Resource> real_load(const String &p_path, const String &p_type_hint = "", ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE, Error *r_error = nullptr);
+	static void add_resource_format_loader(Ref<CompatFormatLoader> p_format_loader, bool p_at_front = false);
+	static void remove_resource_format_loader(Ref<CompatFormatLoader> p_format_loader);
+};
+
 class CompatFormatLoader : public ResourceFormatLoader {
 public:
 	virtual Ref<Resource> custom_load(const String &p_path, ResourceCompatLoader::LoadType p_type, Error *r_error = nullptr) = 0;
@@ -73,20 +91,4 @@ public:
 	// virtual bool recognize(const Ref<Resource> &p_resource) const;
 	// virtual void get_recognized_extensions(const Ref<Resource> &p_resource, List<String> *p_extensions) const;
 	// virtual bool recognize_path(const Ref<Resource> &p_resource, const String &p_path) const;
-};
-
-class ResourceCompatLoader {
-public:
-	enum LoadType {
-		FAKE_LOAD,
-		NON_GLOBAL_LOAD,
-		GLTF_LOAD,
-		REAL_LOAD
-	};
-	static Ref<Resource> fake_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
-	static Ref<Resource> non_global_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
-	static Ref<Resource> gltf_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
-	static Ref<Resource> real_load(const String &p_path, const String &p_type_hint = "", ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE, Error *r_error = nullptr);
-	static void add_resource_format_loader(Ref<CompatFormatLoader> p_format_loader, bool p_at_front = false);
-	static void remove_resource_format_loader(Ref<CompatFormatLoader> p_format_loader);
 };
