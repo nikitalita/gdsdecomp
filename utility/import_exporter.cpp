@@ -7,6 +7,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
+#include "core/io/http_client.h"
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
@@ -16,6 +17,7 @@
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
+#include "utility/godotsteam_versions.h"
 
 #include "core/io/config_file.h"
 #include "core/io/dir_access.h"
@@ -483,9 +485,89 @@ Error ImportExporter::decompile_scripts(const String &p_out_dir, const Vector<St
 	return OK;
 }
 
+String find_compatible_url_for_dll(const String &path) {
+	// Failed to find exact hash; find one that matches the major/minor version and has the same steamworks dll
+	auto parent_dir = path.get_base_dir();
+	auto steam_dlls = Glob::rglob(parent_dir.path_join("**/*steam_api*"), true);
+	Vector<String> steam_dll_md5s;
+	for (auto &dll : steam_dlls) {
+		steam_dll_md5s.push_back(FileAccess::get_md5(dll));
+	}
+	auto engine_version = get_settings()->get_version_string();
+	auto godot_ver = GodotVer::parse(engine_version);
+	String candidate_url;
+	for (int i = 0; i < godotsteam_versions_count; i++) {
+		auto min_ver = GodotVer::parse(godotsteam_versions[i].min_godot_version);
+		auto max_ver = GodotVer::parse(godotsteam_versions[i].max_godot_version);
+		if (godot_ver->patch_compatible(min_ver) || godot_ver->patch_compatible(max_ver) ||
+				(godot_ver->get_major() == min_ver->get_major() &&
+						(godot_ver->get_minor() >= min_ver->get_minor() && godot_ver->get_minor() <= max_ver->get_minor()))) {
+			for (int j = 0; j < godotsteam_versions[i].steam_dlls.size(); j++) {
+				if (steam_dll_md5s.has(godotsteam_versions[i].steam_dlls[j].md5)) {
+					candidate_url = godotsteam_versions[i].url;
+					break;
+				}
+			}
+		}
+	}
+	return candidate_url;
+}
+
+String find_godotsteam_url_for_dll(const String &path) {
+	// hash the file/dir
+	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	String md5_hash;
+	if (da->file_exists(path)) {
+		md5_hash = FileAccess::get_md5(path);
+	} else {
+		md5_hash = get_md5_for_dir(path, true);
+	}
+	for (int i = 0; i < godotsteam_versions_count; i++) {
+		for (int j = 0; j < godotsteam_versions[i].bins.size(); j++) {
+			if (godotsteam_versions[i].bins[j].md5 == md5_hash) {
+				return godotsteam_versions[i].url;
+			}
+		}
+	}
+	return "";
+}
+
+Error handle_godotsteam(const String &dll_path, const String &output_dir, bool exact_match = true) {
+	auto url = find_godotsteam_url_for_dll(dll_path);
+	auto dll_file = dll_path.get_file();
+	bool compat = false;
+	if (url.is_empty()) {
+		if (!exact_match) {
+			url = find_compatible_url_for_dll(dll_path);
+		}
+		if (url.is_empty()) {
+			WARN_PRINT("Failed to find a GodotSteam version for " + dll_file);
+			return ERR_FILE_NOT_FOUND;
+		}
+		WARN_PRINT("Failed to find an exact GodotSteam version for " + dll_file + ", using a compatible version @ " + url);
+		compat = true;
+	} else {
+		print_line("Found GodotSteam version for " + dll_file + " @ " + url);
+	}
+
+	// download it to the .tmp directory in the output_dir
+	String tmp_dir = output_dir.path_join(".tmp");
+	String zip_path = tmp_dir.path_join("godotsteam.zip");
+	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(tmp_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create temporary directory for GodotSteam download");
+	print_line("Downloading GodotSteam from " + url);
+	ERR_FAIL_COND_V_MSG(download_file_sync(url, zip_path) != OK, ERR_FILE_CANT_READ, "Failed to download GodotSteam from " + url);
+	ERR_FAIL_COND_V_MSG(unzip_file_to_dir(zip_path, tmp_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to unzip GodotSteam to " + tmp_dir);
+	// copy the files to the output_dir
+	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	Error err = da->copy_dir(tmp_dir, output_dir);
+	ERR_FAIL_COND_V_MSG(err != OK, ERR_FILE_CANT_WRITE, "Failed to copy GodotSteam files to " + output_dir);
+	return compat ? ERR_PRINTER_ON_FIRE : OK;
+}
+
 Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir) {
 	Error err;
 	static const Vector<String> wildcards = { "*.gd" };
+	bool is_godotsteam = plugin_dir.to_lower() == "godotsteam";
 	String rel_plugin_path = String("addons").path_join(plugin_dir);
 	String abs_plugin_path = output_dir.path_join(rel_plugin_path);
 	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
@@ -600,6 +682,24 @@ Error ImportExporter::recreate_plugin_config(const String &output_dir, const Str
 		// copy all of the libraries to the plugin directory
 		Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 		bool found_our_platform = false;
+		HashSet<String> platforms_found;
+		for (String path : lib_paths) {
+			platforms_found.insert(lib_to_platform[path.get_file()]);
+		}
+		if (is_godotsteam) {
+			for (String path : lib_paths) {
+				if (path.get_file().contains("steam_api")) {
+					continue;
+				}
+				err = handle_godotsteam(path, output_dir, !platforms_found.has(our_platform));
+				if (err == OK) {
+					return OK;
+				}
+				if (err == ERR_PRINTER_ON_FIRE) {
+					break;
+				}
+			}
+		}
 		for (String path : lib_paths) {
 			String lib_name = path.get_file();
 			String lib_dir_path = output_dir.path_join(lib_to_parentdir[lib_name]);
