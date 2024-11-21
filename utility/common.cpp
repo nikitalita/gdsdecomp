@@ -275,6 +275,7 @@ Error gdre::unzip_file_to_dir(const String &zip_path, const String &output_dir) 
 			continue;
 		}
 		String out_path = output_dir.path_join(file);
+		ensure_dir(out_path.get_base_dir());
 		Ref<FileAccess> fa = FileAccess::open(out_path, FileAccess::WRITE);
 		if (fa.is_null()) {
 			continue;
