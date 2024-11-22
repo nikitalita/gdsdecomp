@@ -299,7 +299,7 @@ String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 	return FileAccess::get_multiple_md5(files);
 }
 
-Error gdre::download_file_sync(const String &p_url, const String &output_path) {
+Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
 	Ref<HTTPClientTCP> client;
 	client.instantiate();
 	client->set_blocking_mode(true);
@@ -327,7 +327,6 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path) {
 	bool done = false;
 	bool got_response = false;
 	List<String> response_headers;
-	PackedByteArray response;
 	int redirections = 0;
 	int response_code = 0;
 	auto _handle_response = [&]() -> Error {
@@ -410,7 +409,19 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path) {
 		}
 	}
 	ERR_FAIL_COND_V_MSG(response.is_empty(), ERR_CANT_CREATE, "Failed to download file from " + p_url);
-	err = OK;
+	return OK;
+}
+
+Error gdre::download_file_sync(const String &p_url, const String &output_path) {
+	Vector<uint8_t> response;
+	Error err = wget_sync(p_url, response);
+	if (err) {
+		return err;
+	}
+	err = ensure_dir(output_path.get_base_dir());
+	if (err) {
+		return err;
+	}
 	Ref<FileAccess> fa = FileAccess::open(output_path, FileAccess::WRITE, &err);
 	if (fa.is_null()) {
 		return ERR_FILE_CANT_WRITE;
