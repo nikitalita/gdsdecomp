@@ -21,6 +21,7 @@
 #include "exporters/autoconverted_exporter.h"
 #include "exporters/export_report.h"
 #include "exporters/fontfile_exporter.h"
+#include "exporters/gdextension_exporter.h"
 #include "exporters/mp3str_exporter.h"
 #include "exporters/oggstr_exporter.h"
 #include "exporters/resource_exporter.h"
@@ -61,6 +62,7 @@ static Ref<OggStreamConverterCompat> ogg_converter = nullptr;
 //exporters
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
 static Ref<FontFileExporter> fontfile_exporter = nullptr;
+static Ref<GDExtensionExporter> gdextension_exporter = nullptr;
 static Ref<Mp3StrExporter> mp3str_exporter = nullptr;
 static Ref<OggStrExporter> oggstr_exporter = nullptr;
 static Ref<SampleExporter> sample_exporter = nullptr;
@@ -108,6 +110,7 @@ void init_loaders() {
 void init_exporters() {
 	auto_converted_exporter = memnew(AutoConvertedExporter);
 	fontfile_exporter = memnew(FontFileExporter);
+	gdextension_exporter = memnew(GDExtensionExporter);
 	mp3str_exporter = memnew(Mp3StrExporter);
 	oggstr_exporter = memnew(OggStrExporter);
 	sample_exporter = memnew(SampleExporter);
@@ -116,6 +119,7 @@ void init_exporters() {
 	translation_exporter = memnew(TranslationExporter);
 	Exporter::add_exporter(auto_converted_exporter);
 	Exporter::add_exporter(fontfile_exporter);
+	Exporter::add_exporter(gdextension_exporter);
 	Exporter::add_exporter(mp3str_exporter);
 	Exporter::add_exporter(oggstr_exporter);
 	Exporter::add_exporter(sample_exporter);
@@ -130,6 +134,9 @@ void deinit_exporters() {
 	}
 	if (fontfile_exporter.is_valid()) {
 		Exporter::remove_exporter(fontfile_exporter);
+	}
+	if (gdextension_exporter.is_valid()) {
+		Exporter::remove_exporter(gdextension_exporter);
 	}
 	if (mp3str_exporter.is_valid()) {
 		Exporter::remove_exporter(mp3str_exporter);
@@ -151,6 +158,7 @@ void deinit_exporters() {
 	}
 	auto_converted_exporter = nullptr;
 	fontfile_exporter = nullptr;
+	gdextension_exporter = nullptr;
 	mp3str_exporter = nullptr;
 	oggstr_exporter = nullptr;
 	sample_exporter = nullptr;

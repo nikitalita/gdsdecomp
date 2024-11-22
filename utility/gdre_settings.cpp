@@ -1437,7 +1437,9 @@ Error GDRESettings::load_import_files() {
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
 	static const Vector<String> v3wildcards = {
 		"*.import",
-		"*.remap"
+		"*.remap",
+		"*.gdnlib",
+		"*.gdextension",
 	};
 	int _ver_major = get_ver_major();
 	// version isn't set, we have to guess from contents of dir.
