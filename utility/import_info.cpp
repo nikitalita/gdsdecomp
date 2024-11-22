@@ -1,6 +1,8 @@
 #include "import_info.h"
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
+#include "core/extension/gdextension.h"
+#include "core/extension/gdextension_library_loader.h"
 #include "gdre_settings.h"
 #include "utility/common.h"
 #include "utility/glob.h"
@@ -211,6 +213,11 @@ ImportInfoRemap::ImportInfoRemap() :
 	iitype = IInfoType::REMAP;
 }
 
+ImportInfoGDExt::ImportInfoGDExt() :
+		ImportInfoDummy() {
+	iitype = IInfoType::GDEXT;
+}
+
 Error ImportInfo::get_resource_info(const String &p_path, ResourceInfo &res_info) {
 	Error err;
 	res_info = ResourceCompatLoader::get_resource_info(p_path, "", &err);
@@ -252,6 +259,9 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 			iinfo->ver_major = ver_major;
 			iinfo->ver_minor = ver_minor;
 		}
+	} else if (p_path.get_extension() == "gdnlib" || p_path.get_extension() == "gdextension") {
+		iinfo = Ref<ImportInfoGDExt>(memnew(ImportInfoGDExt));
+		err = iinfo->_load(p_path);
 	} else if (ver_major >= 3) {
 		iinfo = Ref<ImportInfo>(memnew(ImportInfoDummy));
 		err = iinfo->_load(p_path);
@@ -892,4 +902,230 @@ void ImportInfo::_bind_methods() {
 void ImportInfoModern::_bind_methods() {
 }
 void ImportInfov2::_bind_methods() {
+}
+
+Error ImportInfoGDExt::_load(const String &p_path) {
+	Error err;
+	cf = Ref<ConfigFile>(memnew(ConfigFile));
+	err = cf->load(p_path);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_path);
+
+	// compatibility_minimum
+	import_md_path = GDRESettings::get_singleton()->localize_path(p_path);
+	source_file = import_md_path;
+	type = import_md_path.simplify_path().get_file().get_basename();
+
+	not_an_import = true;
+
+	if (p_path.get_extension().to_lower() == "gdnlib") {
+		ver_major = 3;
+		ver_minor = 0;
+		importer = "gdnative";
+	} else {
+		String ver = get_compatibility_minimum();
+		if (!ver.is_empty()) {
+			Vector<String> spl = ver.split(".");
+			if (spl.size() == 2) {
+				ver_major = spl[0].to_int();
+				ver_minor = spl[1].to_int();
+			}
+		} else {
+			ver_major = 4;
+			ver_minor = 0;
+		}
+	}
+	preferred_import_path = import_md_path;
+	dest_files = { import_md_path };
+	// String platform = OS::get_singleton()->get_name().to_lower();
+	// if (ver_major == 3) {
+	// 	if (platform == "linux") {
+	// 		platform = "X11";
+	// 	} else if (platform == "macos") {
+	// 		platform = "OSX";
+	// 	} else if (platform == "windows") {
+	// 		platform = "Windows";
+	// 	}
+	// }
+	// auto libs = get_libaries();
+
+	// for (int i = 0; i < libs.size(); i++) {
+	// 	dest_files.push_back(libs[i].path);
+	// 	if (libs[i].tags.has(platform)) {
+	// 		preferred_import_path = libs[i].path;
+	// 	}
+	// }
+	// auto deps = get_dependencies();
+	// for (int i = 0; i < deps.size(); i++) {
+	// 	dest_files.push_back(deps[i].path);
+	// }
+	return OK;
+}
+
+// virtual Variant get_iinfo_val(const String &p_section, const String &p_prop) const override;
+// virtual void set_iinfo_val(const String &p_section, const String &p_prop, const Variant &p_val) override;
+String ImportInfoGDExt::correct_path(const String &p_path) const {
+	if (p_path.is_relative_path()) {
+		return import_md_path.get_base_dir().path_join(p_path);
+	}
+	return p_path;
+}
+
+// virtual Dictionary get_libaries_section() const;
+Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
+	Vector<SharedObject> deps;
+	if (cf->has_section("dependencies")) {
+		List<String> dep_keys;
+		cf->get_section_keys("dependencies", &dep_keys);
+		for (auto E = dep_keys.front(); E; E = E->next()) {
+			String key = E->get();
+			auto var = cf->get_value("dependencies", key, Vector<String>{});
+			Vector<String> deps_list;
+			Vector<String> target_list;
+			if (var.get_type() == Variant::PACKED_STRING_ARRAY) {
+				deps_list = var;
+			} else {
+				if (var.get_type() == Variant::DICTIONARY) {
+					Dictionary dict = var;
+					for (int i = 0; i < dict.size(); i++) {
+						deps_list.push_back(dict.get_key_at_index(i));
+						target_list.push_back(dict.get_value_at_index(i));
+					}
+				}
+			}
+			for (int i = 0; i < deps_list.size(); i++) {
+				SharedObject so;
+				so.path = correct_path(deps_list[i]);
+				so.tags = key.split(".");
+				so.target = i < target_list.size() ? target_list[i] : "";
+				deps.push_back(so);
+			}
+		}
+	}
+	return deps;
+}
+
+Vector<SharedObject> ImportInfoGDExt::get_libaries() const {
+	auto lib_map = get_libaries_section();
+	Vector<SharedObject> libs;
+	for (auto &E : lib_map) {
+		SharedObject so;
+		so.path = correct_path(E.value);
+		so.tags = E.key.split(".");
+		so.target = "";
+		libs.push_back(so);
+	}
+	return libs;
+}
+
+HashMap<String, String> ImportInfoGDExt::get_libaries_section() const {
+	/**
+	a .gdextention file is a text file with the following format:
+	```
+	[configuration]
+	entry_symbol = "godotsteam_init"
+	compatibility_minimum = "4.1"
+
+	[libraries]
+	macos.debug = "osx/libgodotsteam.macos.template_debug.framework"
+	macos.release = "osx/libgodotsteam.macos.template_release.framework"
+	windows.debug.x86_64 = "win64/libgodotsteam.windows.template_debug.x86_64.dll"
+	windows.debug.x86_32 = "win32/libgodotsteam.windows.template_debug.x86_32.dll"
+	windows.release.x86_64 = "win64/libgodotsteam.windows.template_release.x86_64.dll"
+	windows.release.x86_32 = "win32/libgodotsteam.windows.template_release.x86_32.dll"
+	linux.debug.x86_64 = "linux64/libgodotsteam.linux.template_debug.x86_64.so"
+	linux.debug.x86_32 = "linux32/libgodotsteam.linux.template_debug.x86_32.so"
+	linux.release.x86_64 = "linux64/libgodotsteam.linux.template_release.x86_64.so"
+	linux.release.x86_32 = "linux32/libgodotsteam.linux.template_release.x86_32.so"
+
+	[dependencies]
+	windows.x86_64 = { "win64/steam_api64.dll": "" }
+	windows.x86_32 = { "win32/steam_api.dll": "" }
+	linux.x86_64 = { "linux64/libsteam_api.so": "" }
+	linux.x86_32 = { "linux32/libsteam_api.so": "" }
+	```
+
+
+	GDNative (.gdnlib) files go like this:
+	```
+	[general]
+
+	singleton=false
+	load_once=true
+	symbol_prefix="godot_"
+	reloadable=true
+
+	[entry]
+
+	X11.64="res://addons/godotsteam/x11/libgodotsteam.so"
+	Windows.64="res://addons/godotsteam/win64/godotsteam.dll"
+	OSX.64="res://addons/godotsteam/osx/libgodotsteam.dylib"
+
+	[dependencies]
+
+	X11.64=[ "res://addons/godotsteam/x11/libsteam_api.so" ]
+	Windows.64=[ "res://addons/godotsteam/win64/steam_api64.dll" ]
+	OSX.64=[ "res://addons/godotsteam/osx/libsteam_api.dylib" ]
+	```
+	 */
+	HashMap<String, String> deps;
+	String section_name = "libraries";
+	if (importer == "gdnative") {
+		section_name = "entry";
+	}
+
+	if (cf->has_section(section_name)) {
+		List<String> dep_keys;
+		cf->get_section_keys(section_name, &dep_keys);
+		for (auto E = dep_keys.front(); E; E = E->next()) {
+			deps[E->get()] = cf->get_value(section_name, E->get(), String{});
+		}
+	}
+	return deps;
+}
+
+String ImportInfoGDExt::get_compatibility_minimum() const {
+	if (cf->has_section("configuration")) {
+		if (cf->has_section_key("configuration", "compatibility_minimum")) {
+			return cf->get_value("configuration", "compatibility_minimum", "");
+		}
+	}
+	return {};
+}
+
+String ImportInfoGDExt::get_compatibility_maximum() const {
+	if (cf->has_section("configuration")) {
+		if (cf->has_section_key("configuration", "compatibility_maximum")) {
+			return cf->get_value("configuration", "compatibility_maximum", "");
+		}
+	}
+	return {};
+}
+
+// virtual Variant get_iinfo_val(const String &p_section, const String &p_prop) const override;
+// virtual void set_iinfo_val(const String &p_section, const String &p_prop, const Variant &p_val) override;
+
+Variant ImportInfoGDExt::get_iinfo_val(const String &p_section, const String &p_prop) const {
+	if (cf->has_section(p_section)) {
+		if (cf->has_section_key(p_section, p_prop)) {
+			return cf->get_value(p_section, p_prop, "");
+		}
+	}
+	return Variant();
+}
+
+void ImportInfoGDExt::set_iinfo_val(const String &p_section, const String &p_prop, const Variant &p_val) {
+	cf->set_value(p_section, p_prop, p_val);
+}
+
+String ImportInfoGDExt::get_normalized_platform(const String &platform, int ver_major) {
+	if (ver_major == 3) {
+		if (platform == "linux") {
+			return "X11";
+		} else if (platform == "macos") {
+			return "OSX";
+		} else if (platform == "windows") {
+			return "Windows";
+		}
+	}
+	return platform;
 }

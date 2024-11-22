@@ -7,7 +7,6 @@
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
-#include "core/io/http_client.h"
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
@@ -17,9 +16,7 @@
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
-#include "utility/godotsteam_versions.h"
 
-#include "core/io/config_file.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/os/os.h"
@@ -383,6 +380,11 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		if (ret->get_loss_type() != ImportInfo::LOSSLESS) {
 			report->lossy_imports.push_back(iinfo);
 		}
+		if (iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative") {
+			if (!ret->get_message().is_empty()) {
+				report->failed_gdnative_copy.push_back(ret->get_message());
+			}
+		}
 		report->success.push_back(iinfo);
 		// remove remaps
 		if (!err && get_settings()->has_any_remaps()) {
@@ -485,260 +487,17 @@ Error ImportExporter::decompile_scripts(const String &p_out_dir, const Vector<St
 	return OK;
 }
 
-String find_compatible_url_for_dll(const String &path) {
-	// Failed to find exact hash; find one that matches the major/minor version and has the same steamworks dll
-	auto parent_dir = path.get_base_dir();
-	auto steam_dlls = Glob::rglob(parent_dir.path_join("**/*steam_api*"), true);
-	Vector<String> steam_dll_md5s;
-	for (auto &dll : steam_dlls) {
-		steam_dll_md5s.push_back(FileAccess::get_md5(dll));
-	}
-	auto engine_version = get_settings()->get_version_string();
-	auto godot_ver = GodotVer::parse(engine_version);
-	String candidate_url;
-	for (int i = 0; i < godotsteam_versions_count; i++) {
-		auto min_ver = GodotVer::parse(godotsteam_versions[i].min_godot_version);
-		auto max_ver = GodotVer::parse(godotsteam_versions[i].max_godot_version);
-		if (godot_ver->patch_compatible(min_ver) || godot_ver->patch_compatible(max_ver) ||
-				(godot_ver->get_major() == min_ver->get_major() &&
-						(godot_ver->get_minor() >= min_ver->get_minor() && godot_ver->get_minor() <= max_ver->get_minor()))) {
-			for (int j = 0; j < godotsteam_versions[i].steam_dlls.size(); j++) {
-				if (steam_dll_md5s.has(godotsteam_versions[i].steam_dlls[j].md5)) {
-					candidate_url = godotsteam_versions[i].url;
-					break;
-				}
-			}
-		}
-	}
-	return candidate_url;
-}
-
-String find_godotsteam_url_for_dll(const String &path) {
-	// hash the file/dir
-	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	String md5_hash;
-	if (da->file_exists(path)) {
-		md5_hash = FileAccess::get_md5(path);
-	} else {
-		md5_hash = get_md5_for_dir(path, true);
-	}
-	for (int i = 0; i < godotsteam_versions_count; i++) {
-		for (int j = 0; j < godotsteam_versions[i].bins.size(); j++) {
-			if (godotsteam_versions[i].bins[j].md5 == md5_hash) {
-				return godotsteam_versions[i].url;
-			}
-		}
-	}
-	return "";
-}
-
-Error handle_godotsteam(const String &dll_path, const String &output_dir, bool exact_match = true) {
-	auto url = find_godotsteam_url_for_dll(dll_path);
-	auto dll_file = dll_path.get_file();
-	bool compat = false;
-	if (url.is_empty()) {
-		if (!exact_match) {
-			url = find_compatible_url_for_dll(dll_path);
-		}
-		if (url.is_empty()) {
-			WARN_PRINT("Failed to find a GodotSteam version for " + dll_file);
-			return ERR_FILE_NOT_FOUND;
-		}
-		WARN_PRINT("Failed to find an exact GodotSteam version for " + dll_file + ", using a compatible version @ " + url);
-		compat = true;
-	} else {
-		print_line("Found GodotSteam version for " + dll_file + " @ " + url);
-	}
-
-	// download it to the .tmp directory in the output_dir
-	String tmp_dir = output_dir.path_join(".tmp");
-	String zip_path = tmp_dir.path_join("godotsteam.zip");
-	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(tmp_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create temporary directory for GodotSteam download");
-	print_line("Downloading GodotSteam from " + url);
-	ERR_FAIL_COND_V_MSG(download_file_sync(url, zip_path) != OK, ERR_FILE_CANT_READ, "Failed to download GodotSteam from " + url);
-	ERR_FAIL_COND_V_MSG(unzip_file_to_dir(zip_path, tmp_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to unzip GodotSteam to " + tmp_dir);
-	// copy the files to the output_dir
-	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	Error err = da->copy_dir(tmp_dir, output_dir);
-	ERR_FAIL_COND_V_MSG(err != OK, ERR_FILE_CANT_WRITE, "Failed to copy GodotSteam files to " + output_dir);
-	return compat ? ERR_PRINTER_ON_FIRE : OK;
-}
-
 Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir) {
 	Error err;
 	static const Vector<String> wildcards = { "*.gd" };
-	bool is_godotsteam = plugin_dir.to_lower() == "godotsteam";
 	String rel_plugin_path = String("addons").path_join(plugin_dir);
 	String abs_plugin_path = output_dir.path_join(rel_plugin_path);
 	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
 	String main_script;
 
-	auto copy_gdext_dll_func = [&](String gdextension_path) -> Error {
-		bool is_gdnative = gdextension_path.ends_with(".gdnlib");
-		String lib_section_name = is_gdnative ? "entry" : "libraries";
-		// check if directory; we can't do anything here if we're working from an unpacked dir
-		if (get_settings()->get_pack_type() == GDRESettings::PackInfo::PackType::DIR) {
-			return OK;
-		}
-		String parent_dir = get_settings()->get_pack_path().get_base_dir();
-		// open gdextension_path like a config file
-		Vector<String> libs_to_find;
-		List<String> platforms;
-		Dictionary lib_to_parentdir;
-		Dictionary lib_to_platform;
-		// what the decomp is running on
-		String our_platform = OS::get_singleton()->get_name().to_lower();
-		Ref<ConfigFile> cf;
-		cf.instantiate();
-		cf->load(gdextension_path);
-		if (!cf->has_section(lib_section_name)) {
-			if (cf->has_section("entry")) {
-				lib_section_name = "entry";
-			} else if (cf->has_section("libraries")) {
-				lib_section_name = "libraries";
-			} else {
-				WARN_PRINT("Failed to find library section in " + gdextension_path);
-				return ERR_BUG;
-			}
-		}
-		cf->get_section_keys(lib_section_name, &platforms);
-		auto add_path_func = [&](String path, String platform) mutable {
-			String plugin_pardir = path.get_base_dir();
-			if (!plugin_pardir.is_absolute_path()) {
-				plugin_pardir = rel_plugin_path.path_join(plugin_pardir);
-			} else {
-				plugin_pardir = plugin_pardir.replace("res://", "");
-			}
-			libs_to_find.push_back(path.get_file());
-			lib_to_parentdir[path.get_file()] = plugin_pardir;
-			auto splits = platform.split(".");
-			if (!splits.is_empty()) {
-				platform = splits[0];
-			}
-			platform = platform.to_lower();
-			// normalize old platform names
-			if (platform == "x11") {
-				platform = "linux";
-			} else if (platform == "osx") {
-				platform = "macos";
-			}
-			lib_to_platform[path.get_file()] = platform;
-		};
-		for (String &platform : platforms) {
-			add_path_func(cf->get_value(lib_section_name, platform), platform);
-		}
-		platforms.clear();
-		if (cf->has_section("dependencies")) {
-			cf->get_section_keys("dependencies", &platforms);
-		}
-		for (String &platform : platforms) {
-			Array keys;
-			if (!is_gdnative) {
-				Dictionary val = cf->get_value("dependencies", platform);
-				// the keys in the dict are the library names
-				keys = val.keys();
-			} else {
-				// they're just arrays in gdnlib
-				keys = cf->get_value("dependencies", platform);
-			}
-			for (int i = 0; i < keys.size(); i++) {
-				add_path_func(keys[i], platform);
-			}
-		}
-		// search for the libraries
-		Vector<String> lib_paths;
-		// auto paths = gdre::get_recursive_dir_list(parent_dir, libs_to_find, true);
-
-		// get a non-recursive dir listing
-		{
-			Ref<DirAccess> da = DirAccess::open(parent_dir, &err);
-			ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_OPEN, "Failed to open directory " + parent_dir);
-			da->list_dir_begin();
-			String f = da->get_next();
-			while (!f.is_empty()) {
-				if (f != "." && f != "..") {
-					if (libs_to_find.has(f)) {
-						lib_paths.push_back(parent_dir.path_join(f));
-					}
-				}
-				f = da->get_next();
-			}
-		}
-		if (lib_paths.size() == 0) {
-			// if we're on MacOS, try one path up
-			if (parent_dir.get_file() == "Resources") {
-				parent_dir = parent_dir.get_base_dir();
-				Vector<String> globs;
-				for (String lib : libs_to_find) {
-					globs.push_back(parent_dir.path_join("**").path_join(lib));
-				}
-				lib_paths = Glob::rglob_list(globs, true);
-			}
-			if (lib_paths.size() == 0) {
-				WARN_PRINT("Failed to find gdextension libraries for plugin " + plugin_dir);
-				return ERR_BUG;
-			}
-		}
-		// copy all of the libraries to the plugin directory
-		Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-		bool found_our_platform = false;
-		HashSet<String> platforms_found;
-		for (String path : lib_paths) {
-			platforms_found.insert(lib_to_platform[path.get_file()]);
-		}
-		if (is_godotsteam) {
-			for (String path : lib_paths) {
-				if (path.get_file().contains("steam_api")) {
-					continue;
-				}
-				err = handle_godotsteam(path, output_dir, !platforms_found.has(our_platform));
-				if (err == OK) {
-					return OK;
-				}
-				if (err == ERR_PRINTER_ON_FIRE) {
-					break;
-				}
-			}
-		}
-		for (String path : lib_paths) {
-			String lib_name = path.get_file();
-			String lib_dir_path = output_dir.path_join(lib_to_parentdir[lib_name]);
-			if (!da->dir_exists(lib_dir_path)) {
-				ERR_FAIL_COND_V_MSG(da->make_dir_recursive(lib_dir_path), ERR_FILE_CANT_WRITE, "Failed to make plugin directory " + lib_dir_path);
-			}
-			String dest_path = lib_dir_path.path_join(lib_name);
-			// check if it's a file first
-			if (da->file_exists(path)) {
-				ERR_FAIL_COND_V_MSG(da->copy(path, dest_path), ERR_FILE_CANT_WRITE, "Failed to copy library " + path + " to " + dest_path);
-			} else {
-				// it's a directory
-				ERR_FAIL_COND_V_MSG(da->copy_dir(path, dest_path), ERR_FILE_CANT_WRITE, "Failed to copy library " + path + " to " + dest_path);
-			}
-			if (lib_to_platform[lib_name] == our_platform) {
-				found_our_platform = true;
-			}
-		}
-		if (!found_our_platform) {
-			WARN_PRINT("Failed to find library for our platform for plugin " + plugin_dir);
-			return ERR_PRINTER_ON_FIRE;
-		}
-		return OK;
-	};
 	bool found_our_platform = true;
-	if (get_ver_major() >= 3) {
-		// check if this is a gdextension/gdnative plugin
-		static const Vector<String> gdext_wildcards = { "*.gdextension", "*.gdnlib" };
-		auto gdexts = gdre::get_recursive_dir_list(abs_plugin_path, gdext_wildcards, true);
-		for (String gdext : gdexts) {
-			err = copy_gdext_dll_func(gdext);
-			if (err) {
-				found_our_platform = false;
-			}
-		}
-		// gdextension/gdnative plugins may not have a main script, and no plugin.cfg
-		if (gd_scripts.is_empty()) {
-			return found_our_platform ? OK : ERR_PRINTER_ON_FIRE;
-		}
+	if (gd_scripts.is_empty()) {
+		return OK;
 	}
 
 	for (int j = 0; j < gd_scripts.size(); j++) {
