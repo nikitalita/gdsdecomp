@@ -97,6 +97,7 @@ private:
 	GDRELogger *logger;
 	Array import_files;
 	HashMap<String, Ref<ImportInfoRemap>> remap_iinfo;
+	String gdre_user_path = "";
 	String gdre_resource_path = "";
 
 	String current_project_path = "";
@@ -162,6 +163,7 @@ public:
 
 	Error unload_project();
 	String get_gdre_resource_path() const;
+	String get_gdre_user_path() const;
 
 	Vector<uint8_t> get_encryption_key();
 	String get_encryption_key_string();
