@@ -79,7 +79,7 @@ plugin_getter_template = """
 """
 
 
-def get_github_releases(url: str):
+def get_assetlib_releases(url: str):
     releases = []
     page = 1
     while True:
@@ -180,7 +180,7 @@ def get_version_from_url_and_release_asset(url: str, release_name: str, asset) -
 
 
 def parse_gdnative_gdextension_releases(url: str, plugin_name: str, get_vers: callable):
-    releases: list[dict] = get_github_releases(url)
+    releases: list[dict] = get_assetlib_releases(url)
     # dump releases to tmp dir
     ext_releases = []
     for release in releases:

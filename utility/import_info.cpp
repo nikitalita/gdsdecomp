@@ -909,7 +909,18 @@ Error ImportInfoGDExt::_load(const String &p_path) {
 	cf = Ref<ConfigFile>(memnew(ConfigFile));
 	err = cf->load(p_path);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_path);
+	return _load_after_cf(p_path);
+}
 
+Error ImportInfoGDExt::load_from_string(const String &p_fakepath, const String &p_string) {
+	Error err;
+	cf = Ref<ConfigFile>(memnew(ConfigFile));
+	err = cf->parse(p_string);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_fakepath);
+	return _load_after_cf(p_fakepath);
+}
+
+Error ImportInfoGDExt::_load_after_cf(const String &p_path) {
 	// compatibility_minimum
 	import_md_path = GDRESettings::get_singleton()->localize_path(p_path);
 	source_file = import_md_path;
@@ -970,6 +981,27 @@ String ImportInfoGDExt::correct_path(const String &p_path) const {
 	return p_path;
 }
 
+Vector<String> normalize_tags(const Vector<String> &tags) {
+	Vector<String> new_tags;
+	for (int i = 0; i < tags.size(); i++) {
+		String tag = tags[i];
+		if (tag == "64") {
+			tag = "x86_64";
+		} else if (tag == "32") {
+			tag = "x86_32";
+		} else if (tag == "Windows") {
+			tag = "windows";
+		} else if (tag == "Linux") {
+			tag = "linux";
+		} else if (tag == "OSX") {
+			tag = "macos";
+		} else if (tag == "HTML5") {
+			tag = "web";
+		}
+		new_tags.push_back(tag);
+	}
+	return new_tags;
+}
 // virtual Dictionary get_libaries_section() const;
 Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
 	Vector<SharedObject> deps;
@@ -995,7 +1027,7 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
 			for (int i = 0; i < deps_list.size(); i++) {
 				SharedObject so;
 				so.path = correct_path(deps_list[i]);
-				so.tags = key.split(".");
+				so.tags = normalize_tags(key.split("."));
 				so.target = i < target_list.size() ? target_list[i] : "";
 				deps.push_back(so);
 			}
@@ -1010,7 +1042,7 @@ Vector<SharedObject> ImportInfoGDExt::get_libaries() const {
 	for (auto &E : lib_map) {
 		SharedObject so;
 		so.path = correct_path(E.value);
-		so.tags = E.key.split(".");
+		so.tags = normalize_tags(E.key.split("."));
 		so.target = "";
 		libs.push_back(so);
 	}
@@ -1115,17 +1147,4 @@ Variant ImportInfoGDExt::get_iinfo_val(const String &p_section, const String &p_
 
 void ImportInfoGDExt::set_iinfo_val(const String &p_section, const String &p_prop, const Variant &p_val) {
 	cf->set_value(p_section, p_prop, p_val);
-}
-
-String ImportInfoGDExt::get_normalized_platform(const String &platform, int ver_major) {
-	if (ver_major == 3) {
-		if (platform == "linux") {
-			return "X11";
-		} else if (platform == "macos") {
-			return "OSX";
-		} else if (platform == "windows") {
-			return "Windows";
-		}
-	}
-	return platform;
 }
