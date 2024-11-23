@@ -363,11 +363,13 @@ private:
 	friend class ImportInfo;
 	String importer = "gdextension";
 	Ref<ConfigFile> cf; // GDExtension/GDNative file
+	Error _load_after_cf(const String &p_path);
 	virtual Error _load(const String &p_path) override;
 	String correct_path(const String &p_path) const;
 	HashMap<String, String> get_libaries_section() const;
 
 public:
+	Error load_from_string(const String &p_fakepath, const String &p_string);
 	virtual Variant get_iinfo_val(const String &p_section, const String &p_prop) const override;
 	virtual void set_iinfo_val(const String &p_section, const String &p_prop, const Variant &p_val) override;
 
@@ -378,7 +380,6 @@ public:
 
 	String get_compatibility_minimum() const;
 	String get_compatibility_maximum() const;
-	static String get_normalized_platform(const String &p_platform, int ver_major);
 
 	ImportInfoGDExt();
 };

@@ -10,6 +10,7 @@
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
+#include "exporters/gdextension_exporter.h"
 #include "exporters/oggstr_exporter.h"
 #include "exporters/sample_exporter.h"
 #include "exporters/texture_exporter.h"
@@ -383,6 +384,11 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		if (iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative") {
 			if (!ret->get_message().is_empty()) {
 				report->failed_gdnative_copy.push_back(ret->get_message());
+			} else if (!ret->get_saved_path().is_empty()) {
+				err = GDExtensionExporter::unzip_and_copy_dir(ret->get_saved_path(), output_dir);
+				if (err != OK) {
+					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+				}
 			}
 		}
 		report->success.push_back(iinfo);
