@@ -231,6 +231,7 @@ GDRESettings::GDRESettings() {
 	singleton = this;
 	gdre_packeddata_singleton = memnew(GDREPackedData);
 	addCompatibilityClasses();
+	gdre_user_path = ProjectSettings::get_singleton()->globalize_path("user://");
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
 	logger = memnew(GDRELogger);
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
@@ -258,6 +259,10 @@ bool GDRESettings::are_imports_loaded() const {
 
 String GDRESettings::get_gdre_resource_path() const {
 	return gdre_resource_path;
+}
+
+String GDRESettings::get_gdre_user_path() const {
+	return gdre_user_path;
 }
 
 Vector<uint8_t> GDRESettings::get_encryption_key() {
@@ -1715,6 +1720,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
 	ClassDB::bind_method(D_METHOD("get_gdre_resource_path"), &GDRESettings::get_gdre_resource_path);
+	ClassDB::bind_method(D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);
 	ClassDB::bind_method(D_METHOD("get_encryption_key"), &GDRESettings::get_encryption_key);
 	ClassDB::bind_method(D_METHOD("get_encryption_key_string"), &GDRESettings::get_encryption_key_string);
 	ClassDB::bind_method(D_METHOD("is_pack_loaded"), &GDRESettings::is_pack_loaded);
