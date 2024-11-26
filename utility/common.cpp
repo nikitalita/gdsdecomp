@@ -299,7 +299,7 @@ String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 	return FileAccess::get_multiple_md5(files);
 }
 
-Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
+Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries) {
 	Ref<HTTPClientTCP> client;
 	client.instantiate();
 	client->set_blocking_mode(true);
@@ -373,6 +373,15 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
 	};
 	err = connect_to_host_and_request(p_url);
 
+	auto _retry = [&] {
+		if (retries <= 0) {
+			ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Failed to download file from %s", p_url));
+		}
+		retries--;
+		response.clear();
+		return wget_sync(p_url, response, retries);
+	};
+
 	while (!done) {
 		auto status = client->get_status();
 		switch (status) {
@@ -384,7 +393,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
 				if (!got_response) {
 					err = _handle_response();
 					if (err != OK) {
-						return err;
+						return _retry();
 					}
 				} else {
 					client->poll();
@@ -396,7 +405,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
 				if (!got_response) {
 					err = _handle_response();
 					if (err != OK) {
-						return err;
+						return _retry();
 					}
 				} else {
 					done = true;
@@ -404,7 +413,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response) {
 				break;
 			}
 			default: {
-				ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Unexpected status during RPC response: %d", status));
+				return _retry();
 			}
 		}
 	}
