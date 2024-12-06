@@ -235,10 +235,10 @@ void gdre::get_strings_from_variant(const Variant &p_var, Vector<String> &r_stri
 				auto &p = E->get();
 				get_strings_from_variant(obj->get(p.name), r_strings, engine_version);
 			}
-			Dictionary meta = obj->get_meta(META_MISSING_RESOURCES, Dictionary());
-			Array keys = meta.keys();
-			for (int i = 0; i < meta.size(); i++) {
-				get_strings_from_variant(meta[keys[i]], r_strings, engine_version);
+			List<StringName> m_list;
+			obj->get_meta_list(&m_list);
+			for (auto &name : m_list) {
+				get_strings_from_variant(obj->get_meta(name), r_strings, engine_version);
 			}
 			if (!engine_version.is_empty()) {
 				Ref<MissingResource> mr = p_var;
