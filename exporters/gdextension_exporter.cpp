@@ -206,144 +206,10 @@ bool libs_has_platform(const Vector<SharedObject> &libs, const String &platform)
 	return false;
 }
 
-String GDExtensionExporter::get_plugin_download(const String &output_dir, Ref<ImportInfoGDExt> import_infos) {
-	String plugin_name = get_plugin_name(import_infos);
-	Ref<GodotVer> godot_ver = GodotVer::parse(GDRESettings::get_singleton()->get_version_string());
-	String engine_version = GDRESettings::get_singleton()->get_version_string();
-	auto get_compatible_versions = [&](int asset_id) {
-		auto versions = AssetLibInfoGetter::get_plugin_versions(plugin_name, asset_id);
-		Vector<PluginInfo::PluginVersion> compatible_versions;
-		for (auto &version : versions) {
-			if (!version.is_compatible(godot_ver)) {
-				continue;
-			}
-			compatible_versions.push_back(version);
-		}
-		compatible_versions.reverse();
-		return compatible_versions;
-	};
-	auto libs = import_infos->get_libaries();
-	HashMap<String, SharedObject> lib_paths;
-	Error err = OK;
-	err = find_libs(libs, lib_paths);
-	HashMap<String, String> hashes;
-	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-	for (auto &E : lib_paths) {
-		String md5;
-		if (da->file_exists(E.key)) {
-			md5 = FileAccess::get_md5(E.key);
-		} else {
-			md5 = gdre::get_md5_for_dir(E.key, true);
-		}
-		if (md5.is_empty()) {
-			continue;
-		}
-		hashes[E.key] = md5;
-	}
-	ERR_FAIL_COND_V_MSG(err, "", "Failed to find gdextension libraries for plugin " + import_infos->get_import_md_path());
-
-	auto asset_ids = AssetLibInfoGetter::search_for_asset_ids(plugin_name, godot_ver->get_major());
-
-	if (asset_ids.size() == 0) {
-		return "";
-	}
-	const String temp_folder = output_dir.path_join(".tmp").path_join(plugin_name);
-	const String relative_gdext_path = import_infos->get_import_md_path().simplify_path().replace("res://", "");
-	for (int i = 0; i < asset_ids.size(); i++) {
-		int asset_id = asset_ids[i];
-		auto compatible_versions = get_compatible_versions(asset_id);
-		if (compatible_versions.is_empty()) {
-			continue;
-		}
-		for (auto &version : compatible_versions) {
-			String url = version.download_url;
-			String new_temp_foldr = temp_folder.path_join(version.version);
-			String zip_path = new_temp_foldr.path_join("plugin.zip");
-			Error err = gdre::download_file_sync(url, zip_path);
-			if (err) {
-				continue;
-			}
-			Ref<ZIPReader> zip;
-			zip.instantiate();
-			err = zip->open(zip_path);
-			if (err) {
-				continue;
-			}
-			auto files = zip->get_files();
-			String gd_ext_file = "";
-			HashMap<String, String> our_libs_in_zip;
-
-			for (int i = 0; i < files.size(); i++) {
-				if (files[i].contains(relative_gdext_path)) {
-					gd_ext_file = files[i];
-				} else {
-					for (auto &E : lib_paths) {
-						auto rel_path = E.value.path.replace("res://", "");
-						if (files[i].contains(rel_path)) {
-							our_libs_in_zip[files[i]] = E.key;
-							break;
-						}
-					}
-				}
-			}
-			auto close_and_remove_zip = [&]() {
-				zip->close();
-				da->remove(zip_path);
-			};
-			if (gd_ext_file.is_empty()) {
-				// it's unlikely to be this particular asset if it doesn't have the gdext file, continue on to the next asset_id
-				close_and_remove_zip();
-				break;
-			}
-			if (our_libs_in_zip.is_empty()) {
-				close_and_remove_zip();
-				continue;
-			}
-			// get the gd_ext_file as a string
-
-			auto data = zip->read_file(gd_ext_file, true);
-			String gdext_str;
-			gdext_str.parse_utf8((const char *)data.ptr(), data.size());
-			Ref<ImportInfoGDExt> cf = memnew(ImportInfoGDExt);
-			cf->load_from_string(import_infos->get_import_md_path(), gdext_str);
-			if (cf->get_compatibility_minimum() != import_infos->get_compatibility_minimum() || cf->get_compatibility_maximum() != import_infos->get_compatibility_maximum()) {
-				close_and_remove_zip();
-				continue;
-			}
-
-			String gdext_path = new_temp_foldr.path_join("unzipped");
-			err = gdre::unzip_file_to_dir(zip_path, gdext_path);
-			for (auto &E : our_libs_in_zip) {
-				auto &lib_path = E.key;
-				auto full_path = gdext_path.path_join(lib_path);
-				String md5 = FileAccess::get_md5(full_path);
-				if (da->file_exists(full_path)) {
-					md5 = FileAccess::get_md5(full_path);
-				} else {
-					md5 = gdre::get_md5_for_dir(full_path, true);
-				}
-				if (md5 == hashes[E.value]) {
-					return zip_path;
-				}
-			}
-			close_and_remove_zip();
-		}
-	}
-	return "";
-}
-
 Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
 	// get the first name of the plugin after res://addons
 	String plugin_name = get_plugin_name(import_infos);
 	Ref<ExportReport> report = memnew(ExportReport(import_infos));
-
-	if (plugin_name != "godotsteam") {
-		String downloaded_zip = get_plugin_download(output_dir, import_infos);
-		if (!downloaded_zip.is_empty()) {
-			report->set_saved_path(downloaded_zip);
-			return report;
-		}
-	}
 	Ref<ImportInfoGDExt> iinfo = import_infos;
 	String platform = OS::get_singleton()->get_name().to_lower();
 	String parent_dir = GDRESettings::get_singleton()->get_pack_path().get_base_dir();
@@ -370,7 +236,25 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 				break;
 			}
 		}
+	} else {
+		Vector<String> hashes;
+		for (const auto &E : lib_paths) {
+			auto md5 = gdre::get_md5(E.key, true);
+			if (!md5.is_empty()) {
+				hashes.push_back(md5);
+			}
+		}
+		String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
+		if (!url.is_empty()) {
+			String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
+			err = gdre::download_file_sync(url, zip_path);
+			if (err == OK) {
+				report->set_saved_path(zip_path);
+				return report;
+			}
+		}
 	}
+
 	if (!downloaded_plugin) {
 		err = copy_libs(output_dir, lib_paths);
 		GDExt_ERR_FAIL_COND_V_MSG(err, report, "Failed to copy gdextension libraries for plugin " + import_infos->get_import_md_path());

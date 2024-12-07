@@ -1003,7 +1003,7 @@ Vector<String> normalize_tags(const Vector<String> &tags) {
 	return new_tags;
 }
 // virtual Dictionary get_libaries_section() const;
-Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
+Vector<SharedObject> ImportInfoGDExt::get_dependencies(bool fix_rel_paths) const {
 	Vector<SharedObject> deps;
 	if (cf->has_section("dependencies")) {
 		List<String> dep_keys;
@@ -1027,6 +1027,7 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
 			for (int i = 0; i < deps_list.size(); i++) {
 				SharedObject so;
 				so.path = correct_path(deps_list[i]);
+				so.path = fix_rel_paths ? correct_path(deps_list[i]) : deps_list[i];
 				so.tags = normalize_tags(key.split("."));
 				so.target = i < target_list.size() ? target_list[i] : "";
 				deps.push_back(so);
@@ -1036,12 +1037,12 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies() const {
 	return deps;
 }
 
-Vector<SharedObject> ImportInfoGDExt::get_libaries() const {
+Vector<SharedObject> ImportInfoGDExt::get_libaries(bool fix_rel_paths) const {
 	auto lib_map = get_libaries_section();
 	Vector<SharedObject> libs;
 	for (auto &E : lib_map) {
 		SharedObject so;
-		so.path = correct_path(E.value);
+		so.path = fix_rel_paths ? correct_path(E.value) : E.value;
 		so.tags = normalize_tags(E.key.split("."));
 		so.target = "";
 		libs.push_back(so);
