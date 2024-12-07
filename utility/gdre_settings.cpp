@@ -13,6 +13,7 @@
 #include "editor/gdre_version.gen.h"
 #include "modules/zip/zip_reader.h"
 #include "utility/common.h"
+#include "utility/extension_info_getter.h"
 #include "utility/file_access_gdre.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_packed_source.h"
@@ -236,9 +237,11 @@ GDRESettings::GDRESettings() {
 	logger = memnew(GDRELogger);
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
+	AssetLibInfoGetter::load_cache();
 }
 
 GDRESettings::~GDRESettings() {
+	AssetLibInfoGetter::save_cache();
 	remove_current_pack();
 	memdelete(gdre_packeddata_singleton);
 	singleton = nullptr;

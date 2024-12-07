@@ -375,8 +375,8 @@ public:
 
 	virtual String get_importer() const override { return importer; };
 
-	Vector<SharedObject> get_libaries() const;
-	Vector<SharedObject> get_dependencies() const;
+	Vector<SharedObject> get_libaries(bool fix_rel_paths = true) const;
+	Vector<SharedObject> get_dependencies(bool fix_rel_paths = true) const;
 
 	String get_compatibility_minimum() const;
 	String get_compatibility_maximum() const;
