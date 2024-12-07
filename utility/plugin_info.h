@@ -12,7 +12,7 @@ struct PluginBin {
 		Dictionary d;
 		d["name"] = name;
 		d["md5"] = md5;
-		d["platform"] = tags;
+		d["tags"] = tags;
 		return d;
 	}
 
@@ -68,7 +68,9 @@ struct GDExtInfo {
 };
 
 struct PluginVersion {
-	int asset_id = 0;
+	uint64_t asset_id = 0;
+	uint64_t release_id = 0; // edit_id or github asset id
+	bool from_asset_lib = true;
 	int cache_version = CACHE_VERSION;
 	String plugin_name;
 	String version;
@@ -97,6 +99,8 @@ struct PluginVersion {
 	Dictionary to_json() const {
 		Dictionary d;
 		d["asset_id"] = asset_id;
+		d["release_id"] = release_id;
+		d["from_asset_lib"] = from_asset_lib;
 		d["cache_version"] = cache_version;
 		d["plugin_name"] = plugin_name;
 		d["version"] = version;
@@ -115,6 +119,8 @@ struct PluginVersion {
 	static PluginVersion from_json(Dictionary d) {
 		PluginVersion version;
 		version.asset_id = d.get("asset_id", 0);
+		version.release_id = d.get("release_id", 0);
+		version.from_asset_lib = d.get("from_asset_lib", true);
 		version.cache_version = d.get("cache_version", 0);
 		version.plugin_name = d.get("plugin_name", "");
 		version.version = d.get("version", "");

@@ -2,7 +2,6 @@
 #include "core/os/os.h"
 #include "core/os/shared_object.h"
 #include "exporters/export_report.h"
-#include "modules/zip/zip_reader.h"
 #include "utility/common.h"
 #include "utility/extension_info_getter.h"
 #include "utility/gdre_settings.h"
@@ -154,7 +153,7 @@ Error GDExtensionExporter::unzip_and_copy_dir(const String &zip_path, const Stri
 	// copy the files to the output_dir
 	Vector<String> addons = Glob::rglob(tmp_dir.path_join("**/addons"));
 	if (addons.size() > 0) {
-		tmp_dir = addons[0];
+		tmp_dir = addons[0].get_base_dir();
 		if (addons.size() > 1) {
 			WARN_PRINT("Found multiple addons directories in addon zip, using the first one.");
 		}
@@ -228,38 +227,29 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 		err = OK;
 	}
 	bool downloaded_plugin = false;
-	if (plugin_name == "godotsteam") {
-		for (const auto &E : lib_paths) {
-			err = handle_godotsteam(E.key, output_dir, false);
-			if (!err || err == ERR_PRINTER_ON_FIRE) {
-				downloaded_plugin = true;
-				break;
-			}
+	Vector<String> hashes;
+	for (const auto &E : lib_paths) {
+		// TODO: come up with a way of consistently hashing signed macos binaries
+		if (E.value.tags.has("macos")) {
+			continue;
 		}
-	} else {
-		Vector<String> hashes;
-		for (const auto &E : lib_paths) {
-			// TODO: come up with a way of consistently hashing signed macos binaries
-			if (E.value.tags.has("macos")) {
-				continue;
-			}
-			auto md5 = gdre::get_md5(E.key, true);
-			if (!md5.is_empty()) {
-				hashes.push_back(md5);
-			}
+		auto md5 = gdre::get_md5(E.key, true);
+		if (!md5.is_empty()) {
+			hashes.push_back(md5);
 		}
-		if (!hashes.is_empty()) {
-			String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
-			if (!url.is_empty()) {
-				String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
-				err = gdre::download_file_sync(url, zip_path);
-				if (err == OK) {
-					report->set_saved_path(zip_path);
-					return report;
-				}
+	}
+	if (!hashes.is_empty()) {
+		String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
+		if (!url.is_empty()) {
+			String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
+			err = gdre::download_file_sync(url, zip_path);
+			if (err == OK) {
+				report->set_saved_path(zip_path);
+				return report;
 			}
 		}
 	}
+	// }
 
 	if (!downloaded_plugin) {
 		err = copy_libs(output_dir, lib_paths);
