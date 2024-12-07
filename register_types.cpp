@@ -261,6 +261,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ImportInfov2>();
 	ClassDB::register_class<ImportInfoDummy>();
 	ClassDB::register_class<ImportInfoRemap>();
+	ClassDB::register_class<ImportInfoGDExt>();
 	ClassDB::register_class<ImportExporter>();
 	ClassDB::register_class<ImportExporterReport>();
 	ClassDB::register_class<GDRESettings>();
