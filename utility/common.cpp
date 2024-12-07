@@ -286,6 +286,16 @@ Error gdre::unzip_file_to_dir(const String &zip_path, const String &output_dir) 
 	return OK;
 }
 
+String gdre::get_md5(const String &dir, bool ignore_code_signature) {
+	auto da = DirAccess::create_for_path(dir);
+	if (da->dir_exists(dir)) {
+		return get_md5_for_dir(dir, ignore_code_signature);
+	} else if (da->file_exists(dir)) {
+		return FileAccess::get_md5(dir);
+	}
+	return "";
+}
+
 String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 	auto paths = Glob::rglob(dir.path_join("**/*"), true);
 	Vector<String> files;
