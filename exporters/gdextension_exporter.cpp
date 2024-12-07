@@ -239,18 +239,24 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 	} else {
 		Vector<String> hashes;
 		for (const auto &E : lib_paths) {
+			// TODO: come up with a way of consistently hashing signed macos binaries
+			if (E.value.tags.has("macos")) {
+				continue;
+			}
 			auto md5 = gdre::get_md5(E.key, true);
 			if (!md5.is_empty()) {
 				hashes.push_back(md5);
 			}
 		}
-		String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
-		if (!url.is_empty()) {
-			String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
-			err = gdre::download_file_sync(url, zip_path);
-			if (err == OK) {
-				report->set_saved_path(zip_path);
-				return report;
+		if (!hashes.is_empty()) {
+			String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
+			if (!url.is_empty()) {
+				String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
+				err = gdre::download_file_sync(url, zip_path);
+				if (err == OK) {
+					report->set_saved_path(zip_path);
+					return report;
+				}
 			}
 		}
 	}
