@@ -2,6 +2,8 @@
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/dir_access.h"
+#include "core/io/json.h"
+#include "core/object/worker_thread_pool.h"
 #include "core/os/mutex.h"
 #include "core/variant/dictionary.h"
 #include "import_info.h"
@@ -9,6 +11,7 @@
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
+#include <sys/types.h>
 #include <cstdint>
 
 namespace {
@@ -19,6 +22,16 @@ HashMap<String, String> init_map(const char *arr[][2], int count) {
 	}
 	return map;
 }
+
+HashMap<String, Vector<String>> init_vec_map(const char *arr[][2], int count) {
+	HashMap<String, Vector<String>> map;
+	for (int i = 0; i < count; i++) {
+		Vector<String> vec = String(arr[i][1]).split(";");
+		map[arr[i][0]] = vec;
+	}
+	return map;
+}
+
 bool is_empty_or_null(const String &str) {
 	return str.is_empty() || str == "<null>";
 }
@@ -33,8 +46,15 @@ Mutex AssetLibInfoGetter::cache_mutex = {};
 static String github_release_api_url = "https://api.github.com/repos/{0}/{1}/releases?per_page=100&page={2}";
 static const char *non_asset_lib_plugin_repos[][2] = {
 	{ "godotsteam", "https://github.com/GodotSteam/GodotSteam" },
+	{ "fmod", "https://github.com/utopia-rise/fmod-gdextension" }
 };
 static constexpr size_t non_asset_lib_plugin_repos_count = sizeof(non_asset_lib_plugin_repos) / sizeof(non_asset_lib_plugin_repos[0]);
+
+static const char *tag_mask[][2]{
+	{ "godotsteam", "*gdn*;*gde*" },
+};
+static constexpr size_t tag_mask_count = sizeof(tag_mask) / sizeof(tag_mask[0]);
+
 static const char *_GODOT_VERSION_RELEASE_DATES[][2] = {
 	{ "2.0", "2016-02-23" },
 	{ "2.1", "2016-09-08" },
@@ -52,6 +72,7 @@ static const char *_GODOT_VERSION_RELEASE_DATES[][2] = {
 };
 static constexpr int GODOT_VERSION_RELEASE_DATES_COUNT = sizeof(_GODOT_VERSION_RELEASE_DATES) / sizeof(_GODOT_VERSION_RELEASE_DATES[0]);
 HashMap<String, String> AssetLibInfoGetter::non_asset_lib_plugins = init_map(non_asset_lib_plugin_repos, non_asset_lib_plugin_repos_count);
+HashMap<String, Vector<String>> AssetLibInfoGetter::non_asset_lib_tag_masks = init_vec_map(tag_mask, tag_mask_count);
 HashMap<String, String> AssetLibInfoGetter::GODOT_VERSION_RELEASE_DATES = init_map(_GODOT_VERSION_RELEASE_DATES, GODOT_VERSION_RELEASE_DATES_COUNT);
 
 Array AssetLibInfoGetter::search_for_assets(const String &plugin_name, int ver_major) {
@@ -475,16 +496,65 @@ Vector<String> AssetLibInfoGetter::get_plugin_version_numbers(const String &plug
 	return versions;
 }
 
-void AssetLibInfoGetter::prepop_plugin_cache(const String &plugin_name) {
-	if (non_asset_lib_plugins.has(plugin_name)) {
-		prepop_plugin_cache_gh(plugin_name);
-		return;
+struct PrePopToken {
+	uint64_t asset_id = 0;
+	uint64_t release_id = 0;
+	String plugin_name;
+	String version;
+	bool is_gh = false;
+};
+
+struct PrePopTask {
+	void do_task(uint32_t index, const PrePopToken *tokens) {
+		if (tokens[index].is_gh) {
+			AssetLibInfoGetter::get_plugin_version_gh(tokens[index].plugin_name, tokens[index].release_id, tokens[index].asset_id);
+		} else {
+			AssetLibInfoGetter::get_plugin_version(tokens[index].asset_id, tokens[index].version);
+		}
 	}
-	auto asset_ids = search_for_asset_ids(plugin_name);
-	for (auto &asset_id : asset_ids) {
-		auto versions = get_plugin_version_numbers(plugin_name, asset_id);
-		for (auto &E : versions) {
-			get_plugin_version(asset_id, E);
+};
+
+void AssetLibInfoGetter::prepop_plugin_cache(const Vector<String> &plugin_names, bool multithread) {
+	Vector<PrePopToken> tokens;
+	for (int i = 0; i < plugin_names.size(); i++) {
+		auto plugin_name = plugin_names[i];
+		if (non_asset_lib_plugins.has(plugin_name)) {
+			auto asset_ids = get_gh_asset_pairs(plugin_name);
+			for (auto &E : asset_ids) {
+				PrePopToken token;
+				token.release_id = E.first;
+				token.asset_id = E.second;
+				token.plugin_name = plugin_name;
+				token.is_gh = true;
+				tokens.push_back(token);
+			}
+		} else {
+			auto asset_ids = search_for_asset_ids(plugin_name);
+			for (auto &asset_id : asset_ids) {
+				auto versions = get_plugin_version_numbers(plugin_name, asset_id);
+				for (auto &version : versions) {
+					PrePopToken token;
+					token.asset_id = asset_id;
+					token.plugin_name = plugin_name;
+					token.version = version;
+					token.is_gh = false;
+					tokens.push_back(token);
+				}
+			}
+		}
+	}
+	PrePopTask task;
+	if (multithread) {
+		gdre::shuffle_vector(tokens);
+		auto group_id = WorkerThreadPool::get_singleton()->add_template_group_task(
+				&task,
+				&PrePopTask::do_task,
+				tokens.ptr(),
+				tokens.size(), -1, true, SNAME("GDRESettings::prepop_plugin_cache_gh"));
+		WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_id);
+	} else {
+		for (int i = 0; i < tokens.size(); i++) {
+			task.do_task(i, tokens.ptr());
 		}
 	}
 }
@@ -522,7 +592,7 @@ String AssetLibInfoGetter::get_plugin_download_url(const String &plugin_name, co
 }
 
 String AssetLibInfoGetter::get_asset_lib_cache_folder() {
-	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("plugin_cache").path_join("asset_lib");
+	return get_main_cache_folder().path_join("asset_lib");
 }
 
 void AssetLibInfoGetter::save_cache() {
@@ -585,7 +655,7 @@ void AssetLibInfoGetter::load_cache() {
 }
 
 String AssetLibInfoGetter::get_non_asset_lib_cache_folder() {
-	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("plugin_cache").path_join("non_asset_lib");
+	return get_main_cache_folder().path_join("non_asset_lib");
 }
 
 Dictionary AssetLibInfoGetter::get_gh_release_dict(const String &plugin_name, uint64_t release_id) {
@@ -623,17 +693,22 @@ Dictionary AssetLibInfoGetter::get_gh_asset_dict(const String &plugin_name, uint
 	return Dictionary();
 }
 
-void AssetLibInfoGetter::prepop_plugin_cache_gh(const String &plugin_name) {
+Vector<Pair<uint64_t, uint64_t>> AssetLibInfoGetter::get_gh_asset_pairs(const String &plugin_name) {
 	auto thing = get_list_of_gh_releases(plugin_name);
-	Vector<PluginVersion> vers;
+	Vector<Pair<uint64_t, uint64_t>> release_asset_pairs;
 	for (auto &release : thing) {
+		auto tag = release.get("tag_name", "");
+		if (should_skip_tag(plugin_name, tag)) {
+			continue;
+		}
 		uint64_t release_id = release.get("id", 0);
 		Array assets = release.get("assets", {});
 		for (auto &asset : assets) {
 			uint64_t asset_id = ((Dictionary)asset).get("id", 0);
-			get_plugin_version_gh(plugin_name, release_id, asset_id);
+			release_asset_pairs.push_back({ release_id, asset_id });
 		}
 	}
+	return release_asset_pairs;
 }
 
 bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
@@ -777,11 +852,13 @@ bool AssetLibInfoGetter::init_plugin_version_from_gh_release_asset(Dictionary re
 			if (is_empty_or_null(download_url)) {
 				continue;
 			}
+			String tag_name = release_entry.get("tag_name", "");
+			print_line("Got version info for " + String(release_entry.get("name", "")) + " version: " + tag_name + ", download_url: " + download_url);
 			version.download_url = download_url;
 			version.asset_id = release_entry.get("id", 0);
 			version.release_id = gh_asset_id;
 			version.from_asset_lib = false;
-			version.version = release_entry.get("tag_name", "");
+			version.version = tag_name;
 			version.release_date = asset.get("created_at", "");
 			return true;
 		}
@@ -820,7 +897,9 @@ PluginVersion AssetLibInfoGetter::get_plugin_version_gh(const String &plugin_nam
 		return PluginVersion();
 	}
 	if (plugin_name != version.plugin_name) {
-		WARN_PRINT("Plugin name mismatch: " + plugin_name + " != " + version.plugin_name + ", forcing...");
+		if (version.gdexts.size() > 0) {
+			WARN_PRINT("Plugin name mismatch: " + plugin_name + " != " + version.plugin_name + ", forcing...");
+		}
 		version.plugin_name = plugin_name;
 	}
 	{
@@ -835,10 +914,29 @@ PluginVersion AssetLibInfoGetter::get_plugin_version_gh(const String &plugin_nam
 	}
 	return version;
 }
+//	static bool should_skip_tag(const String &plugin_name, const String &tag);
 
+bool AssetLibInfoGetter::should_skip_tag(const String &plugin_name, const String &tag) {
+	if (non_asset_lib_tag_masks.has(plugin_name)) {
+		auto suffixes = non_asset_lib_tag_masks[plugin_name];
+		for (int i = 0; i < suffixes.size(); i++) {
+			if (tag.match(suffixes[i])) {
+				print_line("Matching tag: " + tag + " for plugin: " + plugin_name);
+				return false;
+			}
+		}
+		print_line("Skipping tag: " + tag + " for plugin: " + plugin_name);
+		return true;
+	}
+	return false;
+}
 String AssetLibInfoGetter::get_plugin_download_url_non_asset_lib(const String &plugin_name, const Vector<String> hashes) {
 	auto thing = get_list_of_gh_releases(plugin_name);
 	for (auto &release : thing) {
+		auto tag = String(release.get("tag_name", ""));
+		if (should_skip_tag(plugin_name, tag)) {
+			continue;
+		}
 		uint64_t release_id = release.get("id", 0);
 		Array assets = release.get("assets", {});
 		for (auto &asset : assets) {
@@ -931,4 +1029,14 @@ void AssetLibInfoGetter::load_non_asset_lib_cache() {
 			}
 		}
 	}
+}
+
+String AssetLibInfoGetter::get_main_cache_folder() {
+	// check if OS has the environment variable "GDRE_PLUGIN_CACHE_DIR" set
+	// if it is set, use that as the cache folder
+	// This is a hack to help prepopulate the cache for releases
+	if (OS::get_singleton()->has_environment(PLUGIN_CACHE_ENV_VAR)) {
+		return OS::get_singleton()->get_environment(PLUGIN_CACHE_ENV_VAR);
+	}
+	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("plugin_cache");
 }

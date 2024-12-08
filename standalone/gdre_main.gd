@@ -654,6 +654,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var main_cmds = {}
 	var excludes: PackedStringArray = []
 	var includes: PackedStringArray = []
+	var prepop: PackedStringArray = []
 	if (args.size() == 0):
 		return false
 	var any_commands = false
@@ -720,6 +721,9 @@ func handle_cli(args: PackedStringArray) -> bool:
 			excludes.append(get_arg_value(arg))
 		elif arg.begins_with("--include"):
 			includes.append(get_arg_value(arg))
+		elif arg.begins_with("--plcache"):
+			main_cmds["plcache"] = true
+			prepop.append(get_arg_value(arg))
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
@@ -732,7 +736,13 @@ func handle_cli(args: PackedStringArray) -> bool:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
 		return true
-	if compile_files.size() > 0:
+	if prepop.size() > 0:
+		var start_time = Time.get_ticks_msec()
+		GDRESettings.prepop_plugin_cache(prepop)
+		var end_time = Time.get_ticks_msec()
+		var secs_taken = (end_time - start_time) / 1000
+		print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
+	elif compile_files.size() > 0:
 		compile(compile_files, bytecode_version, output_dir)
 	elif decompile_files.size() > 0:
 		decompile(decompile_files, bytecode_version, output_dir, enc_key)
