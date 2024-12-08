@@ -189,6 +189,23 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
 
+	// *** Detect steam
+	if (get_settings()->is_project_config_loaded()) {
+		String custom_settings = get_settings()->get_project_setting("_custom_features");
+		if (custom_settings.to_lower().contains("steam")) {
+			report->godotsteam_detected = true;
+			// now check if the godotsteam plugin is in the addons directory
+			// If it is, we won't report it as detected, because you don't need the godotsteam editor to edit the project
+			auto globs = Glob::glob("res://addons/*", true);
+			for (int i = 0; i < globs.size(); i++) {
+				if (globs[i].to_lower().contains("godotsteam")) {
+					report->godotsteam_detected = false;
+					break;
+				}
+			}
+		}
+	}
+
 	Ref<DirAccess> dir = DirAccess::open(output_dir);
 	if (opt_decompile) {
 		if (pr) {
@@ -553,9 +570,6 @@ Error ImportExporter::recreate_plugin_configs(const String &output_dir, const Ve
 			continue;
 		}
 		String dir = dirs[i].get_file();
-		if (dir.contains("godotsteam")) {
-			report->godotsteam_detected = true;
-		}
 		err = recreate_plugin_config(output_dir, dir);
 		if (err == ERR_PRINTER_ON_FIRE) {
 			// we successfully copied the dlls, but failed to find one for our platform
