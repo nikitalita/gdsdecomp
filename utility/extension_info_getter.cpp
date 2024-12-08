@@ -216,7 +216,7 @@ Vector<Dictionary> AssetLibInfoGetter::get_list_of_edits(int asset_id) {
 	edits_vec.sort_custom<EditsSorterReverse>();
 	{
 		MutexLock lock(cache_mutex);
-		temp_edit_list_cache[asset_id] = { .retrieved_time = now, .edit_list = edits_vec };
+		temp_edit_list_cache[asset_id] = { now, edits_vec };
 	}
 	return edits_vec;
 }
@@ -792,7 +792,7 @@ bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
 	}
 	{
 		MutexLock lock(cache_mutex);
-		temp_gh_release_list_cache[plugin_name] = { .retrieved_time = now, .edit_list = releases, .assets = assets };
+		temp_gh_release_list_cache[plugin_name] = { now, releases, assets };
 	}
 
 	return true;
@@ -948,7 +948,7 @@ bool AssetLibInfoGetter::recache_gl_release_list(const String &plugin_name) {
 	}
 	{
 		MutexLock lock(cache_mutex);
-		temp_gh_release_list_cache[plugin_name] = { .retrieved_time = now, .edit_list = releases, .assets = assets };
+		temp_gh_release_list_cache[plugin_name] = { now, releases, assets };
 	}
 
 	return true;
