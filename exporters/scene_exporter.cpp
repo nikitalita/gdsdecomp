@@ -147,7 +147,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 
 			if (info.dep != info.remap) {
-				auto texture = ResourceCompatLoader::gltf_load(info.remap, info.type, &err);
+				auto texture = ResourceCompatLoader::custom_load(
+						p_src_path, "",
+						ResourceCompatLoader::is_default_gltf_load() ? ResourceInfo::GLTF_LOAD : ResourceInfo::REAL_LOAD,
+						&err,
+						!supports_multithread(),
+						ResourceFormatLoader::CACHE_MODE_REUSE);
 				if (err || texture.is_null()) {
 					return ERR_FILE_MISSING_DEPENDENCIES;
 				}
@@ -157,7 +162,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		if (has_script) {
 			print_line("Exporting this scene will cause a bunch of errors stating 'Cannot set object script.'.\nIt may still export correctly. Inspect the scene before reporting an issue.");
 		}
-		err = _export_scene(p_dest_path, p_src_path, true);
+		err = _export_scene(p_dest_path, p_src_path, !supports_multithread());
 		// if (has_shader) {
 		// 	ResourceCompatLoader::set_default_gltf_load(is_default_gltf_load);
 		// }
