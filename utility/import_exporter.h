@@ -120,6 +120,7 @@ class ImportExporter : public RefCounted {
 	void report_unsupported_resource(const String &type, const String &format_name, const String &import_path);
 	Error remove_remap_and_autoconverted(const String &src, const String &dst, const String &output_dir);
 	void rewrite_metadata(ExportToken &token);
+	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, const String &output_dir);
 
 protected:
 	static void _bind_methods();
