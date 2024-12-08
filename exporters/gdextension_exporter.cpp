@@ -6,7 +6,6 @@
 #include "utility/extension_info_getter.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
-#include "utility/godotsteam_versions.h"
 #include "utility/import_info.h"
 Error GDExtensionExporter::export_file(const String &p_dest_path, const String &p_src_path) {
 	auto report = export_resource(p_dest_path.get_base_dir(), ImportInfo::load_from_file(p_src_path));
