@@ -19,6 +19,7 @@ struct GHReleaseListCache {
 class AssetLibInfoGetter {
 	static HashMap<String, String> non_asset_lib_plugins; // plugin_name -> github_url
 	static HashMap<String, Vector<String>> non_asset_lib_tag_masks; // plugin_name -> tag_suffixes
+	static HashMap<String, Vector<String>> non_asset_lib_release_file_masks; // plugin_name -> tag_suffixes
 
 	static HashMap<String, HashMap<uint64_t, HashMap<uint64_t, PluginVersion>>> non_asset_lib_cache; // plugin_name -> tag -> asset_id -> PluginVersion
 	static HashMap<uint64_t, HashMap<String, PluginVersion>> asset_lib_cache; // asset_id -> version -> PluginVersion
@@ -35,6 +36,7 @@ class AssetLibInfoGetter {
 	static Dictionary get_gh_release_dict(const String &plugin_name, uint64_t release_id);
 	static Dictionary get_gh_asset_dict(const String &plugin_name, uint64_t release_id, uint64_t asset_id);
 	static bool recache_gh_release_list(const String &plugin_name);
+	static bool recache_gl_release_list(const String &plugin_name);
 	static bool init_plugin_version_from_gh_release_asset(Dictionary release_entry, uint64_t gh_asset_id, PluginVersion &version);
 	static String get_plugin_download_url_non_asset_lib(const String &plugin_name, const Vector<String> hashes);
 	static Vector<Pair<uint64_t, uint64_t>> get_gh_asset_pairs(const String &plugin_name);
