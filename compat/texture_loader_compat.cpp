@@ -258,6 +258,9 @@ Error TextureLoaderCompat::load_image_from_fileV3(Ref<FileAccess> f, int tw, int
 			if (i) {
 				size = f->get_32();
 			}
+			if (size == 0) {
+				ERR_FAIL_V_MSG(ERR_FILE_CORRUPT, "Texture is empty");
+			}
 			Vector<uint8_t> pv;
 			pv.resize(size);
 			{
