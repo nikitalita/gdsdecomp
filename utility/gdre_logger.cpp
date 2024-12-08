@@ -12,7 +12,14 @@ bool inGuiMode() {
 	return false;
 }
 
+thread_local uint64_t GDRELogger::thread_error_count = 0;
+std::atomic<uint64_t> GDRELogger::error_count = 0;
+
 void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
+	if (p_err) {
+		error_count++;
+		thread_error_count++;
+	}
 	if (disabled || !should_log(p_err)) {
 		return;
 	}
@@ -75,7 +82,18 @@ void GDRELogger::_disable() {
 	disabled = true;
 }
 
-GDRELogger::GDRELogger() {}
+uint64_t GDRELogger::get_error_count() {
+	return error_count;
+}
+
+uint64_t GDRELogger::get_thread_error_count() {
+	return thread_error_count;
+}
+
+GDRELogger::GDRELogger() {
+	GDRELogger::error_count = 0;
+}
+
 GDRELogger::~GDRELogger() {
 	close_file();
 }
