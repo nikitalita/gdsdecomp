@@ -2870,10 +2870,8 @@ Ref<ResourceLoader::LoadToken> ResourceLoaderCompatText::start_ext_load(const St
 	if (!should_threaded_load()) {
 		ERR_FAIL_COND_V_MSG(!ext_resources.has(id), load_token, "External resources doesn't have id: " + id);
 		load_token = Ref<ResourceLoader::LoadToken>(memnew(ResourceLoader::LoadToken));
-		if (load_type == ResourceInfo::GLTF_LOAD) {
-			ext_resources[id].fallback = ResourceCompatLoader::gltf_load(p_path, p_type_hint, &err);
-		} else if (load_type == ResourceInfo::REAL_LOAD) {
-			ext_resources[id].fallback = ResourceCompatLoader::real_load(p_path, p_type_hint, &err, cache_mode_for_external);
+		if (load_type == ResourceInfo::GLTF_LOAD || load_type == ResourceInfo::REAL_LOAD) {
+			ext_resources[id].fallback = ResourceCompatLoader::custom_load(p_path, p_type_hint, load_type, &err, use_sub_threads, cache_mode_for_external);
 		} else {
 			ext_resources[id].fallback = CompatFormatLoader::create_missing_external_resource(p_path, p_type_hint, uid, id);
 		}
