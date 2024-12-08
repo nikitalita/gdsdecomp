@@ -46,14 +46,21 @@ Mutex AssetLibInfoGetter::cache_mutex = {};
 static String github_release_api_url = "https://api.github.com/repos/{0}/{1}/releases?per_page=100&page={2}";
 static const char *non_asset_lib_plugin_repos[][2] = {
 	{ "godotsteam", "https://github.com/GodotSteam/GodotSteam" },
-	{ "fmod", "https://github.com/utopia-rise/fmod-gdextension" }
+	{ "fmod", "https://github.com/utopia-rise/fmod-gdextension" },
+	{ "sg-physics-2d", "https://gitlab.com/snopek-games/sg-physics-2d" }
 };
 static constexpr size_t non_asset_lib_plugin_repos_count = sizeof(non_asset_lib_plugin_repos) / sizeof(non_asset_lib_plugin_repos[0]);
+static String gitlab_release_api_url = "https://gitlab.com/api/v4/projects/{0}%2f{1}/releases";
 
 static const char *tag_mask[][2]{
 	{ "godotsteam", "*gdn*;*gde*" },
 };
 static constexpr size_t tag_mask_count = sizeof(tag_mask) / sizeof(tag_mask[0]);
+
+static const char *release_file_mask[][2]{
+	{ "sg-physics-2d", "*gdextension*" },
+};
+static constexpr size_t release_file_mask_count = sizeof(release_file_mask) / sizeof(release_file_mask[0]);
 
 static const char *_GODOT_VERSION_RELEASE_DATES[][2] = {
 	{ "2.0", "2016-02-23" },
@@ -73,6 +80,8 @@ static const char *_GODOT_VERSION_RELEASE_DATES[][2] = {
 static constexpr int GODOT_VERSION_RELEASE_DATES_COUNT = sizeof(_GODOT_VERSION_RELEASE_DATES) / sizeof(_GODOT_VERSION_RELEASE_DATES[0]);
 HashMap<String, String> AssetLibInfoGetter::non_asset_lib_plugins = init_map(non_asset_lib_plugin_repos, non_asset_lib_plugin_repos_count);
 HashMap<String, Vector<String>> AssetLibInfoGetter::non_asset_lib_tag_masks = init_vec_map(tag_mask, tag_mask_count);
+HashMap<String, Vector<String>> AssetLibInfoGetter::non_asset_lib_release_file_masks = init_vec_map(release_file_mask, release_file_mask_count);
+
 HashMap<String, String> AssetLibInfoGetter::GODOT_VERSION_RELEASE_DATES = init_map(_GODOT_VERSION_RELEASE_DATES, GODOT_VERSION_RELEASE_DATES_COUNT);
 
 Array AssetLibInfoGetter::search_for_assets(const String &plugin_name, int ver_major) {
@@ -704,6 +713,21 @@ Vector<Pair<uint64_t, uint64_t>> AssetLibInfoGetter::get_gh_asset_pairs(const St
 		uint64_t release_id = release.get("id", 0);
 		Array assets = release.get("assets", {});
 		for (auto &asset : assets) {
+			if (non_asset_lib_release_file_masks.has(plugin_name)) {
+				const auto &masks = non_asset_lib_release_file_masks[plugin_name];
+				bool found = false;
+				String file_name = ((Dictionary)asset).get("browser_download_url", "");
+				file_name = file_name.get_file().to_lower();
+				for (auto &mask : masks) {
+					if (file_name.matchn(mask)) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					continue;
+				}
+			}
 			uint64_t asset_id = ((Dictionary)asset).get("id", 0);
 			release_asset_pairs.push_back({ release_id, asset_id });
 		}
@@ -712,6 +736,10 @@ Vector<Pair<uint64_t, uint64_t>> AssetLibInfoGetter::get_gh_asset_pairs(const St
 }
 
 bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
+	String repo_url = non_asset_lib_plugins.get(plugin_name);
+	if (repo_url.contains("gitlab.com")) {
+		return recache_gl_release_list(plugin_name);
+	}
 	{
 		MutexLock lock(cache_mutex);
 		if (temp_gh_release_list_cache.has(plugin_name)) {
@@ -721,7 +749,6 @@ bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
 		}
 	}
 	Vector<Dictionary> releases;
-	String repo_url = non_asset_lib_plugins.get(plugin_name);
 	if (repo_url.is_empty() || !repo_url.contains("github.com")) {
 		return false;
 	}
@@ -762,6 +789,162 @@ bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
 			uint64_t asset_id = uint64_t(asset.get("id", 0));
 			asset_map[asset_id] = asset;
 		}
+		assets[release_id] = { release, asset_map };
+	}
+	{
+		MutexLock lock(cache_mutex);
+		temp_gh_release_list_cache[plugin_name] = { .retrieved_time = now, .edit_list = releases, .assets = assets };
+	}
+
+	return true;
+}
+
+/***
+GitLab releases are like this:
+```json
+	{
+		"name": "Release v1.0.0-alpha13",
+		"tag_name": "v1.0.0-alpha13",
+		"description": "Changes in this release:\n\n* Port to Godot 4.1 as a GDExtension!",
+		"created_at": "2023-07-22T18:27:39.846Z",
+		"released_at": "2023-07-22T18:27:39.000Z",
+		"upcoming_release": false,
+		"author": {
+			[...]
+		},
+		"commit": {
+		[...]
+		},
+		"commit_path": "/snopek-games/sg-physics-2d/-/commit/e4a17d92d6ed5484b5de069666880edc0c67a033",
+		"tag_path": "/snopek-games/sg-physics-2d/-/tags/v1.0.0-alpha13",
+		"assets": {
+			"count": 9,
+			"sources": [
+				[...]
+			],
+			"links": [
+				{
+					"id": 1910732,
+					"name": "godot3-linux-v1.0.0-alpha13",
+					"url": "https://gitlab.com/api/v4/projects/30360443/packages/generic/precompiled-binaries/v1.0.0-alpha13/sg-physics-2d-godot3-linux-v1.0.0-alpha13.zip",
+					"direct_asset_url": "https://gitlab.com/api/v4/projects/30360443/packages/generic/precompiled-binaries/v1.0.0-alpha13/sg-physics-2d-godot3-linux-v1.0.0-alpha13.zip",
+					"link_type": "other"
+				},
+				[...]
+			]
+		},
+		"evidences": [
+			[...]
+		],
+		"_links": {
+			[...]
+		}
+	},
+```
+ */
+
+bool AssetLibInfoGetter::recache_gl_release_list(const String &plugin_name) {
+	{
+		MutexLock lock(cache_mutex);
+		if (temp_gh_release_list_cache.has(plugin_name)) {
+			if (temp_gh_release_list_cache[plugin_name].retrieved_time + EXPIRY_TIME > OS::get_singleton()->get_unix_time()) {
+				return true;
+			}
+		}
+	}
+	Vector<Dictionary> releases;
+	String repo_url = non_asset_lib_plugins.get(plugin_name);
+	if (repo_url.is_empty() || !repo_url.contains("gitlab.com")) {
+		return false;
+	}
+	double now = OS::get_singleton()->get_unix_time();
+	auto thing = repo_url.replace_first("https://", "");
+	String org = thing.get_slice("/", 1);
+	String repo = thing.get_slice("/", 2);
+	int pages = 1;
+	for (int page = 0; page < pages; page++) {
+		String request_url = gitlab_release_api_url.replace("{0}", org).replace("{1}", repo);
+		Vector<uint8_t> response;
+		Error err = gdre::wget_sync(request_url, response);
+		if (err) {
+			break;
+		}
+		String response_str;
+		response_str.parse_utf8((const char *)response.ptr(), response.size());
+		Array response_obj = JSON::parse_string(response_str);
+		if (response_obj.is_empty()) {
+			break;
+		}
+		for (int i = 0; i < response_obj.size(); i++) {
+			Dictionary release = response_obj[i];
+			releases.push_back(release);
+		}
+	}
+
+	GHReleaseListCache::AssetMap assets;
+	for (int i = 0; i < releases.size(); i++) {
+		Dictionary release = releases[i];
+		auto tag = release.get("tag_name", "");
+		// gitlab doesn't have a release id, so we hash the tag name
+		uint64_t release_id = tag.hash();
+		release["id"] = release_id;
+		Dictionary assets_obj = release.get("assets", {});
+		Array assets_arr = assets_obj.get("links", {});
+		HashMap<uint64_t, Dictionary> asset_map;
+		for (int j = 0; j < assets_arr.size(); j++) {
+			/**
+			We have to make assets like GitHubs.
+			GitLabs:
+			```json
+			{
+			"count": 9,
+			"sources": [
+				[...]
+			],
+			"links": [
+				{
+					"id": 1910732,
+					"name": "godot3-linux-v1.0.0-alpha13",
+					"url": "https://gitlab.com/api/v4/projects/30360443/packages/generic/precompiled-binaries/v1.0.0-alpha13/sg-physics-2d-godot3-linux-v1.0.0-alpha13.zip",
+					"direct_asset_url": "https://gitlab.com/api/v4/projects/30360443/packages/generic/precompiled-binaries/v1.0.0-alpha13/sg-physics-2d-godot3-linux-v1.0.0-alpha13.zip",
+					"link_type": "other"
+				},
+				[...]
+			]
+			},
+			```
+			GitHubs:
+			```json
+				  {
+				"url": "https://api.github.com/repos/GodotSteam/GodotSteam/releases/assets/84896606",
+				"id": 84896606,
+				"node_id": "RA_kwDOA2wODc4FD2te",
+				"name": "linux-g4b5-s155-gs415.zip",
+				"label": null,
+				"uploader": {
+				[...]
+				},
+				"content_type": "application/x-zip-compressed",
+				"state": "uploaded",
+				"size": 126090687,
+				"download_count": 11,
+				"created_at": "2022-11-17T00:21:34Z",
+				"updated_at": "2022-11-17T00:24:31Z",
+				"browser_download_url": "https://github.com/GodotSteam/GodotSteam/releases/download/g4b5-s155-gs415/linux-g4b5-s155-gs415.zip"
+			},
+			```
+			 */
+			Dictionary asset = assets_arr[j];
+			asset["browser_download_url"] = asset.get("direct_asset_url", "");
+			// set created_at and updated_at to the created_at and released_at in the parent release
+			asset["created_at"] = release.get("created_at", "");
+			asset["updated_at"] = release.get("released_at", "");
+			uint64_t asset_id = uint64_t(asset.get("id", 0));
+			asset_map[asset_id] = asset;
+			assets_arr[j] = asset;
+		}
+		release["assets"] = assets_arr;
+		releases.write[i] = release;
 		assets[release_id] = { release, asset_map };
 	}
 	{
@@ -846,14 +1029,18 @@ bool AssetLibInfoGetter::init_plugin_version_from_gh_release_asset(Dictionary re
 		if (is_empty_or_null(name)) {
 			break;
 		}
-		// TODO: other zips?
-		if (name.get_extension().to_lower() == "zip") {
-			String download_url = asset.get("browser_download_url", "");
+		String download_url = asset.get("browser_download_url", "");
+		String ext = download_url.get_file().get_extension().to_lower();
+		if (ext.is_empty()) {
+			ext = name.get_extension().to_lower();
+		}
+		// TODO: other files?
+		if (ext == "zip") {
 			if (is_empty_or_null(download_url)) {
 				continue;
 			}
 			String tag_name = release_entry.get("tag_name", "");
-			print_line("Got version info for " + String(release_entry.get("name", "")) + " version: " + tag_name + ", download_url: " + download_url);
+			print_line("Got version info for " + name + " version: " + tag_name + ", download_url: " + download_url);
 			version.download_url = download_url;
 			version.asset_id = release_entry.get("id", 0);
 			version.release_id = gh_asset_id;
@@ -921,37 +1108,27 @@ bool AssetLibInfoGetter::should_skip_tag(const String &plugin_name, const String
 		auto suffixes = non_asset_lib_tag_masks[plugin_name];
 		for (int i = 0; i < suffixes.size(); i++) {
 			if (tag.match(suffixes[i])) {
-				print_line("Matching tag: " + tag + " for plugin: " + plugin_name);
 				return false;
 			}
 		}
-		print_line("Skipping tag: " + tag + " for plugin: " + plugin_name);
 		return true;
 	}
 	return false;
 }
+
 String AssetLibInfoGetter::get_plugin_download_url_non_asset_lib(const String &plugin_name, const Vector<String> hashes) {
-	auto thing = get_list_of_gh_releases(plugin_name);
-	for (auto &release : thing) {
-		auto tag = String(release.get("tag_name", ""));
-		if (should_skip_tag(plugin_name, tag)) {
+	auto pairs = get_gh_asset_pairs(plugin_name);
+	for (auto &pair : pairs) {
+		auto plugin_version = get_plugin_version_gh(plugin_name, pair.first, pair.second);
+		if (plugin_version.asset_id == 0) {
 			continue;
 		}
-		uint64_t release_id = release.get("id", 0);
-		Array assets = release.get("assets", {});
-		for (auto &asset : assets) {
-			uint64_t asset_id = ((Dictionary)asset).get("id", 0);
-			auto plugin_version = get_plugin_version_gh(plugin_name, release_id, asset_id);
-			if (plugin_version.asset_id == 0) {
-				continue;
-			}
-			for (auto &gdext : plugin_version.gdexts) {
-				for (auto &bin : gdext.bins) {
-					for (auto &hash : hashes) {
-						if (bin.md5 == hash) {
-							print_line("Detected plugin " + plugin_name + ", version: " + plugin_version.version + ", download url: " + plugin_version.download_url);
-							return plugin_version.download_url;
-						}
+		for (auto &gdext : plugin_version.gdexts) {
+			for (auto &bin : gdext.bins) {
+				for (auto &hash : hashes) {
+					if (bin.md5 == hash) {
+						print_line("Detected plugin " + plugin_name + ", version: " + plugin_version.version + ", download url: " + plugin_version.download_url);
+						return plugin_version.download_url;
 					}
 				}
 			}
