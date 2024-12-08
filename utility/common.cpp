@@ -449,3 +449,25 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path) {
 	fa->close();
 	return OK;
 }
+
+Error gdre::rimraf(const String &dir) {
+	auto da = DirAccess::create_for_path(dir);
+	if (da.is_null()) {
+		return ERR_FILE_CANT_OPEN;
+	}
+	Error err = OK;
+	if (da->dir_exists(dir)) {
+		err = da->change_dir(dir);
+		if (err != OK) {
+			return err;
+		}
+		err = da->erase_contents_recursive();
+		if (err != OK) {
+			return err;
+		}
+		err = da->remove(dir);
+	} else if (da->file_exists(dir)) {
+		err = da->remove(dir);
+	}
+	return err;
+}
