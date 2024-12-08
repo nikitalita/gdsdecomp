@@ -324,7 +324,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 		while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
 			err = client->poll();
 			if (err) {
-				ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
+				return err;
 			}
 		}
 		if (client->get_status() != HTTPClient::STATUS_CONNECTED) {
