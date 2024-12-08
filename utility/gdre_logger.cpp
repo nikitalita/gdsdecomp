@@ -1,4 +1,5 @@
 #include "gdre_logger.h"
+#include "core/os/mutex.h"
 #include "editor/gdre_editor.h"
 #include "gdre_settings.h"
 
@@ -23,7 +24,7 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 	if (disabled || !should_log(p_err)) {
 		return;
 	}
-	if (file.is_valid() || inGuiMode()) {
+	if (file.is_valid() || inGuiMode() || is_prebuffering) {
 		const int static_buf_size = 512;
 		char static_buf[static_buf_size];
 		char *buf = static_buf;
@@ -49,6 +50,12 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 				file->flush();
 			}
 		}
+		if (is_prebuffering) {
+			MutexLock lock(buffer_mutex);
+			if (is_prebuffering) {
+				buffer.push_back(String(buf));
+			}
+		}
 		if (len >= static_buf_size) {
 			Memory::free_static(buf);
 		}
@@ -67,7 +74,30 @@ Error GDRELogger::open_file(const String &p_base_path) {
 	file = FileAccess::open(p_base_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(file.is_null(), err, "Failed to open log file " + p_base_path + " for writing.");
 	base_path = p_base_path.simplify_path();
+	{
+		MutexLock lock(buffer_mutex);
+		if (is_prebuffering) {
+			for (int i = 0; i < buffer.size(); i++) {
+				file->store_string(buffer[i]);
+			}
+			is_prebuffering = false;
+			buffer.clear();
+		}
+	}
+
 	return OK;
+}
+
+void GDRELogger::start_prebuffering() {
+	is_prebuffering = true;
+}
+
+void GDRELogger::stop_prebuffering() {
+	if (is_prebuffering) {
+		MutexLock lock(buffer_mutex);
+		is_prebuffering = false;
+		buffer.clear();
+	}
 }
 
 void GDRELogger::close_file() {

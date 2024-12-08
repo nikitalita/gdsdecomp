@@ -154,6 +154,8 @@ private:
 
 	static constexpr bool need_correct_patch(int ver_major, int ver_minor);
 	void _do_prepop(uint32_t i, const String *plugins);
+	String sanitize_home_in_path(const String &p_path);
+	void log_sysinfo();
 
 protected:
 	static void _bind_methods();

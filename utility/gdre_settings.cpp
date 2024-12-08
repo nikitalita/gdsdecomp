@@ -479,39 +479,64 @@ bool is_zip_file_pack(const String &p_path) {
 	return false;
 }
 
+// For printing out paths, we want to replace the home directory with ~ to keep PII out of logs
+String GDRESettings::sanitize_home_in_path(const String &p_path) {
+#ifdef WINDOWS_ENABLED
+	String home_dir = OS::get_singleton()->get_environment("USERPROFILE");
+#else
+	String home_dir = OS::get_singleton()->get_environment("HOME");
+#endif
+	if (p_path.begins_with(home_dir)) {
+		return String("~").path_join(p_path.replace_first(home_dir, ""));
+	}
+	return p_path;
+}
+
 Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract) {
 	if (is_pack_loaded()) {
 		return ERR_ALREADY_IN_USE;
 	}
+
 	if (p_paths.is_empty()) {
 		ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "No valid paths provided!");
 	}
-	String p_path = p_paths[0];
+
+	if (logger->get_path().is_empty()) {
+		logger->start_prebuffering();
+		log_sysinfo();
+	}
+
 	Error err = ERR_CANT_OPEN;
-	if (DirAccess::exists(p_path)) {
-		if (p_paths.size() > 1) {
+	Vector<String> pck_files = p_paths;
+	// This may be a ".app" bundle, so we need to check if it's a valid Godot app
+	// and if so, load the pck from inside the bundle
+	if (pck_files[0].get_extension().to_lower() == "app" && DirAccess::exists(pck_files[0])) {
+		if (pck_files.size() > 1) {
 			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
 		}
-		// This may be a ".app" bundle, so we need to check if it's a valid Godot app
-		// and if so, load the pck from inside the bundle
-		if (p_path.get_extension().to_lower() == "app") {
-			String resources_path = p_path.path_join("Contents").path_join("Resources");
-			if (DirAccess::exists(resources_path)) {
-				auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
-				if (!list.is_empty()) {
-					return load_project(list, _cmd_line_extract);
-				} else {
-					ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Can't find pck file in .app bundle!");
-				}
+		String resources_path = pck_files[0].path_join("Contents").path_join("Resources");
+		if (DirAccess::exists(resources_path)) {
+			auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
+			if (!list.is_empty()) {
+				pck_files = list;
+			} else {
+				ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Can't find pck file in .app bundle!");
 			}
 		}
-		print_line("Opening file: " + p_path);
-		err = load_dir(p_path);
+	}
+
+	if (DirAccess::exists(pck_files[0])) {
+		if (pck_files.size() > 1) {
+			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
+		}
+		print_line("Opening file: " + sanitize_home_in_path(pck_files[0]));
+		err = load_dir(pck_files[0]);
 		ERR_FAIL_COND_V_MSG(err, err, "FATAL ERROR: Can't load project directory!");
 		load_pack_uid_cache();
 	} else {
-		for (auto path : p_paths) {
-			print_line("Opening file: " + path);
+		for (auto path : pck_files) {
+			auto san_path = sanitize_home_in_path(path);
+			print_line("Opening file: " + san_path);
 			if (check_embedded(path) != OK) {
 				String new_path = path;
 				String parent_path = path.get_base_dir();
@@ -526,27 +551,27 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 						new_path = pck_path;
 						err = OK;
 					}
-					if (p_paths.has(new_path)) {
+					if (pck_files.has(new_path)) {
 						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + path);
+						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
 						continue;
 					}
 				}
 				if (err != OK) {
 					String pck_path = path.get_basename() + ".pck";
-					bool only_1_path = p_paths.size() == 1;
-					bool already_has_path = p_paths.has(pck_path);
+					bool only_1_path = pck_files.size() == 1;
+					bool already_has_path = pck_files.has(pck_path);
 					bool exists = FileAccess::exists(pck_path);
 					if (!only_1_path && (already_has_path || !exists)) {
 						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + path);
+						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
 						continue;
 					}
 					ERR_FAIL_COND_V_MSG(!exists, err, "Can't find embedded pck file in executable and cannot find pck file in same directory!");
 					new_path = pck_path;
 				}
 				path = new_path;
-				WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + path);
+				WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + san_path);
 			}
 			err = load_pck(path);
 			if (err) {
@@ -561,7 +586,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	auto zip_files = get_file_list({ "*.zip" });
 	if (zip_files.size() > 0) {
 		Vector<String> pck_zip_files;
-		for (auto path : p_paths) {
+		for (auto path : pck_files) {
 			if (path.get_extension().to_lower() == "zip") {
 				pck_zip_files.push_back(path.get_file().to_lower());
 			}
@@ -857,6 +882,7 @@ Error GDRESettings::unload_project() {
 	if (!is_pack_loaded()) {
 		return ERR_DOES_NOT_EXIST;
 	}
+	logger->stop_prebuffering();
 	error_encryption = false;
 	reset_uid_cache();
 	if (get_pack_type() == PackInfo::DIR) {
@@ -1346,11 +1372,18 @@ String GDRESettings::get_sys_info_string() const {
 	return OS_Name + " " + OS_Version + ", " + adapter_name;
 }
 
-Error GDRESettings::open_log_file(const String &output_dir) {
-	String logfile = output_dir.path_join("gdre_export.log");
-	Error err = logger->open_file(logfile);
+void GDRESettings::log_sysinfo() {
 	print_line("GDRE Tools " + String(GDRE_VERSION));
 	print_line(get_sys_info_string());
+}
+
+Error GDRESettings::open_log_file(const String &output_dir) {
+	String logfile = output_dir.path_join("gdre_export.log");
+	bool was_buffering = logger->is_prebuffering_enabled();
+	Error err = logger->open_file(logfile);
+	if (!was_buffering) {
+		log_sysinfo();
+	}
 	ERR_FAIL_COND_V_MSG(err == ERR_ALREADY_IN_USE, err, "Already logging to another file");
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not open log file " + logfile);
 	return OK;
