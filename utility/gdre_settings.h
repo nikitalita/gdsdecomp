@@ -153,6 +153,7 @@ private:
 	Error detect_bytecode_revision();
 
 	static constexpr bool need_correct_patch(int ver_major, int ver_minor);
+	void _do_prepop(uint32_t i, const String *plugins);
 
 protected:
 	static void _bind_methods();
@@ -231,6 +232,7 @@ public:
 	void load_all_resource_strings();
 	void get_resource_strings(HashSet<String> &r_strings) const;
 	int get_bytecode_revision() const;
+	void prepop_plugin_cache(const Vector<String> &plugins);
 	static GDRESettings *get_singleton();
 	GDRESettings();
 	~GDRESettings();

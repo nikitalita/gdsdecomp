@@ -1719,6 +1719,10 @@ void GDRESettings::get_resource_strings(HashSet<String> &r_strings) const {
 	r_strings = current_project->resource_strings;
 }
 
+void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
+	AssetLibInfoGetter::prepop_plugin_cache(plugins, true);
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -1776,6 +1780,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
+	ClassDB::bind_method(D_METHOD("prepop_plugin_cache", "plugins"), &GDRESettings::prepop_plugin_cache);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
 	// TODO: route this through GDRE Settings rather than GDRE Editor
 	//ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
