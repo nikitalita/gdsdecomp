@@ -471,3 +471,19 @@ Error gdre::rimraf(const String &dir) {
 	}
 	return err;
 }
+
+bool gdre::dir_is_empty(const String &dir) {
+	auto da = DirAccess::create_for_path(dir);
+
+	if (da.is_null() || !da->dir_exists(dir) || da->change_dir(dir) != OK || da->list_dir_begin() != OK) {
+		return false;
+	}
+	String f = da->get_next();
+	while (!f.is_empty()) {
+		if (f != "." && f != "..") {
+			return false;
+		}
+		f = da->get_next();
+	}
+	return true;
+}

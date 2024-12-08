@@ -18,6 +18,7 @@ Error unzip_file_to_dir(const String &zip_path, const String &output_dir);
 Error wget_sync(const String &p_url, Vector<uint8_t> &response, int retries = 5);
 Error download_file_sync(const String &url, const String &output_path);
 Error rimraf(const String &dir);
+bool dir_is_empty(const String &dir);
 template <class T>
 Vector<T> hashset_to_vector(const HashSet<T> &hs) {
 	Vector<T> ret;
