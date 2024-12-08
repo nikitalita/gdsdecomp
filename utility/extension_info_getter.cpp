@@ -380,8 +380,7 @@ Error AssetLibInfoGetter::populate_plugin_version_hashes(PluginVersion &plugin_v
 		plugin_version.gdexts.push_back(gdext_info);
 	}
 	close_and_remove_zip();
-	da->change_dir(unzupped_path);
-	da->erase_contents_recursive();
+	gdre::rimraf(unzupped_path);
 	return OK;
 }
 

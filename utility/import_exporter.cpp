@@ -23,6 +23,7 @@
 #include "core/os/os.h"
 #include "modules/minimp3/audio_stream_mp3.h"
 #include "thirdparty/minimp3/minimp3_ex.h"
+#include "utility/import_info.h"
 
 using namespace gdre;
 
@@ -157,6 +158,53 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 	}
 }
 
+Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, const String &output_dir) {
+	//append a random string
+	String output = output_dir;
+	String parent_tmp_dir = output_dir.path_join(".tmp").path_join(String::num_uint64(OS::get_singleton()->get_unix_time() + rand()));
+
+	String tmp_dir = parent_tmp_dir;
+	ERR_FAIL_COND_V_MSG(gdre::unzip_file_to_dir(zip_path, tmp_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to unzip plugin zip to " + tmp_dir);
+	// copy the files to the output_dir
+	auto rel_gdext_path = iinfo->get_import_md_path().replace_first("res://", "");
+	Vector<String> addons = Glob::rglob(tmp_dir.path_join("**").path_join(rel_gdext_path.get_file()), true);
+
+	if (addons.size() > 0) {
+		// check if the addons directory exists
+		auto th = addons[0];
+		if (th.contains(rel_gdext_path)) {
+			auto idx = th.find(rel_gdext_path);
+			auto subpath = th.substr(0, idx);
+			tmp_dir = th.substr(0, idx);
+		} else {
+			// what we are going to do is pop off the left-side parts of the rel_gdext_path until we find something that matches
+			String prefix = "";
+			String suffix = rel_gdext_path;
+			auto parts = rel_gdext_path.split("/");
+			for (int i = 0; i < parts.size(); i++) {
+				prefix = prefix.path_join(parts[i]);
+				suffix = suffix.replace_first(parts[i] + "/", "");
+				if (th.contains(suffix)) {
+					break;
+				}
+			}
+			tmp_dir = th.substr(0, th.find(suffix));
+			output = output_dir.path_join(prefix);
+		}
+		if (addons.size() > 1) {
+			WARN_PRINT("Found multiple addons directories in addon zip, using the first one.");
+		}
+	} else {
+		ERR_FAIL_COND_V_MSG(addons.size() == 0, ERR_FILE_NOT_FOUND, "Failed to find our addon file in " + zip_path);
+	}
+	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	Error err = da->copy_dir(tmp_dir, output);
+	ERR_FAIL_COND_V_MSG(err != OK, ERR_FILE_CANT_WRITE, "Failed to copy GodotSteam files to " + output_dir);
+	gdre::rimraf(parent_tmp_dir);
+	da->remove(zip_path);
+	return OK;
+}
+
 void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 	// Taken care of in the main thread
 	if (unlikely(cancelled)) {
@@ -175,7 +223,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
 	uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
-	String output_dir = !p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path();
+	const String output_dir = !p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path();
 	Error err = OK;
 	if (opt_lossy) {
 		WARN_PRINT_ONCE("Converting lossy imports, you may lose fidelity for indicated assets when re-importing upon loading the project");
@@ -402,9 +450,17 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 			if (!ret->get_message().is_empty()) {
 				report->failed_gdnative_copy.push_back(ret->get_message());
 			} else if (!ret->get_saved_path().is_empty()) {
-				err = GDExtensionExporter::unzip_and_copy_dir(ret->get_saved_path(), output_dir);
+				Ref<ImportInfoGDExt> iinfo_gdext = iinfo;
+				if (!iinfo.is_valid()) {
+					// wtf?
+					ERR_PRINT("Invalid ImportInfoGDExt");
+					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+					continue;
+				}
+				err = unzip_and_copy_addon(iinfo, ret->get_saved_path(), output_dir);
 				if (err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+					continue;
 				}
 			}
 		}
@@ -426,6 +482,10 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 	report->print_report();
 	ResourceCompatLoader::set_default_gltf_load(false);
 	ResourceCompatLoader::unmake_globally_available();
+	// check if the .tmp directory is empty
+	if (gdre::dir_is_empty(output_dir.path_join(".tmp"))) {
+		dir->remove(output_dir.path_join(".tmp"));
+	}
 	return OK;
 }
 
@@ -532,7 +592,9 @@ Error ImportExporter::recreate_plugin_config(const String &output_dir, const Str
 			break;
 		}
 	}
-	ERR_FAIL_COND_V_MSG(main_script == "", ERR_FILE_NOT_FOUND, "Failed to find main script for plugin " + plugin_dir + "!");
+	if (main_script == "") {
+		return ERR_UNAVAILABLE;
+	}
 	String plugin_cfg_text = String("[plugin]\n\n") +
 			"name=\"" + plugin_dir.replace("_", " ").replace(".", " ") + "\"\n" +
 			"description=\"" + plugin_dir.replace("_", " ").replace(".", " ") + " plugin\"\n" +
@@ -571,10 +633,7 @@ Error ImportExporter::recreate_plugin_configs(const String &output_dir, const Ve
 		}
 		String dir = dirs[i].get_file();
 		err = recreate_plugin_config(output_dir, dir);
-		if (err == ERR_PRINTER_ON_FIRE) {
-			// we successfully copied the dlls, but failed to find one for our platform
-			report->failed_gdnative_copy.push_back(dir);
-		} else if (err) {
+		if (err) {
 			WARN_PRINT("Failed to recreate plugin.cfg for " + dir);
 			report->failed_plugin_cfg_create.push_back(dir);
 		}
@@ -808,21 +867,25 @@ Dictionary ImportExporterReport::get_session_notes() {
 		notes["translation_export_message"] = translation_export;
 	}
 
-	if (!failed_gdnative_copy.is_empty() || !failed_plugin_cfg_create.is_empty()) {
+	if (!failed_gdnative_copy.is_empty()) {
+		// notes["failed_gdnative_copy"] = failed_gdnative_copy;
+		Dictionary failed_gdnative;
+		failed_gdnative["title"] = "Missing GDExtension Libraries";
+		String message = "The following GDExtension addons could not be detected and downloaded.\n";
+		message += "Tip: Try finding the plugin in the Godot Asset Library or Github.\n";
+		failed_gdnative["message"] = message;
+		failed_gdnative["details"] = failed_gdnative_copy;
+		notes["failed_gdnative"] = failed_gdnative;
+	}
+
+	if (!failed_plugin_cfg_create.is_empty()) {
 		Dictionary failed_plugins;
 		failed_plugins["title"] = "Incomplete Plugin Export";
-		String message = "The following addons failed to have their libraries copied or plugin.cfg regenerated\n";
+		String message = "The following addons failed to have their plugin.cfg regenerated\n";
 		message += "You may encounter editor errors due to this.\n";
 		message += "Tip: Try finding the plugin in the Godot Asset Library or Github.\n";
 		failed_plugins["message"] = message;
-		PackedStringArray list;
-		for (int i = 0; i < failed_gdnative_copy.size(); i++) {
-			list.push_back(failed_gdnative_copy[i]);
-		}
-		for (int i = 0; i < failed_plugin_cfg_create.size(); i++) {
-			list.push_back(failed_plugin_cfg_create[i]);
-		}
-		failed_plugins["details"] = list;
+		failed_plugins["details"] = failed_plugin_cfg_create;
 		notes["failed_plugins"] = failed_plugins;
 	}
 	if (ver->get_major() == 2) {
