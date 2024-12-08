@@ -71,6 +71,21 @@ Vector<T> get_vector_intersection(const Vector<T> &a, const Vector<T> &b) {
 	return ret;
 }
 
+template <class T>
+void shuffle_vector(Vector<T> &vec) {
+	const int n = vec.size();
+	if (n < 2) {
+		return;
+	}
+	T *data = vec.ptrw();
+	for (int i = n - 1; i >= 1; i--) {
+		const int j = Math::rand() % (i + 1);
+		const T tmp = data[j];
+		data[j] = data[i];
+		data[i] = tmp;
+	}
+}
+
 } // namespace gdre
 
 #define GDRE_ERR_DECOMPRESS_OR_FAIL(img)                                    \
