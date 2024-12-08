@@ -595,6 +595,9 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	err = detect_bytecode_revision();
 	if (err) {
+		if (err == ERR_PRINTER_ON_FIRE) {
+			_set_error_encryption(true);
+		}
 		WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
 	}
 
@@ -854,6 +857,7 @@ Error GDRESettings::unload_project() {
 	if (!is_pack_loaded()) {
 		return ERR_DOES_NOT_EXIST;
 	}
+	error_encryption = false;
 	reset_uid_cache();
 	if (get_pack_type() == PackInfo::DIR) {
 		unload_dir();
@@ -1684,7 +1688,9 @@ void GDRESettings::load_all_resource_strings() {
 	wildcards.push_back("*.tscn");
 	wildcards.push_back("*.gd");
 	wildcards.push_back("*.gdc");
-	wildcards.push_back("*.gde");
+	if (!error_encryption) {
+		wildcards.push_back("*.gde");
+	}
 	wildcards.push_back("*.csv");
 	wildcards.push_back("*.json");
 
