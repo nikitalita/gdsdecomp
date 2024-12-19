@@ -871,7 +871,12 @@ Dictionary ImportExporterReport::get_session_notes() {
 		// notes["failed_gdnative_copy"] = failed_gdnative_copy;
 		Dictionary failed_gdnative;
 		failed_gdnative["title"] = "Missing GDExtension Libraries";
-		String message = "The following GDExtension addons could not be detected and downloaded.\n";
+		String message = "The following GDExtension addons could not be";
+		if (GDRESettings::get_singleton()->get_setting_download_plugins()) {
+			message += " detected and downloaded.\n";
+		} else {
+			message += " found for your platform.\n";
+		}
 		message += "Tip: Try finding the plugin in the Godot Asset Library or Github.\n";
 		failed_gdnative["message"] = message;
 		failed_gdnative["details"] = failed_gdnative_copy;

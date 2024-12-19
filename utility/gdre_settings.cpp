@@ -1762,6 +1762,14 @@ void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
 	AssetLibInfoGetter::prepop_plugin_cache(plugins, true);
 }
 
+bool GDRESettings::get_setting_download_plugins() const {
+	return download_plugins;
+}
+
+void GDRESettings::set_setting_download_plugins(bool p_val) {
+	download_plugins = p_val;
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -1820,6 +1828,8 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
 	ClassDB::bind_method(D_METHOD("prepop_plugin_cache", "plugins"), &GDRESettings::prepop_plugin_cache);
+	ClassDB::bind_method(D_METHOD("get_setting_download_plugins"), &GDRESettings::get_setting_download_plugins);
+	ClassDB::bind_method(D_METHOD("set_setting_download_plugins", "p_val"), &GDRESettings::set_setting_download_plugins);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
 	// TODO: route this through GDRE Settings rather than GDRE Editor
 	//ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));

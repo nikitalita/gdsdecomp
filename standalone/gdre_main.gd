@@ -655,6 +655,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var excludes: PackedStringArray = []
 	var includes: PackedStringArray = []
 	var prepop: PackedStringArray = []
+	var set_setting: bool = false
 	if (args.size() == 0):
 		return false
 	var any_commands = false
@@ -703,6 +704,9 @@ func handle_cli(args: PackedStringArray) -> bool:
 			translation_only = true
 		elif arg.begins_with("--disable-multithreading"):
 			disable_multi_threading = true
+		elif arg.begins_with("--enable-experimental-plugin-downloading"):
+			GDRESettings.set_setting_download_plugins(true)
+			set_setting = true
 		elif arg.begins_with("--list-bytecode-versions"):
 			var versions = GDScriptDecomp.get_bytecode_versions()
 			print("\n--- Available bytecode versions:")
@@ -758,6 +762,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 		text_to_bin(txt_to_bin, output_dir)
 	elif bin_to_txt.is_empty() == false:
 		bin_to_text(bin_to_txt, output_dir)
+	elif set_setting:
+		return false # don't quit
 	else:
 		print_usage()
 		print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
