@@ -134,6 +134,8 @@ private:
 	static GDRESettings *singleton;
 	static String exec_dir;
 	bool headless = false;
+	bool download_plugins = false;
+
 	void remove_current_pack();
 	String _get_res_path(const String &p_path, const String &resource_dir, const bool suppress_errors);
 	void add_logger();
@@ -235,6 +237,8 @@ public:
 	void get_resource_strings(HashSet<String> &r_strings) const;
 	int get_bytecode_revision() const;
 	void prepop_plugin_cache(const Vector<String> &plugins);
+	bool get_setting_download_plugins() const;
+	void set_setting_download_plugins(bool p_val);
 	static GDRESettings *get_singleton();
 	GDRESettings();
 	~GDRESettings();
