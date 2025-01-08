@@ -1132,6 +1132,11 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 		script_text += line;
 	}
 
+	// GDScript 2.0 can have parsing errors if the script does not end with a newline
+	if (bytecode_version >= GDSCRIPT_2_0_VERSION && !script_text.ends_with("\n")) {
+		script_text += "\n";
+	}
+
 	if (script_text == String()) {
 		if (identifiers.size() == 0 && constants.size() == 0 && tokens.size() == 0) {
 			return OK;
