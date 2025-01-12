@@ -249,6 +249,8 @@ public:
 	void prepop_plugin_cache(const Vector<String> &plugins);
 	bool get_setting_download_plugins() const;
 	void set_setting_download_plugins(bool p_val);
+	String get_home_dir();
+
 	static GDRESettings *get_singleton();
 	GDRESettings();
 	~GDRESettings();
