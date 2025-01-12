@@ -241,6 +241,20 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 			}
 		}
 	}
+	if (!FileAccess::exists(path)) {
+		path = "";
+		for (auto &dest : iinfo->get_dest_files()) {
+			if (FileAccess::exists(dest)) {
+				path = dest;
+				break;
+			}
+		}
+		if (path.is_empty()) {
+			report->set_error(ERR_FILE_NOT_FOUND);
+			report->set_message("File not found: " + iinfo->get_path());
+			return report;
+		}
+	}
 	// for Godot 2.x resources, we can easily rewrite the metadata to point to a renamed file with a different extension,
 	// but this isn't the case for 3.x and greater, so we have to save in the original (lossy) format.
 	String source_ext = source.get_extension().to_lower();
