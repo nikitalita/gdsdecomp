@@ -316,7 +316,7 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_EXIT_TREE:
 		handle_quit()
 	elif what == NOTIFICATION_WM_ABOUT:
-		$re_editor_standalone.show_about_dialog()
+		open_about_window()
 	
 
 
@@ -347,22 +347,15 @@ func _ready():
 		set_showed_disclaimer(true)
 		save_config()
 	register_dropped_files()
-	check_version()
-	if show_disclaimer:
-		$re_editor_standalone.show_about_dialog()
-	if len(args) > 0:
-		var window = get_viewport()
-		window.emit_signal("files_dropped", args)
 	REAL_ROOT_WINDOW = get_window()
-	var popup_menu_gdremenu:PopupMenu = $MenuContainer/REToolsMenu.get_popup()
+	var popup_menu_gdremenu: PopupMenu = $MenuContainer/REToolsMenu.get_popup()
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
 	GDRESettings.connect("write_log_message", self._on_re_editor_standalone_write_log_message)
-
 	$version_lbl.text = GDRESettings.get_gdre_version()
-	# If CLI arguments were passed in, just quit
-	# check if the current screen is hidpi
 	$LegalNoticeWindow/OkButton.connect("pressed", $LegalNoticeWindow.hide)
 	$LegalNoticeWindow.connect("close_requested", $LegalNoticeWindow.hide)
+
+	# check if the current screen is hidpi
 	if isHiDPI:
 		# set the content scaling factor to 2x
 		ThemeDB.fallback_base_scale = 2.0
@@ -372,6 +365,15 @@ func _ready():
 		$SetEncryptionKeyWindow.size *= 2
 		$LegalNoticeWindow.content_scale_factor = 2.0
 		$LegalNoticeWindow.size *=2
+
+	if show_disclaimer:
+		open_about_window()
+	if len(args) > 0:
+		var window = get_viewport()
+		window.call_deferred("emit_signal", "files_dropped", args)
+
+
+	check_version()
 	# _resize_menu_times($MenuContainer)
 
 # CLI stuff below
