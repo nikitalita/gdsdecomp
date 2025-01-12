@@ -260,7 +260,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		report->set_message("Scene export had errors.");
 	}
 #if DEBUG_ENABLED
-	if (err) {
+	if (err && err != ERR_UNAVAILABLE) {
 		// save it as a text scene so we can see what went wrong
 		auto new_dest = dest_path.get_basename() + ".tscn";
 		ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
