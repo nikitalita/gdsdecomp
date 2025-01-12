@@ -21,7 +21,7 @@ var userroot: TreeItem = null
 var num_files:int = 0
 var num_broken:int = 0
 var num_malformed:int = 0
-var _is_test:bool = true
+var _is_test:bool = false
 var _file_dialog: FileDialog = null
 
 signal recovery_done()
@@ -93,11 +93,7 @@ func _ready():
 	file_list.set_column_custom_minimum_width(2, 120)
 	file_list.add_theme_constant_override("draw_relationship_lines", 1)
 	file_list.connect("item_edited", self._on_item_edited)
-	# TODO: remove me
-	if _is_test:
-		load_test()
-	
-	pass # Replace with function body.
+	setup_extract_dir_dialog()
 
 # called before _ready
 func set_root_window(window: Window):
@@ -120,10 +116,7 @@ func add_project(paths: PackedStringArray) -> int:
 		popup_error_box("Error: failed to open " + str(paths), "Error", POPUP_PARENT_WINDOW)
 		return err
 	var pckdump = PckDumper.new()
-	var popup = popup_error_box("This will take a while, please wait...", "Info", POPUP_PARENT_WINDOW)
 	err = pckdump.check_md5_all_files()
-	popup.hide()
-	POPUP_PARENT_WINDOW.remove_child(popup)
 	VERSION_TEXT.text = GDRESettings.get_version_string()
 	var arr: Array = GDRESettings.get_file_info_array()
 	for info: PackedFileInfo in arr:
@@ -298,30 +291,49 @@ func cancel_extract():
 
 var _last_path: String = ""
 func _on_dialog_close():
-	call_deferred("extract_and_recover", _last_path)
+	extract_and_recover(_last_path)
 
+func open_subwindow(window: Window):
+	window.set_transient(true)
+	window.set_exclusive(true)
+	window.popup_centered()
+	window.set_unparent_when_invisible(true)
+
+func close_subwindow(window: Window):
+	window.hide()
+	window.set_exclusive(false)
+	window.set_transient(false)
+
+
+func open_extract_dir_dialog(path:String = ""):
+	var pck_path = path if !path.is_empty() else GDRESettings.get_pack_path().get_base_dir()
+	_file_dialog.set_current_dir(pck_path)
+	open_subwindow(_file_dialog)
 
 func _dir_selected(path: String):
 	if (_file_dialog):
 		_last_path = path
-		_file_dialog.connect("tree_exited", self._on_dialog_close)
-		_file_dialog.hide()
-		_file_dialog.queue_free()
-		_file_dialog = null
+		_file_dialog.connect("visibility_changed", func (): print("visibility_changed!!!!!!!!"))
+		close_subwindow(_file_dialog)
+		self._on_dialog_close()
+		#_file_dialog.hide()
+		#_file_dialog.queue_free()
+		#_file_dialog = null
 
-func _extract_pressed():
-	# pop open a file dialog to pick a directory
+func setup_extract_dir_dialog():
 	_file_dialog = FileDialog.new()
 	_file_dialog.use_native_dialog = true
 	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
 	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
-	var pck_path = GDRESettings.get_pack_path().get_base_dir()
-	_file_dialog.set_current_dir(pck_path)
 	_file_dialog.set_title("Select a directory to extract to")
 	POPUP_PARENT_WINDOW.add_child(_file_dialog)
 	_file_dialog.connect("dir_selected", self._dir_selected)
 	_file_dialog.connect("canceled", self.cancel_extract)
-	_file_dialog.popup_centered()
+	
+
+func _extract_pressed():
+	# pop open a file dialog to pick a directory
+	open_extract_dir_dialog()
 	
 
 func _close_requested():

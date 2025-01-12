@@ -1,4 +1,4 @@
-extends Control
+extends GodotREEditorStandalone
 
 var ver_major = 0
 var ver_minor = 0
@@ -14,6 +14,7 @@ var isHiDPI = false
 var gdre_recover = preload("res://gdre_recover.tscn")
 var RECOVERY_DIALOG: Control = null
 var _file_dialog: Window = null
+var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
@@ -60,19 +61,19 @@ func _on_recovery_done():
 var _last_paths = PackedStringArray()
 
 func _retry_recover():
-	var path = _last_paths
+	var paths = _last_paths
 	_last_paths = PackedStringArray()
-	_on_recover_project_files_selected(path)
+	_on_recover_project_files_selected(paths)
 
-func _on_recover_project_files_selected(paths: PackedStringArray):
-	# open the recover dialog
+func close_recover_file_dialog():
 	if _file_dialog:
-		_last_paths = paths
-		_file_dialog.connect("tree_exited", self._retry_recover)
+		last_dir = _file_dialog.current_dir
 		_file_dialog.hide()
-		_file_dialog.queue_free()
-		_file_dialog = null
-		return
+		_file_dialog.set_transient(false)
+		_file_dialog.set_exclusive(false)
+
+
+func launch_recovery_window(paths: PackedStringArray):
 	assert(gdre_recover.can_instantiate())
 	RECOVERY_DIALOG = gdre_recover.instantiate()
 	RECOVERY_DIALOG.set_root_window(REAL_ROOT_WINDOW)
@@ -81,25 +82,43 @@ func _on_recover_project_files_selected(paths: PackedStringArray):
 	RECOVERY_DIALOG.add_project(paths)
 	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
+
+
+func _on_recover_project_files_selected(paths: PackedStringArray):
+	close_recover_file_dialog()
+	launch_recovery_window(paths)
 	
 func _on_recover_project_dir_selected(path):
 	# just check if the dir path ends in ".app"
+	close_recover_file_dialog()
 	if path.ends_with(".app"):
-		_on_recover_project_files_selected([path])
+		launch_recovery_window([path])
 	else:
 		# pop up an accept dialog
 		popup_error_box("Invalid Selection!!", "Error", REAL_ROOT_WINDOW)
 		return
 
+func open_subwindow(window: Window):
+	window.set_transient(true)
+	window.set_exclusive(true)
+	window.popup_centered()
+	window.set_unparent_when_invisible(true)
+
+func close_subwindow(window: Window):
+	window.hide()
+	window.set_exclusive(false)
+	window.set_transient(false)
+
 
 func open_about_window():
-	$LegalNoticeWindow.popup_centered()
+	open_subwindow($LegalNoticeWindow)
 
 func open_setenc_window():
 	$SetEncryptionKeyWindow.popup_centered()
-	
-func open_recover_file_dialog():
 
+
+
+func setup_file_dialog():
 	# pop open a file dialog
 	_file_dialog = FileDialog.new()
 	_file_dialog.set_use_native_dialog(true)
@@ -107,22 +126,25 @@ func open_recover_file_dialog():
 	#var prev_size = _file_dialog.size
 	if isHiDPI:
 		_file_dialog.size *= 2.0
-		#_file_dialog.min_size = _file_dialog.size
-		#d_viewport.content_scale_factor = 2.0
+	#_file_dialog.min_size = _file_dialog.size
+	#d_viewport.content_scale_factor = 2.0
 	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
 	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES #FileDialog.FILE_MODE_OPEN_FILE
 	#_file_dialog.filters = ["*"]
 	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.pck,*.apk,*.app;Supported files"]
 	#_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
 	## TODO: remove this
-	_file_dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
-	if (_file_dialog.current_dir.is_empty()):
-		_file_dialog.current_dir = GDRESettings.get_exec_dir()
+	_file_dialog.current_dir = GDRESettings.get_home_dir()
 	_file_dialog.connect("files_selected", self._on_recover_project_files_selected)
 	_file_dialog.connect("dir_selected", self._on_recover_project_dir_selected)
+	get_tree().get_root().add_child.call_deferred(_file_dialog)
 
-	get_tree().get_root().add_child(_file_dialog)
-	_file_dialog.popup_centered()
+func open_recover_file_dialog():
+	if last_dir != "":
+		_file_dialog.current_dir = last_dir
+	else:
+		_file_dialog.current_dir = GDRESettings.get_home_dir()
+	open_subwindow(_file_dialog)
 
 	
 
@@ -372,7 +394,7 @@ func _ready():
 		var window = get_viewport()
 		window.call_deferred("emit_signal", "files_dropped", args)
 
-
+	setup_file_dialog()
 	check_version()
 	# _resize_menu_times($MenuContainer)
 
