@@ -1959,24 +1959,31 @@ void GDRESettings::_bind_methods() {
 
 #ifdef WINDOWS_ENABLED
 #include "platform/windows/os_windows.h"
+#define PLATFORM_OS OS_Windows
 #endif
 #ifdef LINUXBSD_ENABLED
 #include "platform/linuxbsd/os_linuxbsd.h"
+#define PLATFORM_OS OS_LinuxBSD
 #endif
 #ifdef MACOS_ENABLED
 #include "drivers/unix/os_unix.h"
+#define PLATFORM_OS OS_Unix
 #endif
 #ifdef UWP_ENABLED
 #include "platform/uwp/os_uwp.h"
+#define PLATFORM_OS OS_UWP
 #endif
 #ifdef WEB_ENABLED
 #include "platform/web/os_web.h"
+#define PLATFORM_OS OS_Web
 #endif
 #if defined(__ANDROID__)
 #include "platform/android/os_android.h"
+#define PLATFORM_OS OS_Android
 #endif
 #ifdef IPHONE_ENABLED
-#include "platform/iphone/os_iphone.h"
+#include "platform/ios/os_ios.h"
+#define PLATFORM_OS OS_IOS
 #endif
 // A hack to add another logger to the OS singleton
 template <class T>
@@ -1996,50 +2003,6 @@ public:
 void GDRESettings::add_logger() {
 	OS *os_singleton = OS::get_singleton();
 	String os_name = os_singleton->get_name();
-
-	if (os_name == "Windows") {
-#ifdef WINDOWS_ENABLED
-		GDREOS<OS_Windows> *_gdre_os = reinterpret_cast<GDREOS<OS_Windows> *>(os_singleton);
-		GDREOS<OS_Windows>::do_add_logger(_gdre_os, logger);
-#endif
-	}
-#ifdef LINUXBSD_ENABLED
-	else if (os_name == "Linux" || os_name.find("BSD") == -1) {
-		GDREOS<OS_LinuxBSD> *_gdre_os = reinterpret_cast<GDREOS<OS_LinuxBSD> *>(os_singleton);
-		GDREOS<OS_LinuxBSD>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-#ifdef MACOS_ENABLED
-	else if (os_name == "macOS") {
-		GDREOS<OS_Unix> *_gdre_os = reinterpret_cast<GDREOS<OS_Unix> *>(os_singleton);
-		GDREOS<OS_Unix>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-#ifdef UWP_ENABLED
-	else if (os_name == "UWP") {
-		GDREOS<OS_UWP> *_gdre_os = reinterpret_cast<GDREOS<OS_UWP> *>(os_singleton);
-		GDREOS<OS_UWP>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-#ifdef WEB_ENABLED
-	else if (os_name == "Web") {
-		GDREOS<OS_Web> *_gdre_os = reinterpret_cast<GDREOS<OS_Web> *>(os_singleton);
-		GDREOS<OS_Web>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-#if defined(__ANDROID__) // the rest of these are probably unnecessary
-	else if (os_name == "Android") {
-		GDREOS<OS_Android> *_gdre_os = reinterpret_cast<GDREOS<OS_Android> *>(os_singleton);
-		GDREOS<OS_Android>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-#ifdef IPHONE_ENABLED
-	else if (os_name == "iOS") {
-		GDREOS<OSIPhone> *_gdre_os = reinterpret_cast<GDREOS<OSIPhone> *>(os_singleton);
-		GDREOS<OSIPhone>::do_add_logger(_gdre_os, logger);
-	}
-#endif
-	else {
-		WARN_PRINT("No logger being set, there will be no logs!");
-	}
+	GDREOS<PLATFORM_OS> *_gdre_os = reinterpret_cast<GDREOS<PLATFORM_OS> *>(os_singleton);
+	GDREOS<PLATFORM_OS>::do_add_logger(_gdre_os, logger);
 }
