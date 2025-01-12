@@ -95,7 +95,7 @@ func load_test():
 	const output_dir = "/Users/nikita/Workspace/godot-test-bins/test_megaloot"
 	var _log_path = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract/gdre_export.log" 
 	# convert log_path to URI
-	var err = GDRESettings.load_pack(path)
+	var err = GDRESettings.load_project([path])
 	assert(err == OK)
 	var pckdump = PckDumper.new()
 	err = pckdump.check_md5_all_files()

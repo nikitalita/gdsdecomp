@@ -115,7 +115,7 @@ func hide_win():
 	RECOVER_WINDOW.hide()
 
 func add_pack(path: String) -> int:
-	var err = GDRESettings.load_pack(path)
+	var err = GDRESettings.load_project([path])
 	if (err != OK):
 		popup_error_box("Error: failed to open " + path, "Error", POPUP_PARENT_WINDOW)
 		return err
@@ -332,4 +332,4 @@ func _process(_delta):
 	pass
 
 func _exit_tree():
-	GDRESettings.unload_pack()
+	GDRESettings.unload_project()
