@@ -877,7 +877,7 @@ Dictionary ImportExporterReport::get_session_notes() {
 		Dictionary failed_gdnative;
 		failed_gdnative["title"] = "Missing GDExtension Libraries";
 		String message = "The following GDExtension addons could not be";
-		if (GDRESettings::get_singleton()->get_setting_download_plugins()) {
+		if (GDRESettings::get_singleton()->get_setting("download_plugins")) {
 			message += " detected and downloaded.\n";
 		} else {
 			message += " found for your platform.\n";
