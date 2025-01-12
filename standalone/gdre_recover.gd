@@ -114,10 +114,10 @@ func show_win():
 func hide_win():
 	RECOVER_WINDOW.hide()
 
-func add_pack(path: String) -> int:
-	var err = GDRESettings.load_project([path])
+func add_project(paths: PackedStringArray) -> int:
+	var err = GDRESettings.load_project(paths)
 	if (err != OK):
-		popup_error_box("Error: failed to open " + path, "Error", POPUP_PARENT_WINDOW)
+		popup_error_box("Error: failed to open " + str(paths), "Error", POPUP_PARENT_WINDOW)
 		return err
 	var pckdump = PckDumper.new()
 	var popup = popup_error_box("This will take a while, please wait...", "Info", POPUP_PARENT_WINDOW)
@@ -133,7 +133,7 @@ func add_pack(path: String) -> int:
 
 func load_test():
 	const path = "/Users/nikita/Workspace/godot-test-bins/satryn.apk"
-	add_pack(path)
+	add_project([path])
 	show_win()
 	
 func add_file(info: PackedFileInfo):

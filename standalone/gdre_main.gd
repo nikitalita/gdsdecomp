@@ -35,7 +35,7 @@ func _on_re_editor_standalone_dropped_files(files: PackedStringArray):
 	var new_files = []
 	for file in files:
 		new_files.append(dequote(file))
-	$re_editor_standalone.pck_select_request(new_files)
+	_on_recover_project_files_selected(new_files)
 
 func popup_error_box(message: String, title: String, parent_window: Window) -> AcceptDialog:
 	var dialog = AcceptDialog.new()
@@ -57,17 +57,17 @@ func _on_recovery_done():
 	else:
 		print("Recovery dialog not instantiated!!!")
 
-var _last_path = ""
+var _last_paths = PackedStringArray()
 
 func _retry_recover():
-	var path = _last_path
-	_last_path = ""
-	_on_recover_project_file_selected(path)
+	var path = _last_paths
+	_last_paths = PackedStringArray()
+	_on_recover_project_files_selected(path)
 
-func _on_recover_project_file_selected(path):
+func _on_recover_project_files_selected(paths: PackedStringArray):
 	# open the recover dialog
 	if _file_dialog:
-		_last_path = path
+		_last_paths = paths
 		_file_dialog.connect("tree_exited", self._retry_recover)
 		_file_dialog.hide()
 		_file_dialog.queue_free()
@@ -78,14 +78,14 @@ func _on_recover_project_file_selected(path):
 	RECOVERY_DIALOG.set_root_window(REAL_ROOT_WINDOW)
 	REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
 	REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
-	RECOVERY_DIALOG.add_pack(path)
+	RECOVERY_DIALOG.add_project(paths)
 	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
 	
 func _on_recover_project_dir_selected(path):
 	# just check if the dir path ends in ".app"
 	if path.ends_with(".app"):
-		_on_recover_project_file_selected(path)
+		_on_recover_project_files_selected([path])
 	else:
 		# pop up an accept dialog
 		popup_error_box("Invalid Selection!!", "Error", REAL_ROOT_WINDOW)
@@ -110,7 +110,7 @@ func open_recover_file_dialog():
 		#_file_dialog.min_size = _file_dialog.size
 		#d_viewport.content_scale_factor = 2.0
 	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
-	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_ANY #FileDialog.FILE_MODE_OPEN_FILE
+	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES #FileDialog.FILE_MODE_OPEN_FILE
 	#_file_dialog.filters = ["*"]
 	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.pck,*.apk,*.app;Supported files"]
 	#_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
@@ -118,7 +118,7 @@ func open_recover_file_dialog():
 	_file_dialog.current_dir = "/Users/nikita/Workspace/godot-test-bins"
 	if (_file_dialog.current_dir.is_empty()):
 		_file_dialog.current_dir = GDRESettings.get_exec_dir()
-	_file_dialog.connect("file_selected", self._on_recover_project_file_selected)
+	_file_dialog.connect("files_selected", self._on_recover_project_files_selected)
 	_file_dialog.connect("dir_selected", self._on_recover_project_dir_selected)
 
 	get_tree().get_root().add_child(_file_dialog)
@@ -332,6 +332,7 @@ func get_globs_files(globs: PackedStringArray) -> PackedStringArray:
 	for glob in globs:
 		files.append_array(get_glob_files(glob))
 	return files
+
 func _ready():
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	# If CLI arguments were passed in, just quit
@@ -371,7 +372,7 @@ func _ready():
 		$SetEncryptionKeyWindow.size *= 2
 		$LegalNoticeWindow.content_scale_factor = 2.0
 		$LegalNoticeWindow.size *=2
-	_resize_menu_times($MenuContainer)
+	# _resize_menu_times($MenuContainer)
 
 # CLI stuff below
 

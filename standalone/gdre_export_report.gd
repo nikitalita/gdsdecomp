@@ -161,9 +161,10 @@ func add_report(report: ImportExporterReport) -> int:
 		header_item.set_text(0, note_dict["title"])
 		var message_item = NOTE_TREE.create_item(header_item)
 		message_item.set_text(0, note_dict["message"])
-		for item in note_dict["details"]:
-			var subitem = NOTE_TREE.create_item(header_item)
-			subitem.set_text(0, item)
+		if note_dict.has("details"):
+			for item in note_dict["details"]:
+				var subitem = NOTE_TREE.create_item(header_item)
+				subitem.set_text(0, item)
 	for key in report_sections.keys():
 		var section:Variant = report_sections[key]
 		var header_item = TOTALS_TREE.create_item(report_root)
