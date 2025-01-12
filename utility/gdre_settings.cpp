@@ -479,7 +479,13 @@ bool is_zip_file_pack(const String &p_path) {
 	}
 	return false;
 }
-
+String GDRESettings::get_home_dir() {
+#ifdef WINDOWS_ENABLED
+	return OS::get_singleton()->get_environment("USERPROFILE");
+#else
+	return OS::get_singleton()->get_environment("HOME");
+#endif
+}
 // For printing out paths, we want to replace the home directory with ~ to keep PII out of logs
 String GDRESettings::sanitize_home_in_path(const String &p_path) {
 #ifdef WINDOWS_ENABLED
@@ -1944,6 +1950,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("prepop_plugin_cache", "plugins"), &GDRESettings::prepop_plugin_cache);
 	ClassDB::bind_method(D_METHOD("get_setting_download_plugins"), &GDRESettings::get_setting_download_plugins);
 	ClassDB::bind_method(D_METHOD("set_setting_download_plugins", "p_val"), &GDRESettings::set_setting_download_plugins);
+	ClassDB::bind_method(D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
 	// TODO: route this through GDRE Settings rather than GDRE Editor
 	//ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
