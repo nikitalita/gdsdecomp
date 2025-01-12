@@ -292,9 +292,12 @@ func copy_dir(src:String, dst:String) -> int:
 	return OK
 
 func get_cli_abs_path(path:String) -> String:
+	path = path.simplify_path()
 	if path.is_absolute_path():
 		return path
 	var exec_path = GDRESettings.get_exec_dir()
+	if path.begins_with('~/'):
+		path = GDRESettings.get_home_dir() + path.trim_prefix('~')
 	var abs_path = exec_path.path_join(path).simplify_path()
 	return abs_path
 
