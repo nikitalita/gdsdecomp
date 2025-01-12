@@ -131,7 +131,7 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 		err = OK;
 	}
 	bool downloaded_plugin = false;
-	if (GDRESettings::get_singleton()->get_setting_download_plugins()) {
+	if (GDRESettings::get_singleton()->get_setting("download_plugins")) {
 		Vector<String> hashes;
 		for (const auto &E : lib_paths) {
 			// TODO: come up with a way of consistently hashing signed macos binaries

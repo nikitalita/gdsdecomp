@@ -4,9 +4,7 @@ var ver_major = 0
 var ver_minor = 0
 var scripts_only = false
 var disable_multi_threading = false
-var config: ConfigFile = null
 var last_error = ""
-var CONFIG_PATH = "user://gdre_settings.cfg"
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
@@ -99,20 +97,9 @@ func _on_version_check_completed(_result, response_code, _headers, body):
 	print("New version of GDRE available: " + checked_version)
 	print("Get it here: " + repo_url)
 
-func _make_new_config():
-	config = ConfigFile.new()
-	set_showed_disclaimer(false)
-	save_config()
-
-func _load_config():
-	config = ConfigFile.new()
-	if config.load(CONFIG_PATH) != OK:
-		_make_new_config()
-	return true
-
 func should_show_disclaimer():
 	var curr_version = GDRESettings.get_gdre_version()
-	var last_showed = config.get_value("General", "last_showed_disclaimer", "<NONE>")
+	var last_showed  = GDRESettings.get_setting("last_showed_disclaimer")
 	if last_showed == "<NONE>":
 		return true
 	if last_showed == curr_version:
@@ -127,22 +114,11 @@ func set_showed_disclaimer(setting: bool):
 	var version = "<NONE>"
 	if setting:
 		version = GDRESettings.get_gdre_version()
-	config.set_value("General", "last_showed_disclaimer", version)
-
-func save_config():
-	if config == null:
-		return ERR_DOES_NOT_EXIST
-	if GDRESettings.is_pack_loaded():
-		return ERR_FILE_CANT_WRITE
-	return config.save(CONFIG_PATH)
+	GDRESettings.set_setting("last_showed_disclaimer", version)
 
 func handle_quit(save_cfg = true):
 	if GDRESettings.is_pack_loaded():
 		GDRESettings.unload_project()
-	if save_cfg:
-		var ret = save_config()
-		if ret != OK and ret != ERR_DOES_NOT_EXIST:
-			print("Couldn't save config file!")
 
 
 func _ready():
@@ -152,12 +128,11 @@ func _ready():
 	if handle_cli(args):
 		get_tree().quit()
 	else:
-		_load_config()
 		var show_disclaimer = should_show_disclaimer()
 		show_disclaimer = show_disclaimer and len(args) == 0
 		if show_disclaimer:
 			set_showed_disclaimer(true)
-			save_config()
+			GDRESettings.save_config()
 		register_dropped_files()
 		check_version()
 		if show_disclaimer:
@@ -705,7 +680,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--disable-multithreading"):
 			disable_multi_threading = true
 		elif arg.begins_with("--enable-experimental-plugin-downloading"):
-			GDRESettings.set_setting_download_plugins(true)
+			GDRESettings.set_setting("download_plugins", true)
 			set_setting = true
 		elif arg.begins_with("--list-bytecode-versions"):
 			var versions = GDScriptDecomp.get_bytecode_versions()
