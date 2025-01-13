@@ -541,16 +541,14 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	}
 	preferred_import_path = cf->get_value("remap", "path", "");
 	const String src_ext = source_file.get_extension().to_lower();
-	if (src_ext != "gd") {
-		ResourceInfo res_info = ResourceCompatLoader::get_resource_info(preferred_import_path, "", &err);
-		if (err) {
-			cf = Ref<ConfigFile>();
-		}
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + preferred_import_path);
-		type = res_info.type;
-		ver_major = res_info.ver_major;
-		ver_minor = res_info.ver_minor;
+	ResourceInfo res_info = ResourceCompatLoader::get_resource_info(preferred_import_path, "", &err);
+	if (err) {
+		cf = Ref<ConfigFile>();
 	}
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + preferred_import_path);
+	type = res_info.type;
+	ver_major = res_info.ver_major;
+	ver_minor = res_info.ver_minor;
 	dest_files = Vector<String>({ preferred_import_path });
 	not_an_import = true;
 	import_md_path = p_path;
