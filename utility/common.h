@@ -2,6 +2,9 @@
 #include "core/templates/hash_set.h"
 #include "core/variant/variant.h"
 
+#include <core/variant/typed_array.h>
+#include <core/variant/typed_dictionary.h>
+
 class Image;
 namespace gdre {
 Vector<String> get_recursive_dir_list(const String dir, const Vector<String> &wildcards = Vector<String>(), const bool absolute = true, const String rel = "", const bool &res = false);
@@ -103,6 +106,62 @@ void shuffle_vector(Vector<T> &vec) {
 		data[j] = data[i];
 		data[i] = tmp;
 	}
+}
+
+template <class T>
+TypedArray<T> vector_to_typed_array(const Vector<T> &vec) {
+	TypedArray<T> arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
+// specialization for Ref<T>
+template <class T>
+TypedArray<T> vector_to_typed_array(const Vector<Ref<T>> &vec) {
+	TypedArray<T> arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<K, V> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<K, Ref<V>> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<Ref<K>, V> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
+}
+
+template <class K, class V>
+TypedDictionary<K, V> hashmap_to_typed_dict(const HashMap<Ref<K>, Ref<V>> &map) {
+	TypedDictionary<K, V> dict;
+	for (const auto &E : map) {
+		dict[E.key] = E.value;
+	}
+	return dict;
 }
 
 bool string_is_ascii(const String &s);
