@@ -2,6 +2,7 @@
 #include "tests/test_macros.h"
 
 #include "utility/gd_parallel_hashmap.h"
+#include "utility/gd_parallel_queue.h"
 
 static constexpr int SIMPLE_TEST_MAX_ITERS = 50000;
 static constexpr int SIMPLE_TEST_DIVISOR = 4;
@@ -138,4 +139,11 @@ TEST_CASE("[GDSDecomp] Test phmap with complex values") {
 		thing.values.write[i] = generate_random_string();
 	}
 	run_complex_test(thing);
+}
+
+TEST_CASE("[GDSDecomp] Test StaticParallelQueue") {
+	StaticParallelQueue<String, 1024> test;
+	test.push("test");
+	auto val = test.pop();
+	CHECK(val == "test");
 }
