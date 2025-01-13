@@ -14,6 +14,7 @@
 #include "exporters/oggstr_exporter.h"
 #include "exporters/sample_exporter.h"
 #include "exporters/texture_exporter.h"
+#include "gdre_logger.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
@@ -214,6 +215,11 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 	}
 	tokens[i].report = Exporter::export_resource(tokens[i].output_dir, tokens[i].iinfo);
 	rewrite_metadata(tokens[i]);
+	if (tokens[i].supports_multithread) {
+		tokens[i].report->append_error_messages(GDRELogger::get_thread_errors());
+	} else {
+		tokens[i].report->append_error_messages(GDRELogger::get_errors());
+	}
 	last_completed++;
 }
 
@@ -351,6 +357,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 	}
 	int64_t num_multithreaded_tokens = tokens.size();
 	// ***** Export resources *****
+	GDRELogger::clear_error_queues();
 	if (opt_multi_thread && tokens.size() > 0) {
 		last_completed = -1;
 		cancelled = false;
@@ -380,6 +387,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		// Always wait for completion; otherwise we leak memory.
 		WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
 	}
+	GDRELogger::clear_error_queues();
 	for (int i = 0; i < non_multithreaded_tokens.size(); i++) {
 		ExportToken &token = non_multithreaded_tokens.write[i];
 		if (pr) {
@@ -408,12 +416,12 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		Ref<ExportReport> ret = token.report;
 		if (ret.is_null()) {
 			ERR_PRINT("Exporter returned null report for " + iinfo->get_path());
-			report->failed.push_back(iinfo);
+			report->failed.push_back(ret);
 			continue;
 		}
 		err = ret->get_error();
 		if (err == ERR_SKIP) {
-			report->not_converted.push_back(iinfo);
+			report->not_converted.push_back(ret);
 			continue;
 		} else if (err == ERR_UNAVAILABLE) {
 			String type = iinfo->get_type();
@@ -422,10 +430,10 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 				format_type = ret->get_unsupported_format_type();
 			}
 			report_unsupported_resource(type, format_type, iinfo->get_path());
-			report->not_converted.push_back(iinfo);
+			report->not_converted.push_back(ret);
 			continue;
 		} else if (err != OK) {
-			report->failed.push_back(iinfo);
+			report->failed.push_back(ret);
 			print_verbose("Failed to convert " + iinfo->get_type() + " resource " + iinfo->get_path());
 			continue;
 		}
@@ -438,15 +446,15 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		auto metadata_status = ret->get_rewrote_metadata();
 		// the following are successful exports, but we failed to rewrite metadata or write md5 files
 		if (metadata_status == ExportReport::REWRITTEN) {
-			report->rewrote_metadata.push_back(iinfo);
+			report->rewrote_metadata.push_back(ret);
 		} else if (metadata_status == ExportReport::NOT_IMPORTABLE || metadata_status == ExportReport::FAILED) {
 			// necessary to rewrite import metadata but failed to do so
-			report->failed_rewrite_md.push_back(iinfo);
+			report->failed_rewrite_md.push_back(ret);
 		} else if (metadata_status == ExportReport::MD5_FAILED) {
-			report->failed_rewrite_md5.push_back(iinfo);
+			report->failed_rewrite_md5.push_back(ret);
 		}
 		if (ret->get_loss_type() != ImportInfo::LOSSLESS) {
-			report->lossy_imports.push_back(iinfo);
+			report->lossy_imports.push_back(ret);
 		}
 		if (iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative") {
 			if (!ret->get_message().is_empty()) {
@@ -466,7 +474,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 				}
 			}
 		}
-		report->success.push_back(iinfo);
+		report->success.push_back(ret);
 		// remove remaps
 		if (!err && get_settings()->has_any_remaps()) {
 			remove_remap_and_autoconverted(iinfo->get_export_dest(), iinfo->get_path(), output_dir);
@@ -923,9 +931,9 @@ String ImportExporterReport::get_totals_string() {
 	return report;
 }
 
-void add_to_dict(Dictionary &dict, const Vector<Ref<ImportInfo>> &vec) {
+void add_to_dict(Dictionary &dict, const Vector<Ref<ExportReport>> &vec) {
 	for (int i = 0; i < vec.size(); i++) {
-		dict[vec[i]->get_path()] = vec[i]->get_export_dest();
+		dict[vec[i]->get_path()] = vec[i]->get_new_source_path();
 	}
 }
 
@@ -936,9 +944,7 @@ Dictionary ImportExporterReport::get_report_sections() {
 	// sections["session_notes"] = get_session_notes();
 	sections["success"] = Dictionary();
 	Dictionary success_dict = sections["success"];
-	for (int i = 0; i < success.size(); i++) {
-		success_dict[success[i]->get_path()] = success[i]->get_export_dest();
-	}
+	add_to_dict(success_dict, success);
 	sections["decompiled_scripts"] = Dictionary();
 	Dictionary decompiled_scripts_dict = sections["decompiled_scripts"];
 	for (int i = 0; i < decompiled_scripts.size(); i++) {
@@ -1000,10 +1006,18 @@ Dictionary ImportExporterReport::get_report_sections() {
 	return sections;
 }
 
-String get_to_string(const Vector<Ref<ImportInfo>> &vec) {
+String get_to_string(const Vector<Ref<ExportReport>> &vec) {
 	String str = "";
 	for (auto &info : vec) {
-		str += info->get_path() + " to " + info->get_export_dest() + String("\n");
+		str += info->get_path() + " to " + info->get_new_source_path() + String("\n");
+	}
+	return str;
+}
+
+String get_failed_section_string(const Vector<Ref<ExportReport>> &vec) {
+	String str = "";
+	for (int i = 0; i < vec.size(); i++) {
+		str += vec[i]->get_path() + String("\n");
 	}
 	return str;
 }
@@ -1019,9 +1033,7 @@ String ImportExporterReport::get_report_string() {
 			report += get_to_string(lossy_imports);
 		} else {
 			report += "\nThe following files were not converted from a lossy import." + String("\n");
-			for (int i = 0; i < lossy_imports.size(); i++) {
-				report += lossy_imports[i]->get_path() + String("\n");
-			}
+			report += get_failed_section_string(lossy_imports);
 		}
 	}
 	if (failed_plugin_cfg_create.size() > 0) {
@@ -1059,8 +1071,28 @@ String ImportExporterReport::get_report_string() {
 	if (failed.size() > 0) {
 		report += "------\n";
 		report += "\nFailed conversions:" + String("\n");
-		for (int i = 0; i < failed.size(); i++) {
-			report += failed[i]->get_path() + String("\n");
+		for (auto &fail : failed) {
+			report += vformat("* %s\n", fail->get_path());
+			auto splits = fail->get_message().split("\n");
+			for (int i = 0; i < splits.size(); i++) {
+				auto split = splits[i].strip_edges();
+				if (split.is_empty()) {
+					continue;
+				}
+				report += "  * " + split + String("\n");
+			}
+			for (auto &msg : fail->get_message_detail()) {
+				report += "  * " + msg.strip_edges() + String("\n");
+			}
+			auto err_messages = fail->get_error_messages();
+			if (!err_messages.is_empty()) {
+				report += "  * Errors:" + String("\n");
+				for (auto &err : err_messages) {
+					err = err.strip_edges();
+					report += "\t\t-\t" + err.replace("\n", " ").replace("\t", "  ") + String("\n");
+				}
+			}
+			report += "\n";
 		}
 	}
 	return report;
@@ -1111,6 +1143,7 @@ String ImportExporterReport::get_session_notes_string() {
 	}
 	return report;
 }
+
 String ImportExporterReport::get_log_file_location() {
 	return log_file_location;
 }
@@ -1118,9 +1151,11 @@ String ImportExporterReport::get_log_file_location() {
 Vector<String> ImportExporterReport::get_decompiled_scripts() {
 	return decompiled_scripts;
 }
+
 Vector<String> ImportExporterReport::get_failed_scripts() {
 	return failed_scripts;
 }
+
 TypedArray<ImportInfo> iinfo_vector_to_typedarray(const Vector<Ref<ImportInfo>> &vec) {
 	TypedArray<ImportInfo> arr;
 	arr.resize(vec.size());
@@ -1130,31 +1165,39 @@ TypedArray<ImportInfo> iinfo_vector_to_typedarray(const Vector<Ref<ImportInfo>> 
 	return arr;
 }
 
-TypedArray<ImportInfo> ImportExporterReport::get_successes() {
-	return iinfo_vector_to_typedarray(success);
+TypedArray<ImportInfo> ImportExporterReport::get_successes() const {
+	return vector_to_typed_array(success);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_failed() {
-	return iinfo_vector_to_typedarray(failed);
+
+TypedArray<ImportInfo> ImportExporterReport::get_failed() const {
+	return vector_to_typed_array(failed);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_not_converted() {
-	return iinfo_vector_to_typedarray(not_converted);
+
+TypedArray<ImportInfo> ImportExporterReport::get_not_converted() const {
+	return vector_to_typed_array(not_converted);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_lossy_imports() {
-	return iinfo_vector_to_typedarray(lossy_imports);
+
+TypedArray<ImportInfo> ImportExporterReport::get_lossy_imports() const {
+	return vector_to_typed_array(lossy_imports);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_rewrote_metadata() {
-	return iinfo_vector_to_typedarray(rewrote_metadata);
+
+TypedArray<ImportInfo> ImportExporterReport::get_rewrote_metadata() const {
+	return vector_to_typed_array(rewrote_metadata);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_failed_rewrite_md() {
-	return iinfo_vector_to_typedarray(failed_rewrite_md);
+
+TypedArray<ImportInfo> ImportExporterReport::get_failed_rewrite_md() const {
+	return vector_to_typed_array(failed_rewrite_md);
 }
-TypedArray<ImportInfo> ImportExporterReport::get_failed_rewrite_md5() {
-	return iinfo_vector_to_typedarray(failed_rewrite_md5);
+
+TypedArray<ImportInfo> ImportExporterReport::get_failed_rewrite_md5() const {
+	return vector_to_typed_array(failed_rewrite_md5);
 }
-Vector<String> ImportExporterReport::get_failed_plugin_cfg_create() {
+
+Vector<String> ImportExporterReport::get_failed_plugin_cfg_create() const {
 	return failed_plugin_cfg_create;
 }
-Vector<String> ImportExporterReport::get_failed_gdnative_copy() {
+
+Vector<String> ImportExporterReport::get_failed_gdnative_copy() const {
 	return failed_gdnative_copy;
 }
 

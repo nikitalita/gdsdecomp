@@ -19,6 +19,7 @@ struct dep_info {
 	String dep;
 	String remap;
 	String type;
+	bool exists = true;
 };
 
 #define MAX_DEPTH 256
@@ -50,7 +51,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 						if (mapped_path.is_empty() || !FileAccess::exists(mapped_path)) {
 							mapped_path = GDRESettings::get_singleton()->get_mapped_path(mapped_path);
 							if (mapped_path.is_empty() || !FileAccess::exists(mapped_path)) {
-								ERR_PRINT(vformat("Failed to export scene %s: Dependency %s:%s does not exist.", p_path, info.dep, info.remap));
+								info.exists = false;
 								continue;
 							}
 						}
@@ -66,7 +67,11 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 			if (info.remap.is_empty()) {
 				info.remap = GDRESettings::get_singleton()->get_mapped_path(info.dep);
 			}
-			get_deps_recursive(info.remap, r_deps, depth + 1);
+			if (FileAccess::exists(info.remap)) {
+				get_deps_recursive(info.remap, r_deps, depth + 1);
+			} else {
+				info.exists = false;
+			}
 		}
 	}
 }
@@ -76,7 +81,10 @@ bool SceneExporter::using_threaded_load() const {
 	return !supports_multithread();
 }
 
-Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path) {
+void thing(Error err, const String &msg) {
+}
+
+Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	if (dest_ext == "escn" || dest_ext == "tscn") {
 		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
@@ -87,10 +95,77 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	Error err = OK;
 	bool has_script = false;
 	bool has_shader = false;
+	List<String> get_deps;
+	// We need to preload any Texture resources that are used by the scene with our own loader
+	HashMap<String, dep_info> get_deps_map;
+
+	auto append_error_messages = [&](Error err, const String &err_msg = "") {
+		String step;
+		switch (err) {
+			case ERR_FILE_MISSING_DEPENDENCIES:
+				step = "dependency resolution";
+				break;
+			case ERR_FILE_CANT_OPEN:
+				step = "load";
+				break;
+			case ERR_COMPILATION_FAILED:
+				step = "appending to GLTF document";
+				break;
+			case ERR_FILE_CANT_WRITE:
+				step = "serializing GLTF document";
+				break;
+			case ERR_PRINTER_ON_FIRE:
+				step = "GLTF export";
+				break;
+			default:
+				step = "unknown";
+				break;
+		}
+		String desc;
+		if (has_script && has_shader) {
+			desc = "scripts and shaders";
+		} else if (has_script) {
+			desc = "scripts";
+		} else if (has_shader) {
+			desc = "shaders";
+		}
+		auto err_message = vformat("Errors during %s", step);
+		if (!err_msg.is_empty()) {
+			err_message += ":\n  " + err_msg;
+		}
+		if (!desc.is_empty()) {
+			err_message += "\n  Scene had " + desc;
+		}
+
+		if (p_report.is_valid()) {
+			auto message = err_message + "\n";
+			Vector<String> message_detail;
+			message_detail.append("Dependencies:");
+			for (const auto &E : get_deps_map) {
+				message_detail.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
+			}
+			p_report->set_message(message);
+			p_report->append_message_detail(message_detail);
+			p_report->set_error(err);
+			p_report->append_error_messages(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
+		}
+
+		return vformat("Failed to export scene %s:\n  %s", p_src_path, err_message);
+	};
+
+#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)                                                    \
+	{                                                                                        \
+		ERR_PRINT(append_error_messages(err, msg));                                          \
+		supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors(); \
+		return err;                                                                          \
+	}
+
+#define GDRE_SCN_EXP_FAIL_COND_V_MSG(cond, err, msg) \
+	if (unlikely(cond)) {                            \
+		GDRE_SCN_EXP_FAIL_V_MSG(err, msg);           \
+	}
+
 	{
-		List<String> get_deps;
-		// We need to preload any Texture resources that are used by the scene with our own loader
-		HashMap<String, dep_info> get_deps_map;
 		get_deps_recursive(p_src_path, get_deps_map);
 
 		Vector<Ref<Resource>> textures;
@@ -132,7 +207,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				continue;
 			}
 			if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
-				ERR_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES, vformat("Failed to export scene %s: Dependency %s:%s does not exist.", p_src_path, info.dep, info.remap));
+				GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
+						vformat("Dependency %s -> %s does not exist.", info.dep, info.remap));
 			} else if (info.uid != ResourceUID::INVALID_ID) {
 				if (!ResourceUID::get_singleton()->has_id(info.uid)) {
 					ResourceUID::get_singleton()->add_id(info.uid, info.remap);
@@ -149,7 +225,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 						using_threaded_load(),
 						ResourceFormatLoader::CACHE_MODE_REUSE);
 				if (err || texture.is_null()) {
-					ERR_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES, vformat("Failed to export scene %s: Dependency %s:%s failed to load.", p_src_path, info.dep, info.remap));
+					GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
+							vformat("Dependency %s:%s failed to load.", info.dep, info.remap));
 				}
 				set_cache_res(info, texture, false);
 			}
@@ -161,27 +238,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			err = ERR_PRINTER_ON_FIRE;
 		}
 	}
-	// if (has_shader) {
-	// 	ResourceCompatLoader::set_default_gltf_load(true);
-	// }
 	// remove the UIDs that we added that didn't exist before
 	for (uint64_t id : texture_uids) {
 		ResourceUID::get_singleton()->remove_id(id);
 	}
-	if (err != ERR_PRINTER_ON_FIRE) {
-		ERR_FAIL_COND_V_MSG(err, err, "Failed to export scene " + p_src_path);
-	} else {
-		String desc;
-		if (has_script && has_shader) {
-			desc = "with scripts and shaders ";
-		} else if (has_script) {
-			desc = "with scripts ";
-		} else if (has_shader) {
-			desc = "with shaders ";
-		}
-		ERR_PRINT(vformat("Exported scene %shad errors: %s", desc, p_src_path));
-	}
-	return err;
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
+	return OK;
 }
 
 Error SceneExporter::_export_scene(const String &p_dest_path, const String &p_src_path, bool use_subthreads) {
@@ -194,7 +256,7 @@ Error SceneExporter::_export_scene(const String &p_dest_path, const String &p_sr
 	} else {
 		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", mode_type, &err, use_subthreads, ResourceFormatLoader::CACHE_MODE_REUSE);
 	}
-	ERR_FAIL_COND_V_MSG(err, err, "Failed to load scene " + p_src_path);
+	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
 	// GLTF export can result in inaccurate models
 	// save it under .assets, which won't be picked up for import by the godot editor
 	// we only export glbs
@@ -212,12 +274,12 @@ Error SceneExporter::_export_scene(const String &p_dest_path, const String &p_sr
 		err = doc->append_from_scene(root, state, flags);
 		if (err) {
 			memdelete(root);
-			ERR_FAIL_COND_V_MSG(err, err, "Failed to append scene " + p_src_path + " to glTF document");
+			ERR_FAIL_COND_V_MSG(err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 		}
 		err = doc->write_to_filesystem(state, p_dest_path);
 	}
 	memdelete(root);
-	ERR_FAIL_COND_V_MSG(err, err, "Failed to write glTF document to " + p_dest_path);
+	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
 	return OK;
 }
 
@@ -227,7 +289,7 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		int ver_major = get_ver_major(p_src_path);
 		ERR_FAIL_COND_V_MSG(ver_major != 4, ERR_UNAVAILABLE, "Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 	}
-	return _export_file(p_dest_path, p_src_path);
+	return _export_file(p_dest_path, p_src_path, nullptr);
 }
 
 Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
@@ -252,12 +314,10 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		report->set_unsupported_format_type(itos(iinfo->get_ver_major()) + ".x PackedScene");
 	} else {
 		report->set_new_source_path(new_path);
-		err = _export_file(dest_path, iinfo->get_path());
+		err = _export_file(dest_path, iinfo->get_path(), report);
 	}
 	if (err == OK) {
 		report->set_saved_path(dest_path);
-	} else if (err == ERR_PRINTER_ON_FIRE) {
-		report->set_message("Scene export had errors.");
 	}
 #if DEBUG_ENABLED
 	if (err && err != ERR_UNAVAILABLE) {
