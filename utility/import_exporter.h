@@ -24,13 +24,13 @@ class ImportExporterReport : public RefCounted {
 	Vector<String> decompiled_scripts;
 	Vector<String> failed_scripts;
 	String translation_export_message;
-	Vector<Ref<ImportInfo>> lossy_imports;
-	Vector<Ref<ImportInfo>> rewrote_metadata;
-	Vector<Ref<ImportInfo>> failed_rewrite_md;
-	Vector<Ref<ImportInfo>> failed_rewrite_md5;
-	Vector<Ref<ImportInfo>> failed;
-	Vector<Ref<ImportInfo>> success;
-	Vector<Ref<ImportInfo>> not_converted;
+	Vector<Ref<ExportReport>> lossy_imports;
+	Vector<Ref<ExportReport>> rewrote_metadata;
+	Vector<Ref<ExportReport>> failed_rewrite_md;
+	Vector<Ref<ExportReport>> failed_rewrite_md5;
+	Vector<Ref<ExportReport>> failed;
+	Vector<Ref<ExportReport>> success;
+	Vector<Ref<ExportReport>> not_converted;
 	Vector<String> failed_plugin_cfg_create;
 	Vector<String> failed_gdnative_copy;
 	Vector<String> unsupported_types;
@@ -60,15 +60,15 @@ public:
 	Vector<String> get_decompiled_scripts();
 	Vector<String> get_failed_scripts();
 	String get_translation_export_message();
-	TypedArray<ImportInfo> get_lossy_imports();
-	TypedArray<ImportInfo> get_rewrote_metadata();
-	TypedArray<ImportInfo> get_failed_rewrite_md();
-	TypedArray<ImportInfo> get_failed_rewrite_md5();
-	TypedArray<ImportInfo> get_failed();
-	TypedArray<ImportInfo> get_successes();
-	TypedArray<ImportInfo> get_not_converted();
-	Vector<String> get_failed_plugin_cfg_create();
-	Vector<String> get_failed_gdnative_copy();
+	TypedArray<ImportInfo> get_lossy_imports() const;
+	TypedArray<ImportInfo> get_rewrote_metadata() const;
+	TypedArray<ImportInfo> get_failed_rewrite_md() const;
+	TypedArray<ImportInfo> get_failed_rewrite_md5() const;
+	TypedArray<ImportInfo> get_failed() const;
+	TypedArray<ImportInfo> get_successes() const;
+	TypedArray<ImportInfo> get_not_converted() const;
+	Vector<String> get_failed_plugin_cfg_create() const;
+	Vector<String> get_failed_gdnative_copy() const;
 
 	void print_report();
 	ImportExporterReport() {

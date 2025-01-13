@@ -15,9 +15,11 @@ bool inGuiMode() {
 thread_local uint64_t thread_warning_count = 0;
 thread_local uint64_t thread_error_count = 0;
 thread_local bool previous_was_error = false;
+thread_local Vector<String> thread_error_queue;
 
 std::atomic<uint64_t> GDRELogger::error_count = 0;
 std::atomic<uint64_t> GDRELogger::warning_count = 0;
+StaticParallelQueue<String, 2048> GDRELogger::error_queue;
 
 void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 	if (disabled || !should_log(p_err)) {
@@ -40,10 +42,10 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 		}
 		va_end(list_copy);
 		if (p_err) {
-			String str = String::utf8(buf, 8).strip_edges();
+			String str = String::utf8(buf);
 			// If it's the follow-up stacktrace line of an error, don't count it.
-			if (!previous_was_error || !str.strip_edges().begins_with("at:")) {
-				if (len >= 8 && str.length() == 8 && (String::utf8(buf, 8) == "WARNING:")) {
+			if (!previous_was_error || !str.strip_edges(true, false).begins_with("at:")) {
+				if (len >= 8 && str.begins_with("WARNING:")) {
 					warning_count++;
 					thread_warning_count++;
 				} else {
@@ -54,6 +56,8 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 			} else {
 				previous_was_error = false;
 			}
+			error_queue.try_push(str); // Ignore if the queue is full
+			thread_error_queue.push_back(str);
 		} else {
 			previous_was_error = false;
 		}
@@ -139,6 +143,28 @@ uint64_t GDRELogger::get_error_count() {
 
 uint64_t GDRELogger::get_thread_error_count() {
 	return thread_error_count;
+}
+
+Vector<String> GDRELogger::get_errors() {
+	Vector<String> errors;
+	String tmp;
+	while (error_queue.try_pop(tmp)) {
+		errors.push_back(tmp);
+	}
+	return errors;
+}
+
+Vector<String> GDRELogger::get_thread_errors() {
+	Vector<String> errors = thread_error_queue;
+	thread_error_queue.clear();
+	return errors;
+}
+
+void GDRELogger::clear_error_queues() {
+	String tmp;
+	while (error_queue.try_pop(tmp)) {
+	}
+	thread_error_queue.clear();
 }
 
 GDRELogger::GDRELogger() {

@@ -251,7 +251,9 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 		}
 		if (path.is_empty()) {
 			report->set_error(ERR_FILE_NOT_FOUND);
-			report->set_message("File not found: " + iinfo->get_path());
+			report->set_message("No existing textures found for this import");
+			report->append_message_detail({ "Possibles:" });
+			report->append_message_detail(iinfo->get_dest_files());
 			return report;
 		}
 	}

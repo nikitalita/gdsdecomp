@@ -23,6 +23,8 @@ private:
 	String new_source_path;
 	String saved_path;
 	String unsupported_format_type;
+	Vector<String> error_messages;
+	Vector<String> message_detail;
 	Error error = OK;
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
 	MetadataStatus rewrote_metadata = NOT_DIRTY;
@@ -58,6 +60,16 @@ public:
 
 	void set_rewrote_metadata(MetadataStatus p_status) { rewrote_metadata = p_status; }
 	MetadataStatus get_rewrote_metadata() const { return rewrote_metadata; }
+
+	void append_error_messages(const Vector<String> &p_error_messages) { error_messages.append_array(p_error_messages); }
+	void clear_error_messages() { error_messages.clear(); }
+	Vector<String> get_error_messages() const { return error_messages; }
+
+	void append_message_detail(const Vector<String> &p_message_detail) { message_detail.append_array(p_message_detail); }
+	void clear_message_detail() { message_detail.clear(); }
+	Vector<String> get_message_detail() const { return message_detail; }
+
+	String get_path() const { return import_info->get_path(); }
 
 	ExportReport() {}
 	ExportReport(Ref<ImportInfo> p_import_info) :
