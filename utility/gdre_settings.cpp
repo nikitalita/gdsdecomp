@@ -1825,7 +1825,9 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		return;
 	}
 	auto res = ResourceCompatLoader::fake_load(tokens[i].path, "", &tokens[i].err);
-	ERR_FAIL_COND_MSG(res.is_null(), "Failed to load resource " + tokens[i].path);
+	if (res.is_null()) {
+		WARN_PRINT("Failed to load resource " + tokens[i].path);
+	}
 	gdre::get_strings_from_variant(res, tokens[i].strings, tokens[i].engine_version);
 }
 
