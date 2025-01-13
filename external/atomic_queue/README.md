@@ -1,0 +1,1 @@
+Taken from https://github.com/max0x7ba/atomic_queue @ 278199b715272c99e58951f6d8040a59a019740d
