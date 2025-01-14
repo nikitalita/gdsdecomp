@@ -1669,7 +1669,10 @@ Error ResourceFormatLoaderCompatBinary::rename_dependencies(const String &p_path
 		save_ustring(fw, path);
 
 		if (using_uids) {
-			// ResourceUID::ID uid = ResourceSaver::get_resource_id_for_path(full_path);
+			// ResourceUID::ID uid = ResourceSaver::get_resource_id_for_path(full_path)
+			if (uid == ResourceUID::INVALID_ID) {
+				uid = GDRESettings::get_singleton()->get_uid_for_path(full_path);
+			}
 			fw->store_64(uint64_t(uid));
 		}
 	}
@@ -2400,6 +2403,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 
 	Error err;
 
+	String original_path = compat.original_path;
 	ver_format = compat.ver_format;
 	ver_major = compat.ver_major;
 	ver_minor = compat.ver_minor;
@@ -2416,6 +2420,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	stored_use_real64 = compat.stored_use_real64;
 	Ref<ResourceImportMetadatav2> imd = compat.v2metadata;
 	ResourceUID::ID uid = compat.uid;
+	if (using_uids && uid == ResourceUID::INVALID_ID) {
+		uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
+	}
 	if (format != "binary") { // text
 		if (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)) {
 			ver_format = 6;
@@ -2637,6 +2644,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 		if (using_uids) {
 			Dictionary dict = save_order[i]->get_meta(META_COMPAT, Dictionary());
 			ResourceUID::ID ruid = dict.get("uid", ResourceUID::INVALID_ID);
+			if (ruid == ResourceUID::INVALID_ID) {
+				ruid = GDRESettings::get_singleton()->get_uid_for_path(res_path);
+			}
 			f->store_64(uint64_t(ruid));
 		}
 	}

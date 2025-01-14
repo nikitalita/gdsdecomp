@@ -18,7 +18,7 @@ Ref<ExportReport> AutoConvertedExporter::export_resource(const String &output_di
 		report->set_unsupported_format_type("2.0 XML format");
 		return report;
 	}
-	Error err = export_file(dst_path, src_path);
+	Error err = ResourceCompatLoader::to_text(src_path, dst_path, 0, import_infos->get_source_file());
 	report->set_error(err);
 	report->set_saved_path(dst_path);
 	return report;

@@ -1,5 +1,6 @@
 #ifndef GDRE_SETTINGS_H
 #define GDRE_SETTINGS_H
+#include "gd_parallel_hashmap.h"
 #include "import_info.h"
 #include "packed_file_info.h"
 #include "pcfg_loader.h"
@@ -122,6 +123,7 @@ private:
 	void _do_import_load(uint32_t i, IInfoToken *tokens);
 	void _do_string_load(uint32_t i, StringLoadToken *tokens);
 	HashMap<ResourceUID::ID, UID_Cache> unique_ids; //unique IDs and utf8 paths (less memory used)
+	ParallelFlatHashMap<String, ResourceUID::ID> path_to_uid;
 	HashMap<String, Dictionary> script_cache;
 
 	uint8_t old_key[32] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
@@ -166,6 +168,8 @@ private:
 	void _do_prepop(uint32_t i, const String *plugins);
 	String sanitize_home_in_path(const String &p_path);
 	void log_sysinfo();
+
+	static ResourceUID::ID _get_uid_for_path(const String &p_path, bool _generate = false);
 
 protected:
 	static void _bind_methods();
@@ -228,7 +232,7 @@ public:
 	bool has_file(const String &p_path);
 	Error load_import_files();
 	Error load_import_file(const String &p_path);
-	Ref<ImportInfo> get_import_info_by_dest(const String &p_path);
+	Ref<ImportInfo> get_import_info_by_dest(const String &p_path) const;
 	Ref<ImportInfo> get_import_info_by_source(const String &p_path);
 	Vector<String> get_code_files();
 	String get_exec_dir();
@@ -255,6 +259,7 @@ public:
 	static String get_section_from_key(const String &p_setting);
 	Variant get_setting(const String &p_setting, const Variant &p_default_value = Variant()) const;
 	String get_home_dir();
+	ResourceUID::ID get_uid_for_path(const String &p_path) const;
 
 	static GDRESettings *get_singleton();
 	GDRESettings();

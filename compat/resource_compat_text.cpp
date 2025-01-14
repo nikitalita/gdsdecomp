@@ -1099,7 +1099,7 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 				fw = FileAccess::open(p_path + ".depren", FileAccess::WRITE);
 
 				if (res_uid == ResourceUID::INVALID_ID && format_version >= 3) {
-					res_uid = ResourceSaver::get_resource_id_for_path(p_path);
+					res_uid = GDRESettings::get_singleton()->get_uid_for_path(p_path);
 				}
 
 				String uid_text = "";
@@ -1126,10 +1126,10 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 			String path = next_tag.fields["path"];
 			String id = next_tag.fields["id"];
 			String type = next_tag.fields["type"];
-
+			ResourceUID::ID uid;
 			if (next_tag.fields.has("uid")) {
 				String uidt = next_tag.fields["uid"];
-				ResourceUID::ID uid = ResourceUID::get_singleton()->text_to_id(uidt);
+				uid = ResourceUID::get_singleton()->text_to_id(uidt);
 				if (uid != ResourceUID::INVALID_ID && ResourceUID::get_singleton()->has_id(uid)) {
 					// If a UID is found and the path is valid, it will be used, otherwise, it falls back to the path.
 					String old_path = path;
@@ -1166,7 +1166,8 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 
 			// clang-format off
 			if (format_version >= 3){
-			ResourceUID::ID uid = ResourceSaver::get_resource_id_for_path(path);
+			// COMPAT
+			uid = uid == ResourceUID::INVALID_ID ? GDRESettings::get_singleton()->get_uid_for_path(path) : uid;
 			if (uid != ResourceUID::INVALID_ID) {
 				s += " uid=\"" + ResourceUID::get_singleton()->id_to_text(uid) + "\"";
 			}
@@ -1981,6 +1982,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 
 	local_path = GDRESettings::get_singleton()->localize_path(p_path);
 
+	String original_path = compat.original_path;
 	format_version = compat.ver_format;
 	ver_major = compat.ver_major;
 	ver_minor = compat.ver_minor;
@@ -1991,6 +1993,10 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 	bool using_uids = compat.using_uids;
 	bool using_named_scene_ids = compat.using_named_scene_ids;
 	Ref<ResourceImportMetadatav2> imd = compat.v2metadata;
+	// COMPAT: They're not saving the uids to the binary resources in exported packs anymore, so we need to get it from the cache.
+	if (using_uids && res_uid == ResourceUID::INVALID_ID) {
+		res_uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
+	}
 	if (format != "text") {
 		if (format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
 			format_version = 4;
@@ -2078,7 +2084,10 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 #if 0
 		ResourceUID::ID uid = ResourceSaver::get_resource_id_for_path(local_path, true);
 #endif
-		ResourceUID::ID uid = res_uid;
+		ResourceUID::ID uid = res_uid; // TODO!!!
+
+		if (uid == ResourceUID::INVALID_ID && using_uids) {
+		}
 
 		if (uid != ResourceUID::INVALID_ID && format_version >= 3) {
 			title += " uid=\"" + ResourceUID::get_singleton()->id_to_text(uid) + "\"";

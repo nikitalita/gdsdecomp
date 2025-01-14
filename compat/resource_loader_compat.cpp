@@ -328,12 +328,18 @@ Ref<ResourceCompatConverter> ResourceCompatLoader::get_converter_for_type(const 
 	return Ref<ResourceCompatConverter>();
 }
 
-Error ResourceCompatLoader::to_text(const String &p_path, const String &p_dst, uint32_t p_flags) {
+Error ResourceCompatLoader::to_text(const String &p_path, const String &p_dst, uint32_t p_flags, const String &original_path) {
 	auto loader = get_loader_for_path(p_path, "");
 	ERR_FAIL_COND_V_MSG(loader.is_null(), ERR_FILE_NOT_FOUND, "Failed to load resource '" + p_path + "'. ResourceFormatLoader::load was not implemented for this resource type.");
 	Error err;
-
-	auto res = loader->custom_load(p_path, {}, ResourceInfo::LoadType::FAKE_LOAD, &err);
+	String orig_path = original_path;
+	if (orig_path.is_empty() && GDRESettings::get_singleton()->is_pack_loaded()) {
+		auto src_iinfo = GDRESettings::get_singleton()->get_import_info_by_dest(p_path);
+		if (src_iinfo.is_valid() && src_iinfo->get_iitype() == ImportInfo::REMAP) {
+			orig_path = src_iinfo->get_source_file();
+		}
+	}
+	auto res = loader->custom_load(p_path, orig_path, ResourceInfo::LoadType::FAKE_LOAD, &err);
 	ERR_FAIL_COND_V_MSG(err != OK || res.is_null(), err, "Failed to load " + p_path);
 	ResourceFormatSaverCompatTextInstance saver;
 	err = gdre::ensure_dir(p_dst.get_base_dir());
@@ -471,7 +477,7 @@ void ResourceCompatLoader::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("remove_resource_object_converter", "converter"), &ResourceCompatLoader::remove_resource_object_converter);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_resource_info", "path", "type_hint"), &ResourceCompatLoader::_get_resource_info, DEFVAL(""));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_dependencies", "path", "add_types"), &ResourceCompatLoader::_get_dependencies, DEFVAL(false));
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("to_text", "path", "dst", "flags"), &ResourceCompatLoader::to_text, DEFVAL(0));
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("to_text", "path", "dst", "flags", "original_path"), &ResourceCompatLoader::to_text, DEFVAL(0), DEFVAL(""));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("to_binary", "path", "dst", "flags"), &ResourceCompatLoader::to_binary, DEFVAL(0));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("make_globally_available"), &ResourceCompatLoader::make_globally_available);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("unmake_globally_available"), &ResourceCompatLoader::unmake_globally_available);
