@@ -56,7 +56,7 @@ public:
 	static Ref<ResourceCompatConverter> get_converter_for_type(const String &p_type, int ver_major);
 	static ResourceInfo get_resource_info(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
 	static void get_dependencies(const String &p_path, List<String> *p_dependencies, bool p_add_types = false);
-	static Error to_text(const String &p_path, const String &p_dst, uint32_t p_flags = 0);
+	static Error to_text(const String &p_path, const String &p_dst, uint32_t p_flags = 0, const String &original_path = {});
 	static Error to_binary(const String &p_path, const String &p_dst, uint32_t p_flags = 0);
 	static void set_default_gltf_load(bool p_enable);
 	static bool is_default_gltf_load();

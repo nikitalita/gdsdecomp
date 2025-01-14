@@ -928,8 +928,8 @@ StringName GDRESettings::get_cached_script_class(const String &p_path) {
 		return "";
 	}
 	String path = p_path;
-	if (!script_cache.has(path) && remap_iinfo.has(path)) {
-		path = remap_iinfo[path]->get_path();
+	if (!script_cache.has(path)) {
+		path = get_mapped_path(p_path);
 	}
 	if (script_cache.has(path)) {
 		auto &dict = script_cache.get(path);
@@ -945,8 +945,8 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 		return "";
 	}
 	String path = p_path;
-	if (!script_cache.has(path) && remap_iinfo.has(path)) {
-		path = remap_iinfo[path]->get_path();
+	if (!script_cache.has(path)) {
+		path = get_mapped_path(p_path);
 	}
 	if (script_cache.has(p_path)) {
 		auto &dict = script_cache[p_path];
@@ -1524,6 +1524,7 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 	if (p_reset) {
 		ResourceUID::get_singleton()->clear();
 		unique_ids.clear();
+		path_to_uid.clear();
 	}
 
 	uint32_t entry_count = f->get_32();
@@ -1539,26 +1540,47 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 
 		c.saved_to_cache = true;
 		unique_ids[id] = c;
+		path_to_uid[String::utf8(c.cs)] = id;
 	}
-	for (auto E : unique_ids) {
-		if (ResourceUID::get_singleton()->has_id(E.key)) {
-			String old_path = ResourceUID::get_singleton()->get_id_path(E.key);
-			String new_path = String(E.value.cs);
+	for (auto E : path_to_uid) {
+		if (ResourceUID::get_singleton()->has_id(E.second)) {
+			String old_path = ResourceUID::get_singleton()->get_id_path(E.second);
+			String new_path = E.first;
 			if (old_path != new_path) {
-				WARN_PRINT("Duplicate ID found in cache: " + itos(E.key) + " -> " + old_path + "\nReplacing with: " + new_path);
+				WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
 			}
-			ResourceUID::get_singleton()->set_id(E.key, new_path);
+			ResourceUID::get_singleton()->set_id(E.second, new_path);
 		} else {
-			ResourceUID::get_singleton()->add_id(E.key, String(E.value.cs));
+			ResourceUID::get_singleton()->add_id(E.second, E.first);
 		}
 	}
+	ResourceSaver::set_get_resource_id_for_path(&GDRESettings::_get_uid_for_path);
 	return OK;
 }
 
 Error GDRESettings::reset_uid_cache() {
 	unique_ids.clear();
+	path_to_uid.clear();
 	ResourceUID::get_singleton()->clear();
 	return ResourceUID::get_singleton()->load_from_cache(true);
+}
+
+ResourceUID::ID GDRESettings::_get_uid_for_path(const String &p_path, bool _generate) {
+	return get_singleton()->get_uid_for_path(p_path);
+}
+
+ResourceUID::ID GDRESettings::get_uid_for_path(const String &p_path) const {
+	ResourceUID::ID id = ResourceUID::INVALID_ID;
+	path_to_uid.if_contains(p_path, [&](const ParallelFlatHashMap<String, ResourceUID::ID>::value_type &e) {
+		id = e.second;
+	});
+	//
+	// if (id == ResourceUID::INVALID_ID) {
+	// 	auto src_iinfo = get_import_info_by_dest(p_path);
+	// 	path_to_uid.if_contains(src_iinfo->get_source_file(), [&](const ParallelFlatHashMap<String, ResourceUID::ID>::value_type &e) {
+	// 		id = e.second;
+	// 	});}
+	return id;
 }
 
 Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
@@ -1718,7 +1740,7 @@ Ref<ImportInfo> GDRESettings::get_import_info_by_source(const String &p_path) {
 	return Ref<ImportInfo>();
 }
 
-Ref<ImportInfo> GDRESettings::get_import_info_by_dest(const String &p_path) {
+Ref<ImportInfo> GDRESettings::get_import_info_by_dest(const String &p_path) const {
 	Ref<ImportInfo> iinfo;
 	for (int i = 0; i < import_files.size(); i++) {
 		iinfo = import_files[i];
