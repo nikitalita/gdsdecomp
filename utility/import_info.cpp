@@ -381,6 +381,9 @@ void ImportInfoModern::set_metadata_prop(Dictionary r_dict) {
 }
 
 Variant ImportInfoModern::get_param(const String &p_key) const {
+	if (!cf->has_section("params") || !cf->has_section_key("params", p_key)) {
+		return Variant();
+	}
 	return cf->get_value("params", p_key);
 }
 
