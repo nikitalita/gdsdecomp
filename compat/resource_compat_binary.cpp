@@ -3078,6 +3078,8 @@ ResourceInfo ResourceLoaderCompatBinary::get_resource_info() {
 	ResourceInfo d;
 	d.uid = uid;
 	d.type = type;
+	d.original_path = local_path;
+	d.resource_name = resource.is_valid() ? resource->get_name() : "";
 	d.ver_major = ver_major;
 	d.ver_minor = ver_minor;
 	d.ver_format = ver_format;
