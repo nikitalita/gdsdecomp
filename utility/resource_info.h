@@ -23,6 +23,8 @@ struct ResourceInfo {
 	int ver_minor = 0;
 	int packed_scene_version = -1;
 	LoadType load_type = ERR;
+	String original_path;
+	String resource_name;
 	String type;
 	String resource_format;
 	String script_class;
@@ -42,6 +44,8 @@ struct ResourceInfo {
 	static ResourceInfo from_dict(const Dictionary &dict) {
 		ResourceInfo ri;
 		ri.uid = dict.get("uid", ResourceUID::INVALID_ID);
+		ri.original_path = dict.get("original_path", "");
+		ri.resource_name = dict.get("resource_name", "");
 		ri.ver_format = dict.get("ver_format", 0);
 		ri.ver_major = dict.get("ver_major", 0);
 		ri.ver_minor = dict.get("ver_minor", 0);
@@ -65,6 +69,8 @@ struct ResourceInfo {
 	Dictionary to_dict() {
 		Dictionary dict;
 		dict["uid"] = uid;
+		dict["original_path"] = original_path;
+		dict["resource_name"] = resource_name;
 		dict["ver_format"] = ver_format;
 		dict["ver_major"] = ver_major;
 		dict["ver_minor"] = ver_minor;

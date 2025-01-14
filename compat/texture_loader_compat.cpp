@@ -33,21 +33,24 @@ bool is_real_or_gltf_load(ResourceInfo::LoadType p_type) {
 }
 
 void set_res_path(Ref<Resource> res, const String &path, ResourceInfo::LoadType p_type) {
-	// TODO: disable this for now; if we're doing a fake or non-global load, we don't want to set the path, and we manually set the path wherever we're using real/gltf load.
-	// if (res.is_valid()) {
-	// 	if (is_real_or_gltf_load(p_type)) {
-	// 		res->set_path(path, false);
-	// 	} else {
-	// 		res->set_path_cache(path);
-	// 	}
-	// }
+	if (res.is_valid()) {
+		if (p_type == ResourceInfo::LoadType::REAL_LOAD) {
+			res->set_path(path);
+		} else if (p_type == ResourceInfo::LoadType::GLTF_LOAD) {
+			// set_path() on textures calls RenderingServer::texture_set_path(),
+			// and GLTF_LOADs do not load the image into the rendering server,
+			// so we just set the path cache.
+			res->set_path_cache(path);
+		}
+	}
 }
 
-ResourceInfo TextureLoaderCompat::_get_resource_info(TextureLoaderCompat::TextureVersionType t) {
+ResourceInfo TextureLoaderCompat::_get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t) {
 	ResourceInfo info;
 	info.ver_major = TextureLoaderCompat::get_ver_major_from_textype(t);
 	info.type = TextureLoaderCompat::get_type_name_from_textype(t);
 	info.resource_format = "Texture";
+	info.original_path = original_path;
 	return info;
 }
 
@@ -807,7 +810,7 @@ ResourceInfo TextureLoaderCompat::get_resource_info(const String &p_path, Error 
 		ResourceFormatLoaderCompatBinary rlcb;
 		return rlcb.get_resource_info(p_path, r_error);
 	}
-	return TextureLoaderCompat::_get_resource_info(t);
+	return TextureLoaderCompat::_get_resource_info(p_path, t);
 }
 
 Ref<Resource> ResourceFormatLoaderCompatTexture2D::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, ResourceFormatLoader::CacheMode p_cache_mode) {
@@ -840,8 +843,8 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 	ERR_FAIL_COND_V_MSG(err != OK, Ref<Resource>(), "Failed to load texture " + p_path);
 	texture = _set_tex(p_path, p_type, lw, lh, lwc, lhc, lflags, image);
 	// TODO: Take care of the cache mode
-	set_res_path(texture, p_path, p_type);
-	auto info = TextureLoaderCompat::_get_resource_info(t);
+	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type);
+	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -916,7 +919,9 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, Ref<Resource>(), "Failed to load texture " + p_path);
 	texture = _set_tex(p_path, p_type, lw, lh, ld, mipmaps, images);
-	set_res_path(texture, p_path, p_type);
+	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type);
+	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
+	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
 
@@ -1013,8 +1018,9 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, Ref<Resource>(), "Failed to load texture " + p_path);
 	texture = _set_tex(p_path, p_type, lw, lh, ld, ltype, mipmaps, images);
-	set_res_path(texture, res->get_path(), p_type);
-
+	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type);
+	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
+	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
 

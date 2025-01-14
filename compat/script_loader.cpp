@@ -72,5 +72,6 @@ ResourceInfo ResourceFormatGDScriptLoader::get_resource_info(const String &p_pat
 	} else if (extension == "gdc" || extension == "gde") {
 		info.resource_format = "GDScriptBytecode";
 	}
+	info.original_path = p_path;
 	return info;
 }

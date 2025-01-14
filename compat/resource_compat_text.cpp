@@ -2593,6 +2593,8 @@ Ref<Resource> ResourceLoaderCompatText::finish_ext_load(Ref<ResourceLoader::Load
 ResourceInfo ResourceLoaderCompatText::get_resource_info() {
 	ResourceInfo info;
 	info.uid = res_uid;
+	info.original_path = local_path;
+	info.resource_name = resource.is_valid() ? resource->get_name() : "";
 	info.type = res_type;
 	info.topology_type = ResourceInfo::MAIN_RESOURCE;
 	info.ver_major = ver_major;
