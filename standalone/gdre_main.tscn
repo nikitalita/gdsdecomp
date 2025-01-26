@@ -151,11 +151,11 @@ popup/item_1/text = "Compile .GD script files..."
 popup/item_1/icon = ExtResource("5_wms7f")
 popup/item_1/id = 1
 
-[node name="MenuButton" type="MenuButton" parent="MenuContainer"]
+[node name="ResourcesMenu" type="MenuButton" parent="MenuContainer"]
 layout_mode = 2
 text = "Resources"
 icon = ExtResource("6_ql2ay")
-item_count = 6
+item_count = 7
 popup/item_0/text = "Convert binary resources to text..."
 popup/item_0/icon = ExtResource("7_8cc8u")
 popup/item_0/id = 0
@@ -170,9 +170,12 @@ popup/item_3/id = 3
 popup/item_4/text = "Convert OGG Samples to OGG..."
 popup/item_4/icon = ExtResource("6_ql2ay")
 popup/item_4/id = 4
-popup/item_5/text = "Convert WAV Samples to WAV..."
+popup/item_5/text = "Convert MP3 Streams to MP3..."
 popup/item_5/icon = ExtResource("6_ql2ay")
 popup/item_5/id = 5
+popup/item_6/text = "Convert WAV Samples to WAV..."
+popup/item_6/icon = ExtResource("6_ql2ay")
+popup/item_6/id = 6
 
 [node name="version_lbl" type="Button" parent="."]
 layout_mode = 1
@@ -232,6 +235,61 @@ visible = false
 
 [node name="ErrorDialog" type="AcceptDialog" parent="."]
 
+[node name="TextToBinFileDialog" type="FileDialog" parent="."]
+auto_translate_mode = 1
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.escn,*.tscn,*.tres;Text resource files")
+show_hidden_files = true
+use_native_dialog = true
+
+[node name="BinToTextFileDialog" type="FileDialog" parent="."]
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+show_hidden_files = true
+use_native_dialog = true
+
+[node name="TextureToPNGFileDialog" type="FileDialog" parent="."]
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.ctex,*.stex,*.tex;Stream texture files")
+show_hidden_files = true
+use_native_dialog = true
+
+[node name="OggStreamToOGGFileDialog" type="FileDialog" parent="."]
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.oggstr,*.oggvorbisstr;OGG Sample files")
+show_hidden_files = true
+use_native_dialog = true
+
+[node name="MP3StreamToMP3FileDialog" type="FileDialog" parent="."]
+auto_translate_mode = 1
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.mp3str;MP3 Sample files")
+show_hidden_files = true
+use_native_dialog = true
+
+[node name="SampleToWAVFileDialog" type="FileDialog" parent="."]
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.sample;WAV Sample files")
+show_hidden_files = true
+use_native_dialog = true
+
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/CancelButton" to="." method="_on_setenc_key_cancel_pressed"]
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/OK Button" to="." method="_on_setenc_key_ok_pressed"]
 [connection signal="about_to_popup" from="MenuContainer/REToolsMenu" to="." method="_menubutton_about_to_popup"]
@@ -240,3 +298,9 @@ visible = false
 [connection signal="save_pck_requested" from="GdreNewPck" to="." method="_on_new_pck_selected"]
 [connection signal="do_patch_pck" from="GdrePatchPck" to="." method="_on_gdre_patch_pck_do_patch_pck"]
 [connection signal="recovery_done" from="GdreRecover" to="." method="_on_recovery_done"]
+[connection signal="files_selected" from="TextToBinFileDialog" to="." method="_on_text_to_bin_file_dialog_files_selected"]
+[connection signal="files_selected" from="BinToTextFileDialog" to="." method="_on_bin_to_text_file_dialog_files_selected"]
+[connection signal="files_selected" from="TextureToPNGFileDialog" to="." method="_on_texture_file_dialog_files_selected"]
+[connection signal="files_selected" from="OggStreamToOGGFileDialog" to="." method="_on_ogg_file_dialog_files_selected"]
+[connection signal="files_selected" from="MP3StreamToMP3FileDialog" to="." method="_on_mp_3_stream_to_mp_3_file_dialog_files_selected"]
+[connection signal="files_selected" from="SampleToWAVFileDialog" to="." method="_on_sample_file_dialog_files_selected"]
