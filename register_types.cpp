@@ -241,6 +241,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<PckCreator>();
 	ClassDB::register_class<ResourceImportMetadatav2>();
 	ClassDB::register_abstract_class<ImportInfo>();
+	ClassDB::register_class<ProjectConfigLoader>();
 
 	ClassDB::register_class<Exporter>();
 	ClassDB::register_class<ExportReport>();
