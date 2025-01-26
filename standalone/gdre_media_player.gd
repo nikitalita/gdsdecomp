@@ -1,3 +1,4 @@
+class_name GDREMediaPlayer
 extends Control
 var AUDIO_PLAYER: Control = null
 var TIME_LABEL: Label = null
@@ -5,17 +6,20 @@ var AUDIO_PLAYER_STREAM: AudioStreamPlayer = null
 var VIDEO_PLAYER_STREAM: VideoStreamPlayer = null
 var VIDEO_VIEW_BOX: Control = null
 var VIDEO_ASPECT_RATIO_CONTAINER: AspectRatioContainer = null
-var viadg: VideoStreamTheora
 var AUDIO_PREVIEW_BOX: GDREAudioPreviewBox = null
 var AUDIO_VIEW_BOX: Control = null
 var AUDIO_STREAM_INFO: Label = null
 var PROGRESS_BAR: Slider = null
 var PLAY_BUTTON: Button = null
 var PAUSE_BUTTON: Button = null
+var STOP_BUTTON: Button = null
 var controller: PlayerController = null
 var dragging_slider: bool = false
 var last_updated_time: float = 0
 var last_seek_pos: float = -1
+@export var play_icon: Texture = preload("res://gdre_icons/gdre_Play.svg")
+@export var pause_icon: Texture = preload("res://gdre_icons/gdre_Pause.svg")
+@export var stop_icon: Texture = preload("res://gdre_icons/gdre_Stop.svg")
 
 func reset():
 	if controller:
@@ -121,8 +125,14 @@ class VideoPlayerController extends PlayerController:
 	func get_type() -> PlayerType:
 		return PlayerType.VIDEO
 
+func pause():
+	controller.stop()
+
 func stop():
 	controller.stop()
+	seek(0)
+	update_progress_bar()
+	update_audio_preview_pos()
 
 func play():
 	var pos = PROGRESS_BAR.value
@@ -277,6 +287,10 @@ func setup_progress_bar():
 	PROGRESS_BAR.value = get_playback_position()
 	PROGRESS_BAR.max_value = get_stream_length()
 	PROGRESS_BAR.editable = controller.supports_seek()
+	if not controller.supports_seek():
+		PAUSE_BUTTON.disabled = true
+	else:
+		PAUSE_BUTTON.disabled = false
 	update_text_label()
 
 func update_progress_bar():
@@ -297,16 +311,6 @@ func update_text_label():
 		TIME_LABEL.text = "--:-- / --:--"
 	else:
 		TIME_LABEL.text = time_from_float(PROGRESS_BAR.value, PROGRESS_BAR.step) + " / " + time_from_float(PROGRESS_BAR.max_value, PROGRESS_BAR.step)
-
-
-func _on_play_pressed() -> void:
-	play()
-	pass # Replace with function body.
-
-
-func _on_pause_pressed() -> void:
-	stop()
-	pass # Replace with function body.
 
 
 func _on_slider_drag_started() -> void:
@@ -360,8 +364,9 @@ func _on_audio_preview_box_pos_changed(value: float) -> void:
 func _ready():
 	TIME_LABEL = get_node("BarHBox/TimeLabel")
 	PROGRESS_BAR = get_node("BarHBox/ProgressBar")
-	PLAY_BUTTON = get_node("Play")
-	PAUSE_BUTTON = get_node("Pause")
+	PLAY_BUTTON = get_node("MediaControlsHBox/Play")
+	PAUSE_BUTTON = get_node("MediaControlsHBox/Pause")
+	STOP_BUTTON = get_node("MediaControlsHBox/Stop")
 	AUDIO_PLAYER_STREAM = get_node("AudioStreamPlayer")
 	AUDIO_PREVIEW_BOX = get_node("AudioViewBox/AudioPreviewBox")
 	AUDIO_VIEW_BOX = get_node("AudioViewBox")
@@ -373,11 +378,17 @@ func _ready():
 	PROGRESS_BAR.connect("drag_started", self._on_slider_drag_started)
 	PROGRESS_BAR.connect("drag_ended", self._on_slider_drag_ended)
 	AUDIO_PLAYER_STREAM.connect("finished", self._on_audio_stream_player_finished)
-	PLAY_BUTTON.connect("pressed", self._on_play_pressed)
-	PAUSE_BUTTON.connect("pressed", self._on_pause_pressed)
+	PLAY_BUTTON.connect("pressed", self.play)
+	PAUSE_BUTTON.connect("pressed", self.pause)
+	STOP_BUTTON.connect("pressed", self.stop)
 	PROGRESS_BAR.connect("value_changed", self._on_progress_bar_value_changed)
 	AUDIO_PREVIEW_BOX.connect("pos_changed", self._on_audio_preview_box_pos_changed)
+
+	PLAY_BUTTON.icon = play_icon
+	PAUSE_BUTTON.icon = pause_icon
+	STOP_BUTTON.icon = stop_icon
+
 	controller = PlayerController.new()
-	#load_sample("res://anomaly 105 jun12.ogg")
+	# load_sample("res://anomaly 105 jun12.ogg")
 	# load_sample("res://2.wav")
 	# load_media("res://Door_OGV.ogv")

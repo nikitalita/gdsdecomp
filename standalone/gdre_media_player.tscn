@@ -1,7 +1,11 @@
-[gd_scene load_steps=4 format=3 uid="uid://cuifra52kkek"]
+[gd_scene load_steps=8 format=3 uid="uid://cuifra52kkek"]
 
 [ext_resource type="Script" uid="uid://b75xge8xdomov" path="res://gdre_media_player.gd" id="1_3jmtn"]
+[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_ykcsx"]
+[ext_resource type="Texture2D" uid="uid://fk0s8roleyid" path="res://gdre_icons/gdre_Play.svg" id="2_u82do"]
 [ext_resource type="Script" uid="uid://qmyh4wh5voec" path="res://gdre_audio_preview_box.gd" id="3_ooril"]
+[ext_resource type="Texture2D" uid="uid://b2l0m3p42t05e" path="res://gdre_icons/gdre_Pause.svg" id="3_ykcsx"]
+[ext_resource type="Texture2D" uid="uid://cdhnddtchuo2h" path="res://gdre_icons/gdre_Stop.svg" id="4_hkamq"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wtasi"]
 bg_color = Color(0, 0, 0, 1)
@@ -13,37 +17,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("1_ykcsx")
 script = ExtResource("1_3jmtn")
-
-[node name="Play" type="Button" parent="."]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -68.0
-offset_top = -41.0
-offset_right = -19.0
-offset_bottom = -10.0
-grow_horizontal = 2
-grow_vertical = 0
-text = "play"
-
-[node name="Pause" type="Button" parent="."]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = -42.0
-offset_right = 73.0
-offset_bottom = -11.0
-grow_horizontal = 2
-grow_vertical = 0
-text = "pause"
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
 
@@ -55,9 +30,9 @@ anchor_top = 1.0
 anchor_right = 0.954
 anchor_bottom = 1.0
 offset_left = -0.0159988
-offset_top = -98.0
+offset_top = -89.0
 offset_right = 0.991943
-offset_bottom = -35.0
+offset_bottom = -58.0
 
 [node name="TimeLabel" type="Label" parent="BarHBox"]
 layout_direction = 2
@@ -75,6 +50,41 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 4
 step = 0.1
+
+[node name="MediaControlsHBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -64.0
+offset_top = -61.0
+offset_right = 64.0
+offset_bottom = -11.0
+grow_horizontal = 2
+grow_vertical = 0
+alignment = 1
+
+[node name="Play" type="Button" parent="MediaControlsHBox"]
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+icon = ExtResource("2_u82do")
+flat = true
+
+[node name="Pause" type="Button" parent="MediaControlsHBox"]
+layout_mode = 2
+size_flags_horizontal = 6
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("3_ykcsx")
+flat = true
+
+[node name="Stop" type="Button" parent="MediaControlsHBox"]
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+icon = ExtResource("4_hkamq")
+flat = true
 
 [node name="AudioViewBox" type="Control" parent="."]
 visible = false
