@@ -2,8 +2,8 @@
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_crn14"]
 [ext_resource type="Script" uid="uid://dnjt5hkgucm3" path="res://gdre_resource_preview.gd" id="1_tgfma"]
-[ext_resource type="AudioStream" uid="uid://u21mukqxw212" path="res://2.wav" id="2_1bufa"]
 [ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="3_gp5ss"]
+[ext_resource type="PackedScene" uid="uid://cuifra52kkek" path="res://gdre_audio_player.tscn" id="4_crn14"]
 [ext_resource type="CodeHighlighter" uid="uid://bgbfmyk1q82jx" path="res://gdre_code_highlighter.tres" id="4_gp5ss"]
 [ext_resource type="CodeHighlighter" uid="uid://br7sbxeuwb4fu" path="res://gdre_gdresource_highlighter.tres" id="4_x0kdu"]
 [ext_resource type="Texture2D" uid="uid://70wmkccoq7gp" path="res://gdre_icons/gdre_GuiTabMenuHl.svg" id="6_coejo"]
@@ -131,78 +131,12 @@ text = "16x16 RGBA8
 No Mipmaps
 Memory: 1024 B"
 
-[node name="AudioPlayer" type="Control" parent="VBoxContainer/ResourceView"]
+[node name="AudioPlayer" parent="VBoxContainer/ResourceView" instance=ExtResource("4_crn14")]
 visible = false
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Play" type="Button" parent="VBoxContainer/ResourceView/AudioPlayer"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -68.0
-offset_top = -41.0
-offset_right = -19.0
-offset_bottom = -10.0
-grow_horizontal = 2
-grow_vertical = 0
-text = "play"
-
-[node name="Pause" type="Button" parent="VBoxContainer/ResourceView/AudioPlayer"]
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = 14.0
-offset_top = -42.0
-offset_right = 73.0
-offset_bottom = -11.0
-grow_horizontal = 2
-grow_vertical = 0
-text = "pause"
-
-[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="VBoxContainer/ResourceView/AudioPlayer"]
-stream = ExtResource("2_1bufa")
-
-[node name="BarHBox" type="HBoxContainer" parent="VBoxContainer/ResourceView/AudioPlayer"]
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 0.033
-anchor_top = 1.0
-anchor_right = 0.954
-anchor_bottom = 1.0
-offset_left = -0.313
-offset_top = -75.008
-offset_right = 0.405884
-offset_bottom = -35.008
-
-[node name="TimeLabel" type="Label" parent="VBoxContainer/ResourceView/AudioPlayer/BarHBox"]
-layout_direction = 2
-layout_mode = 2
-text = "0:00.0 / 0:00.0"
-horizontal_alignment = 2
-vertical_alignment = 1
-
-[node name="Spacer" type="Label" parent="VBoxContainer/ResourceView/AudioPlayer/BarHBox"]
-layout_mode = 2
-text = " "
-
-[node name="ProgressBar" type="HSlider" parent="VBoxContainer/ResourceView/AudioPlayer/BarHBox"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 4
-step = 0.1
 
 [node name="TextView" type="Control" parent="VBoxContainer/ResourceView"]
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -393,9 +327,3 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 bbcode_enabled = true
-
-[connection signal="pressed" from="VBoxContainer/ResourceView/AudioPlayer/Play" to="." method="_on_play_pressed"]
-[connection signal="pressed" from="VBoxContainer/ResourceView/AudioPlayer/Pause" to="." method="_on_pause_pressed"]
-[connection signal="finished" from="VBoxContainer/ResourceView/AudioPlayer/AudioStreamPlayer" to="." method="_on_audio_stream_player_finished"]
-[connection signal="drag_ended" from="VBoxContainer/ResourceView/AudioPlayer/BarHBox/ProgressBar" to="." method="_on_slider_drag_ended"]
-[connection signal="drag_started" from="VBoxContainer/ResourceView/AudioPlayer/BarHBox/ProgressBar" to="." method="_on_slider_drag_started"]

@@ -53,7 +53,6 @@ public:
 	float get_length() const;
 	float get_max(float p_time, float p_time_next) const;
 	float get_min(float p_time, float p_time_next) const;
-
 	GDREAudioStreamPreview();
 };
 
@@ -95,6 +94,7 @@ class GDREAudioStreamPreviewGenerator : public Node {
 	static void _preview_thread(void *p_preview);
 
 	void _update_emit(ObjectID p_id);
+	void _complete_emit(ObjectID p_id);
 
 protected:
 	void _notification(int p_what);

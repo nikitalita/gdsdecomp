@@ -103,16 +103,20 @@ GDREAudioStreamPreview::GDREAudioStreamPreview() {
 }
 
 void GDREAudioStreamPreview::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_length"), &GDREAudioStreamPreview::get_length);
+	ClassDB::bind_method("get_length", &GDREAudioStreamPreview::get_length);
 	ClassDB::bind_method(D_METHOD("get_max", "time", "time_next"), &GDREAudioStreamPreview::get_max);
 	ClassDB::bind_method(D_METHOD("get_min", "time", "time_next"), &GDREAudioStreamPreview::get_min);
 	ClassDB::bind_method(D_METHOD("get_version"), &GDREAudioStreamPreview::get_version);
-}	
+}
 
 ////
 
 void GDREAudioStreamPreviewGenerator::_update_emit(ObjectID p_id) {
 	emit_signal(SNAME("preview_updated"), p_id);
+}
+
+void GDREAudioStreamPreviewGenerator::_complete_emit(ObjectID p_id) {
+	emit_signal(SNAME("preview_complete"), p_id);
 }
 
 void GDREAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
@@ -165,7 +169,7 @@ void GDREAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
 		}
 
 		frames_todo -= to_read;
-		callable_mp(singleton, &GDREAudioStreamPreviewGenerator::_update_emit).call_deferred(preview->id);
+		singleton->call_deferred(SNAME("_update_emit"), preview->id);
 	}
 
 	preview->preview->version++;
@@ -173,6 +177,8 @@ void GDREAudioStreamPreviewGenerator::_preview_thread(void *p_preview) {
 	preview->playback->stop();
 
 	preview->generating.clear();
+
+	singleton->call_deferred(SNAME("_complete_emit"), preview->id);
 }
 
 Ref<GDREAudioStreamPreview> GDREAudioStreamPreviewGenerator::generate_preview(const Ref<AudioStream> &p_stream) {
@@ -223,9 +229,12 @@ Ref<GDREAudioStreamPreview> GDREAudioStreamPreviewGenerator::generate_preview(co
 }
 
 void GDREAudioStreamPreviewGenerator::_bind_methods() {
+	ClassDB::bind_method("_update_emit", &GDREAudioStreamPreviewGenerator::_update_emit);
+	ClassDB::bind_method("_complete_emit", &GDREAudioStreamPreviewGenerator::_complete_emit);
 	ClassDB::bind_method(D_METHOD("generate_preview", "stream"), &GDREAudioStreamPreviewGenerator::generate_preview);
 
 	ADD_SIGNAL(MethodInfo("preview_updated", PropertyInfo(Variant::INT, "obj_id")));
+	ADD_SIGNAL(MethodInfo("preview_complete", PropertyInfo(Variant::INT, "obj_id")));
 }
 
 GDREAudioStreamPreviewGenerator *GDREAudioStreamPreviewGenerator::singleton = nullptr;

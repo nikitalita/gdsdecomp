@@ -77,7 +77,7 @@ func _ready():
 	DIRECTORY.text = DESKTOP_DIR
 
 
-#	load_test()
+	# load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
@@ -214,6 +214,7 @@ func close():
 	var err = OK
 	if GDRESettings.is_pack_loaded():
 		err = GDRESettings.unload_project()
+	RESOURCE_PREVIEW.reset()
 	hide_win()
 	emit_signal("recovery_done")
 
@@ -221,6 +222,7 @@ func clear():
 	FILE_TREE._clear()
 
 func confirm():
+	RESOURCE_PREVIEW.reset()
 	extract_and_recover(DIRECTORY.text)
 	# pop open a file dialog to pick a directory
 	

@@ -10,15 +10,17 @@ var CODE_VIEWER: CodeEdit = null
 var TEXT_VIEWER: TextEdit = null
 var TEXT_VIEW: Control = null
 var TEXT_RESOURCE_VIEWER: TextEdit = null
-var AUDIO_PLAYER: Control = null
+
 var TEXTURE_RECT: TextureRect = null
 var TEXTURE_VIEW: Control = null
 var TEXTURE_INFO: Label = null
-var PROGRESS_BAR: Slider = null
-var AUDIO_PLAYER_TIME_LABEL: Label = null
-var AUDIO_PLAYER_STREAM: AudioStreamPlayer = null
 var RESOURCE_INFO: RichTextLabel = null
 var VIEWER: Control = null
+
+var AUDIO_PLAYER: Control = null
+
+
+
 const RESOURCE_INFO_TEXT_FORMAT = "[b]Path:[/b] %s\n[b]Type:[/b] %s\n[b]Format:[/b] %s"
 const IMAGE_FORMAT_NAME = [
 	"Lum8",
@@ -61,17 +63,12 @@ const IMAGE_FORMAT_NAME = [
 	"ASTC_8x8",
 	"ASTC_8x8_HDR",
 ]
-var dragging_slider: bool = false
-var last_updated_time: float = 0
-var last_seek_pos: float = -1
-var was_playing: bool = false
 
 func reset():
 	CODE_VIEWER.visible = false
 	CODE_VIEWER.text = ""
 	AUDIO_PLAYER.visible = false
-	AUDIO_PLAYER_STREAM.stop()
-	AUDIO_PLAYER_STREAM.stream = null
+	AUDIO_PLAYER.reset()
 	TEXT_VIEW.visible = false
 	TEXTURE_VIEW.visible = false
 	TEXTURE_INFO.text = ""
@@ -80,13 +77,7 @@ func reset():
 	TEXT_VIEWER.text = ""
 	TEXT_RESOURCE_VIEWER.visible = false
 	TEXT_RESOURCE_VIEWER.text = ""
-	PROGRESS_BAR.value = 0
-	PROGRESS_BAR.max_value = 0
 	RESOURCE_INFO.text = ""
-	last_updated_time = 0
-	last_updated_time = -1
-	dragging_slider = false
-	was_playing = false
 
 func load_code(path):
 	var code_text = ""
@@ -125,13 +116,6 @@ func load_text_string(text):
 	return true
 
 
-func load_sample(path):
-	AUDIO_PLAYER_STREAM.stream = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
-	if (AUDIO_PLAYER_STREAM.stream == null):
-		return false
-	AUDIO_PLAYER.visible = true
-	update_progress_bar()
-	return true
 
 func load_texture(path):
 	TEXTURE_RECT.texture = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
@@ -208,7 +192,9 @@ func load_resource(path: String) -> void:
 	elif (is_code(ext)):
 		error_opening = not load_code(path)
 	elif (is_sample(ext)):
-		error_opening = not load_sample(path)
+		error_opening = not AUDIO_PLAYER.load_sample(path)
+		if not error_opening:
+			AUDIO_PLAYER.visible = true
 	elif (is_image(ext)):
 		error_opening = not load_texture(path)
 		not_a_resource = true
@@ -319,81 +305,6 @@ func is_image(ext, p_type = ""):
 	return false
 
 
-
-
-func _physics_process(delta: float) -> void:
-	if not AUDIO_PLAYER_STREAM or not AUDIO_PLAYER_STREAM.stream or not AUDIO_PLAYER.visible:
-		return
-	if AUDIO_PLAYER_STREAM.playing:
-		if not dragging_slider:
-			update_progress_bar()
-		else:
-			last_updated_time += delta
-			if last_updated_time > 0.10:
-				if (abs(last_seek_pos - PROGRESS_BAR.value)) > 0.2:
-					AUDIO_PLAYER_STREAM.seek(PROGRESS_BAR.value)
-					last_updated_time = 0
-					last_seek_pos = PROGRESS_BAR.value
-			update_text_label()
-	# elif AUDIO_PLAYER_STREAM.stream and was_playing:
-	# 	update_progress_bar()
-	# 	was_playing = false
-
-func time_from_float(time: float) -> String:
-	var minutes = int(time / 60)
-	var seconds = int(time) % 60
-	var microseconds = int((time - int(time)) * 1000)
-	var rounded_microseconds = int(microseconds / 100)
-	return str(minutes) + ":" + str(seconds).pad_zeros(2) + "." + str(rounded_microseconds)
-
-func update_text_label():
-	AUDIO_PLAYER_TIME_LABEL.text = time_from_float(PROGRESS_BAR.value) + " / " + time_from_float(PROGRESS_BAR.max_value)
-
-func update_progress_bar():
-	PROGRESS_BAR.max_value = AUDIO_PLAYER_STREAM.stream.get_length()
-	PROGRESS_BAR.value = AUDIO_PLAYER_STREAM.get_playback_position()
-	update_text_label()
-
-func _on_play_pressed() -> void:
-	var pos = PROGRESS_BAR.value
-	if (PROGRESS_BAR.value == PROGRESS_BAR.max_value):
-		pos = 0
-	AUDIO_PLAYER_STREAM.play(pos)
-	# was_playing = true
-	update_progress_bar()
-
-	pass # Replace with function body.
-
-
-func _on_pause_pressed() -> void:
-	# was_playing = false
-	AUDIO_PLAYER_STREAM.stop()
-	pass # Replace with function body.
-
-
-func _on_slider_drag_started() -> void:
-	var pos = PROGRESS_BAR.value
-	AUDIO_PLAYER_STREAM.seek(pos)
-	dragging_slider = true
-	pass # Replace with function body.
-
-
-func _on_slider_drag_ended(value_changed: bool) -> void:
-	if value_changed:
-		var pos = PROGRESS_BAR.value
-		AUDIO_PLAYER_STREAM.seek(pos)
-	dragging_slider = false
-	pass # Replace with function body.
-
-
-func _on_audio_stream_player_finished() -> void:
-	PROGRESS_BAR.value = 0
-	pass # Replace with function body.
-func _on_gdre_resource_preview_visibility_changed() -> void:
-	if not self.visible:
-		AUDIO_PLAYER_STREAM.stop()
-	pass # Replace with function body.
-
 func _reset_code_options_menu(word_wrap_enabled: bool):
 	var current_code_edit: CodeEdit = CODE_VIEWER
 	if CODE_VIEWER.visible:
@@ -413,6 +324,11 @@ func _on_code_viewer_options_pressed(id) -> void:
 		_reset_code_options_menu(current_checked)
 	pass # Replace with function body.
 
+func _on_gdre_resource_preview_visibility_changed() -> void:
+	if not self.visible:
+		AUDIO_PLAYER.stop()
+	pass # Replace with function body.
+
 
 func _ready():
 	CODE_VIEWER = $VBoxContainer/ResourceView/TextView/CodeViewer
@@ -425,12 +341,9 @@ func _ready():
 	TEXTURE_RECT = $VBoxContainer/ResourceView/TextureView/TextureRect
 	TEXTURE_VIEW = $VBoxContainer/ResourceView/TextureView
 	TEXTURE_INFO = $VBoxContainer/ResourceView/TextureView/TextureInfo
-	PROGRESS_BAR = $VBoxContainer/ResourceView/AudioPlayer/BarHBox/ProgressBar
-	AUDIO_PLAYER_TIME_LABEL = $VBoxContainer/ResourceView/AudioPlayer/BarHBox/TimeLabel
-	AUDIO_PLAYER_STREAM = $VBoxContainer/ResourceView/AudioPlayer/AudioStreamPlayer
 	RESOURCE_INFO = $VBoxContainer/Control/ResourceInfo
 	VIEWER = $VBoxContainer/ResourceView
-	reset()
+	# reset()
 	self.connect("visibility_changed", self._on_gdre_resource_preview_visibility_changed)
 	CODE_VIWER_OPTIONS_POPUP.connect("id_pressed", self._on_code_viewer_options_pressed)
 
