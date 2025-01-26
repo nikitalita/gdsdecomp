@@ -1457,6 +1457,10 @@ void GodotREEditorStandalone::progress_end_task(const String &p_task) {
 void GodotREEditorStandalone::_notification(int p_notification) {
 }
 
+void GodotREEditorStandalone::tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed(Tree *p_tree, bool enabled) {
+	p_tree->set_edit_checkbox_cell_only_when_checkbox_is_pressed(enabled);
+}
+
 void GodotREEditorStandalone::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_write_log_message"), &GodotREEditorStandalone::_write_log_message);
 	ClassDB::bind_method(D_METHOD("pck_select_request", "path"), &GodotREEditorStandalone::pck_select_request);
@@ -1466,11 +1470,13 @@ void GodotREEditorStandalone::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("progress_add_task", "task", "label", "steps", "can_cancel"), &GodotREEditorStandalone::progress_add_task);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("progress_task_step", "task", "state", "step", "force_refresh"), &GodotREEditorStandalone::progress_task_step);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("progress_end_task", "task"), &GodotREEditorStandalone::progress_end_task);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed", "tree", "enabled"), &GodotREEditorStandalone::tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed);
 }
 
 GodotREEditorStandalone::GodotREEditorStandalone() {
 	singleton = this;
 	progress_dialog = memnew(ProgressDialog);
+
 	// menu_hb = memnew(HBoxContainer);
 	// add_child(menu_hb);
 	// if (GodotREEditor::get_singleton() == nullptr) {

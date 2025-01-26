@@ -5,11 +5,19 @@ var FILTER_DELAY = 0.25
 var LARGE_PCK = 5000
 var prev_filter_string: String = ""
 var timer: SceneTreeTimer = null
-const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
-const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
-const file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
-const gdre_export_report = preload("res://gdre_export_report.tscn")
-var folder_icon: Texture2D = get_theme_icon("folder", "FileDialog")
+@export var file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
+@export var file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
+@export var file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
+@export var folder_icon: Texture2D = get_theme_icon("folder", "FileDialog")
+# @export var editable_only_when_checkbox_clicked: bool = true
+# make setters for the export
+@export var editable_only_when_checkbox_clicked: bool = true:
+	set(val):
+		editable_only_when_checkbox_clicked = val
+		GodotREEditorStandalone.tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed(self, editable_only_when_checkbox_clicked)
+	get:
+		return editable_only_when_checkbox_clicked
+@export var right_click_outline_color: Color = Color(0.8, 0.8, 0.8, 0.9)
 
 # var isHiDPI = DisplayServer.screen_get_dpi() >= 240
 var isHiDPI = false
@@ -20,6 +28,7 @@ var num_broken:int = 0
 var num_malformed:int = 0
 var items: Dictionary[String, TreeItem] = {}
 var right_click_menu: PopupMenu = null
+var right_clicked_item: TreeItem = null
 enum SortType {
 	SORT_NAME_ASCENDING,
 	SORT_NAME_DESCENDING,
@@ -39,6 +48,9 @@ enum {
 	POPUP_COPY_PATHS,
 	POPUP_CHECK_ALL,
 	POPUP_UNCHECK_ALL,
+	POPUP_SEPERATOR,
+	POPUP_FOLD_ALL,
+	POPUP_UNFOLD_ALL,
 }
 var current_sort = SortType.SORT_NAME_ASCENDING
 
@@ -78,10 +90,59 @@ func check_if_multiple_items_are_highlighted():
 			return true
 	return false
 
+func _on_gui_input(input:InputEvent):
+	if input is InputEventMouseButton:
+		var item = self.get_item_at_position(get_local_mouse_position())
+		if (item):
+			if input.double_click and input.button_index == MOUSE_BUTTON_LEFT:
+				if item_is_folder(item):
+					item.collapsed = not item.collapsed
+			else:
+				_on_custom_item_clicked(input.button_index)
+
+func item_is_folder(item: TreeItem) -> bool:
+	return item.get_icon(0) == folder_icon
+
+func items_has_folder(items: Array) -> bool:
+	for item in items:
+		if item_is_folder(item):
+			return true
+	return false
+
+func right_clicked_item_is_selected(selected_items: Array = []) -> bool:
+	if not selected_items:
+		selected_items = get_highlighted_items()
+	var selected_items_has_right_clicked_item = true
+	if right_clicked_item:
+		selected_items_has_right_clicked_item = selected_items.has(right_clicked_item)
+	return selected_items_has_right_clicked_item
+
+func set_right_clicked_outline_color(clear_bg: bool = false):
+	if not right_clicked_item:
+		return
+	for i in range(0, columns):
+		if not clear_bg:
+			right_clicked_item.set_custom_bg_color(i, self.right_click_outline_color, true)
+		else:
+			right_clicked_item.set_custom_bg_color(i, Color(0,0,0,0), true)
+
 func _on_custom_item_clicked(mouse_button: MouseButton):
-	if (mouse_button == MOUSE_BUTTON_RIGHT):	
-		if (select_mode == SELECT_MULTI):
-			if (check_if_multiple_items_are_highlighted()):
+	if (mouse_button == MOUSE_BUTTON_RIGHT):
+		clear_right_click_state()
+		var selected_items = get_highlighted_items()
+		var has_folder = false
+		right_clicked_item = self.get_item_at_position(get_local_mouse_position())
+		if (not right_clicked_item_is_selected(selected_items)):
+			right_click_menu.set_item_text(POPUP_COPY_PATHS, "Copy path")
+			right_click_menu.set_item_text(POPUP_UNCHECK_ALL, "Uncheck item")
+			right_click_menu.set_item_text(POPUP_CHECK_ALL, "Check item")
+			set_right_clicked_outline_color(false)
+			if right_clicked_item and item_is_folder(right_clicked_item):
+				has_folder = true
+		else:
+			if items_has_folder(selected_items):
+				has_folder = true
+			if (selected_items.size() > 1):
 				right_click_menu.set_item_text(POPUP_COPY_PATHS, "Copy paths")
 				right_click_menu.set_item_text(POPUP_UNCHECK_ALL, "Uncheck selected")
 				right_click_menu.set_item_text(POPUP_CHECK_ALL, "Check selected")
@@ -89,8 +150,50 @@ func _on_custom_item_clicked(mouse_button: MouseButton):
 				right_click_menu.set_item_text(POPUP_COPY_PATHS, "Copy path")
 				right_click_menu.set_item_text(POPUP_UNCHECK_ALL, "Uncheck selected")
 				right_click_menu.set_item_text(POPUP_CHECK_ALL, "Check selected")
+
+		if (has_folder):
+			right_click_menu.set_item_disabled(POPUP_FOLD_ALL, false)
+			right_click_menu.set_item_disabled(POPUP_UNFOLD_ALL, false)
+		else:
+			right_click_menu.set_item_disabled(POPUP_FOLD_ALL, true)
+			right_click_menu.set_item_disabled(POPUP_UNFOLD_ALL, true)
+
 		right_click_menu.position = DisplayServer.mouse_get_position()
 		right_click_menu.visible = true
+
+func clear_right_click_state():
+	set_right_clicked_outline_color(true)
+	right_clicked_item = null
+
+func _on_right_click_id(id):
+	var selected_items = get_highlighted_items()
+	if not right_clicked_item_is_selected(selected_items):
+		selected_items = [right_clicked_item]
+	clear_right_click_state()
+	right_click_menu.hide()
+	match id:
+		POPUP_COPY_PATHS:
+			var selected_files: PackedStringArray = []
+			for item in selected_items:
+				selected_files.append(_get_path(item))
+			DisplayServer.clipboard_set("\n".join(selected_files))
+		POPUP_UNCHECK_ALL:
+			for item in selected_items:
+				_propagate_check(item, false)
+		POPUP_CHECK_ALL:
+			for item in selected_items:
+				_propagate_check(item, true)
+		POPUP_FOLD_ALL:
+			for item in selected_items:
+				set_fold_all(item, true, true)
+		POPUP_UNFOLD_ALL:
+			for item in selected_items:
+				set_fold_all(item, false, true)
+
+func _on_right_click_visibility_changed():
+	if not right_click_menu.visible:
+		set_right_clicked_outline_color(true)
+
 
 func cmp_item_folders(a: TreeItem, b: TreeItem, descending_name_sort: bool) -> int:
 	var a_is_folder = a.get_icon(0) == folder_icon
@@ -215,21 +318,6 @@ func _get_path(item: TreeItem) -> String:
 			item = item.get_parent()
 	return path
 
-func _on_right_click_id(id):
-	right_click_menu.hide()
-	var selected_items = get_highlighted_items()
-	match id:
-		POPUP_COPY_PATHS:
-			var selected_files: PackedStringArray = []
-			for item in selected_items:
-				selected_files.append(_get_path(item))
-			DisplayServer.clipboard_set("\n".join(selected_files))
-		POPUP_UNCHECK_ALL:
-			for item in selected_items:
-				_propagate_check(item, false)
-		POPUP_CHECK_ALL:
-			for item in selected_items:
-				_propagate_check(item, true)
 
 func _ready():
 	var file_list: Tree = self
@@ -237,15 +325,20 @@ func _ready():
 	right_click_menu.add_item("Copy path", POPUP_COPY_PATHS)
 	right_click_menu.add_item("Check", POPUP_CHECK_ALL)
 	right_click_menu.add_item("Uncheck", POPUP_UNCHECK_ALL)
+	right_click_menu.add_separator("", POPUP_SEPERATOR)
+	right_click_menu.add_item("Fold all", POPUP_FOLD_ALL)
+	right_click_menu.add_item("Unfold all", POPUP_UNFOLD_ALL)
+
 	right_click_menu.visible = false
 	right_click_menu.connect("id_pressed", self._on_right_click_id)
+	right_click_menu.connect("visibility_changed", self._on_right_click_visibility_changed)
 	add_child(right_click_menu)
 	# get the number of columns set
 	var num_columns = file_list.columns
 	if num_columns <= 0:
 		print("No columns set in the Tree")
 		return
-	self.connect("custom_item_clicked", self._on_custom_item_clicked)
+	self.connect("gui_input", self._on_gui_input)
 	self.connect("empty_clicked", self._on_empty_clicked)
 	#column_title_clicked( column: int, mouse_button_index: int )
 	self.connect("column_title_clicked", self._on_column_title_clicked)
@@ -262,18 +355,18 @@ func _ready():
 		file_list.set_column_expand(2, false)
 	file_list.connect("item_edited", self._on_item_edited)
 
-func collapse_all_children(item: TreeItem, recursive: bool = false):
+func set_fold_all_children(item: TreeItem, collapsed: bool = true, recursive: bool = false):
 	var it: TreeItem = item.get_first_child()
 	while (it):
 		if (it.get_icon(0) == folder_icon):
-			it.collapsed = true
+			it.collapsed = collapsed
 		if (recursive):
-			collapse_all_children(it, recursive)
+			set_fold_all_children(it, collapsed, recursive)
 		it = it.get_next()
 
-func collapse_all(item: TreeItem, recursive: bool = false):
-	collapse_all_children(item, recursive)
-	root.collapsed = true
+func set_fold_all(item: TreeItem, collapsed: bool = true, recursive: bool = false):
+	set_fold_all_children(item, collapsed, recursive)
+	item.collapsed = collapsed
 
 func add_files(infos: Array, skipped_md5_check: bool = false):
 	# reverse alphabetical order, we want to put directories at the front in alpha order
@@ -285,7 +378,7 @@ func add_files(infos: Array, skipped_md5_check: bool = false):
 		_add_file(file, skipped_md5_check)
 	# collapse all the first level directories
 	sort_entire_tree()
-	collapse_all_children(root, true)
+	set_fold_all_children(root, true, true)
 
 func _add_file(info: PackedFileInfo, skipped_md5_check: bool = false):
 	num_files += 1
@@ -476,6 +569,7 @@ func get_checked_files() -> PackedStringArray:
 
 func _init():
 	var arrow = get_theme_icon("arrow", "Tree")
+	GodotREEditorStandalone.tree_set_edit_checkbox_cell_only_when_checkbox_is_pressed(self, editable_only_when_checkbox_clicked)
 	pass
 
 
