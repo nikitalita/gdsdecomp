@@ -14,7 +14,11 @@ var VERSION_TEXT: Label = null
 var INFO_TEXT : Label = null
 var REPORT_DIALOG = null
 var DIRECTORY: LineEdit = null
+var RESOURCE_PREVIEW: Control = null
+var HSPLIT_CONTAINER: HSplitContainer = null
+var SHOW_PREVIEW_BUTTON: Button = null
 var DESKTOP_DIR = OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP)
+
 
 # var isHiDPI = DisplayServer.screen_get_dpi() >= 240
 var root: TreeItem = null
@@ -42,13 +46,16 @@ func _on_item_edited():
 # MUST CALL set_root_window() first!!!
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	FILE_TREE =      $Control/FileTree
-	EXTRACT_ONLY =   $Control/RadioButtons/ExtractOnly
-	RECOVER =        $Control/RadioButtons/FullRecovery
-	VERSION_TEXT =   $Control/VersionText
-	INFO_TEXT =      $Control/InfoText
+	FILE_TREE =      $HSplitContainer/Control/FileTree
+	EXTRACT_ONLY =   $HSplitContainer/Control/RadioButtons/ExtractOnly
+	RECOVER =        $HSplitContainer/Control/RadioButtons/FullRecovery
+	VERSION_TEXT =   $HSplitContainer/Control/VersionText
+	INFO_TEXT =      $HSplitContainer/Control/InfoText
 	RECOVER_WINDOW = self #$Control/RecoverWindow
-	DIRECTORY = $Control/Directory
+	DIRECTORY = $HSplitContainer/Control/Directory
+	RESOURCE_PREVIEW = $HSplitContainer/GdreResourcePreview
+	HSPLIT_CONTAINER = $HSplitContainer
+	SHOW_PREVIEW_BUTTON = $HSplitContainer/Control/ShowResourcePreview
 	#if !_is_test:
 		#assert(POPUP_PARENT_WINDOW)
 	#else:
@@ -68,7 +75,9 @@ func _ready():
 	file_list.connect("item_edited", self._on_item_edited)
 	setup_extract_dir_dialog()
 	DIRECTORY.text = DESKTOP_DIR
-	#load_test()
+
+
+#	load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
@@ -87,12 +96,15 @@ func add_project(paths: PackedStringArray) -> int:
 	VERSION_TEXT.text = GDRESettings.get_version_string()
 	var arr: Array = GDRESettings.get_file_info_array()
 	FILE_TREE.add_files(arr, skipped)
-	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files) + "\n" + "Broken files: " + String.num_int64(FILE_TREE.num_broken) + "\n" + "Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
+	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files)# + 
+	if FILE_TREE.num_broken > 0 or FILE_TREE.num_malformed > 0:
+		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
 	DIRECTORY.text = DESKTOP_DIR.path_join(paths[0].get_file().get_basename())
 	return OK
 
 func load_test():
-	const path = "/Users/nikita/Workspace/godot-ws/godot-test-bins/satryn.apk"
+	#const path = "/Users/nikita/Workspace/godot-ws/godot-test-bins/satryn.apk"
+	const path = '/Users/nikita/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/CRUEL/Cruel.pck'
 	add_project([path])
 	show_win()
 	
@@ -217,3 +229,30 @@ func _process(_delta):
 
 func _on_directory_button_pressed() -> void:
 	open_extract_dir_dialog() # Replace with function body.
+
+
+
+func _on_file_tree_item_selected() -> void:
+	if not RESOURCE_PREVIEW.is_visible_in_tree():
+		return
+	var item = FILE_TREE.get_selected()
+	if item:
+		var path = item.get_metadata(0)
+		if not path.is_empty():
+			RESOURCE_PREVIEW.load_resource(path)
+
+
+func _on_show_resource_preview_pressed() -> void:
+	var size = RECOVER_WINDOW.size
+	if not RESOURCE_PREVIEW.is_visible_in_tree():
+		RESOURCE_PREVIEW.visible = true
+		# get the current size of the window
+		# set the split offset to 66% of the window size
+		HSPLIT_CONTAINER.set_split_offset(size.x * 0.66)
+		SHOW_PREVIEW_BUTTON.text = "Hide Resource Preview"
+		_on_file_tree_item_selected()
+	else:
+		RESOURCE_PREVIEW.visible = false
+		HSPLIT_CONTAINER.set_split_offset(0)
+		SHOW_PREVIEW_BUTTON.text = "Show Resource Preview..."
+		RESOURCE_PREVIEW.reset()

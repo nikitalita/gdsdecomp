@@ -1,9 +1,10 @@
-[gd_scene load_steps=14 format=3 uid="uid://bv7816js3kr4k"]
+[gd_scene load_steps=15 format=3 uid="uid://bv7816js3kr4k"]
 
-[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_bucmk"]
+[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_ljbdy"]
 [ext_resource type="Script" uid="uid://cww2hw50p8q3i" path="res://gdre_file_tree.gd" id="2_02dmf"]
 [ext_resource type="Script" uid="uid://bga3f1eshrdxt" path="res://gdre_recover.gd" id="2_edjtc"]
 [ext_resource type="Texture2D" uid="uid://byablbp3l8foe" path="res://gdre_icons/gdre_Search.svg" id="3_i5ujv"]
+[ext_resource type="PackedScene" uid="uid://bjevsw5r631f1" path="res://gdre_resource_preview.tscn" id="5_ljbdy"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_avhe5"]
 
@@ -24,30 +25,50 @@
 [sub_resource type="ButtonGroup" id="ButtonGroup_bvmre"]
 
 [node name="GdreRecover" type="AcceptDialog"]
+title = "Project Recovery"
 position = Vector2i(0, 36)
 size = Vector2i(1152, 648)
 visible = true
-theme = ExtResource("1_bucmk")
+theme = ExtResource("1_ljbdy")
 ok_button_text = "Extract"
 script = ExtResource("2_edjtc")
 
-[node name="Control" type="Control" parent="."]
-custom_minimum_size = Vector2(730, 300)
-layout_mode = 3
-anchors_preset = 0
-offset_left = 8.0
-offset_top = 8.0
-offset_right = 1144.0
-offset_bottom = 599.0
+[node name="ExtractDirDialog" type="FileDialog" parent="."]
+title = "Open a Directory"
+ok_button_text = "Select Current Folder"
+dialog_hide_on_ok = true
+file_mode = 2
+access = 2
+use_native_dialog = true
 
-[node name="FileTree" type="Tree" parent="Control"]
-layout_mode = 1
+[node name="Preview" type="AcceptDialog" parent="."]
+
+[node name="HSplitContainer" type="HSplitContainer" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = -49.0
+grow_horizontal = 2
+grow_vertical = 2
+split_offset = 1152
+drag_area_highlight_in_editor = true
+
+[node name="Control" type="Control" parent="HSplitContainer"]
+z_index = 1
+custom_minimum_size = Vector2(730, 300)
+layout_mode = 2
+
+[node name="FileTree" type="Tree" parent="HSplitContainer/Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.998
+anchor_bottom = 1.0
+offset_left = 8.0
 offset_top = 102.0
-offset_right = -2.0
+offset_right = 0.271973
 offset_bottom = -47.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -56,12 +77,12 @@ column_titles_visible = true
 script = ExtResource("2_02dmf")
 metadata/_custom_type_script = ExtResource("2_02dmf")
 
-[node name="VersionLabel" type="RichTextLabel" parent="Control"]
+[node name="VersionLabel" type="RichTextLabel" parent="HSplitContainer/Control"]
 layout_mode = 0
-offset_left = 15.0
-offset_top = 8.0
-offset_right = 93.0
-offset_bottom = 38.0
+offset_left = 16.0
+offset_top = 64.0
+offset_right = 94.0
+offset_bottom = 94.0
 theme_override_font_sizes/bold_font_size = 16
 theme_override_styles/fill = SubResource("StyleBoxEmpty_avhe5")
 theme_override_styles/background = SubResource("StyleBoxEmpty_p7bby")
@@ -70,20 +91,20 @@ theme_override_styles/normal = SubResource("StyleBoxEmpty_1bn3y")
 bbcode_enabled = true
 text = "[b]Version:[/b]"
 
-[node name="VersionText" type="Label" parent="Control"]
+[node name="VersionText" type="Label" parent="HSplitContainer/Control"]
 layout_mode = 0
-offset_left = 91.0
-offset_top = 5.0
-offset_right = 174.0
-offset_bottom = 36.0
+offset_left = 92.0
+offset_top = 61.0
+offset_right = 175.0
+offset_bottom = 92.0
 text = "0.0.0"
 
-[node name="InfoLabel" type="RichTextLabel" parent="Control"]
+[node name="InfoLabel" type="RichTextLabel" parent="HSplitContainer/Control"]
 layout_mode = 0
-offset_left = 247.0
-offset_top = 9.0
-offset_right = 325.0
-offset_bottom = 39.0
+offset_left = 194.0
+offset_top = 65.0
+offset_right = 272.0
+offset_bottom = 95.0
 theme_override_font_sizes/bold_font_size = 16
 theme_override_styles/fill = SubResource("StyleBoxEmpty_3os3m")
 theme_override_styles/background = SubResource("StyleBoxEmpty_jbkrx")
@@ -92,15 +113,15 @@ theme_override_styles/normal = SubResource("StyleBoxEmpty_y2b6b")
 bbcode_enabled = true
 text = "[b]Info:[/b]"
 
-[node name="InfoText" type="Label" parent="Control"]
+[node name="InfoText" type="Label" parent="HSplitContainer/Control"]
 layout_mode = 0
-offset_left = 294.0
-offset_top = 6.0
-offset_right = 487.0
-offset_bottom = 88.0
+offset_left = 241.0
+offset_top = 62.0
+offset_right = 434.0
+offset_bottom = 144.0
 text = "<info text>"
 
-[node name="RadioButtons" type="HBoxContainer" parent="Control"]
+[node name="RadioButtons" type="HBoxContainer" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
@@ -111,18 +132,18 @@ offset_right = 446.0
 offset_bottom = 38.0
 grow_vertical = 0
 
-[node name="ExtractOnly" type="CheckBox" parent="Control/RadioButtons"]
+[node name="ExtractOnly" type="CheckBox" parent="HSplitContainer/Control/RadioButtons"]
 layout_mode = 2
 button_group = SubResource("ButtonGroup_bvmre")
 text = "Extract Only"
 
-[node name="FullRecovery" type="CheckBox" parent="Control/RadioButtons"]
+[node name="FullRecovery" type="CheckBox" parent="HSplitContainer/Control/RadioButtons"]
 layout_mode = 2
 button_pressed = true
 button_group = SubResource("ButtonGroup_bvmre")
 text = "Full Recovery"
 
-[node name="Filter" type="LineEdit" parent="Control"]
+[node name="Filter" type="LineEdit" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.5
@@ -135,7 +156,7 @@ placeholder_text = "Filter Files"
 clear_button_enabled = true
 right_icon = ExtResource("3_i5ujv")
 
-[node name="Uncheck" type="Button" parent="Control"]
+[node name="Uncheck" type="Button" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -148,7 +169,7 @@ grow_horizontal = 2
 tooltip_text = "Unchecks all shown files"
 text = "Uncheck all"
 
-[node name="Check" type="Button" parent="Control"]
+[node name="Check" type="Button" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.5
@@ -161,7 +182,7 @@ grow_horizontal = 0
 tooltip_text = "Checks all shown files"
 text = "Check all"
 
-[node name="Directory" type="LineEdit" parent="Control"]
+[node name="Directory" type="LineEdit" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = -1
 anchor_top = 1.0
@@ -172,7 +193,7 @@ offset_top = -37.0
 offset_right = -96.0
 offset_bottom = -6.0
 
-[node name="DirectoryButton" type="Button" parent="Control"]
+[node name="DirectoryButton" type="Button" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = 3
 anchor_left = 1.0
@@ -183,9 +204,11 @@ offset_left = -83.0
 offset_top = -37.0
 offset_right = -3.0
 offset_bottom = -6.0
+grow_horizontal = 0
+grow_vertical = 0
 text = "Select"
 
-[node name="DirectoryLabel" type="Label" parent="Control"]
+[node name="DirectoryLabel" type="Label" parent="HSplitContainer/Control"]
 layout_mode = 1
 anchors_preset = -1
 anchor_top = 1.0
@@ -196,15 +219,25 @@ offset_right = 105.0
 offset_bottom = -6.0
 text = "Extract to..."
 
-[node name="ExtractDirDialog" type="FileDialog" parent="."]
-title = "Open a Directory"
-ok_button_text = "Select a directory to extract to..."
-dialog_hide_on_ok = true
-file_mode = 2
-access = 2
-use_native_dialog = true
+[node name="ShowResourcePreview" type="Button" parent="HSplitContainer/Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.992
+anchor_right = 0.992
+offset_left = -207.912
+offset_top = 8.0
+offset_right = 0.0878906
+offset_bottom = 47.0
+text = "Show Resource Preview..."
 
-[connection signal="text_changed" from="Control/Filter" to="." method="_on_filter_text_changed"]
-[connection signal="pressed" from="Control/Uncheck" to="." method="_on_uncheck_all_pressed"]
-[connection signal="pressed" from="Control/Check" to="." method="_on_check_all_pressed"]
-[connection signal="pressed" from="Control/DirectoryButton" to="." method="_on_directory_button_pressed"]
+[node name="GdreResourcePreview" parent="HSplitContainer" instance=ExtResource("5_ljbdy")]
+visible = false
+layout_mode = 2
+
+[connection signal="item_selected" from="HSplitContainer/Control/FileTree" to="." method="_on_file_tree_item_selected"]
+[connection signal="text_changed" from="HSplitContainer/Control/Filter" to="." method="_on_filter_text_changed"]
+[connection signal="pressed" from="HSplitContainer/Control/Uncheck" to="." method="_on_uncheck_all_pressed"]
+[connection signal="pressed" from="HSplitContainer/Control/Check" to="." method="_on_check_all_pressed"]
+[connection signal="pressed" from="HSplitContainer/Control/DirectoryButton" to="." method="_on_directory_button_pressed"]
+[connection signal="pressed" from="HSplitContainer/Control/ShowResourcePreview" to="." method="_on_show_resource_preview_pressed"]
+[connection signal="visibility_changed" from="HSplitContainer/GdreResourcePreview" to="." method="_on_gdre_resource_preview_visibility_changed"]
