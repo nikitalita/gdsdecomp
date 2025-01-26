@@ -1,0 +1,113 @@
+[gd_scene load_steps=4 format=3 uid="uid://cuifra52kkek"]
+
+[ext_resource type="Script" uid="uid://b75xge8xdomov" path="res://gdre_audio_player.gd" id="1_3jmtn"]
+[ext_resource type="AudioStream" uid="uid://u21mukqxw212" path="res://2.wav" id="2_ooril"]
+[ext_resource type="Script" uid="uid://qmyh4wh5voec" path="res://gdre_audio_preview_box.gd" id="3_ooril"]
+
+[node name="AudioPlayer" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_3jmtn")
+
+[node name="Play" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -68.0
+offset_top = -41.0
+offset_right = -19.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "play"
+
+[node name="Pause" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -42.0
+offset_right = 73.0
+offset_bottom = -11.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "pause"
+
+[node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_ooril")
+
+[node name="BarHBox" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.033
+anchor_top = 1.0
+anchor_right = 0.954
+anchor_bottom = 1.0
+offset_left = -0.0159988
+offset_top = -98.0
+offset_right = 0.991943
+offset_bottom = -35.0
+
+[node name="TimeLabel" type="Label" parent="BarHBox"]
+layout_direction = 2
+layout_mode = 2
+text = "0:00.0 / 0:00.0"
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="Spacer" type="Label" parent="BarHBox"]
+layout_mode = 2
+text = " "
+
+[node name="ProgressBar" type="HSlider" parent="BarHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+step = 0.1
+
+[node name="AudioViewBox" type="Control" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -1.0
+offset_bottom = -103.0
+
+[node name="AudioPreviewBox" type="ColorRect" parent="AudioViewBox"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.129412, 0.14902, 0.176471, 1)
+script = ExtResource("3_ooril")
+metadata/_custom_type_script = ExtResource("3_ooril")
+
+[node name="AudioStreamInfo" type="Label" parent="AudioViewBox"]
+layout_direction = 2
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -155.0
+offset_top = -43.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 14
+text = "Sampling Rate: 48000
+Loop: No"
