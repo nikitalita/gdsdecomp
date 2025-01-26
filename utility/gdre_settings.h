@@ -49,10 +49,11 @@ public:
 		uint32_t file_count = 0;
 		PackType type = PCK;
 		Ref<ProjectConfigLoader> pcfg;
+		bool encrypted = false;
 
 	public:
 		void init(
-				String f, Ref<GodotVer> godot_ver, uint32_t fver, uint32_t flags, uint64_t base, uint32_t count, PackType tp) {
+				String f, Ref<GodotVer> godot_ver, uint32_t fver, uint32_t flags, uint64_t base, uint32_t count, PackType tp, bool p_encrypted = false) {
 			pack_file = f;
 			// copy the version, or set it to null if it's invalid
 			if (godot_ver.is_valid() && godot_ver->is_valid_semver()) {
@@ -64,6 +65,7 @@ public:
 			file_count = count;
 			type = tp;
 			pcfg.instantiate();
+			encrypted = p_encrypted;
 		}
 		bool has_unknown_version() {
 			return !version.is_valid() || !version->is_valid_semver();
@@ -74,7 +76,29 @@ public:
 			version.instantiate();
 			pcfg.instantiate();
 		}
+
+		String get_pack_file() const { return pack_file; }
+		Ref<GodotVer> get_version() const { return GodotVer::create(version->get_major(), version->get_minor(), version->get_patch(), version->get_prerelease(), version->get_build_metadata()); }
+		uint32_t get_fmt_version() const { return fmt_version; }
+		uint32_t get_pack_flags() const { return pack_flags; }
+		uint64_t get_file_base() const { return file_base; }
+		uint32_t get_file_count() const { return file_count; }
+		PackType get_type() const { return type; }
+		bool is_encrypted() const { return encrypted; }
+
+	protected:
+		static void _bind_methods() {
+			ClassDB::bind_method(D_METHOD("get_pack_file"), &PackInfo::get_pack_file);
+			ClassDB::bind_method(D_METHOD("get_version"), &PackInfo::get_version);
+			ClassDB::bind_method(D_METHOD("get_fmt_version"), &PackInfo::get_fmt_version);
+			ClassDB::bind_method(D_METHOD("get_pack_flags"), &PackInfo::get_pack_flags);
+			ClassDB::bind_method(D_METHOD("get_file_base"), &PackInfo::get_file_base);
+			ClassDB::bind_method(D_METHOD("get_file_count"), &PackInfo::get_file_count);
+			ClassDB::bind_method(D_METHOD("get_type"), &PackInfo::get_type);
+			ClassDB::bind_method(D_METHOD("is_encrypted"), &PackInfo::is_encrypted);
+		}
 	};
+
 	class ProjectInfo : public RefCounted {
 		GDCLASS(ProjectInfo, RefCounted);
 
@@ -198,6 +222,7 @@ public:
 	Vector<String> get_file_list(const Vector<String> &filters = Vector<String>());
 	Array get_file_info_array(const Vector<String> &filters = Vector<String>());
 	Vector<Ref<PackedFileInfo>> get_file_info_list(const Vector<String> &filters = Vector<String>());
+	TypedArray<PackInfo> get_pack_info_list() const;
 	PackInfo::PackType get_pack_type() const;
 	String get_pack_path() const;
 	String get_version_string() const;

@@ -1027,6 +1027,14 @@ Array GDRESettings::get_file_info_array(const Vector<String> &filters) {
 Vector<Ref<PackedFileInfo>> GDRESettings::get_file_info_list(const Vector<String> &filters) {
 	return GDREPackedData::get_singleton()->get_file_info_list(filters);
 }
+
+TypedArray<GDRESettings::PackInfo> GDRESettings::get_pack_info_list() const {
+	TypedArray<PackInfo> ret;
+	for (const auto &pack : packs) {
+		ret.push_back(pack);
+	}
+	return ret;
+}
 // TODO: Overhaul all these pathing functions
 String GDRESettings::localize_path(const String &p_path, const String &resource_dir) const {
 	String res_path = resource_dir != "" ? resource_dir : project_path;
@@ -1969,6 +1977,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_file_info_array", "filters"), &GDRESettings::get_file_info_array, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_pack_type"), &GDRESettings::get_pack_type);
 	ClassDB::bind_method(D_METHOD("get_pack_path"), &GDRESettings::get_pack_path);
+	ClassDB::bind_method(D_METHOD("get_pack_info_list"), &GDRESettings::get_pack_info_list);
 	ClassDB::bind_method(D_METHOD("get_version_string"), &GDRESettings::get_version_string);
 	ClassDB::bind_method(D_METHOD("get_ver_major"), &GDRESettings::get_ver_major);
 	ClassDB::bind_method(D_METHOD("get_ver_minor"), &GDRESettings::get_ver_minor);
