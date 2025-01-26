@@ -1,9 +1,7 @@
-[gd_scene load_steps=6 format=3 uid="uid://cuifra52kkek"]
+[gd_scene load_steps=4 format=3 uid="uid://cuifra52kkek"]
 
 [ext_resource type="Script" uid="uid://b75xge8xdomov" path="res://gdre_media_player.gd" id="1_3jmtn"]
-[ext_resource type="AudioStream" uid="uid://u21mukqxw212" path="res://2.wav" id="2_ooril"]
 [ext_resource type="Script" uid="uid://qmyh4wh5voec" path="res://gdre_audio_preview_box.gd" id="3_ooril"]
-[ext_resource type="VideoStream" uid="uid://dprs48viywoon" path="res://Door_OGV.ogv" id="4_wtasi"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wtasi"]
 bg_color = Color(0, 0, 0, 1)
@@ -48,7 +46,6 @@ grow_vertical = 0
 text = "pause"
 
 [node name="AudioStreamPlayer" type="AudioStreamPlayer" parent="."]
-stream = ExtResource("2_ooril")
 
 [node name="BarHBox" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -87,6 +84,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -1.0
 offset_bottom = -103.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="AudioPreviewBox" type="ColorRect" parent="AudioViewBox"]
 layout_mode = 1
@@ -125,6 +124,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -1.0
 offset_bottom = -103.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="AspectRatioContainer" type="AspectRatioContainer" parent="VideoViewBox"]
 clip_contents = true
@@ -143,5 +144,4 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_wtasi")
 [node name="VideoStreamPlayer" type="VideoStreamPlayer" parent="VideoViewBox/AspectRatioContainer"]
 custom_minimum_size = Vector2(16, 9)
 layout_mode = 2
-stream = ExtResource("4_wtasi")
 expand = true
