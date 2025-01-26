@@ -1,5 +1,6 @@
 #ifndef GDRE_SETTINGS_H
 #define GDRE_SETTINGS_H
+#include "core/object/class_db.h"
 #include "gd_parallel_hashmap.h"
 #include "import_info.h"
 #include "packed_file_info.h"
@@ -96,6 +97,12 @@ public:
 			ClassDB::bind_method(D_METHOD("get_file_count"), &PackInfo::get_file_count);
 			ClassDB::bind_method(D_METHOD("get_type"), &PackInfo::get_type);
 			ClassDB::bind_method(D_METHOD("is_encrypted"), &PackInfo::is_encrypted);
+			BIND_ENUM_CONSTANT(PCK);
+			BIND_ENUM_CONSTANT(APK);
+			BIND_ENUM_CONSTANT(ZIP);
+			BIND_ENUM_CONSTANT(DIR);
+			BIND_ENUM_CONSTANT(EXE);
+			BIND_ENUM_CONSTANT(UNKNOWN);
 		}
 	};
 

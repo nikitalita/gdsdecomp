@@ -91,3 +91,5 @@ struct ResourceInfo {
 		return dict;
 	}
 };
+
+VARIANT_ENUM_CAST(ResourceInfo::LoadType);
