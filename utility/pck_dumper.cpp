@@ -260,7 +260,7 @@ Error PckDumper::_pck_dump_to_dir(
 					} else {
 						err_type = "Unknown error";
 					}
-					error_string += tokens[i].file->get_path() + "(" + itos(tokens[i].err) + ")\n";
+					error_string += tokens[i].file->get_path() + "(" + err_type + ")\n";
 				}
 			}
 		}
