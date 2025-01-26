@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3 uid="uid://bhxdw5q2etvki"]
 
-[ext_resource type="Script" path="res://gdre_export_report.gd" id="1_vylry"]
+[ext_resource type="Script" uid="uid://b5le16a48uctd" path="res://gdre_export_report.gd" id="1_vylry"]
 
 [sub_resource type="Theme" id="Theme_m335r"]
 

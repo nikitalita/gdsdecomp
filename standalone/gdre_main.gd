@@ -12,7 +12,9 @@ var CONFIG_PATH = "user://gdre_settings.cfg"
 var isHiDPI = false
 
 var gdre_recover = preload("res://gdre_recover.tscn")
+var gdre_new_pck = preload("res://gdre_new_pck.tscn")
 var RECOVERY_DIALOG: Control = null
+var NEW_PCK_DIALOG: GDRENewPck = null
 var _file_dialog: Window = null
 var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
@@ -58,6 +60,48 @@ func _on_recovery_done():
 	else:
 		print("Recovery dialog not instantiated!!!")
 
+
+func split_args(args: String, splitter = ",") -> PackedStringArray:
+	var parts = args.split(splitter, false)
+	for i in range(parts.size()):
+		parts[i] = dequote(parts[i].strip_edges())
+	return parts
+
+
+
+func _on_new_pck_selected(pck_path: String):
+	NEW_PCK_DIALOG.hide_win()
+	var pck_version = NEW_PCK_DIALOG.VERSION.text
+	var major = NEW_PCK_DIALOG.VER_MAJOR.value
+	var minor = NEW_PCK_DIALOG.VER_MINOR.value
+	var ver_rev = NEW_PCK_DIALOG.VER_PATCH.value
+	# var enc_key = GDRESettings.get_encryption_key_string()
+	# # var engine_version_str = "%s.%s.%s" % [major, minor, ver_rev]
+	var directory = NEW_PCK_DIALOG.DIRECTORY.text
+	var includes = split_args(NEW_PCK_DIALOG.INCLUDES.text)
+	var excludes = split_args(NEW_PCK_DIALOG.EXCLUDES.text)
+	var extra_tag = NEW_PCK_DIALOG.EXTRA_TAG.text
+	var embed = NEW_PCK_DIALOG.EMBED.is_pressed()
+	var exe_to_embed = NEW_PCK_DIALOG.EMBED_SOURCE.text
+	var watermark = NEW_PCK_DIALOG.EXTRA_TAG.text
+	if not embed:
+		exe_to_embed = ""
+	var creator = PckCreator.new()
+	creator.embed = embed
+	creator.exe_to_embed = exe_to_embed
+	creator.watermark = watermark
+	creator.ver_major = major
+	creator.ver_minor = minor
+	creator.ver_rev = ver_rev
+	creator.pack_version = pck_version.to_int()
+	creator.watermark = extra_tag
+	creator.encrypt = NEW_PCK_DIALOG.ENCRYPT.is_pressed()
+	var err = creator.pck_create(pck_path, directory, includes, excludes)
+	if (err):
+		popup_error_box("Error creating PCK file!", "Error", REAL_ROOT_WINDOW)
+		return
+
+
 var _last_paths = PackedStringArray()
 
 func _retry_recover():
@@ -82,6 +126,17 @@ func launch_recovery_window(paths: PackedStringArray):
 	RECOVERY_DIALOG.add_project(paths)
 	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
+
+func setup_new_pck_window():
+	pass
+	if not NEW_PCK_DIALOG:
+		NEW_PCK_DIALOG = $GdreNewPck
+
+
+
+func launch_new_pck_window():
+	setup_new_pck_window()
+	NEW_PCK_DIALOG.show_win()
 
 
 func _on_recover_project_files_selected(paths: PackedStringArray):
@@ -119,6 +174,7 @@ func open_setenc_window():
 
 
 func setup_file_dialog():
+	setup_new_pck_window()
 	# pop open a file dialog
 	_file_dialog = FileDialog.new()
 	_file_dialog.set_use_native_dialog(true)
@@ -146,6 +202,9 @@ func open_recover_file_dialog():
 		_file_dialog.current_dir = GDRESettings.get_home_dir()
 	open_subwindow(_file_dialog)
 
+func open_new_pck_dialog():
+	launch_new_pck_window()
+
 	
 
 func _on_REToolsMenu_item_selected(index):
@@ -164,6 +223,12 @@ func _on_REToolsMenu_item_selected(index):
 			get_tree().quit()
 			
 
+func _on_PCKMenu_item_selected(index):
+	match index:
+		0:
+			launch_new_pck_window()
+			
+			#open_recover_file_dialog()
 	
 func _on_re_editor_standalone_write_log_message(message):
 	$log_window.text += message
@@ -350,6 +415,7 @@ func _ready():
 	var popup_menu_gdremenu: PopupMenu = $MenuContainer/REToolsMenu.get_popup()
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
 	GDRESettings.connect("write_log_message", self._on_re_editor_standalone_write_log_message)
+	$MenuContainer/PCKMenu.get_popup().connect("id_pressed", self._on_PCKMenu_item_selected)
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	$LegalNoticeWindow/OkButton.connect("pressed", $LegalNoticeWindow.hide)
 	$LegalNoticeWindow.connect("close_requested", $LegalNoticeWindow.hide)
@@ -845,29 +911,29 @@ func bin_to_text(files: PackedStringArray, output_dir: String):
 
 
 
-func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_version: String, includes: PackedStringArray = [], excludes: PackedStringArray = [], enc_key: String = ""):
+func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_version: String, includes: PackedStringArray = [], excludes: PackedStringArray = [], enc_key: String = "", embed_pck: String = "", watermark: String = ""):
 	if (pck_version < 0 or pck_engine_version == ""):
 		print_usage()
 		print("Error: --pck-version and --pck-engine-version are required for --pck-create")
-		return
+		return "Error: --pck-version and --pck-engine-version are required for --pck-create"
 	if (pck_file.is_empty()):
 		print_usage()
 		print("Error: --output is required for --pck-create")
-		return
+		return "Error: --output is required for --pck-create"
 
 	pck_dir = get_cli_abs_path(pck_dir)
 	pck_file = get_cli_abs_path(pck_file)
 	if (not DirAccess.dir_exists_absolute(pck_dir)):
 		print_usage()
 		print("Error: directory '" + pck_dir + "' does not exist")
-		return
+		return "Error: --output is required for --pck-create"
 	var pck = PckCreator.new()
 	pck.pack_version = pck_version
 	# split the engine version
 	var split = pck_engine_version.split(".")
 	if (split.size() != 3):
 		print("Error: invalid engine version format (x.y.z)")
-		return
+		return "Error: invalid engine version format (x.y.z)"
 	pck.ver_major = split[0].to_int()
 	pck.ver_minor = split[1].to_int()
 	pck.ver_rev = split[2].to_int()
@@ -875,8 +941,17 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 		var err = GDRESettings.set_encryption_key_string(enc_key)
 		if (err != OK):
 			print("Error: failed to set key!")
-			return
+			return "Error: failed to set key!"
 		pck.set_encrypt(true)
+	if (not embed_pck.is_empty()):
+		embed_pck = get_cli_abs_path(embed_pck)
+		if (not FileAccess.file_exists(embed_pck)):
+			print("Error: embed PCK file '" + embed_pck + "' does not exist")
+			return "Error: embed PCK file '" + embed_pck + "' does not exist"
+		pck.exe_to_embed = embed_pck
+		print("Embedding PCK: " + embed_pck)
+	if (not watermark.is_empty()):
+		pck.watermark = watermark
 	pck.pck_create(pck_file, pck_dir, includes, excludes)
 
 

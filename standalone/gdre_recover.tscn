@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://bv7816js3kr4k"]
 
-[ext_resource type="Script" path="res://gdre_recover.gd" id="2_edjtc"]
+[ext_resource type="Script" uid="uid://bga3f1eshrdxt" path="res://gdre_recover.gd" id="2_edjtc"]
 
 [sub_resource type="Theme" id="Theme_m335r"]
 
@@ -92,8 +92,7 @@ text = "Extract Only"
 layout_mode = 2
 button_pressed = true
 button_group = SubResource("ButtonGroup_bvmre")
-text = "Full Recovery
-"
+text = "Full Recovery"
 
 [node name="ExtractButton" type="Button" parent="."]
 layout_mode = 1
