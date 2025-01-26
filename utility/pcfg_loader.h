@@ -42,6 +42,9 @@ class ProjectConfigLoader : public RefCounted {
 	bool loaded = false;
 	int config_version = 0;
 
+protected:
+	static void _bind_methods();
+
 public:
 	static constexpr int CURRENT_CONFIG_VERSION = 5;
 

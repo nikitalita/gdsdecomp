@@ -261,3 +261,13 @@ ProjectConfigLoader::ProjectConfigLoader() {
 
 ProjectConfigLoader::~ProjectConfigLoader() {
 }
+
+void ProjectConfigLoader::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("load_cfb", "path", "ver_major", "ver_minor"), &ProjectConfigLoader::load_cfb);
+	ClassDB::bind_method(D_METHOD("save_cfb", "dir", "ver_major", "ver_minor"), &ProjectConfigLoader::save_cfb);
+	ClassDB::bind_method(D_METHOD("has_setting", "var"), &ProjectConfigLoader::has_setting);
+	ClassDB::bind_method(D_METHOD("get_setting", "var", "default_value"), &ProjectConfigLoader::get_setting);
+	ClassDB::bind_method(D_METHOD("remove_setting", "var"), &ProjectConfigLoader::remove_setting);
+	ClassDB::bind_method(D_METHOD("set_setting", "var", "value"), &ProjectConfigLoader::set_setting);
+	ClassDB::bind_method(D_METHOD("save_custom", "path", "ver_major", "ver_minor"), &ProjectConfigLoader::save_custom);
+}
