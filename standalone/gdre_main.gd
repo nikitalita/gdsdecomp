@@ -225,6 +225,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --extract=<GAME_PCK/EXE/APK>       Extract the specified PCK, APK, or EXE.
 --compile=<GD_FILE>                Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
 --decompile=<GDC_FILE>             Decompile GDC files to text (can be repeated and use globs)
+--pck-create=<PCK_DIR>             Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
 --list-bytecode-versions           List all available bytecode versions
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
@@ -265,6 +266,14 @@ var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 										  - If not specified, compiled files will be output to the same location 
 										  (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
 """
+
+var CREATE_OPTS_NOTES = """Create PCK Options:
+--output=<OUTPUT_PCK>                    The output PCK file to create
+--pck-version=<VERSION>                  The format version of the PCK file to create (0, 1, 2)
+--pck-engine-version=<ENGINE_VERSION>    The version of the engine to create the PCK for (x.y.z)
+--key=<KEY>                              64-character hex string to encrypt the PCK with
+"""
+
 func print_usage():
 	print("Godot Reverse Engineering Tools")
 	print("")
@@ -277,6 +286,7 @@ func print_usage():
 	print(RECOVER_OPTS_NOTES)
 	print(GLOB_NOTES)
 	print(COMPILE_OPTS_NOTES)
+	print(CREATE_OPTS_NOTES)
 
 
 # TODO: remove this hack
@@ -618,9 +628,49 @@ func bin_to_text(files: PackedStringArray, output_dir: String):
 		var dst_file = file.get_file().replace(".scn", ".tscn").replace(".res", ".tres")
 		importer.convert_res_bin_2_txt(output_dir, file, dst_file)
 
+
+
+func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_version: String, includes: PackedStringArray = [], excludes: PackedStringArray = [], enc_key: String = ""):
+	if (pck_version < 0 or pck_engine_version == ""):
+		print_usage()
+		print("Error: --pck-version and --pck-engine-version are required for --pck-create")
+		return
+	if (pck_file.is_empty()):
+		print_usage()
+		print("Error: --output is required for --pck-create")
+		return
+
+	pck_dir = get_cli_abs_path(pck_dir)
+	pck_file = get_cli_abs_path(pck_file)
+	if (not DirAccess.dir_exists_absolute(pck_dir)):
+		print_usage()
+		print("Error: directory '" + pck_dir + "' does not exist")
+		return
+	var pck = PckCreator.new()
+	pck.pack_version = pck_version
+	# split the engine version
+	var split = pck_engine_version.split(".")
+	if (split.size() != 3):
+		print("Error: invalid engine version format (x.y.z)")
+		return
+	pck.ver_major = split[0].to_int()
+	pck.ver_minor = split[1].to_int()
+	pck.ver_rev = split[2].to_int()
+	if (not enc_key.is_empty()):
+		var err = GDRESettings.set_encryption_key_string(enc_key)
+		if (err != OK):
+			print("Error: failed to set key!")
+			return
+		pck.set_encrypt(true)
+	pck.pck_create(pck_file, pck_dir, includes, excludes)
+
+
 func handle_cli(args: PackedStringArray) -> bool:
 	var input_extract_file:PackedStringArray = []
 	var input_file:PackedStringArray = []
+	var pck_create_dir: String       = ""
+	var pck_version: int             = -1
+	var pck_engine_version: String   = ""
 	var output_dir: String = ""
 	var enc_key: String = ""
 	var txt_to_bin = PackedStringArray()
@@ -703,6 +753,12 @@ func handle_cli(args: PackedStringArray) -> bool:
 			excludes.append(get_arg_value(arg))
 		elif arg.begins_with("--include"):
 			includes.append(get_arg_value(arg))
+		elif arg.begins_with("--pck-create"):
+			pck_create_dir = get_cli_abs_path(get_arg_value(arg))
+		elif arg.begins_with("--pck-version"):
+			pck_version = (get_arg_value(arg)).to_int()
+		elif arg.begins_with("--pck-engine-version"):
+			pck_engine_version = (get_arg_value(arg))
 		elif arg.begins_with("--plcache"):
 			main_cmds["plcache"] = true
 			prepop.append(get_arg_value(arg))
@@ -740,6 +796,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 		text_to_bin(txt_to_bin, output_dir)
 	elif bin_to_txt.is_empty() == false:
 		bin_to_text(bin_to_txt, output_dir)
+	elif not pck_create_dir.is_empty():
+		create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key)
 	elif set_setting:
 		return false # don't quit
 	else:
