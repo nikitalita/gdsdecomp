@@ -307,8 +307,6 @@ HashSet<uint32_t> OptimizedTranslationExtractor::get_message_hash_set() const {
 	const uint32_t *htptr = (const uint32_t *)&htr[0];
 	const int *btr = bucket_table.ptr();
 	const uint32_t *btptr = (const uint32_t *)&btr[0];
-	const uint8_t *sr = strings.ptr();
-	const char *sptr = (const char *)&sr[0];
 
 	HashSet<uint32_t> ret;
 	for (int i = 0; i < htsize; i++) {

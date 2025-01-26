@@ -516,11 +516,11 @@ void GDScriptTokenizerTextCompat::_advance() {
 #ifdef DEBUG_ENABLED
 				String comment_content = comment.trim_prefix("#").trim_prefix(" ");
 				if (comment_content.begins_with("warning-ignore:")) {
-					String code = comment_content.get_slice(":", 1);
-					warning_skips.push_back(Pair<int, String>(line, code.strip_edges().to_lower()));
+					String warning_code = comment_content.get_slice(":", 1);
+					warning_skips.push_back(Pair<int, String>(line, warning_code.strip_edges().to_lower()));
 				} else if (comment_content.begins_with("warning-ignore-all:")) {
-					String code = comment_content.get_slice(":", 1);
-					warning_global_skips.insert(code.strip_edges().to_lower());
+					String warning_code = comment_content.get_slice(":", 1);
+					warning_global_skips.insert(warning_code.strip_edges().to_lower());
 				} else if (comment_content.strip_edges() == "warnings-disable") {
 					ignore_warnings = true;
 				}

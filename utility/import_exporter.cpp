@@ -10,7 +10,6 @@
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
-#include "exporters/gdextension_exporter.h"
 #include "exporters/oggstr_exporter.h"
 #include "exporters/sample_exporter.h"
 #include "exporters/texture_exporter.h"
@@ -799,8 +798,8 @@ ImportExporter::~ImportExporter() {
 	reset();
 }
 
-void ImportExporterReport::set_ver(String ver) {
-	this->ver = GodotVer::parse(ver);
+void ImportExporterReport::set_ver(String p_ver) {
+	this->ver = GodotVer::parse(p_ver);
 }
 
 String ImportExporterReport::get_ver() {

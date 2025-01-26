@@ -9,7 +9,6 @@
 #include "utility/common.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
-#include "utility/resource_info.h"
 
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
@@ -116,7 +115,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	bool has_shader = false;
 	bool has_external_animation = false;
 	bool has_external_materials = false;
-	bool has_external_textures = false;
+	// bool has_external_textures = false;
 	bool has_external_meshes = false;
 
 	bool set_all_externals = false;
@@ -215,7 +214,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					has_external_materials = true;
 					need_to_be_updated.insert(info.dep);
 				} else if (info.type.contains("Texture")) {
-					has_external_textures = true;
+					// has_external_textures = true;
 					need_to_be_updated.insert(info.dep);
 				} else if (info.type.contains("Mesh")) {
 					has_external_meshes = true;

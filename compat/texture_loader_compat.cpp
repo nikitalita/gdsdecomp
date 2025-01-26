@@ -726,7 +726,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	}
 	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
 	String type = res->get_original_class();
-	int flags = res->get("flags");
+	// int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
 		return Ref<CompressedTexture2D>(memnew(CompressedTexture2D));

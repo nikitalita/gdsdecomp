@@ -813,7 +813,6 @@ struct KeyWorker {
 					p_userdata.size(), -1, true, StringName(desc));
 			wait_for_task(group_id, stage_name, p_userdata.size(), MAX_STAGE_TIME);
 		} else {
-			auto strt = OS::get_singleton()->get_ticks_usec();
 			for (uint32_t i = 0; i < p_userdata.size(); i++) {
 				(this->*non_multi_method)(i, p_userdata.ptrw());
 				// if (i % 250 == 0 && check_for_timeout(strt, MAX_STAGE_TIME)) {

@@ -31,16 +31,12 @@
 #include "resource_compat_binary.h"
 
 #include "compat/resource_loader_compat.h"
-#include "core/config/project_settings.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access_compressed.h"
-#include "core/io/image.h"
-#include "core/io/marshalls.h"
 #include "core/io/missing_resource.h"
 #include "core/io/resource.h"
-#include "core/object/script_language.h"
 #include "core/version.h"
 #include "scene/resources/packed_scene.h"
 
@@ -1326,11 +1322,11 @@ String ResourceLoaderCompatBinary::recognize(Ref<FileAccess> p_f) {
 
 	f->set_big_endian(big_endian != 0); //read big endian if saved as big endian
 
-	uint32_t ver_major = f->get_32();
+	uint32_t major = f->get_32();
 	f->get_32(); // ver_minor
-	uint32_t ver_fmt = f->get_32();
+	uint32_t fmt = f->get_32();
 
-	if (ver_fmt > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (fmt > FORMAT_VERSION || major > VERSION_MAJOR) {
 		f.unref();
 		return "";
 	}

@@ -72,8 +72,8 @@ class ResourceLoaderCompatBinary {
 
 	Ref<ResourceImportMetadatav2> imd;
 
-	uint32_t ver_major;
-	uint32_t ver_minor;
+	uint32_t ver_major = 0;
+	uint32_t ver_minor = 0;
 	int packed_scene_version = -1;
 	bool suspect_version = false;
 
@@ -177,15 +177,14 @@ class ResourceFormatSaverCompatBinaryInstance {
 
 	String output_dir;
 
-	uint32_t ver_format;
-	uint32_t ver_major;
-	uint32_t ver_minor;
+	uint32_t ver_format = 0;
+	uint32_t ver_major = 0;
+	uint32_t ver_minor = 0;
 	bool using_uids = false;
 	bool using_named_scene_ids = false;
 	bool using_script_class = false;
 	bool using_real_t_double = false;
 	bool stored_use_real64 = false;
-	bool stored_big_endian = false;
 	String script_class;
 
 	struct NonPersistentKey { //for resource properties generated on the fly

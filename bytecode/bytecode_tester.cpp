@@ -532,39 +532,39 @@ Vector<Ref<GDScriptDecomp>> BytecodeTester::get_possible_decomps(Vector<String> 
 	return get_possibles_from_set(bytecode_files, decomps, print_verbosely);
 }
 
-Vector<Ref<GDScriptDecomp>> BytecodeTester::filter_decomps(const Vector<Ref<GDScriptDecomp>> &decomp_versions, int ver_major_hint, int ver_minor_hint) {
+Vector<Ref<GDScriptDecomp>> BytecodeTester::filter_decomps(const Vector<Ref<GDScriptDecomp>> &p_decomp_versions, int ver_major_hint, int ver_minor_hint) {
 	Vector<Ref<GDScriptDecomp>> candidates;
 	if (ver_major_hint > 0 && ver_minor_hint < 0) {
-		for (int i = 0; i < decomp_versions.size(); i++) {
-			if (decomp_versions[i]->get_engine_ver_major() == ver_major_hint) {
-				candidates.push_back(decomp_versions[i]);
+		for (int i = 0; i < p_decomp_versions.size(); i++) {
+			if (p_decomp_versions[i]->get_engine_ver_major() == ver_major_hint) {
+				candidates.push_back(p_decomp_versions[i]);
 			}
 		}
 	} else if (ver_major_hint > 0 && ver_minor_hint >= 0) {
-		for (int i = 0; i < decomp_versions.size(); i++) {
-			if (decomp_versions[i]->get_engine_ver_major() == ver_major_hint) {
+		for (int i = 0; i < p_decomp_versions.size(); i++) {
+			if (p_decomp_versions[i]->get_engine_ver_major() == ver_major_hint) {
 				bool good = false;
-				if (decomp_versions[i]->get_max_engine_version() != "") {
-					Ref<GodotVer> min_ver = GodotVer::parse(decomp_versions[i]->get_engine_version());
-					Ref<GodotVer> max_ver = GodotVer::parse(decomp_versions[i]->get_max_engine_version());
+				if (p_decomp_versions[i]->get_max_engine_version() != "") {
+					Ref<GodotVer> min_ver = GodotVer::parse(p_decomp_versions[i]->get_engine_version());
+					Ref<GodotVer> max_ver = GodotVer::parse(p_decomp_versions[i]->get_max_engine_version());
 					if (max_ver->get_minor() >= ver_minor_hint && min_ver->get_minor() <= ver_minor_hint) {
 						good = true;
 					}
 				} else {
-					Ref<GodotVer> ver = memnew(GodotVer(decomp_versions[i]->get_engine_version()));
+					Ref<GodotVer> ver = memnew(GodotVer(p_decomp_versions[i]->get_engine_version()));
 					if (ver->get_minor() == ver_minor_hint) {
 						good = true;
 					}
 				}
 				if (good) {
-					candidates.push_back(decomp_versions[i]);
+					candidates.push_back(p_decomp_versions[i]);
 				}
 			}
 		}
 	} else {
 		// no version hint
-		for (int i = 0; i < decomp_versions.size(); i++) {
-			candidates.push_back(decomp_versions[i]);
+		for (int i = 0; i < p_decomp_versions.size(); i++) {
+			candidates.push_back(p_decomp_versions[i]);
 		}
 	}
 	return candidates;
