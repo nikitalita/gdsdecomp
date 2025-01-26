@@ -91,9 +91,30 @@ is_printing_verbose = is_print_verbose_enabled();
 Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters) {
 	String error_string;
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
+	reset();
+	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
+		Vector<String> file_paths_to_pack;
+		{
+			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_read_folder", "Reading folder structure...", -1, true };
+
+			file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
+			bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
+		}
+		Error err = OK;
+		{
+			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_folder_info", "Getting file info...", (int)file_paths_to_pack.size(), true };
+			err = _process_folder(p_pck_path, p_dir, file_paths_to_pack, &pr, error_string);
+		}
+		ERR_FAIL_COND_V_MSG(err, err, "Error processing folder: " + error_string);
+		{
+			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_write_pck", "Writing PCK archive...", (int)file_paths_to_pack.size(), true };
+			err = _create_after_process(&pr, error_string);
+		}
+		ERR_FAIL_COND_V_MSG(err, err, "Error creating pck: " + error_string);
+		return OK;
+	}
 	auto file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
 	bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
-	reset();
 	Error err = _process_folder(p_pck_path, p_dir, file_paths_to_pack, nullptr, error_string);
 	ERR_FAIL_COND_V_MSG(err, err, "Error processing folder: " + error_string);
 	err = _create_after_process(nullptr, error_string);

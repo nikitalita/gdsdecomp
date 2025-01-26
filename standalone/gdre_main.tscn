@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3 uid="uid://el6o5uk15g2c"]
+[gd_scene load_steps=8 format=3 uid="uid://el6o5uk15g2c"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1"]
 [ext_resource type="Script" uid="uid://bqpxqjfn2qt1g" path="res://gdre_main.gd" id="2"]
 [ext_resource type="Texture2D" uid="uid://drxn4ollkvprv" path="res://gdre_icons/gdre_Logo.svg" id="3_bc0t5"]
 [ext_resource type="Texture2D" uid="uid://bp8yf7a2dd6nu" path="res://gdre_icons/gdre_Pack.svg" id="4_nesr8"]
 [ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="4_vsto2"]
+[ext_resource type="PackedScene" uid="uid://bvmc3vdlgqnse" path="res://gdre_new_pck.tscn" id="6_kct41"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_x51e8"]
 
@@ -145,41 +146,43 @@ flat = true
 
 [node name="LegalNoticeWindow" type="Window" parent="."]
 title = "Important: Legal Notice"
-size = Vector2i(650, 500)
+position = Vector2i(0, 36)
+size = Vector2i(650, 431)
 visible = false
 
 [node name="Label" type="Label" parent="LegalNoticeWindow"]
 offset_left = 100.0
 offset_top = 20.0
 offset_right = 614.0
-offset_bottom = 443.0
+offset_bottom = 389.0
 text = "Resources, binary code and source code might be protected by copyright and trademark laws. Before using this software make sure that decompilation is not prohibited by the applicable license agreement, permitted under applicable law or you obtained explicit permission from the copyright owner.
 
-
-The authors and copyright holders of this software do neither encourage nor condone  +
-the use of this software, and disclaim any liability for use of the software in violation of applicable laws.
-
+The authors and copyright holders of this software do neither encourage nor condone the use of this software, and disclaim any liability for use of the software in violation of applicable laws.
 
 This software in an alpha stage. Please report any bugs to the GitHub repository
 "
 autowrap_mode = 3
 
 [node name="OkButton" type="Button" parent="LegalNoticeWindow"]
-offset_left = 279.5
-offset_top = 450.0
-offset_right = 370.5
-offset_bottom = 483.0
+offset_left = 277.0
+offset_top = 378.0
+offset_right = 368.0
+offset_bottom = 411.0
 text = "OK"
 
 [node name="TextureRect" type="TextureRect" parent="LegalNoticeWindow"]
-offset_left = 12.0
-offset_top = 218.0
-offset_right = 76.0
-offset_bottom = 282.0
+offset_left = 15.0
+offset_top = 164.0
+offset_right = 79.0
+offset_bottom = 228.0
 texture = ExtResource("4_vsto2")
+
+[node name="GdreNewPck" parent="." instance=ExtResource("6_kct41")]
+visible = false
 
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/CancelButton" to="." method="_on_setenc_key_cancel_pressed"]
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/OK Button" to="." method="_on_setenc_key_ok_pressed"]
 [connection signal="about_to_popup" from="MenuContainer/REToolsMenu" to="." method="_menubutton_about_to_popup"]
 [connection signal="theme_changed" from="MenuContainer/REToolsMenu" to="." method="_on_menu_btn_theme_changed"]
 [connection signal="pressed" from="version_lbl" to="." method="_on_version_lbl_pressed"]
+[connection signal="save_pck_requested" from="GdreNewPck" to="." method="_on_new_pck_selected"]
