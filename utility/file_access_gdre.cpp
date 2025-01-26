@@ -660,16 +660,16 @@ bool DirAccessGDRE::dir_exists(String p_dir) {
 
 bool DirAccessGDRE::is_readable(String p_dir) {
 	if (proxy.is_valid()) {
-		return proxy->is_writable(p_dir);
+		return proxy->is_readable(p_dir);
 	}
-	return false;
+	return true;
 }
 
 bool DirAccessGDRE::is_writable(String p_dir) {
 	if (proxy.is_valid()) {
 		return proxy->is_writable(p_dir);
 	}
-	return false;
+	return true;
 }
 
 uint64_t DirAccessGDRE::get_modified_time(String p_file) {
