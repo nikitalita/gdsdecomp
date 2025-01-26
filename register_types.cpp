@@ -36,6 +36,7 @@
 #include "utility/godotver.h"
 #include "utility/import_exporter.h"
 #include "utility/packed_file_info.h"
+#include "utility/pck_creator.h"
 #include "utility/pck_dumper.h"
 
 #include "module_etc_decompress/register_types.h"
@@ -237,6 +238,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 
 	ClassDB::register_class<GodotREEditorStandalone>();
 	ClassDB::register_class<PckDumper>();
+	ClassDB::register_class<PckCreator>();
 	ClassDB::register_class<ResourceImportMetadatav2>();
 	ClassDB::register_abstract_class<ImportInfo>();
 

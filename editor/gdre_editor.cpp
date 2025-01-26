@@ -52,6 +52,8 @@
 #endif
 #include "compat/file_access_encrypted_v3.h"
 
+#include <utility/pck_creator.h>
+
 /*************************************************************************/
 
 GodotREEditor *GodotREEditor::singleton = NULL;
@@ -75,7 +77,7 @@ ResultDialog::ResultDialog() {
 	script_vb->add_child(message);
 
 	add_child(script_vb);
-};
+}
 
 ResultDialog::~ResultDialog() {
 	//NOP
@@ -117,7 +119,7 @@ OverwriteDialog::OverwriteDialog() {
 
 	get_ok_button()->set_text(RTR("Overwrite"));
 	add_cancel_button(RTR("Cancel"));
-};
+}
 
 OverwriteDialog::~OverwriteDialog() {
 	//NOP
@@ -142,7 +144,7 @@ static int _get_pad(int p_alignment, int p_n) {
 	int pad = 0;
 	if (rest > 0) {
 		pad = p_alignment - rest;
-	};
+	}
 
 	return pad;
 }
@@ -215,11 +217,13 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_dialog->connect("canceled", callable_mp(this, &GodotREEditor::_pck_unload));
 	p_control->add_child(pck_dialog);
 
+	auto desktop_dir = GDRESettings::get_singleton()->get_home_dir().path_join("Desktop");
 	pck_source_folder = memnew(FileDialog);
 	pck_source_folder->set_access(FileDialog::ACCESS_FILESYSTEM);
 	pck_source_folder->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
 	pck_source_folder->connect("dir_selected", callable_mp(this, &GodotREEditor::_pck_create_request));
 	pck_source_folder->set_show_hidden_files(true);
+	pck_source_folder->set_current_dir(desktop_dir);
 	p_control->add_child(pck_source_folder);
 
 	pck_save_dialog = memnew(NewPackDialog);
@@ -231,6 +235,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_save_file_selection->set_file_mode(FileDialog::FILE_MODE_SAVE_FILE);
 	pck_save_file_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_pck_save_request));
 	pck_save_file_selection->set_show_hidden_files(true);
+	pck_save_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(pck_save_file_selection);
 
 	pck_file_selection = memnew(FileDialog);
@@ -242,6 +247,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_file_selection->add_filter("*.zip;Zipped Godot project files");
 	pck_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_pck_select_request));
 	pck_file_selection->set_show_hidden_files(true);
+	pck_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(pck_file_selection);
 
 	bin_res_file_selection = memnew(FileDialog);
@@ -250,6 +256,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	bin_res_file_selection->add_filter("*.scn,*.res;Binary resource files");
 	bin_res_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_bin_2_txt_request));
 	bin_res_file_selection->set_show_hidden_files(true);
+	bin_res_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(bin_res_file_selection);
 
 	txt_res_file_selection = memnew(FileDialog);
@@ -258,6 +265,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	txt_res_file_selection->add_filter("*.escn,*.tscn,*.tres;Text resource files");
 	txt_res_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_txt_2_bin_request));
 	txt_res_file_selection->set_show_hidden_files(true);
+	txt_res_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(txt_res_file_selection);
 
 	stex_file_selection = memnew(FileDialog);
@@ -266,6 +274,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	stex_file_selection->add_filter("*.ctex,*.stex,*.tex;Stream texture files");
 	stex_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_stex_2_png_request));
 	stex_file_selection->set_show_hidden_files(true);
+	stex_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(stex_file_selection);
 
 	ostr_file_selection = memnew(FileDialog);
@@ -274,6 +283,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	ostr_file_selection->add_filter("*.oggstr,*.oggvorbisstr;OGG Sample files");
 	ostr_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_ostr_2_ogg_request));
 	ostr_file_selection->set_show_hidden_files(true);
+	ostr_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(ostr_file_selection);
 
 	smpl_file_selection = memnew(FileDialog);
@@ -282,6 +292,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	smpl_file_selection->add_filter("*.sample;WAV Sample files");
 	smpl_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_res_smpl_2_wav_request));
 	smpl_file_selection->set_show_hidden_files(true);
+	smpl_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(smpl_file_selection);
 
 	//Init about/warning dialog
@@ -1187,6 +1198,9 @@ Error GodotREEditor::convert_file_to_binary(const String &p_src_path, const Stri
 void GodotREEditor::_pck_create_request(const String &p_path) {
 	pck_save_files.clear();
 	pck_file = p_path;
+	if (key_dialog->get_key().size() > 0) {
+		GDRESettings::get_singleton()->set_encryption_key(key_dialog->get_key());
+	}
 
 	pck_save_dialog->popup_centered(Size2(600, 400));
 }
@@ -1288,391 +1302,37 @@ uint64_t GodotREEditor::_pck_create_process_folder(EditorProgressGDDC *p_pr, con
 }
 
 void GodotREEditor::_pck_save_request(const String &p_path) {
-	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_read_folder", RTR("Reading folder structure..."), 1, true));
 	bool cancel = false;
-	uint64_t size = _pck_create_process_folder(pr, pck_file, String(), 0, cancel);
-	memdelete(pr);
-
-	if (cancel) {
-		return;
-	}
-
-	if (size == 0) {
+	String error_string;
+	Vector<String> include_filters = pck_save_dialog->get_enc_filters_in().split(",", false);
+	Vector<String> exclude_filters = pck_save_dialog->get_enc_filters_ex().split(",", false);
+	auto file_paths_to_pack = PckCreator::get_files_to_pack(pck_file, include_filters, exclude_filters);
+	if (file_paths_to_pack.is_empty()) {
 		show_warning(RTR("Error opening folder (or empty folder): ") + pck_file, RTR("New PCK"));
 		return;
 	}
-
-	int64_t embedded_start = 0;
-	int64_t embedded_size = 0;
-
-	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE);
-	if (f.is_null()) {
-		show_warning(RTR("Error opening PCK file: ") + p_path, RTR("New PCK"));
+	PckCreator pck_creator;
+	pck_creator.set_embed(pck_save_dialog->get_is_emb());
+	pck_creator.set_pack_version(pck_save_dialog->get_version_pack());
+	pck_creator.set_ver_major(pck_save_dialog->get_version_major());
+	pck_creator.set_ver_minor(pck_save_dialog->get_version_minor());
+	pck_creator.set_ver_rev(pck_save_dialog->get_version_rev());
+	pck_creator.set_encrypt(pck_save_dialog->get_enc_dir());
+	pck_creator.set_exe_to_embed(pck_save_dialog->get_emb_source());
+	pck_creator.set_watermark(pck_save_dialog->get_watermark());
+	Error err;
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_read_folder", RTR("Reading folder structure..."), 1, true));
+	err = pck_creator._process_folder(p_path, pck_file, file_paths_to_pack, pr, error_string);
+	memdelete(pr);
+	if (err) {
+		show_warning(RTR(error_string) + ":" + pck_file, RTR("New PCK"));
 		return;
 	}
-
-	pr = memnew(EditorProgressGDDC(ne_parent, "re_write_pck", RTR("Writing PCK archive..."), pck_save_files.size() + 2, true));
-
-	if (pck_save_dialog->get_is_emb()) {
-		// append to exe
-		Ref<FileAccess> fs = FileAccess::open(pck_save_dialog->get_emb_source(), FileAccess::READ);
-		if (fs.is_null()) {
-			show_warning(RTR("Error opening source executable file: ") + pck_save_dialog->get_emb_source(), RTR("New PCK"));
-			return;
-		}
-
-		pr->step("Exec...", 0, true);
-
-		fs->seek_end();
-		fs->seek(fs->get_position() - 4);
-		int32_t magic = fs->get_32();
-		if (magic == 0x43504447) {
-			// exe already have embedded pck
-			fs->seek(fs->get_position() - 12);
-			uint64_t ds = f->get_64();
-			fs->seek(fs->get_position() - ds - 8);
-		} else {
-			fs->seek_end();
-		}
-		int64_t exe_end = fs->get_position();
-		fs->seek(0);
-		// copy executable data
-		for (int i = 0; i < exe_end; i++) {
-			f->store_8(fs->get_8());
-		}
-
-		embedded_start = f->get_position();
-
-		// ensure embedded PCK starts at a 64-bit multiple
-		int pad = f->get_position() % 8;
-		for (int i = 0; i < pad; i++) {
-			f->store_8(0);
-		}
-	}
-	int64_t pck_start_pos = f->get_position();
-
-	int version = pck_save_dialog->get_version_pack();
-	Vector<uint8_t> key = key_dialog->get_key();
-
-	f->store_32(0x43504447); //GDPK
-	f->store_32(version);
-	f->store_32(pck_save_dialog->get_version_major());
-	f->store_32(pck_save_dialog->get_version_minor());
-	f->store_32(pck_save_dialog->get_version_rev());
-
-	int64_t file_base_ofs = 0;
-	if (version == 2) {
-		uint32_t pack_flags = 0;
-		if (pck_save_dialog->get_enc_dir()) {
-			pack_flags |= (1 << 0);
-		}
-		f->store_32(pack_flags); // flags
-		file_base_ofs = f->get_position();
-		f->store_64(0); // files base
-	}
-
-	for (int i = 0; i < 16; i++) {
-		//reserved
-		f->store_32(0);
-	}
-
-	pr->step("Header...", 0, true);
-
-	f->store_32(pck_save_files.size()); //amount of files
-
-	size_t header_size = f->get_position();
-
-	Ref<FileAccessEncrypted> fae;
-	Ref<FileAccess> fhead = f;
-	if (version == 2) {
-		if (pck_save_dialog->get_enc_dir()) {
-			fae.instantiate();
-			ERR_FAIL_COND(fae.is_null());
-
-			Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-			ERR_FAIL_COND(err != OK);
-
-			fhead = fae;
-		}
-	}
-
-	for (int i = 0; i < pck_save_files.size(); i++) {
-		header_size += 4; // size of path string (32 bits is enough)
-		uint32_t string_len = pck_save_files[i]->get_path().utf8().length() + 6;
-		header_size += string_len + _get_pad(4, string_len); ///size of path string
-		header_size += 8; // offset to file _with_ header size included
-		header_size += 8; // size of file
-		header_size += 16; // md5
-	}
-
-	size_t header_padding = _get_pad(PCK_PADDING, header_size);
-
-	pr->step("Directory...", 0, true);
-
-	for (int i = 0; i < pck_save_files.size(); i++) {
-		uint32_t string_len = pck_save_files[i]->get_path().utf8().length() + 6;
-		uint32_t pad = _get_pad(4, string_len);
-
-		fhead->store_32(string_len + pad);
-		String name = "res://" + pck_save_files[i]->get_path();
-		fhead->store_buffer((const uint8_t *)name.utf8().get_data(), string_len);
-		for (uint32_t j = 0; j < pad; j++) {
-			fhead->store_8(0);
-		}
-
-		if (version == 2) {
-			fhead->store_64(pck_save_files[i]->get_offset());
-		} else {
-			fhead->store_64(pck_save_files[i]->get_offset() + header_padding + header_size);
-		}
-		fhead->store_64(pck_save_files[i]->get_size()); // pay attention here, this is where file is
-		fhead->store_buffer(pck_save_files[i]->get_md5().ptr(), 16); //also save md5 for file
-		if (version == 2) {
-			if (pck_save_files[i]->is_encrypted()) {
-				fhead->store_32(1);
-			} else {
-				fhead->store_32(0);
-			}
-		}
-	}
-
-	if (fae.is_valid()) {
-		fae.unref();
-	}
-
-	for (uint32_t j = 0; j < header_padding; j++) {
-		if (version == 2) {
-			f->store_8(Math::rand() % 256);
-		} else {
-			f->store_8(0);
-		}
-	}
-
-	if (version == 2) {
-		int64_t file_base = f->get_position();
-		f->seek(file_base_ofs);
-		f->store_64(file_base); // update files base
-		f->seek(file_base);
-	}
-
-	String failed_files;
-
-	for (int i = 0; i < pck_save_files.size(); i++) {
-		print_warning("saving " + pck_save_files[i]->get_path(), RTR("New PCK"));
-		if (pr->step(pck_save_files[i]->get_path(), i + 2, true)) {
-			break;
-		}
-
-		fae = Ref<FileAccess>();
-		Ref<FileAccess> ftmp = f;
-		if (pck_save_files[i]->is_encrypted()) {
-			fae.instantiate();
-			ERR_FAIL_COND(fae.is_null());
-
-			Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-			ERR_FAIL_COND(err != OK);
-			ftmp = fae;
-		}
-
-		Ref<FileAccess> fa = FileAccess::open(pck_file.path_join(pck_save_files[i]->get_path()), FileAccess::READ);
-		if (fa.is_valid()) {
-			int64_t rq_size = pck_save_files[i]->get_size();
-			uint8_t buf[16384];
-
-			while (rq_size > 0) {
-				int got = fa->get_buffer(buf, MIN(16384, rq_size));
-				ftmp->store_buffer(buf, got);
-				rq_size -= 16384;
-			}
-		} else {
-			failed_files += pck_save_files[i]->get_path() + " (FileAccess error)\n";
-		}
-
-		if (fae.is_valid()) {
-			fae.unref();
-		}
-	}
-
-	if (pck_save_dialog->get_watermark() != "") {
-		f->store_32(0);
-		f->store_32(0);
-		f->store_string(pck_save_dialog->get_watermark());
-		f->store_32(0);
-		f->store_32(0);
-	}
-
-	f->store_32(0x43504447); //GDPK
-
-	if (pck_save_dialog->get_is_emb()) {
-		// ensure embedded data ends at a 64-bit multiple
-		int64_t embed_end = f->get_position() - embedded_start + 12;
-		int pad = embed_end % 8;
-		for (int i = 0; i < pad; i++) {
-			f->store_8(0);
-		}
-
-		int64_t pck_size = f->get_position() - pck_start_pos;
-		f->store_64(pck_size);
-		f->store_32(0x43504447); //GDPC
-
-		embedded_size = f->get_position() - embedded_start;
-
-		// fixup headers
-		pr->step("Exec header fix...", pck_save_files.size() + 2, true);
-		f->seek(0);
-		int16_t exe1_magic = f->get_16();
-		int16_t exe2_magic = f->get_16();
-		if (exe1_magic == 0x5A4D) {
-			//windows (pe) - copy from "platform/windows/export/export.cpp"
-			f->seek(0x3c);
-			uint32_t pe_pos = f->get_32();
-
-			f->seek(pe_pos);
-			uint32_t magic = f->get_32();
-			if (magic != 0x00004550) {
-				show_warning(RTR("Invalid PE magic"), RTR("New PCK"), RTR("At least one error was detected!"));
-				pck_save_files.clear();
-				pck_file = String();
-				memdelete(pr);
-				return;
-			}
-
-			// Process header
-			int num_sections;
-			{
-				int64_t header_pos = f->get_position();
-
-				f->seek(header_pos + 2);
-				num_sections = f->get_16();
-				f->seek(header_pos + 16);
-				uint16_t opt_header_size = f->get_16();
-
-				// Skip rest of header + optional header to go to the section headers
-				f->seek(f->get_position() + 2 + opt_header_size);
-			}
-
-			// Search for the "pck" section
-			int64_t section_table_pos = f->get_position();
-
-			for (int i = 0; i < num_sections; ++i) {
-				int64_t section_header_pos = section_table_pos + i * 40;
-				f->seek(section_header_pos);
-
-				uint8_t section_name[9];
-				f->get_buffer(section_name, 8);
-				section_name[8] = '\0';
-
-				if (strcmp((char *)section_name, "pck") == 0) {
-					// "pck" section found, let's patch!
-
-					// Set virtual size to a little to avoid it taking memory (zero would give issues)
-					f->seek(section_header_pos + 8);
-					f->store_32(8);
-
-					f->seek(section_header_pos + 16);
-					f->store_32(embedded_size);
-					f->seek(section_header_pos + 20);
-					f->store_32(embedded_start);
-
-					break;
-				}
-			}
-		} else if ((exe1_magic == 0x457F) && (exe2_magic == 0x467C)) {
-			// linux (elf) - copy from "platform/x11/export/export.cpp"
-			// Read program architecture bits from class field
-			int bits = f->get_8() * 32;
-
-			if (bits == 32 && embedded_size >= 0x100000000) {
-				show_warning(RTR("32-bit executables cannot have embedded data >= 4 GiB"), RTR("New PCK"), RTR("At least one error was detected!"));
-				pck_save_files.clear();
-				pck_file = String();
-				memdelete(pr);
-				return;
-			}
-
-			// Get info about the section header table
-			int64_t section_table_pos;
-			int64_t section_header_size;
-			if (bits == 32) {
-				section_header_size = 40;
-				f->seek(0x20);
-				section_table_pos = f->get_32();
-				f->seek(0x30);
-			} else { // 64
-				section_header_size = 64;
-				f->seek(0x28);
-				section_table_pos = f->get_64();
-				f->seek(0x3c);
-			}
-			int num_sections = f->get_16();
-			int string_section_idx = f->get_16();
-
-			// Load the strings table
-			uint8_t *strings;
-			{
-				// Jump to the strings section header
-				f->seek(section_table_pos + string_section_idx * section_header_size);
-
-				// Read strings data size and offset
-				int64_t string_data_pos;
-				int64_t string_data_size;
-				if (bits == 32) {
-					f->seek(f->get_position() + 0x10);
-					string_data_pos = f->get_32();
-					string_data_size = f->get_32();
-				} else { // 64
-					f->seek(f->get_position() + 0x18);
-					string_data_pos = f->get_64();
-					string_data_size = f->get_64();
-				}
-
-				// Read strings data
-				f->seek(string_data_pos);
-				strings = (uint8_t *)memalloc(string_data_size);
-				if (!strings) {
-					show_warning(RTR("Out of memory"), RTR("New PCK"), RTR("At least one error was detected!"));
-					pck_save_files.clear();
-					pck_file = String();
-					memdelete(pr);
-					return;
-				}
-				f->get_buffer(strings, string_data_size);
-			}
-
-			// Search for the "pck" section
-			for (int i = 0; i < num_sections; ++i) {
-				int64_t section_header_pos = section_table_pos + i * section_header_size;
-				f->seek(section_header_pos);
-
-				uint32_t name_offset = f->get_32();
-				if (strcmp((char *)strings + name_offset, "pck") == 0) {
-					// "pck" section found, let's patch!
-
-					if (bits == 32) {
-						f->seek(section_header_pos + 0x10);
-						f->store_32(embedded_start);
-						f->store_32(embedded_size);
-					} else { // 64
-						f->seek(section_header_pos + 0x18);
-						f->store_64(embedded_start);
-						f->store_64(embedded_size);
-					}
-
-					break;
-				}
-			}
-			memfree(strings);
-		}
-	}
-
-	pck_save_files.clear();
-	pck_file = String();
+	pr = memnew(EditorProgressGDDC(ne_parent, "re_write_pck", "Writing PCK archive...", (int)file_paths_to_pack.size(), true));
+	err = pck_creator._create_after_process(pr, error_string);
 	memdelete(pr);
-
-	if (failed_files.length() > 0) {
-		show_warning(failed_files, RTR("New PCK"), RTR("At least one error was detected!"));
-	} else {
-		show_warning(RTR("No errors detected."), RTR("New PCK"), RTR("The operation completed successfully!"));
+	if (err) {
+		show_warning(RTR(error_string) + ":" + pck_file, RTR("New PCK"));
 	}
 }
 
@@ -1735,7 +1395,7 @@ void GodotREEditor::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("convert_file_to_text", "src_path", "dst_path"), &GodotREEditor::convert_file_to_text);
 
 	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
-};
+}
 
 /*************************************************************************/
 
