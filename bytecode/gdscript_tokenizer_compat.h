@@ -86,15 +86,15 @@ private:
 	void _make_error(const String &p_error);
 
 	String code;
-	int len;
-	int code_pos;
-	const CharType *_code;
-	int line;
-	int column;
+	int len = 0;
+	int code_pos = 0;
+	const CharType *_code = nullptr;
+	int line = 0;
+	int column = 0;
 	TokenData tk_rb[TK_RB_SIZE * 2 + 1];
-	int tk_rb_pos;
+	int tk_rb_pos = 0;
 	String last_error;
-	bool error_flag;
+	bool error_flag = 0;
 
 	const Ref<GodotVer> engine_ver;
 	const GDScriptDecomp *decomp;
@@ -108,7 +108,7 @@ private:
 #ifdef DEBUG_ENABLED
 	Vector<Pair<int, String>> warning_skips;
 	RBSet<String> warning_global_skips;
-	bool ignore_warnings;
+	bool ignore_warnings = true;
 #endif // DEBUG_ENABLED
 
 	void _advance();

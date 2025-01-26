@@ -292,21 +292,21 @@ Error GDScriptDecomp::get_script_state(const Vector<uint8_t> &p_buffer, ScriptSt
 
 Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vector<StringName> &identifiers, Vector<Variant> &constants, Vector<uint32_t> &tokens, VMap<uint32_t, uint32_t> &lines, VMap<uint32_t, uint32_t> &columns) {
 	const uint8_t *buf = p_buffer.ptr();
-	int total_len = p_buffer.size();
+	uint64_t total_len = p_buffer.size();
 	GDSDECOMP_FAIL_COND_V_MSG(p_buffer.size() < 24 || !CHECK_GDSC_HEADER(p_buffer), ERR_INVALID_DATA, "Invalid GDScript token buffer.");
-	int version = decode_uint32(&buf[4]);
+	uint32_t version = decode_uint32(&buf[4]);
 	ERR_FAIL_COND_V_MSG(version >= GDSCRIPT_2_0_VERSION, ERR_INVALID_DATA, "Wrong function!");
 	const int contents_start = 8 + (version >= GDSCRIPT_2_0_VERSION ? 4 : 0);
-	int identifier_count = decode_uint32(&buf[contents_start]);
-	int constant_count = decode_uint32(&buf[contents_start + 4]);
-	int line_count = decode_uint32(&buf[contents_start + 8]);
-	int token_count = decode_uint32(&buf[contents_start + 12]);
+	uint32_t identifier_count = decode_uint32(&buf[contents_start]);
+	uint32_t constant_count = decode_uint32(&buf[contents_start + 4]);
+	uint32_t line_count = decode_uint32(&buf[contents_start + 8]);
+	uint32_t token_count = decode_uint32(&buf[contents_start + 12]);
 
 	const uint8_t *b = &buf[24];
 	total_len -= 24;
 
 	identifiers.resize(identifier_count);
-	for (int i = 0; i < identifier_count; i++) {
+	for (uint32_t i = 0; i < identifier_count; i++) {
 		int len = decode_uint32(b);
 		GDSDECOMP_FAIL_COND_V_MSG(len > total_len, ERR_INVALID_DATA, "Invalid identifier length.");
 		b += 4;
@@ -325,7 +325,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 	}
 
 	constants.resize(constant_count);
-	for (int i = 0; i < constant_count; i++) {
+	for (uint32_t i = 0; i < constant_count; i++) {
 		Variant v;
 		int len;
 		Error err = VariantDecoderCompat::decode_variant_compat(get_variant_ver_major(), v, b, total_len, &len);
@@ -340,7 +340,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 
 	GDSDECOMP_FAIL_COND_V_MSG(line_count * sizeof(VMap<uint32_t, uint32_t>::Pair) > total_len, ERR_INVALID_DATA, "Invalid line count.");
 
-	for (int i = 0; i < line_count; i++) {
+	for (uint32_t i = 0; i < line_count; i++) {
 		uint32_t token = decode_uint32(b);
 		b += 4;
 		uint32_t linecol = decode_uint32(b);
@@ -350,7 +350,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 		total_len -= 8;
 	}
 	tokens.resize(token_count);
-	for (int i = 0; i < token_count; i++) {
+	for (uint32_t i = 0; i < token_count; i++) {
 		GDSDECOMP_FAIL_COND_V_MSG(total_len < 1, ERR_INVALID_DATA, "Invalid token length.");
 
 		if ((*b) & TOKEN_BYTE_MASK) { //BYTECODE_MASK, little endian always
@@ -600,7 +600,6 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 	Vector<Variant> &constants = state.constants;
 	Vector<uint32_t> &tokens = state.tokens;
 	VMap<uint32_t, uint32_t> &lines = state.lines;
-	VMap<uint32_t, uint32_t> &end_lines = state.end_lines;
 	VMap<uint32_t, uint32_t> &columns = state.columns;
 	int version = state.bytecode_version;
 
@@ -614,8 +613,8 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 	int indent = 0;
 
 	GlobalToken prev_token = G_TK_NEWLINE;
-	int prev_line = 1;
-	int prev_line_start_column = 1;
+	uint32_t prev_line = 1;
+	uint32_t prev_line_start_column = 1;
 
 	int tab_size = 1;
 	bool use_spaces = false;
@@ -647,7 +646,7 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			indent = tokens[i] >> TOKEN_BITS;
 		} else if (bytecode_version >= GDSCRIPT_2_0_VERSION) {
 			prev_token = G_TK_NEWLINE;
-			int col_diff = (int)curr_column - prev_line_start_column;
+			int col_diff = (int)curr_column - (int)prev_line_start_column;
 			if (col_diff != 0) {
 				int tabs = col_diff / tab_size;
 				if (tabs == 0) {
@@ -925,8 +924,9 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 				line += "const ";
 			} break;
 			case G_TK_PR_VAR: {
-				if (line != String() && prev_token != G_TK_PR_ONREADY)
+				if (line != String() && prev_token != G_TK_PR_ONREADY) {
 					line += " ";
+				}
 				line += "var ";
 			} break;
 			case G_TK_PR_AS: {
@@ -1245,11 +1245,8 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 		}
 		return BytecodeTestResult::BYTECODE_TEST_CORRUPT;
 	}
-	Vector<StringName> &identifiers = script_state.identifiers;
-	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
 	VMap<uint32_t, uint32_t> &lines = script_state.lines;
-	VMap<uint32_t, uint32_t> &columns = script_state.columns;
 	int version = script_state.bytecode_version;
 	int bytecode_version = get_bytecode_version();
 	int FUNC_MAX = get_function_count();

@@ -325,6 +325,7 @@ Error PckCreator::finish_pck() {
 		error = _create_after_process(nullptr, error_string);
 	}
 	ERR_FAIL_COND_V_MSG(error, error, "Error creating pck: " + error_string);
+	return OK;
 }
 
 Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_string) {

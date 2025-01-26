@@ -16,23 +16,17 @@
 #include "bytecode/bytecode_versions.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_loader_compat.h"
-#include "compat/texture_loader_compat.h"
 #include "exporters/oggstr_exporter.h"
 #include "utility/gdre_settings.h"
 #include "utility/import_exporter.h"
-#include "utility/pcfg_loader.h"
 #include "utility/pck_dumper.h"
 
-#include "modules/gdscript/gdscript.h"
-#include "modules/gdscript/gdscript_utility_functions.h"
-
-#include "core/io/file_access_encrypted.h"
 #include "core/io/resource_format_binary.h"
 #include "modules/svg/image_loader_svg.h"
-#include "modules/vorbis/audio_stream_ogg_vorbis.h"
+#include "scene/gui/button.h"
+#include "scene/gui/texture_rect.h"
 #include "scene/main/canvas_item.h"
-#include "scene/resources/audio_stream_wav.h"
-#include "scene/resources/resource_format_text.h"
+#include "scene/resources/image_texture.h"
 
 #include "core/version_generated.gen.h"
 
@@ -41,8 +35,6 @@
 #if VERSION_MAJOR < 4
 #error Unsupported Godot version
 #endif
-
-#include "core/crypto/crypto_core.h"
 
 #ifndef TOOLS_ENABLED
 #include "core/object/message_queue.h"
@@ -138,16 +130,6 @@ void OverwriteDialog::set_message(const String &p_text) {
 }
 
 /*************************************************************************/
-
-static int _get_pad(int p_alignment, int p_n) {
-	int rest = p_n % p_alignment;
-	int pad = 0;
-	if (rest > 0) {
-		pad = p_alignment - rest;
-	}
-
-	return pad;
-}
 
 static Ref<ImageTexture> generate_icon(int p_index) {
 	Ref<Image> img = memnew(Image);
@@ -1217,92 +1199,7 @@ void GodotREEditor::_pck_save_prep() {
 
 #define PCK_PADDING 16
 
-uint64_t GodotREEditor::_pck_create_process_folder(EditorProgressGDDC *p_pr, const String &p_path, const String &p_rel, uint64_t p_offset, bool &p_cancel) {
-	uint64_t offset = p_offset;
-
-	Vector<String> enc_in_filters = pck_save_dialog->get_enc_filters_in().split(",");
-	Vector<String> enc_ex_filters = pck_save_dialog->get_enc_filters_ex().split(",");
-
-	Ref<DirAccess> da = DirAccess::open(p_path.path_join(p_rel));
-	if (da.is_null()) {
-		show_warning(RTR("Error opening folder: ") + p_path.path_join(p_rel), RTR("New PCK"));
-		return offset;
-	}
-	da->list_dir_begin();
-	String f = da->get_next();
-	while (!f.is_empty()) {
-		if (f == "." || f == "..") {
-			f = da->get_next();
-			continue;
-		}
-		if (p_pr->step(p_rel.path_join(f), 0, true)) {
-			p_cancel = true;
-			return offset;
-		}
-		if (da->current_is_dir()) {
-			offset = _pck_create_process_folder(p_pr, p_path, p_rel.path_join(f), offset, p_cancel);
-			if (p_cancel) {
-				return offset;
-			}
-
-		} else {
-			String path = p_path.path_join(p_rel).path_join(f);
-			Ref<FileAccess> file = FileAccess::open(path, FileAccess::READ);
-
-			CryptoCore::MD5Context ctx;
-			ctx.start();
-
-			int64_t rq_size = file->get_length();
-			uint8_t buf[32768];
-
-			while (rq_size > 0) {
-				int got = file->get_buffer(buf, MIN(32768, rq_size));
-				if (got > 0) {
-					ctx.update(buf, got);
-				}
-				if (got < 4096)
-					break;
-				rq_size -= 32768;
-			}
-
-			unsigned char hash[16];
-			ctx.finish(hash);
-
-			int flags = 0;
-
-			for (int i = 0; i < enc_in_filters.size(); ++i) {
-				if (path.matchn(enc_in_filters[i]) || path.replace("res://", "").matchn(enc_in_filters[i])) {
-					flags = (1 << 0);
-					break;
-				}
-			}
-
-			for (int i = 0; i < enc_ex_filters.size(); ++i) {
-				if (path.matchn(enc_ex_filters[i]) || path.replace("res://", "").matchn(enc_ex_filters[i])) {
-					flags = (1 << 0);
-					break;
-				}
-			}
-
-			Ref<PackedFileInfo> finfo;
-			finfo.instantiate();
-
-			String name = p_rel.path_join(f);
-			finfo->init(p_path, name, offset, file->get_length(), hash, nullptr, flags == (1 << 0));
-
-			pck_save_files.push_back(finfo);
-
-			offset += file->get_length();
-		}
-		f = da->get_next();
-	}
-	da->list_dir_end();
-
-	return offset;
-}
-
 void GodotREEditor::_pck_save_request(const String &p_path) {
-	bool cancel = false;
 	String error_string;
 	Vector<String> include_filters = pck_save_dialog->get_enc_filters_in().split(",", false);
 	Vector<String> exclude_filters = pck_save_dialog->get_enc_filters_ex().split(",", false);

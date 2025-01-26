@@ -39,7 +39,7 @@ class ImportExporterReport : public RefCounted {
 	bool opt_lossy = true;
 
 public:
-	void set_ver(String ver);
+	void set_ver(String p_ver);
 	String get_ver();
 	void set_lossy_opt(bool lossy) {
 		opt_lossy = lossy;
@@ -74,8 +74,8 @@ public:
 	ImportExporterReport() {
 		set_ver("0.0.0");
 	}
-	ImportExporterReport(String ver) {
-		set_ver(ver);
+	ImportExporterReport(String p_ver) {
+		set_ver(p_ver);
 	}
 
 protected:

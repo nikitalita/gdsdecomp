@@ -31,18 +31,14 @@
 #include "resource_compat_text.h"
 
 #include "compat/resource_loader_compat.h"
-#include "core/config/project_settings.h"
 #include "core/error/error_macros.h"
 #include "core/io/dir_access.h"
 #include "core/io/missing_resource.h"
-#include "core/object/script_language.h"
-#include "core/version.h"
 
 #include "compat/variant_writer_compat.h"
 #include "utility/gdre_settings.h"
 
 #include "core/io/dir_access.h"
-#include "core/version.h"
 
 #include "fake_scene_state.h"
 

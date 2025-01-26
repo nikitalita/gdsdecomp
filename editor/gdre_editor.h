@@ -10,19 +10,13 @@
 #include "core/templates/rb_map.h"
 
 #include "scene/gui/box_container.h"
-#include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
 #include "scene/gui/control.h"
 #include "scene/gui/dialogs.h"
 #include "scene/gui/file_dialog.h"
-#include "scene/gui/item_list.h"
 #include "scene/gui/label.h"
 #include "scene/gui/menu_button.h"
-#include "scene/gui/popup.h"
-#include "scene/gui/progress_bar.h"
 #include "scene/gui/text_edit.h"
-#include "scene/gui/texture_rect.h"
-#include "scene/resources/image_texture.h"
 
 #ifdef TOOLS_ENABLED
 class EditorNode;
@@ -85,42 +79,37 @@ private:
 #endif
 	ProgressDialog *pdialog_singleton = nullptr;
 
-	Control *ne_parent;
+	Control *ne_parent = nullptr;
 	Dictionary icons;
 
-	OverwriteDialog *ovd;
-	ResultDialog *rdl;
+	OverwriteDialog *ovd = nullptr;
+	ResultDialog *rdl = nullptr;
 
-	ScriptDecompDialog *script_dialog_d;
-	ScriptCompDialog *script_dialog_c;
+	ScriptDecompDialog *script_dialog_d = nullptr;
+	ScriptCompDialog *script_dialog_c = nullptr;
 
-	EncKeyDialog *key_dialog;
-	PackDialog *pck_dialog;
-	FileDialog *pck_file_selection;
+	EncKeyDialog *key_dialog = nullptr;
+	PackDialog *pck_dialog = nullptr;
+	FileDialog *pck_file_selection = nullptr;
 	String pck_file;
-	uint32_t pck_ver_major;
-	uint32_t pck_ver_minor;
-	uint32_t pck_ver_rev;
+
 	RBMap<String, Ref<PackedFileInfo>> pck_files;
 	Vector<Ref<PackedFileInfo>> pck_save_files;
 
-	NewPackDialog *pck_save_dialog;
-	FileDialog *pck_source_folder;
+	NewPackDialog *pck_save_dialog = nullptr;
+	FileDialog *pck_source_folder = nullptr;
+	FileDialog *pck_save_file_selection = nullptr;
+	FileDialog *bin_res_file_selection = nullptr;
+	FileDialog *txt_res_file_selection = nullptr;
+	FileDialog *stex_file_selection = nullptr;
+	FileDialog *ostr_file_selection = nullptr;
+	FileDialog *smpl_file_selection = nullptr;
 
-	FileDialog *pck_save_file_selection;
+	MenuButton *menu_button = nullptr;
+	PopupMenu *menu_popup = nullptr;
 
-	FileDialog *bin_res_file_selection;
-	FileDialog *txt_res_file_selection;
-
-	FileDialog *stex_file_selection;
-	FileDialog *ostr_file_selection;
-	FileDialog *smpl_file_selection;
-
-	MenuButton *menu_button;
-	PopupMenu *menu_popup;
-
-	AcceptDialog *about_dialog;
-	CheckBox *about_dialog_checkbox;
+	AcceptDialog *about_dialog = nullptr;
+	CheckBox *about_dialog_checkbox = nullptr;
 
 	void _toggle_about_dialog_on_start(bool p_enabled);
 
@@ -137,7 +126,6 @@ private:
 
 	void _pck_create_request(const String &p_path);
 	void _pck_save_prep();
-	uint64_t _pck_create_process_folder(EditorProgressGDDC *p_pr, const String &p_path, const String &p_rel, uint64_t p_offset, bool &p_cancel);
 	void _pck_save_request(const String &p_path);
 
 	Vector<String> res_files;
@@ -206,9 +194,9 @@ class GodotREEditorStandalone : public Control {
 	GDCLASS(GodotREEditorStandalone, Control)
 
 	static GodotREEditorStandalone *singleton;
-	GodotREEditor *editor_ctx;
-	HBoxContainer *menu_hb;
-	ProgressDialog *progress_dialog;
+	GodotREEditor *editor_ctx = nullptr;
+	HBoxContainer *menu_hb = nullptr;
+	ProgressDialog *progress_dialog = nullptr;
 
 protected:
 	void _notification(int p_notification);
