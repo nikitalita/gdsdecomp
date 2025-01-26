@@ -10,12 +10,13 @@
 #include "gd_parallel_hashmap.h"
 #include "packed_file_info.h"
 
+#include <core/variant/typed_dictionary.h>
+
 class PckCreator : public RefCounted {
 	GDCLASS(PckCreator, RefCounted)
 
 	bool opt_multi_thread = true;
 	String pck_path;
-	String pcked_dir;
 	int version = 2;
 	int ver_major = 4;
 	int ver_minor = 4;
@@ -24,14 +25,25 @@ class PckCreator : public RefCounted {
 	bool embed = false;
 	String exe_to_embed;
 	String watermark;
+	struct File {
+		String path;
+		String src_path;
+		uint64_t ofs = 0;
+		uint64_t size = 0;
+		bool encrypted = false;
+		bool removal = false;
+		Vector<uint8_t> md5;
+		Error err = OK;
+	};
 
-	Vector<Ref<PackedFileInfo>> files_to_pck;
+	Vector<File> files_to_pck;
+	uint64_t offset;
 	std::atomic<bool> cancelled = false;
+	String error_string;
 	std::atomic<int64_t> last_completed = 0;
 	std::atomic<int64_t> skipped_cnt = 0;
 	std::atomic<int64_t> broken_cnt = 0;
 	std::atomic<int64_t> data_read = 0;
-	Vector<uint8_t> key;
 	Vector<String> tmp_files;
 	static constexpr size_t piecemeal_read_size = 65536; //1 * 1024 * 1024;
 	static constexpr size_t _file_is_large = 100 * 1024 * 1024;
@@ -46,7 +58,7 @@ class PckCreator : public RefCounted {
 		uint8_t md5[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		Error err = OK;
 	};
-	void _do_process_folder(uint32_t i, ProcessFolderToken *tokens);
+	void _do_process_folder(uint32_t i, File *tokens);
 
 	inline Error read_and_write_file(size_t i, Ref<FileAccess> write_handle);
 	Error wait_for_task(WorkerThreadPool::GroupID group_task, const Vector<String> &paths_to_check, EditorProgressGDDC *pr);
@@ -59,6 +71,10 @@ protected:
 public:
 	static Vector<String> get_files_to_pack(const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters);
 	Error _process_folder(const String &p_pck_path, const String &p_dir, const Vector<String> &file_paths_to_pack, EditorProgressGDDC *pr, String &error_string);
+	void start_pck(const String &p_pck_path, int pck_version, int ver_major, int ver_minor, int ver_rev, bool encrypt = false, bool embed = false, const String &exe_to_embed = "", const String &watermark = "");
+	Error add_files(Dictionary file_paths_to_pack);
+	Error _add_files(const HashMap<String, String> &file_paths_to_pack, EditorProgressGDDC *pr);
+	Error finish_pck();
 	Error pck_create(const String &p_pck_path, const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters);
 	Error _create_after_process(EditorProgressGDDC *pr, String &error_string);
 	void set_multi_thread(bool multi_thread) { opt_multi_thread = multi_thread; }
@@ -79,6 +95,7 @@ public:
 	String get_exe_to_embed() const { return exe_to_embed; }
 	void set_watermark(const String &wm) { watermark = wm; }
 	String get_watermark() const { return watermark; }
+	String get_error_message() const { return error_string; }
 };
 
 #endif // PCK_CREATOR_H

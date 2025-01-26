@@ -1,0 +1,220 @@
+[gd_scene load_steps=6 format=3 uid="uid://xdfd5b6mnjgr"]
+
+[ext_resource type="Script" uid="uid://x4uyq0hooymw" path="res://gdre_patch_pck.gd" id="1_p07vp"]
+[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_up5g3"]
+[ext_resource type="Script" uid="uid://cbggqwojxui00" path="res://gdre_child_dialog.gd" id="3_4k07d"]
+[ext_resource type="Script" uid="uid://cww2hw50p8q3i" path="res://gdre_file_tree.gd" id="3_aruht"]
+[ext_resource type="Texture2D" uid="uid://byablbp3l8foe" path="res://gdre_icons/gdre_Search.svg" id="4_gm62x"]
+
+[node name="GdrePatchPck" type="AcceptDialog"]
+title = "Patch PCK"
+position = Vector2i(0, 36)
+size = Vector2i(1500, 648)
+visible = true
+theme = ExtResource("1_up5g3")
+ok_button_text = "Patch"
+dialog_hide_on_ok = false
+script = ExtResource("1_p07vp")
+metadata/_custom_type_script = ExtResource("3_4k07d")
+
+[node name="ErrorDialog" type="AcceptDialog" parent="."]
+
+[node name="SelectPckDialog" type="FileDialog" parent="."]
+title = "Open a File"
+ok_button_text = "Open"
+dialog_hide_on_ok = true
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.pck")
+use_native_dialog = true
+
+[node name="SelectPatchFilesDialog" type="FileDialog" parent="."]
+title = "Open File(s)"
+ok_button_text = "Open"
+dialog_hide_on_ok = true
+file_mode = 1
+access = 2
+use_native_dialog = true
+
+[node name="SelectPatchMappingDialog" type="FileDialog" parent="."]
+root_subfolder = "res://"
+
+[node name="SavePckDialog" type="FileDialog" parent="."]
+access = 2
+
+[node name="Control" type="Control" parent="."]
+layout_mode = 3
+anchor_right = 0.804
+anchor_bottom = 0.79
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 1492.0
+offset_bottom = 599.0
+
+[node name="FileTree" type="Tree" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 94.0
+offset_right = -12.0
+grow_horizontal = 2
+grow_vertical = 2
+column_titles_visible = true
+select_mode = 2
+script = ExtResource("3_aruht")
+metadata/_custom_type_script = ExtResource("3_aruht")
+
+[node name="VersionLabel" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = -6.0
+offset_top = 11.0
+offset_right = 112.0
+offset_bottom = 42.0
+grow_vertical = 0
+text = "Version:"
+
+[node name="VersionText" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 65.0
+offset_top = 11.0
+offset_right = 148.0
+offset_bottom = 42.0001
+grow_vertical = 0
+text = "0.0.0"
+
+[node name="SelectPckButton" type="Button" parent="Control"]
+layout_mode = 0
+offset_left = 611.0
+offset_top = 6.0
+offset_right = 679.0
+offset_bottom = 38.0
+text = "Select"
+
+[node name="SelectedPck" type="LineEdit" parent="Control"]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 7.0
+offset_right = 593.0
+offset_bottom = 38.0
+
+[node name="Filter" type="LineEdit" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.5
+offset_left = 255.0
+offset_top = 58.0
+offset_right = -12.0
+offset_bottom = 89.0
+placeholder_text = "Filter Files"
+clear_button_enabled = true
+right_icon = ExtResource("4_gm62x")
+
+[node name="FilesLabel" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 131.0
+offset_top = 11.0
+offset_right = 178.0
+offset_bottom = 42.0
+grow_vertical = 0
+text = "Files:"
+
+[node name="FilesText" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 179.0
+offset_top = 10.0
+offset_right = 257.0
+offset_bottom = 41.0
+grow_vertical = 0
+text = "0"
+
+[node name="Uncheck" type="Button" parent="Control"]
+layout_mode = 0
+offset_left = 166.0
+offset_top = 56.0
+offset_right = 245.0
+offset_bottom = 87.0
+tooltip_text = "Unchecks all shown files"
+text = "Uncheck"
+
+[node name="Check" type="Button" parent="Control"]
+layout_mode = 0
+offset_left = 71.0
+offset_top = 56.0
+offset_right = 150.0
+offset_bottom = 87.0
+tooltip_text = "Checks all shown files"
+text = "Check"
+
+[node name="PatchFileTree" type="Tree" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = 88.0
+columns = 2
+column_titles_visible = true
+hide_folding = true
+enable_recursive_folding = false
+hide_root = true
+
+[node name="SelectPatchFiles" type="Button" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.996
+anchor_right = 0.996
+offset_left = -110.064
+offset_top = 48.0
+offset_right = -0.0640869
+offset_bottom = 79.0
+text = "Select Files..."
+
+[node name="FilesToPatchLabel" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 15.0
+offset_top = 51.0
+offset_right = 139.0
+offset_bottom = 82.0
+grow_horizontal = 2
+text = "Files to patch..."
+
+[node name="PatchClearButton" type="Button" parent="Control"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -185.0
+offset_top = 49.0
+offset_right = -132.0
+offset_bottom = 80.0
+grow_horizontal = 0
+text = "Clear"
+
+[connection signal="file_selected" from="SelectPckDialog" to="." method="_on_select_pck_dialog_file_selected"]
+[connection signal="files_selected" from="SelectPatchFilesDialog" to="." method="_on_select_patch_files_dialog_files_selected"]
+[connection signal="file_selected" from="SelectPatchMappingDialog" to="." method="_on_select_patch_mapping_dialog_file_selected"]
+[connection signal="file_selected" from="SavePckDialog" to="." method="_on_save_pck_dialog_file_selected"]
+[connection signal="pressed" from="Control/SelectPckButton" to="." method="_on_select_pck_button_pressed"]
+[connection signal="text_changed" from="Control/Filter" to="." method="_on_filter_text_changed"]
+[connection signal="pressed" from="Control/Uncheck" to="." method="_on_uncheck_all_pressed"]
+[connection signal="pressed" from="Control/Check" to="." method="_on_check_all_pressed"]
+[connection signal="pressed" from="Control/SelectPatchFiles" to="." method="_on_select_patch_files_pressed"]
+[connection signal="pressed" from="Control/PatchClearButton" to="." method="_on_patch_clear_button_pressed"]

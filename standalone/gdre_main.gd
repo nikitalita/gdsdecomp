@@ -13,11 +13,19 @@ var isHiDPI = false
 
 var gdre_recover = preload("res://gdre_recover.tscn")
 var gdre_new_pck = preload("res://gdre_new_pck.tscn")
+var gdre_patch_pck = preload("res://gdre_patch_pck.tscn")
 var RECOVERY_DIALOG: Control = null
 var NEW_PCK_DIALOG: GDRENewPck = null
+var PATCH_PCK_DIALOG: GDREPatchPCK = null
+var ERROR_DIALOG: AcceptDialog = null
 var _file_dialog: Window = null
 var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
+
+enum PckMenuID {
+	NEW_PCK,
+	PATCH_PCK
+}
 
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
@@ -131,6 +139,10 @@ func setup_new_pck_window():
 	pass
 	if not NEW_PCK_DIALOG:
 		NEW_PCK_DIALOG = $GdreNewPck
+	if not PATCH_PCK_DIALOG:
+		PATCH_PCK_DIALOG = $GdrePatchPck
+	if not ERROR_DIALOG:
+		ERROR_DIALOG = $ErrorDialog
 
 
 
@@ -138,6 +150,9 @@ func launch_new_pck_window():
 	setup_new_pck_window()
 	NEW_PCK_DIALOG.show_win()
 
+func launch_patch_pck_window():
+	setup_new_pck_window()
+	PATCH_PCK_DIALOG.show_win()
 
 func _on_recover_project_files_selected(paths: PackedStringArray):
 	close_recover_file_dialog()
@@ -225,10 +240,10 @@ func _on_REToolsMenu_item_selected(index):
 
 func _on_PCKMenu_item_selected(index):
 	match index:
-		0:
+		PckMenuID.NEW_PCK:
 			launch_new_pck_window()
-			
-			#open_recover_file_dialog()
+		PckMenuID.PATCH_PCK:
+			launch_patch_pck_window()
 	
 func _on_re_editor_standalone_write_log_message(message):
 	$log_window.text += message
@@ -444,7 +459,7 @@ func _ready():
 # CLI stuff below
 
 func get_arg_value(arg):
-	var split_args = arg.split("=")
+	var split_args = arg.split("=", false, 1)
 	if split_args.size() < 2:
 		last_error = "Error: args have to be in the format of --key=value (with equals sign)"
 		return ""
@@ -507,6 +522,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --compile=<GD_FILE>                Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
 --decompile=<GDC_FILE>             Decompile GDC files to text (can be repeated and use globs)
 --pck-create=<PCK_DIR>             Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
+--pck-patch=<GAME_PCK/EXE>         Patch a PCK file with the specified files
 --list-bytecode-versions           List all available bytecode versions
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
@@ -549,10 +565,19 @@ var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 """
 
 var CREATE_OPTS_NOTES = """Create PCK Options:
---output=<OUTPUT_PCK>                    The output PCK file to create
+--output=<OUTPUT_PCK/EXE>                The output PCK file to create
 --pck-version=<VERSION>                  The format version of the PCK file to create (0, 1, 2)
 --pck-engine-version=<ENGINE_VERSION>    The version of the engine to create the PCK for (x.y.z)
+--embed=<EXE_TO_EMBED>                   The executable to embed the PCK into
 --key=<KEY>                              64-character hex string to encrypt the PCK with
+"""
+
+var PATCH_OPTS_NOTES = """Patch PCK Options:
+--output=<OUTPUT_PCK>                    The output PCK file to create
+--patch-file=<SRC_FILE>=<DEST_FILE>      The file to patch the PCK with (e.g. "/path/to/file.gd=res://file.gd") (can be repeated)
+--include=<GLOB>                         Only include files from original PCK matching the glob pattern (can be repeated)
+--exclude=<GLOB>                         Exclude files from original PCK matching the glob pattern (can be repeated)
+--key=<KEY>                              64-character hex string to decrypt/encrypt the PCK with
 """
 
 func print_usage():
@@ -568,6 +593,7 @@ func print_usage():
 	print(GLOB_NOTES)
 	print(COMPILE_OPTS_NOTES)
 	print(CREATE_OPTS_NOTES)
+	print(PATCH_OPTS_NOTES)
 
 
 # TODO: remove this hack
@@ -772,6 +798,96 @@ func recovery(  input_files:PackedStringArray,
 	print("Recovery complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 
 
+func load_pck(input_files: PackedStringArray, extract_only: bool, includes, excludes, enc_key: String = ""):
+	var _new_files = []
+	for file in input_files:
+		file = get_cli_abs_path(file)
+		var _files = get_glob_files(file)
+		if _files.size() > 0:
+			_new_files.append_array(_files)
+		else:
+			print_usage()
+			print("Error: failed to locate " + file)
+			return []
+	print("Input files: ", str(_new_files))
+	input_files = _new_files
+	var input_file = input_files[0]
+	var da:DirAccess
+	var is_dir:bool = false
+	var err: int = OK
+	var parent_dir = "res://"
+	# get the current time
+	var start_time = Time.get_ticks_msec()
+	da = DirAccess.open(input_file.get_base_dir())
+
+	# check if da works
+	if da == null:
+		print_usage()
+		print("Error: failed to locate parent dir for " + input_file)
+		return []
+	#directory
+	if da.dir_exists(input_file):
+		if input_files.size() > 1:
+			print_usage()
+			print("Error: cannot specify multiple directories")
+			return []
+		if input_file.get_extension().to_lower() == "app":
+			is_dir = false
+		elif !da.dir_exists(input_file.path_join(".import")) && !da.dir_exists(input_file.path_join(".godot")):
+			print_usage()
+			print("Error: " + input_file + " does not appear to be a project directory")
+			return []
+		else:
+			parent_dir = input_file
+			is_dir = true
+	#PCK/APK
+	elif not da.file_exists(input_file):
+		print_usage()
+		print("Error: failed to locate " + input_file)
+		return []
+
+	if (enc_key != ""):
+		err = GDRESettings.set_encryption_key_string(enc_key)
+		if (err != OK):
+			print_usage()
+			print("Error: failed to set key!")
+			return []
+	
+	err = GDRESettings.load_project(input_files, extract_only)
+	if (err != OK):
+		print_usage()
+		print("Error: failed to open ", (input_files))
+		return []
+
+	var files: PackedStringArray = []
+	if includes.size() > 0:
+		includes = normalize_cludes(includes, parent_dir)
+		files = get_globs_files(includes)
+		if len(files) == 0:
+			print("Error: no files found that match includes")
+			print("Includes: " + str(includes))
+			print(GLOB_NOTES)
+			return []
+	else:
+		files = GDRESettings.get_file_list()
+	if excludes.size() > 0:
+		excludes = normalize_cludes(excludes, parent_dir)
+		var result = Glob.fnmatch_list(files, excludes)
+		for file in result:
+			files.remove_at(files.rfind(file))
+
+	if (includes.size() > 0 or excludes.size() > 0) and files.size() == 0:
+		print("Error: no files to extract after filtering")
+		if len(includes) > 0:
+			print("Includes: " + str(includes))
+		if len(excludes) > 0:
+			print("Excludes: " + str(excludes))
+		print(GLOB_NOTES)
+		return []
+	return files
+	
+
+
 func print_version():
 	print("Godot RE Tools " + GDRESettings.get_gdre_version())
 
@@ -946,8 +1062,8 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 	if (not embed_pck.is_empty()):
 		embed_pck = get_cli_abs_path(embed_pck)
 		if (not FileAccess.file_exists(embed_pck)):
-			print("Error: embed PCK file '" + embed_pck + "' does not exist")
-			return "Error: embed PCK file '" + embed_pck + "' does not exist"
+			print("Error: embed EXE file '" + embed_pck + "' does not exist")
+			return "Error: embed EXE file '" + embed_pck + "' does not exist"
 		pck.exe_to_embed = embed_pck
 		print("Embedding PCK: " + embed_pck)
 	if (not watermark.is_empty()):
@@ -959,8 +1075,11 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var input_extract_file:PackedStringArray = []
 	var input_file:PackedStringArray = []
 	var pck_create_dir: String       = ""
+	var pck_patch_pck: String = ""
+	var patch_map: Dictionary[String, String] = {}
 	var pck_version: int             = -1
 	var pck_engine_version: String   = ""
+	var embed_pck: String             = ""
 	var output_dir: String = ""
 	var enc_key: String = ""
 	var txt_to_bin = PackedStringArray()
@@ -1044,14 +1163,31 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--include"):
 			includes.append(get_arg_value(arg))
 		elif arg.begins_with("--pck-create"):
+			main_cmds["pck-create"] = true
 			pck_create_dir = get_cli_abs_path(get_arg_value(arg))
 		elif arg.begins_with("--pck-version"):
 			pck_version = (get_arg_value(arg)).to_int()
 		elif arg.begins_with("--pck-engine-version"):
 			pck_engine_version = (get_arg_value(arg))
+		elif arg.begins_with("--embed"):
+			embed_pck = get_cli_abs_path(get_arg_value(arg))
 		elif arg.begins_with("--plcache"):
 			main_cmds["plcache"] = true
 			prepop.append(get_arg_value(arg))
+		elif arg.begins_with("--pck-patch"):
+			main_cmds["pck-patch"] = true
+			pck_patch_pck = get_cli_abs_path(get_arg_value(arg))
+		elif arg.begins_with("--patch-file"):
+			var parsed_arg = get_arg_value(arg)
+			var patch_files = parsed_arg.split("=", false, 2)
+			if patch_files.size() != 2:
+				print_usage()
+				print("ERROR: invalid --patch-file format: must be <src_file>=<dest_file>")
+				print(arg)
+				print(parsed_arg)
+				print(patch_files)
+				return true
+			patch_map[get_cli_abs_path(dequote(patch_files[0]).strip_edges())] = dequote(patch_files[1]).strip_edges()
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
@@ -1064,6 +1200,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
 		return true
+	print(main_cmds)
 	if prepop.size() > 0:
 		var start_time = Time.get_ticks_msec()
 		GDRESettings.prepop_plugin_cache(prepop)
@@ -1087,10 +1224,110 @@ func handle_cli(args: PackedStringArray) -> bool:
 	elif bin_to_txt.is_empty() == false:
 		bin_to_text(bin_to_txt, output_dir)
 	elif not pck_create_dir.is_empty():
-		create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key)
+		create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
+	elif not pck_patch_pck.is_empty():
+		patch_pck(pck_patch_pck, output_dir, patch_map, includes, excludes, enc_key)
+		GDRESettings.unload_project()
 	elif set_setting:
 		return false # don't quit
 	else:
 		print_usage()
 		print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
 	return true
+
+func _start_patch_pck(dest_pck: String, pack_info: PackInfo):
+	var engine_version: GodotVer = pack_info.get_version()
+	var encrypted = pack_info.is_encrypted()
+	var embed = false
+	var embed_src = ""
+	if pack_info.get_type() == 4: # EXE; TODO: FIX ENUM NOT BINDING CORRECTLY
+		embed = true
+		embed_src = pack_info.get_path()
+	var pck_creator = PckCreator.new()
+	pck_creator.start_pck(dest_pck, 
+							pack_info.get_fmt_version(),
+							engine_version.major,
+							engine_version.minor,
+							engine_version.patch,
+							encrypted,
+							embed,
+							embed_src)
+	return pck_creator
+
+func patch_pck(src_file: String, dest_pck:String, patch_file_map: Dictionary, includes: PackedStringArray = [], excludes: PackedStringArray = [], enc_key: String = ""):
+	if (src_file.is_empty()):
+		print_usage()
+		print("Error: --pck-patch is required")
+		return "Error: --pck-patch is required"
+	if (dest_pck.is_empty()):
+		print_usage()
+		print("Error: --output is required")
+		return "Error: --output is required"
+	src_file = get_cli_abs_path(src_file)
+	if (not FileAccess.file_exists(src_file)):
+		print("Error: PCK file '" + src_file + "' does not exist")
+		return "Error: PCK file '" + src_file + "' does not exist"
+	var existing_pck_files = load_pck([src_file], true, includes, excludes, enc_key)
+	if (existing_pck_files.size() == 0):
+		print("Error: failed to load PCK file")
+		return "Error: failed to load PCK file"
+	var pack_infos = GDRESettings.get_pack_info_list()
+	if (pack_infos.is_empty()):
+		print("Error: no PCK existing_pck_files loaded")
+		return "Error: no PCK files loaded"
+	if (pack_infos.size() > 1):
+		print("Error: multiple PCK existing_pck_files loaded, specify which one to patch")
+		return "Error: multiple PCK files loaded, specify which one to patch"
+
+	if (pack_infos[0].get_type() != 0 and pack_infos[0].get_type() != 4):
+		print("Error: file is not a PCK or EXE")
+		return "Error: file is not a PCK or EXE"
+
+	var reverse_map:Dictionary[String, String] = {}
+	for key in patch_file_map.keys():
+		reverse_map[patch_file_map[key]] = key
+	for pck_file in existing_pck_files:
+		if (reverse_map.has(pck_file) or reverse_map.has(pck_file.trim_prefix("res://"))):
+			continue
+		if (pck_file.is_relative_path()):
+			pck_file = "res://" + pck_file
+		patch_file_map[pck_file] = pck_file
+	var pck_patcher = _start_patch_pck(dest_pck, pack_infos[0])
+	pck_patcher.set_multi_thread(false)
+	var err = pck_patcher.add_files(patch_file_map)
+	if (err != OK):
+		print("Error: failed to add files to patch PCK: " + pck_patcher.get_error_message())
+		return "Error: failed to add files to patch PCK: " + pck_patcher.get_error_message()
+	err = pck_patcher.finish_pck()
+	if (err != OK):
+		print("Error: failed to write patching PCK:" + pck_patcher.get_error_message())
+		return "Error: failed to finish patching PCK:" + pck_patcher.get_error_message()
+	print("Patched PCK file: " + dest_pck)
+	return ""
+
+
+func _on_gdre_patch_pck_do_patch_pck(dest_pck: String, file_map: Dictionary[String, String]) -> void:
+	PATCH_PCK_DIALOG.hide_win()
+	var pack_infos = GDRESettings.get_pack_info_list()
+	if (pack_infos.is_empty()):
+		GDRESettings.unload_project()
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: no PCK files found, cannot patch", "Error")
+		return
+	if (pack_infos.size() > 1):
+		GDRESettings.unload_project()
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: multiple PCK files found, cannot patch", "Error")
+		return
+	var pck_creator = _start_patch_pck(dest_pck, pack_infos[0])
+	var err = pck_creator.add_files(file_map)
+	if (err != OK):
+		GDRESettings.unload_project()
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to add files to PCK:\n" + pck_creator.get_error_message(), "Error")
+		return
+	err = pck_creator.finish_pck()
+	if (err != OK):
+		GDRESettings.unload_project()
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to write PCK:\n" + pck_creator.get_error_message(), "Error")
+		return
+	GDRESettings.unload_project()
+	GDREChildDialog.popup_box(self, ERROR_DIALOG, "PCK patching complete", "Success")
+	pass # Replace with function body.

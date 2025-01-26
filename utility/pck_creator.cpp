@@ -13,7 +13,8 @@
 
 void PckCreator::reset() {
 	files_to_pck.clear();
-	key.clear();
+	offset = 0;
+	error_string.clear();
 	cancelled = false;
 	last_completed = -1;
 	skipped_cnt = 0;
@@ -89,9 +90,7 @@ is_printing_verbose = is_print_verbose_enabled();
 #endif
 
 Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters) {
-	String error_string;
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
-	reset();
 	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
 		Vector<String> file_paths_to_pack;
 		{
@@ -125,12 +124,12 @@ Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, cons
 	return OK;
 }
 
-void PckCreator::_do_process_folder(uint32_t i, ProcessFolderToken *tokens) {
+void PckCreator::_do_process_folder(uint32_t i, File *tokens) {
 	if (unlikely(cancelled)) {
 		return;
 	}
 	auto &token = tokens[i];
-	String path = pcked_dir.path_join(token.path);
+	String path = token.src_path;
 	if (!FileAccess::exists(path)) {
 		token.err = ERR_FILE_NOT_FOUND;
 		++last_completed;
@@ -139,9 +138,16 @@ void PckCreator::_do_process_folder(uint32_t i, ProcessFolderToken *tokens) {
 	}
 	{
 		Ref<FileAccess> file = FileAccess::open(path, FileAccess::READ);
-		token.file_size = file->get_length();
+		if (file.is_null()) {
+			token.err = ERR_FILE_CANT_OPEN;
+			++last_completed;
+			++broken_cnt;
+			return;
+		}
+		token.size = file->get_length();
 	}
-	if (token.file_size == 0) {
+	if (token.size == 0) {
+		token.md5.resize_zeroed(16);
 		++last_completed;
 		return;
 	}
@@ -152,10 +158,7 @@ void PckCreator::_do_process_folder(uint32_t i, ProcessFolderToken *tokens) {
 		++broken_cnt;
 		return;
 	}
-	auto md5_vec = md5_str.hex_decode();
-	for (int j = 0; j < 16; j++) {
-		token.md5[j] = md5_vec[j];
-	}
+	token.md5 = md5_str.hex_decode();
 
 	++last_completed;
 }
@@ -182,69 +185,111 @@ static uint64_t get_encryption_padding(uint64_t _size) {
 	pad += 16; // iv
 	return pad;
 }
+const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 } //namespace
+
+// TODO: rename this to something like "GUI start" or something
 Error PckCreator::_process_folder(
 		const String &p_pck_path,
 		const String &p_dir,
 		const Vector<String> &file_paths_to_pack,
-		EditorProgressGDDC *pr, String &error_string) {
-	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
-	reset();
-	Vector<ProcessFolderToken> tokens;
-	tokens.resize(file_paths_to_pack.size());
-
+		EditorProgressGDDC *pr, String &p_error_string) {
+	HashMap<String, String> map;
 	for (size_t i = 0; i < file_paths_to_pack.size(); i++) {
-		tokens.write[i] = { file_paths_to_pack.get(i) };
+		map[p_dir.path_join(file_paths_to_pack[i])] = file_paths_to_pack[i];
 	}
-	pcked_dir = p_dir;
+	start_pck(p_pck_path, version, ver_major, ver_minor, ver_rev, encrypt, embed, exe_to_embed, watermark);
+	auto ret = _add_files(map, pr);
+	p_error_string = error_string;
+	return ret;
+}
+
+void PckCreator::start_pck(const String &p_pck_path, int pck_version, int p_ver_major, int p_ver_minor, int p_ver_rev, bool p_encrypt, bool p_embed, const String &p_exe_to_embed, const String &p_watermark) {
+	reset();
+	offset = 0;
 	pck_path = p_pck_path;
+	version = pck_version;
+	ver_major = p_ver_major;
+	ver_minor = p_ver_minor;
+	ver_rev = p_ver_rev;
+	encrypt = p_encrypt;
+	embed = p_embed;
+	exe_to_embed = p_exe_to_embed;
+	watermark = p_watermark;
+}
+
+Error PckCreator::add_files(Dictionary file_paths_to_pack) {
+	HashMap<String, String> map;
+	for (auto &e : file_paths_to_pack.keys()) {
+		map[e] = file_paths_to_pack[e];
+	}
+	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_add_files", "Adding files to PCK archive...", (int)file_paths_to_pack.size(), true };
+		return _add_files(map, &pr);
+	} else {
+		return _add_files(map, nullptr);
+	}
+}
+
+Error PckCreator::_add_files(
+		const HashMap<String, String> &file_paths_to_pack,
+		EditorProgressGDDC *pr) {
+	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
+	files_to_pck.resize(file_paths_to_pack.size());
+	Vector<String> keys;
+	keys.resize(file_paths_to_pack.size());
+	{
+		size_t i = 0;
+		for (auto &e : file_paths_to_pack) {
+			files_to_pck.write[i] = { e.value, e.key, 0, 0, encrypt, false, empty_md5 };
+			keys.write[i] = e.key;
+			i++;
+		}
+	}
 	Error err = OK;
 	if (opt_multi_thread) {
 		WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(
 				this,
 				&PckCreator::_do_process_folder,
-				tokens.ptrw(),
-				tokens.size(), -1, true, SNAME("PckCreator::_do_process_folder"));
-		err = wait_for_task(group_task, file_paths_to_pack, pr);
+				files_to_pck.ptrw(),
+				files_to_pck.size(), -1, true, SNAME("PckCreator::_do_process_folder"));
+		err = wait_for_task(group_task, keys, pr);
 		if (err == ERR_PRINTER_ON_FIRE) {
 			return ERR_PRINTER_ON_FIRE;
 		}
 	} else {
-		for (size_t i = 0; i < tokens.size(); i++) {
-			_do_process_folder(i, tokens.ptrw());
+		for (size_t i = 0; i < files_to_pck.size(); i++) {
+			_do_process_folder(i, files_to_pck.ptrw());
 		}
 	}
 	if (broken_cnt > 0) {
 		err = ERR_BUG;
-		for (size_t i = 0; i < tokens.size(); i++) {
-			if (tokens[i].err != OK) {
+		for (size_t i = 0; i < files_to_pck.size(); i++) {
+			if (files_to_pck[i].err != OK) {
 				String err_type;
-				if (tokens[i].err == ERR_FILE_CANT_OPEN) {
+				if (files_to_pck[i].err == ERR_FILE_CANT_OPEN) {
 					err_type = "FileAccess error";
-				} else if (tokens[i].err == ERR_CANT_CREATE) {
+				} else if (files_to_pck[i].err == ERR_CANT_CREATE) {
 					err_type = "FileCreate error";
-				} else if (tokens[i].err == ERR_FILE_CANT_WRITE) {
+				} else if (files_to_pck[i].err == ERR_FILE_CANT_WRITE) {
 					err_type = "FileWrite error";
 				} else {
 					err_type = "Unknown error";
 				}
-				error_string += tokens[i].path + "(" + err_type + ")\n";
+				error_string += files_to_pck[i].src_path + "(" + err_type + ")\n";
 			}
 		}
 	}
 
 	if (error_string.length() > 0) {
-		print_error("At least one error was detected while extracting pack!\n" + error_string);
+		print_error("At least one error was detected while adding files!\n" + error_string);
 		return err;
 	}
-	uint64_t offset = 0;
-	files_to_pck.resize(tokens.size());
-	for (size_t i = 0; i < tokens.size(); i++) {
-		files_to_pck.write[i] = memnew(PackedFileInfo);
-		//	void init(const String &pck_path, const String &p_path, const uint64_t ofs, const uint64_t sz, const uint8_t md5arr[16], PackSource *p_src, const bool encrypted = false) {
-		files_to_pck.write[i]->init(pck_path, tokens[i].path.trim_prefix("res://"), offset, tokens[i].file_size, tokens[i].md5, nullptr, encrypt);
-		uint64_t _size = tokens[i].file_size;
+	files_to_pck.resize(files_to_pck.size());
+	for (size_t i = 0; i < files_to_pck.size(); i++) {
+		files_to_pck.write[i].ofs = offset;
+		uint64_t _size = files_to_pck[i].size;
 		if (encrypt) { // Add encryption overhead.
 			_size += get_encryption_padding(_size);
 		}
@@ -253,18 +298,16 @@ Error PckCreator::_process_folder(
 		offset += _get_pad(PCK_PADDING, offset);
 	}
 	bl_print("PCK folder processing took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
-
-	// We want to add the too large files at the end of the PCK
 	return OK;
 }
 
 Error PckCreator::read_and_write_file(size_t i, Ref<FileAccess> write_handle) {
 	Error error;
-	Ref<FileAccess> fa = FileAccess::open(pcked_dir.path_join(files_to_pck[i]->get_path()), FileAccess::READ, &error);
+	Ref<FileAccess> fa = FileAccess::open(files_to_pck[i].src_path, FileAccess::READ, &error);
 	if (!fa.is_valid()) {
 		return error ? error : ERR_FILE_CANT_OPEN;
 	}
-	int64_t rq_size = files_to_pck[i]->get_size();
+	int64_t rq_size = files_to_pck[i].size;
 	uint8_t buf[piecemeal_read_size];
 	while (rq_size > 0) {
 		uint64_t got = fa->get_buffer(buf, MIN(piecemeal_read_size, rq_size));
@@ -272,6 +315,17 @@ Error PckCreator::read_and_write_file(size_t i, Ref<FileAccess> write_handle) {
 		rq_size -= got;
 	}
 	return OK;
+}
+
+Error PckCreator::finish_pck() {
+	Error error;
+	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_write_pck", "Writing PCK archive...", (int)files_to_pck.size(), true };
+		error = _create_after_process(&pr, error_string);
+	} else {
+		error = _create_after_process(nullptr, error_string);
+	}
+	ERR_FAIL_COND_V_MSG(error, error, "Error creating pck: " + error_string);
 }
 
 Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_string) {
@@ -301,7 +355,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 	int64_t embedded_start = 0;
 	int64_t embedded_size = 0;
 
-	if (embed) { // REPLACE WITH embed
+	if (embed) {
 		// append to exe
 
 		Ref<FileAccess> fs = FileAccess::open(exe_to_embed, FileAccess::READ);
@@ -341,7 +395,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 	}
 	int64_t pck_start_pos = f->get_position();
 
-	key = GDRESettings::get_singleton()->get_encryption_key();
+	auto key = GDRESettings::get_singleton()->get_encryption_key();
 
 	f->store_32(0x43504447); //GDPK
 	f->store_32(version);
@@ -368,7 +422,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		pr->step("Header...", 0, true);
 	}
 	f->store_32(files_to_pck.size()); //amount of files
-
+	// used by pck version 0-1, where the file offsets include the header size; pck version 2 uses the offset from the header
 	size_t header_size = f->get_position();
 	size_t predir_size = header_size;
 
@@ -385,15 +439,20 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			fhead = fae;
 		}
 	}
-	// used by pck version 0-1, where the file offsets include the header size; pck version 2 uses the offset from the header
 
 	bool add_res_prefix = !(ver_major == 4 && ver_minor >= 4);
-	uint32_t str_pr_len = add_res_prefix ? 6 : 0;
-	String prefix = add_res_prefix ? "res://" : "";
 
 	for (size_t i = 0; i < files_to_pck.size(); i++) {
+		if (add_res_prefix) {
+			files_to_pck.write[i].path = files_to_pck[i].path.trim_prefix("res://");
+			if (!files_to_pck[i].path.is_absolute_path()) {
+				files_to_pck.write[i].path = "res://" + files_to_pck[i].path;
+			}
+		} else {
+			files_to_pck.write[i].path = files_to_pck[i].path.trim_prefix("res://");
+		}
 		header_size += 4; // size of path string (32 bits is enough)
-		uint32_t string_len = files_to_pck[i]->get_path().utf8().length() + str_pr_len;
+		uint32_t string_len = files_to_pck[i].path.utf8().length();
 		uint32_t pad = _get_pad(4, string_len);
 		header_size += string_len + pad; ///size of path string
 		header_size += 8; // offset to file _with_ header size included
@@ -412,29 +471,31 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		pr->step("Directory...", 0, true);
 	}
 	for (size_t i = 0; i < files_to_pck.size(); i++) {
-		uint32_t string_len = files_to_pck[i]->get_path().utf8().length() + str_pr_len;
+		uint32_t string_len = files_to_pck[i].path.utf8().length();
 		uint32_t pad = _get_pad(4, string_len);
 
 		fhead->store_32(uint32_t(string_len + pad));
-		String name = prefix + files_to_pck[i]->get_path();
-		fhead->store_buffer((const uint8_t *)name.utf8().get_data(), string_len);
+		fhead->store_buffer((const uint8_t *)files_to_pck[i].path.utf8().get_data(), string_len);
 		for (uint32_t j = 0; j < pad; j++) {
 			fhead->store_8(0);
 		}
 
 		if (version == 2) {
-			fhead->store_64(files_to_pck[i]->get_offset());
+			fhead->store_64(files_to_pck[i].ofs);
 		} else {
-			fhead->store_64(files_to_pck[i]->get_offset() + header_padding + header_size);
+			fhead->store_64(files_to_pck[i].ofs + header_padding + header_size);
 		}
-		fhead->store_64(files_to_pck[i]->get_size()); // pay attention here, this is where file is
-		fhead->store_buffer(files_to_pck[i]->get_md5().ptr(), 16); //also save md5 for file
+		fhead->store_64(files_to_pck[i].size); // pay attention here, this is where file is
+		fhead->store_buffer(files_to_pck[i].md5.ptr(), 16); //also save md5 for file
 		if (version == 2) {
-			if (files_to_pck[i]->is_encrypted()) {
-				fhead->store_32(1);
-			} else {
-				fhead->store_32(0);
+			uint32_t flags = 0;
+			if (files_to_pck[i].encrypted) {
+				flags |= PACK_FILE_ENCRYPTED;
 			}
+			if (files_to_pck[i].removal) {
+				flags |= PACK_FILE_REMOVAL;
+			}
+			fhead->store_32(flags);
 		}
 	}
 
@@ -459,12 +520,12 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 	for (size_t i = 0; i < files_to_pck.size(); i++) {
 		if (pr && OS::get_singleton()->get_ticks_usec() - last_progress_upd > 200000) {
 			last_progress_upd = OS::get_singleton()->get_ticks_usec();
-			if (pr->step(files_to_pck[i]->get_path(), i + 2, false)) {
+			if (pr->step(files_to_pck[i].path, i + 2, false)) {
 				cancelled = true;
 				break;
 			}
 		}
-		DEV_ASSERT(f->get_position() == file_base + files_to_pck[i]->get_offset());
+		DEV_ASSERT(f->get_position() == file_base + files_to_pck[i].ofs);
 
 		Ref<FileAccess> ftmp = f;
 		if (encrypt) {
@@ -476,7 +537,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			ftmp = fae;
 		}
 		if (read_and_write_file(i, ftmp) != OK) {
-			error_string += files_to_pck[i]->get_path() + " (FileAccess error)\n";
+			error_string += files_to_pck[i].path + " (FileAccess error)\n";
 			broken_cnt++;
 		}
 
@@ -526,10 +587,8 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			f->seek(pe_pos);
 			uint32_t magic = f->get_32();
 			if (magic != 0x00004550) {
-				error_string = (("Invalid PE magic"));
+				error_string = "Invalid PE magic";
 				files_to_pck.clear();
-				pcked_dir = String();
-				memdelete(pr);
 				return ERR_INVALID_DATA;
 			}
 
@@ -579,10 +638,8 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			int64_t bits = f->get_8() * 32;
 
 			if (bits == 32 && embedded_size >= 0x100000000) {
-				error_string = (("32-bit executables cannot have embedded data >= 4 GiB"));
+				error_string = "32-bit executables cannot have embedded data >= 4 GiB";
 				files_to_pck.clear();
-				pcked_dir = String();
-				memdelete(pr);
 				return ERR_INVALID_DATA;
 			}
 
@@ -626,10 +683,8 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 				f->seek(string_data_pos);
 				strings = (uint8_t *)memalloc(string_data_size);
 				if (!strings) {
-					error_string = (("Out of memory"));
+					error_string = "Out of memory";
 					files_to_pck.clear();
-					pcked_dir = String();
-					memdelete(pr);
 					return ERR_OUT_OF_MEMORY;
 				}
 				f->get_buffer(strings, string_data_size);
@@ -666,6 +721,10 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 
 void PckCreator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("pck_create", "pck_path", "dir", "include_filters", "exclude_filters"), &PckCreator::pck_create, DEFVAL(Vector<String>()), DEFVAL(Vector<String>()));
+	ClassDB::bind_method(D_METHOD("reset"), &PckCreator::reset);
+	ClassDB::bind_method(D_METHOD("start_pck", "pck_path", "pck_version", "ver_major", "ver_minor", "ver_rev", "encrypt", "embed", "exe_to_embed", "watermark"), &PckCreator::start_pck, DEFVAL(false), DEFVAL(false), DEFVAL(""), DEFVAL(""));
+	ClassDB::bind_method(D_METHOD("add_files", "file_paths_to_pack"), &PckCreator::add_files);
+	ClassDB::bind_method(D_METHOD("finish_pck"), &PckCreator::finish_pck);
 	ClassDB::bind_method(D_METHOD("set_multi_thread", "multi_thread"), &PckCreator::set_multi_thread);
 	ClassDB::bind_method(D_METHOD("get_multi_thread"), &PckCreator::get_multi_thread);
 	ClassDB::bind_method(D_METHOD("set_pack_version", "ver"), &PckCreator::set_pack_version);
@@ -684,6 +743,7 @@ void PckCreator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_exe_to_embed"), &PckCreator::get_exe_to_embed);
 	ClassDB::bind_method(D_METHOD("set_watermark", "watermark"), &PckCreator::set_watermark);
 	ClassDB::bind_method(D_METHOD("get_watermark"), &PckCreator::get_watermark);
+	ClassDB::bind_method(D_METHOD("get_error_message"), &PckCreator::get_error_message);
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "multi_thread"), "set_multi_thread", "get_multi_thread");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "pack_version"), "set_pack_version", "get_pack_version");

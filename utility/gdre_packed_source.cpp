@@ -325,7 +325,7 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 	Ref<GDRESettings::PackInfo> pckinfo;
 	pckinfo.instantiate();
 	pckinfo->init(
-			pck_path, godot_ver, version, pack_flags, file_base, file_count, is_exe ? GDRESettings::PackInfo::EXE : GDRESettings::PackInfo::PCK);
+			pck_path, godot_ver, version, pack_flags, file_base, file_count, is_exe ? GDRESettings::PackInfo::EXE : GDRESettings::PackInfo::PCK, enc_directory);
 	GDRESettings::get_singleton()->add_pack_info(pckinfo);
 
 	for (uint32_t i = 0; i < file_count; i++) {
