@@ -1037,20 +1037,19 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	int th_custom = 0;
 	int flags = 0;
 	Ref<Image> image;
-	Ref<Resource> image_res;
 	Ref<Resource> texture;
 	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
 	String type = res->get_original_class();
 
 	auto convert_image = [&](const Ref<Resource> &image_res) -> Ref<Image> {
-		Ref<Image> image = image_res;
-		if (image.is_null() && image_res->get_class() == "MissingResource") {
+		Ref<Image> img = image_res;
+		if (img.is_null() && image_res->get_class() == "MissingResource") {
 			ImageConverterCompat ic;
 			if (ic.handles_type("Image", ver_major)) {
-				image = ic.convert(image_res, p_type, ver_major, r_error);
+				img = ic.convert(image_res, p_type, ver_major, r_error);
 			}
 		}
-		return image;
+		return img;
 	};
 	ERR_FAIL_COND_V_MSG(type != "ImageTexture", res, "Unsupported type: " + type);
 	name = get_resource_name(res, ver_major);

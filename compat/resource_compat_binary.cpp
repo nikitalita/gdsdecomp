@@ -1363,11 +1363,11 @@ String ResourceLoaderCompatBinary::recognize_script_class(Ref<FileAccess> p_f) {
 
 	f->set_big_endian(big_endian != 0); //read big endian if saved as big endian
 
-	uint32_t ver_major = f->get_32();
+	uint32_t major = f->get_32();
 	f->get_32(); // ver_minor
 	uint32_t ver_fmt = f->get_32();
 
-	if (ver_fmt > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (ver_fmt > FORMAT_VERSION || major > VERSION_MAJOR) {
 		f.unref();
 		return "";
 	}
@@ -3221,7 +3221,7 @@ Dictionary ResourceFormatSaverCompatBinaryInstance::fix_scene_bundle(const Ref<P
 		ERR_FAIL_V_MSG(bundled, "THEY INCREASED THE PACKED SCENE VERSION AGAIN!!!!!! REPORT THIS!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 	}
 
-	uint64_t conn_count = p_scene->get_state()->get_connection_count();
+	int conn_count = p_scene->get_state()->get_connection_count();
 	bool requires_version_3 = false;
 	for (int i = 0; i < conn_count; i++) {
 		if (p_scene->get_state()->get_connection_unbinds(i) > 0) {

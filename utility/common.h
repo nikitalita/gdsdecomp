@@ -178,13 +178,13 @@ Vector<String> rsplit_multichar(const String &s, const HashSet<char32_t> &splitt
 		int maxsplit = 0);
 } // namespace gdre
 
-#define GDRE_ERR_DECOMPRESS_OR_FAIL(img)                                    \
-	{                                                                       \
-		Error err = gdre::decompress_image(img);                            \
-		if (err == ERR_UNAVAILABLE) {                                       \
-			return ERR_UNAVAILABLE;                                         \
-		}                                                                   \
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to decompress image."); \
+#define GDRE_ERR_DECOMPRESS_OR_FAIL(img)                                      \
+	{                                                                         \
+		Error _err = gdre::decompress_image(img);                             \
+		if (_err == ERR_UNAVAILABLE) {                                        \
+			return ERR_UNAVAILABLE;                                           \
+		}                                                                     \
+		ERR_FAIL_COND_V_MSG(_err != OK, _err, "Failed to decompress image."); \
 	}
 // Can only pass in string literals
 #define _GDRE_CHECK_HEADER(p_buffer, p_expected_header) gdre::check_header(p_buffer, p_expected_header, sizeof(p_expected_header) - 1)

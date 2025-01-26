@@ -9,7 +9,7 @@
 #include "utility/gdre_settings.h"
 #include "utility/resource_info.h"
 
-Ref<CompatFormatLoader> ResourceCompatLoader::loader[ResourceCompatLoader::MAX_LOADERS];
+Ref<CompatFormatLoader> ResourceCompatLoader::loaders[ResourceCompatLoader::MAX_LOADERS];
 Ref<ResourceCompatConverter> ResourceCompatLoader::converters[ResourceCompatLoader::MAX_CONVERTERS];
 int ResourceCompatLoader::loader_count = 0;
 int ResourceCompatLoader::converter_count = 0;
@@ -237,12 +237,12 @@ void ResourceCompatLoader::add_resource_format_loader(Ref<CompatFormatLoader> p_
 
 	if (p_at_front) {
 		for (int i = loader_count; i > 0; i--) {
-			loader[i] = loader[i - 1];
+			loaders[i] = loaders[i - 1];
 		}
-		loader[0] = p_format_loader;
+		loaders[0] = p_format_loader;
 		loader_count++;
 	} else {
-		loader[loader_count++] = p_format_loader;
+		loaders[loader_count++] = p_format_loader;
 	}
 	if (globally_available) {
 		ResourceLoader::add_resource_format_loader(p_format_loader, p_at_front);
@@ -258,7 +258,7 @@ void ResourceCompatLoader::remove_resource_format_loader(Ref<CompatFormatLoader>
 	// Find loader
 	int i = 0;
 	for (; i < loader_count; ++i) {
-		if (loader[i] == p_format_loader) {
+		if (loaders[i] == p_format_loader) {
 			break;
 		}
 	}
@@ -267,9 +267,9 @@ void ResourceCompatLoader::remove_resource_format_loader(Ref<CompatFormatLoader>
 
 	// Shift next loaders up
 	for (; i < loader_count - 1; ++i) {
-		loader[i] = loader[i + 1];
+		loaders[i] = loaders[i + 1];
 	}
-	loader[loader_count - 1].unref();
+	loaders[loader_count - 1].unref();
 	--loader_count;
 }
 
@@ -312,8 +312,8 @@ void ResourceCompatLoader::remove_resource_object_converter(Ref<ResourceCompatCo
 //get_loader_for_path
 Ref<CompatFormatLoader> ResourceCompatLoader::get_loader_for_path(const String &p_path, const String &p_type_hint) {
 	for (int i = 0; i < loader_count; i++) {
-		if (loader[i]->recognize_path(p_path, p_type_hint)) {
-			return loader[i];
+		if (loaders[i]->recognize_path(p_path, p_type_hint)) {
+			return loaders[i];
 		}
 	}
 	return Ref<CompatFormatLoader>();
@@ -413,7 +413,7 @@ void ResourceCompatLoader::make_globally_available() {
 		return;
 	}
 	for (int i = loader_count - 1; i >= 0; i--) {
-		ResourceLoader::add_resource_format_loader(loader[i], true);
+		ResourceLoader::add_resource_format_loader(loaders[i], true);
 	}
 	globally_available = true;
 }
@@ -423,7 +423,7 @@ void ResourceCompatLoader::unmake_globally_available() {
 		return;
 	}
 	for (int i = 0; i < loader_count; i++) {
-		ResourceLoader::remove_resource_format_loader(loader[i]);
+		ResourceLoader::remove_resource_format_loader(loaders[i]);
 	}
 	globally_available = false;
 }

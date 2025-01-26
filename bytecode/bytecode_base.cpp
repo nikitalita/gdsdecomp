@@ -294,7 +294,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 	const uint8_t *buf = p_buffer.ptr();
 	uint64_t total_len = p_buffer.size();
 	GDSDECOMP_FAIL_COND_V_MSG(p_buffer.size() < 24 || !CHECK_GDSC_HEADER(p_buffer), ERR_INVALID_DATA, "Invalid GDScript token buffer.");
-	uint32_t version = decode_uint32(&buf[4]);
+	int version = decode_uint32(&buf[4]);
 	ERR_FAIL_COND_V_MSG(version >= GDSCRIPT_2_0_VERSION, ERR_INVALID_DATA, "Wrong function!");
 	const int contents_start = 8 + (version >= GDSCRIPT_2_0_VERSION ? 4 : 0);
 	uint32_t identifier_count = decode_uint32(&buf[contents_start]);
@@ -312,7 +312,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 		b += 4;
 		Vector<uint8_t> cs;
 		cs.resize(len);
-		for (int j = 0; j < len; j++) {
+		for (uint32_t j = 0; j < len; j++) {
 			cs.write[j] = b[j] ^ 0xb6;
 		}
 
@@ -1522,7 +1522,7 @@ Vector<String> GDScriptDecomp::get_compile_errors(const Vector<uint8_t> &p_buffe
 		errors.push_back(vformat("Line %d: %s", prev_line, p_error));
 	});
 
-	for (int i = 0; i < tokens.size(); i++) {
+	for (uint32_t i = 0; i < tokens.size(); i++) {
 		GlobalToken curr_token = get_global_token(tokens[i]);
 		if (lines.has(i)) {
 			if (lines[i] != prev_line && lines[i] != 0) {
