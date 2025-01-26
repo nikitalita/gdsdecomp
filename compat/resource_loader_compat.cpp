@@ -360,6 +360,10 @@ Error ResourceCompatLoader::to_binary(const String &p_path, const String &p_dst,
 	return saver.save(p_dst, res, p_flags);
 }
 
+bool ResourceCompatLoader::handles_resource(const String &p_path, const String &p_type_hint) {
+	return !get_loader_for_path(p_path, p_type_hint).is_null();
+}
+
 // static ResourceInfo get_resource_info(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
 ResourceInfo ResourceCompatLoader::get_resource_info(const String &p_path, const String &p_type_hint, Error *r_error) {
 	auto loader = get_loader_for_path(p_path, p_type_hint);
@@ -484,6 +488,7 @@ void ResourceCompatLoader::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_globally_available"), &ResourceCompatLoader::is_globally_available);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("set_default_gltf_load", "enable"), &ResourceCompatLoader::set_default_gltf_load);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_default_gltf_load"), &ResourceCompatLoader::is_default_gltf_load);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("handles_resource", "path", "type_hint"), &ResourceCompatLoader::handles_resource, DEFVAL(""));
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "FAKE_LOAD", ResourceInfo::FAKE_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "NON_GLOBAL_LOAD", ResourceInfo::NON_GLOBAL_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "GLTF_LOAD", ResourceInfo::GLTF_LOAD);
