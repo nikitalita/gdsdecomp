@@ -251,7 +251,7 @@ var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 
 --key=<KEY>                 The Key to use if project is encrypted as a 64-character hex string,
 							e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
---output-dir=<DIR>          Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
+--output=<DIR>              Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
 --scripts-only              Only extract/recover scripts
 --include=<GLOB>            Include files matching the glob pattern (can be repeated)
 --exclude=<GLOB>            Exclude files matching the glob pattern (can be repeated)
@@ -261,7 +261,7 @@ var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>          Either the commit hash of the bytecode revision (e.g. 'f3f05dc'),
 										   or the version of the engine (e.g. '4.3.0')
---output-dir=<DIR>                      Directory where compiled files will be output to. 
+--output=<DIR>                          Directory where compiled files will be output to. 
 										  - If not specified, compiled files will be output to the same location 
 										  (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
 """
@@ -670,7 +670,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--bin-to-txt"):
 			bin_to_txt.append(get_arg_value(arg).simplify_path())
 			main_cmds["bin-to-txt"] = true
-		elif arg.begins_with("--output-dir"):
+		elif arg.begins_with("--output") or arg.begins_with("--output-dir"):
 			output_dir = get_arg_value(arg).simplify_path()
 		elif arg.begins_with("--scripts-only"):
 			scripts_only = true
