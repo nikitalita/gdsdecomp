@@ -1,9 +1,7 @@
 class_name GDRERecoverDialog
 extends GDREChildDialog
 
-const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
-const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
-const file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
+
 const gdre_export_report = preload("res://gdre_export_report.tscn")
 const gdre_file_tree = preload("res://gdre_file_tree.gd")
 var FILE_TREE : GDREFileTree = null
@@ -248,6 +246,22 @@ func _on_file_tree_item_selected() -> void:
 		var path = item.get_metadata(0)
 		if not path.is_empty():
 			RESOURCE_PREVIEW.load_resource(path)
+
+# No need for this
+# var _multi_selected_timer = null
+# var _on_multi_selected_cooldown = false
+# var _on_multi_selected_cooldown_time: float = 0.5
+# func _on_multi_select_timeout():
+# 	_on_multi_selected_cooldown = false
+# 	_multi_selected_timer = null
+# func _on_multi_selected(item, column, selected):
+# 	if item and selected and not _on_multi_selected_cooldown and RESOURCE_PREVIEW.is_visible_in_tree() :
+# 		var path = item.get_metadata(0)
+# 		if not path.is_empty():
+# 			RESOURCE_PREVIEW.load_resource(path)
+# 			_multi_selected_timer = get_tree().create_timer(_on_multi_selected_cooldown_time)
+# 			_multi_selected_timer.connect("timeout", self._on_multi_select_timeout)
+
 
 
 func _on_show_resource_preview_pressed() -> void:

@@ -74,6 +74,7 @@ grow_horizontal = 2
 grow_vertical = 2
 columns = 2
 column_titles_visible = true
+select_mode = 2
 script = ExtResource("2_02dmf")
 metadata/_custom_type_script = ExtResource("2_02dmf")
 
@@ -234,6 +235,7 @@ text = "Show Resource Preview..."
 visible = false
 layout_mode = 2
 
+[connection signal="cell_selected" from="HSplitContainer/Control/FileTree" to="." method="_on_file_tree_item_selected"]
 [connection signal="item_selected" from="HSplitContainer/Control/FileTree" to="." method="_on_file_tree_item_selected"]
 [connection signal="text_changed" from="HSplitContainer/Control/Filter" to="." method="_on_filter_text_changed"]
 [connection signal="pressed" from="HSplitContainer/Control/Uncheck" to="." method="_on_uncheck_all_pressed"]
