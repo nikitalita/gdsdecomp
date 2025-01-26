@@ -231,8 +231,8 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 	if (p_path.get_extension() == "import") {
 		iinfo = Ref<ImportInfo>(memnew(ImportInfoModern));
 		err = iinfo->_load(p_path);
-		if (ver_major == 0) {
-			ResourceInfo res_info = ResourceCompatLoader::get_resource_info(p_path, "", &err);
+		if (ver_major == 0 && err == OK) {
+			ResourceInfo res_info = ResourceCompatLoader::get_resource_info(iinfo->get_path(), "", &err);
 			if (err) {
 				WARN_PRINT("ImportInfo: Version major not specified and could not load binary resource file!");
 				err = OK;
@@ -246,7 +246,7 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 					WARN_PRINT_ONCE("ImportInfo: Attempted to load a text resource file, cannot determine minor version!");
 				}
 			}
-		} else {
+		} else if (err == OK) {
 			iinfo->ver_major = ver_major;
 			iinfo->ver_minor = ver_minor;
 		}
@@ -429,7 +429,10 @@ void ImportInfoModern::set_params(Dictionary params) {
 
 Error ImportInfoModern::_load(const String &p_path) {
 	cf.instantiate();
-	String path = GDRESettings::get_singleton()->get_res_path(p_path);
+	String path = p_path;
+	if (GDRESettings::get_singleton()->is_pack_loaded()) {
+		path = GDRESettings::get_singleton()->get_res_path(p_path);
+	}
 	Error err = cf->load(path);
 	if (err) {
 		cf = Ref<ConfigFile>();
@@ -531,7 +534,10 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	Ref<ConfigFile> cf;
 	cf.instantiate();
 	source_file = p_path.get_basename(); // res://scene.tscn.remap -> res://scene.tscn
-	String path = GDRESettings::get_singleton()->get_res_path(p_path);
+	String path = p_path;
+	if (GDRESettings::get_singleton()->is_pack_loaded()) {
+		path = GDRESettings::get_singleton()->get_res_path(p_path);
+	}
 	Error err = cf->load(path);
 	if (err) {
 		cf = Ref<ConfigFile>();
