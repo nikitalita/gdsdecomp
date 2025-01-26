@@ -503,6 +503,7 @@ String GDRESettings::sanitize_home_in_path(const String &p_path) {
 }
 
 Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract) {
+	GDRELogger::clear_error_queues();
 	if (is_pack_loaded()) {
 		return ERR_ALREADY_IN_USE;
 	}
@@ -1961,6 +1962,10 @@ Variant GDRESettings::get_setting(const String &p_setting, const Variant &p_defa
 	return config->get_value(section, p_setting, p_default_value);
 }
 
+Vector<String> GDRESettings::get_errors() {
+	return GDRELogger::get_errors();
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -2026,7 +2031,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_setting", "p_setting", "p_value"), &GDRESettings::set_setting);
 	ClassDB::bind_method(D_METHOD("has_setting", "p_setting"), &GDRESettings::has_setting);
 	ClassDB::bind_method(D_METHOD("get_setting", "p_setting", "p_default_value"), &GDRESettings::get_setting, DEFVAL(Variant()));
-
+	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);
 	// ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
 	ADD_SIGNAL(MethodInfo("write_log_message", PropertyInfo(Variant::STRING, "message")));
 }

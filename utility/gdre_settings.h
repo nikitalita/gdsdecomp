@@ -293,6 +293,8 @@ public:
 	String get_home_dir();
 	ResourceUID::ID get_uid_for_path(const String &p_path) const;
 
+	Vector<String> get_errors();
+
 	static GDRESettings *get_singleton();
 	GDRESettings();
 	~GDRESettings();

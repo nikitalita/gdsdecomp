@@ -16,6 +16,7 @@ static func popup_box(parent_window: Node, dialog: AcceptDialog, message: String
 			parent_window.add_child(dialog)
 		else:
 			dialog.reparent(parent_window)
+	dialog.reset_size()
 	dialog.set_text(message)
 	dialog.set_title(box_title)
 	var _confirm_func: Callable
