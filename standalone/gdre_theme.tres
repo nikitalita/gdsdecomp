@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=169 format=3 uid="uid://crq1fwn0ajw7b"]
+[gd_resource type="Theme" load_steps=165 format=3 uid="uid://crq1fwn0ajw7b"]
 
 [sub_resource type="StyleBoxFlat" id="1"]
 content_margin_left = 6.0
@@ -1122,45 +1122,17 @@ content_margin_bottom = 4.0
 bg_color = Color(0.249139, 0.282927, 0.357885, 1)
 border_color = Color(0.196078, 0.231373, 0.309804, 1)
 
-[sub_resource type="StyleBoxTexture" id="1404"]
-content_margin_left = 2.0
-content_margin_top = 2.0
-content_margin_right = 2.0
-content_margin_bottom = 2.0
-texture = SubResource("539")
-region_rect = Rect2(0, 0, 12, 12)
-
-[sub_resource type="StyleBoxTexture" id="1405"]
-content_margin_left = 2.0
-content_margin_top = 2.0
-content_margin_right = 2.0
-content_margin_bottom = 2.0
-texture = SubResource("541")
-region_rect = Rect2(0, 0, 12, 12)
-
-[sub_resource type="StyleBoxTexture" id="1406"]
-content_margin_left = 2.0
-content_margin_top = 2.0
-content_margin_right = 2.0
-content_margin_bottom = 2.0
-texture = SubResource("543")
-region_rect = Rect2(0, 0, 12, 12)
-
-[sub_resource type="StyleBoxTexture" id="1407"]
-content_margin_left = 0.0
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_b4rug"]
+content_margin_left = 4.0
 content_margin_top = 0.0
-content_margin_right = 0.0
+content_margin_right = 4.0
 content_margin_bottom = 0.0
-texture = SubResource("537")
-region_rect = Rect2(0, 0, 12, 12)
-
-[sub_resource type="StyleBoxTexture" id="1408"]
-content_margin_left = 0.0
-content_margin_top = 0.0
-content_margin_right = 0.0
-content_margin_bottom = 0.0
-texture = SubResource("537")
-region_rect = Rect2(0, 0, 12, 12)
+bg_color = Color(0.0878998, 0.0985707, 0.135332, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 6
 
 [sub_resource type="StyleBoxLine" id="1409"]
 color = Color(1, 1, 1, 0.1)
@@ -1560,11 +1532,7 @@ VScrollBar/icons/decrement = SubResource("1371")
 VScrollBar/icons/decrement_highlight = SubResource("1371")
 VScrollBar/icons/increment = SubResource("1371")
 VScrollBar/icons/increment_highlight = SubResource("1371")
-VScrollBar/styles/grabber = SubResource("1404")
-VScrollBar/styles/grabber_highlight = SubResource("1405")
-VScrollBar/styles/grabber_pressed = SubResource("1406")
-VScrollBar/styles/scroll = SubResource("1407")
-VScrollBar/styles/scroll_focus = SubResource("1408")
+VScrollBar/styles/scroll = SubResource("StyleBoxFlat_b4rug")
 VSeparator/styles/separator = SubResource("1409")
 VSlider/icons/grabber = SubResource("545")
 VSlider/icons/grabber_highlight = SubResource("547")
