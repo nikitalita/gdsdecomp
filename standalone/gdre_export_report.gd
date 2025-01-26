@@ -1,4 +1,4 @@
-extends Node
+extends AcceptDialog
 
 const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
@@ -6,7 +6,6 @@ const file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
 
 var NOTE_TREE : Tree = null
 var TOTALS_TREE: Tree = null
-var REPORT_WINDOW :Window = null
 var POPUP_PARENT_WINDOW : Window = null
 var EDITOR_MESSAGE_LABEL: RichTextLabel = null
 var LOG_FILE_LABEL: RichTextLabel = null
@@ -19,7 +18,7 @@ var userroot: TreeItem = null
 var num_files:int = 0
 var num_broken:int = 0
 var num_malformed:int = 0
-var _is_test:bool = true
+var _is_test:bool = false
 
 signal report_done()
 
@@ -27,38 +26,26 @@ signal report_done()
 # MUST CALL set_root_window() first!!!
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	NOTE_TREE =      $NoteTree
-	REPORT_WINDOW =  $ReportWindow
-	NOTE_TREE = 	 $NoteTree
-	TOTALS_TREE =    $TotalsTree
-	EDITOR_MESSAGE_LABEL = $EditorMessageLabel
-	LOG_FILE_LABEL = $LogFileLabel
-	if !_is_test:
-		assert(POPUP_PARENT_WINDOW)
-	else:
-		POPUP_PARENT_WINDOW = get_window()
+	NOTE_TREE =      $Control/NoteTree
+	NOTE_TREE = 	 $Control/NoteTree
+	TOTALS_TREE =    $Control/TotalsTree
+	EDITOR_MESSAGE_LABEL = $Control/EditorMessageLabel
+	LOG_FILE_LABEL = $Control/LogFileLabel
+
 
 	if isHiDPI:
 		# get_viewport().size *= 2.0
 		# get_viewport().content_scale_factor = 2.0
 		#ThemeDB.fallback_base_scale = 2.0
-		REPORT_WINDOW.content_scale_factor = 2.0
-		REPORT_WINDOW.size *= 2.0
+		self.content_scale_factor = 2.0
+		self.size *= 2.0
 	# This is a hack to get around not being able to open multiple scenes
 	# unless they're attached to windows
 	# The children are not already in the window for ease of GUI creation
-	var children: Array[Node] = self.get_children()
-	for child in children:
-		# remove the child from root and add it to the window
-		# check if it is the recover window
-		if child.get_name() == "ReportWindow":
-			continue
-		self.remove_child(child)
-		REPORT_WINDOW.add_child(child)
 	clear()
 	
-	if _is_test:
-		load_test()
+	#if _is_test:
+		#load_test()
 	
 	pass # Replace with function body.
 
@@ -66,9 +53,9 @@ func _on_click_uri(meta):
 	OS.shell_open(meta)
 	
 func ver_to_tag(ver:GodotVer):
-	var tag_str = String.num(ver.major) + "." + String.num(ver.minor)
+	var tag_str = String.num_uint64(ver.major) + "." + String.num_uint64(ver.minor)
 	if (ver.patch != 0):
-		tag_str += "." + String.num(ver.patch)
+		tag_str += "." + String.num_uint64(ver.patch)
 	if !ver.prerelease.is_empty() && ver.is_valid_semver():
 		tag_str += "-" + ver.prerelease
 	else:
@@ -119,18 +106,17 @@ func add_log_file(log_path: String):
 
 # called before _ready
 func set_root_window(window: Window):
-	POPUP_PARENT_WINDOW = window
-	_is_test = false
+	pass
 
 func show_win():
 	# get the screen size
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
-	var center = (safe_area.position + safe_area.size - REPORT_WINDOW.size) / 2
-	REPORT_WINDOW.set_position(center)
-	REPORT_WINDOW.show()
+	var center = (safe_area.position + safe_area.size - self.size) / 2
+	self.set_position(center)
+	self.show()
 
 func hide_win():
-	REPORT_WINDOW.hide()
+	self.hide()
 
 func get_note_header_item_icon(_key: String) -> Texture2D:
 	# TODO: add warning and info icons
@@ -172,7 +158,7 @@ func add_report(report: ImportExporterReport) -> int:
 		# check that section is actually a dictionary
 		if typeof(section) == TYPE_DICTIONARY:
 			var dict :Dictionary = section
-			header_item.set_text(1, String.num(dict.keys().size()))
+			header_item.set_text(1, String.num_uint64(dict.keys().size()))
 			# iterate over all the keys in the section
 			for subkey in dict.keys():
 				var subitem = TOTALS_TREE.create_item(header_item)
@@ -180,7 +166,7 @@ func add_report(report: ImportExporterReport) -> int:
 				subitem.set_text(0, dict[subkey])
 		elif typeof(section) == TYPE_PACKED_STRING_ARRAY:
 			var arr: PackedStringArray = section
-			header_item.set_text(1, String.num(arr.size()))
+			header_item.set_text(1, String.num_uint64(arr.size()))
 			for i in range(arr.size()):
 				var subitem = TOTALS_TREE.create_item(header_item)
 				subitem.set_text(0, arr[i])
@@ -207,7 +193,10 @@ func cancel_extract():
 func _open_folder():
 	OS.shell_open(path_to_uri(recovery_folder))
 
-func _ok_pressed():
+func confirmed():
+	close()
+	
+func cancelled():
 	close()
 
 func _close_requested():
@@ -219,3 +208,7 @@ func _process(_delta):
 
 func _exit_tree():
 	hide_win()
+
+
+func _on_close_requested() -> void:
+	pass # Replace with function body.

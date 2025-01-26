@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://el6o5uk15g2c"]
+[gd_scene load_steps=10 format=3 uid="uid://el6o5uk15g2c"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1"]
 [ext_resource type="Script" uid="uid://bqpxqjfn2qt1g" path="res://gdre_main.gd" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="4_vsto2"]
 [ext_resource type="PackedScene" uid="uid://bvmc3vdlgqnse" path="res://gdre_new_pck.tscn" id="6_kct41"]
 [ext_resource type="PackedScene" uid="uid://xdfd5b6mnjgr" path="res://gdre_patch_pck.tscn" id="7_ubmam"]
+[ext_resource type="PackedScene" uid="uid://bv7816js3kr4k" path="res://gdre_recover.tscn" id="8_xa6jx"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_x51e8"]
 
@@ -187,6 +188,9 @@ visible = false
 [node name="GdrePatchPck" parent="." instance=ExtResource("7_ubmam")]
 visible = false
 
+[node name="GdreRecover" parent="." instance=ExtResource("8_xa6jx")]
+visible = false
+
 [node name="ErrorDialog" type="AcceptDialog" parent="."]
 
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/CancelButton" to="." method="_on_setenc_key_cancel_pressed"]
@@ -196,3 +200,4 @@ visible = false
 [connection signal="pressed" from="version_lbl" to="." method="_on_version_lbl_pressed"]
 [connection signal="save_pck_requested" from="GdreNewPck" to="." method="_on_new_pck_selected"]
 [connection signal="do_patch_pck" from="GdrePatchPck" to="." method="_on_gdre_patch_pck_do_patch_pck"]
+[connection signal="recovery_done" from="GdreRecover" to="." method="_on_recovery_done"]

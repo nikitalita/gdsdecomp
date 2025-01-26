@@ -124,16 +124,16 @@ func sort_tree(item:TreeItem, recursive: bool = true):
 			)
 		SortType.SORT_SIZE_DESCENDING:
 			arr.sort_custom(func(a: TreeItem, b: TreeItem) -> bool:
-				var a_size: int = int(a.get_metadata(1))
-				var b_size: int = int(b.get_metadata(1))
+				var a_size = a.get_metadata(1)
+				var b_size = b.get_metadata(1)
 				if (a_size == b_size):
 					return cmp_item_folders(a, b, true) > 0
 				return a_size > b_size
 			)
 		SortType.SORT_SIZE_ASCENDING:
 			arr.sort_custom(func(a: TreeItem, b: TreeItem) -> bool:
-				var a_size: int = int(a.get_metadata(1))
-				var b_size: int = int(b.get_metadata(1))
+				var a_size = (a.get_metadata(1))
+				var b_size = (b.get_metadata(1))
 				if (a_size == b_size):
 					return cmp_item_folders(a, b, false) > 0
 				return a_size < b_size
@@ -196,7 +196,7 @@ func _on_column_title_clicked(column: int, mouse_button_index: int):
 			_:
 				return
 		sort_entire_tree()
-				
+
 func _on_empty_clicked(_mouse_pos, mouse_button: MouseButton):
 	if (mouse_button == MOUSE_BUTTON_LEFT):
 		self.deselect_all()
@@ -300,10 +300,10 @@ func _add_file(info: PackedFileInfo, skipped_md5_check: bool = false):
 		icon = file_broken
 		errstr = "Malformed path"
 		num_malformed += 1
-	elif skipped_md5_check:
-		icon = file_icon
 	elif is_verified:
 		icon = file_ok
+	elif skipped_md5_check:
+		icon = file_icon
 	elif !is_verified && has_md5:
 		icon = file_broken
 		errstr = "Checksum mismatch"
@@ -332,6 +332,9 @@ func _clear():
 		userroot = null
 	items.clear()
 	self.clear()
+	num_files = 0
+	num_broken = 0
+	num_malformed = 0
 	root = self.create_item()
 	root.set_cell_mode(0, TreeItem.CELL_MODE_CHECK)
 	root.set_checked(0, true)
@@ -391,6 +394,8 @@ func add_file_to_item(p_item: TreeItem, p_fullname: String, p_name: String, p_si
 		item.set_icon(0, folder_icon)
 		item.set_text(0, fld_name)
 		item.set_metadata(0, String())
+		if columns >= 2:
+			item.set_metadata(1, 0)
 		return add_file_to_item(item, p_fullname, path, p_size, p_icon, p_error, false);
 
 func _filter_item(filter_str: String, item: TreeItem, is_glob: bool, clear_filter: bool):

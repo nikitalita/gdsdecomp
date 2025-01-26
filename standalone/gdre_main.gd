@@ -14,7 +14,7 @@ var isHiDPI = false
 var gdre_recover = preload("res://gdre_recover.tscn")
 var gdre_new_pck = preload("res://gdre_new_pck.tscn")
 var gdre_patch_pck = preload("res://gdre_patch_pck.tscn")
-var RECOVERY_DIALOG: Control = null
+var RECOVERY_DIALOG: GDRERecoverDialog = null
 var NEW_PCK_DIALOG: GDRENewPck = null
 var PATCH_PCK_DIALOG: GDREPatchPCK = null
 var ERROR_DIALOG: AcceptDialog = null
@@ -63,10 +63,9 @@ const ERR_SKIP = 45
 func _on_recovery_done():
 	if RECOVERY_DIALOG:
 		RECOVERY_DIALOG.hide_win()
-		get_tree().get_root().remove_child(RECOVERY_DIALOG)
-		RECOVERY_DIALOG = null
-	else:
-		print("Recovery dialog not instantiated!!!")
+		#get_tree().get_root().remove_child(RECOVERY_DIALOG)
+		#RECOVERY_DIALOG = null
+
 
 
 func split_args(args: String, splitter = ",") -> PackedStringArray:
@@ -126,17 +125,20 @@ func close_recover_file_dialog():
 
 
 func launch_recovery_window(paths: PackedStringArray):
-	assert(gdre_recover.can_instantiate())
-	RECOVERY_DIALOG = gdre_recover.instantiate()
+	setup_new_pck_window()
+	#RECOVERY_DIALOG = gdre_recover.instantiate()
 	RECOVERY_DIALOG.set_root_window(REAL_ROOT_WINDOW)
-	REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
-	REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
+	#REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
+	#REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
 	RECOVERY_DIALOG.add_project(paths)
-	RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
+	#RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
 	RECOVERY_DIALOG.show_win()
 
 func setup_new_pck_window():
 	pass
+	
+	if not RECOVERY_DIALOG:
+		RECOVERY_DIALOG = $GdreRecover
 	if not NEW_PCK_DIALOG:
 		NEW_PCK_DIALOG = $GdreNewPck
 	if not PATCH_PCK_DIALOG:
