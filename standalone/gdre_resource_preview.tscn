@@ -3,7 +3,7 @@
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_crn14"]
 [ext_resource type="Script" uid="uid://dnjt5hkgucm3" path="res://gdre_resource_preview.gd" id="1_tgfma"]
 [ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="3_gp5ss"]
-[ext_resource type="PackedScene" uid="uid://cuifra52kkek" path="res://gdre_audio_player.tscn" id="4_crn14"]
+[ext_resource type="PackedScene" uid="uid://cuifra52kkek" path="res://gdre_media_player.tscn" id="4_crn14"]
 [ext_resource type="CodeHighlighter" uid="uid://bgbfmyk1q82jx" path="res://gdre_code_highlighter.tres" id="4_gp5ss"]
 [ext_resource type="CodeHighlighter" uid="uid://br7sbxeuwb4fu" path="res://gdre_gdresource_highlighter.tres" id="4_x0kdu"]
 [ext_resource type="Texture2D" uid="uid://70wmkccoq7gp" path="res://gdre_icons/gdre_GuiTabMenuHl.svg" id="6_coejo"]
@@ -131,7 +131,7 @@ text = "16x16 RGBA8
 No Mipmaps
 Memory: 1024 B"
 
-[node name="AudioPlayer" parent="VBoxContainer/ResourceView" instance=ExtResource("4_crn14")]
+[node name="MediaPlayer" parent="VBoxContainer/ResourceView" instance=ExtResource("4_crn14")]
 visible = false
 layout_mode = 1
 
