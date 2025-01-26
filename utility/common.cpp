@@ -13,16 +13,19 @@
 #include "core/io/missing_resource.h"
 #include "modules/zip/zip_reader.h"
 
-Vector<String> gdre::get_recursive_dir_list(const String dir, const Vector<String> &wildcards, const bool absolute, const String rel, const bool &res) {
+Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, const bool absolute, const String &rel) {
 	Vector<String> ret;
 	Error err;
-	Ref<DirAccess> da = DirAccess::open(dir.path_join(rel), &err);
-	ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + dir);
+	Ref<DirAccess> da = DirAccess::open(p_dir.path_join(rel), &err);
+	ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + p_dir);
 
 	if (da.is_null()) {
 		return ret;
 	}
-	String base = absolute ? dir : "";
+	Vector<String> dirs;
+	Vector<String> files;
+
+	String base = absolute ? p_dir : "";
 	da->list_dir_begin();
 	String f = da->get_next();
 	while (!f.is_empty()) {
@@ -30,22 +33,32 @@ Vector<String> gdre::get_recursive_dir_list(const String dir, const Vector<Strin
 			f = da->get_next();
 			continue;
 		} else if (da->current_is_dir()) {
-			ret.append_array(get_recursive_dir_list(dir, wildcards, absolute, rel.path_join(f)));
+			dirs.push_back(f);
 		} else {
-			if (wildcards.size() > 0) {
-				for (int i = 0; i < wildcards.size(); i++) {
-					if (f.get_file().match(wildcards[i])) {
-						ret.append(base.path_join(rel).path_join(f));
-						break;
-					}
-				}
-			} else {
-				ret.append(base.path_join(rel).path_join(f));
-			}
+			files.push_back(f);
 		}
 		f = da->get_next();
 	}
 	da->list_dir_end();
+
+	dirs.sort_custom<FileNoCaseComparator>();
+	files.sort_custom<FileNoCaseComparator>();
+	for (auto &d : dirs) {
+		ret.append_array(get_recursive_dir_list(p_dir, wildcards, absolute, rel.path_join(d)));
+	}
+	for (auto &file : files) {
+		if (wildcards.size() > 0) {
+			for (int i = 0; i < wildcards.size(); i++) {
+				if (file.get_file().matchn(wildcards[i])) {
+					ret.append(base.path_join(rel).path_join(file));
+					break;
+				}
+			}
+		} else {
+			ret.append(base.path_join(rel).path_join(file));
+		}
+	}
+
 	return ret;
 }
 
