@@ -38,20 +38,20 @@ Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &
 		}
 		return total;
 	}(page_sizes);
-	uint64_t total_actual_body_size = 0;
-	uint64_t total_acc_size = 0;
+	int64_t total_actual_body_size = 0;
+	int64_t total_acc_size = 0;
 	auto playback = packet_sequence->instantiate_playback();
 	ogg_packet *pkt;
 	ogg_stream_state os_en;
 	ogg_stream_init(&os_en, rand());
 
-	int page_cursor = 0;
+	int64_t page_cursor = 0;
 	bool reached_eos = false;
 	bool warned = false;
 	r_data.resize_zeroed(total_estimated_size);
 	while (playback->next_ogg_packet(&pkt) && !reached_eos) {
 		page_cursor = playback->get_page_number();
-		int page_size = page_sizes[page_cursor];
+		int64_t page_size = page_sizes[page_cursor];
 		if (pkt->e_o_s) {
 			reached_eos = true;
 		}
@@ -64,7 +64,7 @@ Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &
 			}
 			ogg_page og;
 			ERR_FAIL_COND_V_MSG(ogg_stream_flush_fill(&os_en, &og, page_size) == 0, ERR_FILE_CORRUPT, "Could not add page.");
-			int cur_pos = total_acc_size;
+			int64_t cur_pos = total_acc_size;
 			total_acc_size += og.header_len + og.body_len;
 			total_actual_body_size += og.body_len;
 			if (og.body_len != os_en.body_fill) {

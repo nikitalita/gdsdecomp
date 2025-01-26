@@ -1517,7 +1517,7 @@ Vector<String> GDScriptDecomp::get_compile_errors(const Vector<uint8_t> &p_buffe
 
 	ERR_FAIL_COND_V_MSG(err != OK, Vector<String>(), "Error parsing bytecode");
 	Vector<String> errors;
-	int prev_line = 1;
+	uint32_t prev_line = 1;
 	auto push_error([&](const String &p_error) {
 		errors.push_back(vformat("Line %d: %s", prev_line, p_error));
 	});

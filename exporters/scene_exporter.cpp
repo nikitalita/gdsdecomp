@@ -125,9 +125,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	HashSet<String> need_to_be_updated;
 	HashSet<String> external_deps_updated;
 	Vector<String> error_messages;
-	auto append_error_messages = [&](Error err, const String &err_msg = "") {
+	auto append_error_messages = [&](Error p_err, const String &err_msg = "") {
 		String step;
-		switch (err) {
+		switch (p_err) {
 			case ERR_FILE_MISSING_DEPENDENCIES:
 				step = "dependency resolution";
 				break;
@@ -175,7 +175,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 			p_report->set_message(message);
 			p_report->append_message_detail(message_detail);
-			p_report->set_error(err);
+			p_report->set_error(p_err);
 			error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
 			p_report->append_error_messages(error_messages);
 		}
@@ -282,17 +282,17 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 
 		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
 		auto _export_scene = [&]() {
-			Error err;
+			Error p_err;
 			auto mode_type = ResourceCompatLoader::get_default_load_type();
 			Ref<PackedScene> scene;
 			// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
 			if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
-				scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+				scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &p_err);
 			} else {
-				scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+				scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", mode_type, &p_err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
 			}
-			ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
-			err = gdre::ensure_dir(p_dest_path.get_base_dir());
+			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
+			p_err = gdre::ensure_dir(p_dest_path.get_base_dir());
 			Node *root;
 			auto pop_res_path_vec = [](Array arr, Vector<String> &paths) {
 				paths.clear();
@@ -315,12 +315,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				int32_t flags = 0;
 				flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 				root = scene->instantiate();
-				err = doc->append_from_scene(root, state, flags);
-				if (err) {
+				p_err = doc->append_from_scene(root, state, flags);
+				if (p_err) {
 					memdelete(root);
-					ERR_FAIL_COND_V_MSG(err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
+					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 				}
-				err = doc->write_to_filesystem(state, p_dest_path);
+				p_err = doc->write_to_filesystem(state, p_dest_path);
 
 				// Need to get the names and paths for the external resources that are used in the scene
 				// 1) we need to rename the resources in the saved GLTF document
@@ -400,11 +400,11 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				}
 			}
 			memdelete(root);
-			ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
+			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
 			tinygltf::Model model;
 			String error_string;
-			err = load_model(p_dest_path, model, error_string);
-			ERR_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "Failed to load glTF document from " + p_dest_path + ": " + error_string);
+			p_err = load_model(p_dest_path, model, error_string);
+			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CORRUPT, "Failed to load glTF document from " + p_dest_path + ": " + error_string);
 			// rename the images
 			String scene_name;
 			auto iinfo = p_report->get_import_info();
@@ -419,7 +419,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				return path.get_file().get_basename().trim_prefix(scene_name + "_");
 			};
 
-			for (int i = 0; i < model.images.size(); i++) {
+			for (size_t i = 0; i < model.images.size(); i++) {
 				ERR_FAIL_COND_V(i > id_to_texture_path.size(), ERR_FILE_CORRUPT);
 				String img_path = id_to_texture_path[i];
 				if (img_path.is_empty() || img_path.get_file().contains("::")) {
@@ -432,7 +432,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				external_deps_updated.insert(img_path);
 			}
 
-			for (int i = 0; i < model.materials.size(); i++) {
+			for (size_t i = 0; i < model.materials.size(); i++) {
 				ERR_FAIL_COND_V(i > id_to_material_path.size(), ERR_FILE_CORRUPT);
 				String img_name = id_to_material_path[i].first;
 				if (img_name.is_empty() || id_to_material_path[i].second.is_empty()) {
@@ -442,7 +442,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				gltf_image.name = img_name.utf8().get_data();
 			}
 
-			for (int i = 0; i < model.meshes.size(); i++) {
+			for (size_t i = 0; i < model.meshes.size(); i++) {
 				ERR_FAIL_COND_V(i > id_to_meshes_path.size(), ERR_FILE_CORRUPT);
 				String img_name = id_to_meshes_path[i].first;
 				if (img_name.is_empty() || id_to_meshes_path[i].second.is_empty()) {
