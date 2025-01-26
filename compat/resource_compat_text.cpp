@@ -1122,7 +1122,7 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 			String path = next_tag.fields["path"];
 			String id = next_tag.fields["id"];
 			String type = next_tag.fields["type"];
-			ResourceUID::ID uid;
+			ResourceUID::ID uid = ResourceUID::INVALID_ID;
 			if (next_tag.fields.has("uid")) {
 				String uidt = next_tag.fields["uid"];
 				uid = ResourceUID::get_singleton()->text_to_id(uidt);
@@ -2171,8 +2171,8 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		String s = "[ext_resource";
 		String type_string = " type=\"" + _resource_get_class(sorted_er[i].resource) + "\"";
 		String path_string = " path=\"" + p + "\"";
-		Dictionary compat = sorted_er[i].resource->get_meta("compat", Dictionary());
-		ResourceUID::ID uid = compat.get("uid", ResourceUID::INVALID_ID);
+		Dictionary ext_compat = sorted_er[i].resource->get_meta("compat", Dictionary());
+		ResourceUID::ID uid = ext_compat.get("uid", ResourceUID::INVALID_ID);
 		if (format_version >= 3) {
 			s += type_string;
 			if (uid != ResourceUID::INVALID_ID) {

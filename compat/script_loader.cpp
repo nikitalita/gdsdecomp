@@ -34,15 +34,15 @@ String ResourceFormatGDScriptLoader::get_resource_type(const String &p_path) con
 }
 
 Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
-	Ref<FakeGDScript> script;
-	script.instantiate();
+	Ref<FakeGDScript> fake_script;
+	fake_script.instantiate();
 	Error err;
 	if (!r_error) {
 		r_error = &err;
 	}
-	*r_error = script->load_source_code(p_path);
+	*r_error = fake_script->load_source_code(p_path);
 	ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + p_path);
-	return script;
+	return fake_script;
 }
 
 ResourceInfo ResourceFormatGDScriptLoader::get_resource_info(const String &p_path, Error *r_error) const {
