@@ -86,7 +86,6 @@ Vector<String> PckCreator::get_files_to_pack(const String &p_dir, const Vector<S
 #define bl_print(...) print_line(__VA_ARGS__)
 #else
 #define bl_print(...) print_verbose(__VA_ARGS__)
-is_printing_verbose = is_print_verbose_enabled();
 #endif
 
 Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters) {
