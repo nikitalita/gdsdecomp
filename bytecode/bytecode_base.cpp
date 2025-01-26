@@ -307,7 +307,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 
 	identifiers.resize(identifier_count);
 	for (uint32_t i = 0; i < identifier_count; i++) {
-		int len = decode_uint32(b);
+		uint32_t len = decode_uint32(b);
 		GDSDECOMP_FAIL_COND_V_MSG(len > total_len, ERR_INVALID_DATA, "Invalid identifier length.");
 		b += 4;
 		Vector<uint8_t> cs;
@@ -605,7 +605,7 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 
 	int bytecode_version = get_bytecode_version();
 	int variant_ver_major = get_variant_ver_major();
-	int FUNC_MAX = get_function_count();
+	uint32_t FUNC_MAX = get_function_count();
 	GDSDECOMP_FAIL_COND_V(version != get_bytecode_version(), ERR_INVALID_DATA);
 
 	//Decompile script

@@ -1794,7 +1794,7 @@ void _store_real(Ref<FileAccess> f, real_t p_real) {
 	}
 }
 
-void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, const Variant &p_property, HashMap<Ref<Resource>, int> &resource_map, HashMap<Ref<Resource>, int> &external_resources, HashMap<StringName, int> &string_map, const PropertyInfo &p_hint) {
+void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, const Variant &p_property, HashMap<Ref<Resource>, int> &p_resource_map, HashMap<Ref<Resource>, int> &p_external_resources, HashMap<StringName, int> &p_string_map, const PropertyInfo &p_hint) {
 	switch (p_property.get_type()) {
 		case Variant::NIL: {
 			f->store_32(VARIANT_NIL);
@@ -2030,22 +2030,22 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 				f->store_16(snc);
 			}
 			for (int i = 0; i < np.get_name_count(); i++) {
-				if (string_map.has(np.get_name(i))) {
-					f->store_32(uint32_t(string_map[np.get_name(i)]));
+				if (p_string_map.has(np.get_name(i))) {
+					f->store_32(uint32_t(p_string_map[np.get_name(i)]));
 				} else {
 					save_unicode_string(f, np.get_name(i), true);
 				}
 			}
 			for (int i = 0; i < snc; i++) {
-				if (string_map.has(np.get_subname(i))) {
-					f->store_32(uint32_t(string_map[np.get_subname(i)]));
+				if (p_string_map.has(np.get_subname(i))) {
+					f->store_32(uint32_t(p_string_map[np.get_subname(i)]));
 				} else {
 					save_unicode_string(f, np.get_subname(i), true);
 				}
 			}
 			if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
 				if (property_idx > -1) {
-					f->store_32(string_map[np.get_subname(property_idx)]);
+					f->store_32(p_string_map[np.get_subname(property_idx)]);
 					// otherwise, store zero-length string
 				} else {
 					// 0x80000000 will resolve to a zero length string in the binary parser for any version
@@ -2085,15 +2085,15 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 
 			if (!res->is_built_in()) {
 				f->store_32(OBJECT_EXTERNAL_RESOURCE_INDEX);
-				f->store_32(uint32_t(external_resources[res]));
+				f->store_32(uint32_t(p_external_resources[res]));
 			} else {
-				if (!resource_map.has(res)) {
+				if (!p_resource_map.has(res)) {
 					f->store_32(OBJECT_EMPTY);
 					ERR_FAIL_MSG("Resource was not pre cached for the resource section, most likely due to circular reference.");
 				}
 
 				f->store_32(OBJECT_INTERNAL_RESOURCE);
-				f->store_32(uint32_t(resource_map[res]));
+				f->store_32(uint32_t(p_resource_map[res]));
 				//internal resource
 			}
 
@@ -2116,8 +2116,8 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 			d.get_key_list(&keys);
 
 			for (const Variant &E : keys) {
-				write_variant(f, E, resource_map, external_resources, string_map);
-				write_variant(f, d[E], resource_map, external_resources, string_map);
+				write_variant(f, E, p_resource_map, p_external_resources, p_string_map);
+				write_variant(f, d[E], p_resource_map, p_external_resources, p_string_map);
 			}
 
 		} break;
@@ -2126,7 +2126,7 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 			Array a = p_property;
 			f->store_32(uint32_t(a.size()));
 			for (const Variant &var : a) {
-				write_variant(f, var, resource_map, external_resources, string_map);
+				write_variant(f, var, p_resource_map, p_external_resources, p_string_map);
 			}
 
 		} break;
@@ -2809,11 +2809,11 @@ Error ResourceFormatSaverCompatBinaryInstance::set_uid(const String &p_path, Res
 	fw->set_big_endian(big_endian != 0);
 	fw->store_32(use_real64); //use real64
 
-	uint32_t ver_major = f->get_32();
-	uint32_t ver_minor = f->get_32();
-	uint32_t ver_format = f->get_32();
+	uint32_t major = f->get_32();
+	uint32_t minor = f->get_32();
+	uint32_t format = f->get_32();
 
-	if (ver_format <= FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+	if (format <= FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
 		fw.unref();
 
 		{
@@ -2827,17 +2827,17 @@ Error ResourceFormatSaverCompatBinaryInstance::set_uid(const String &p_path, Res
 		return ERR_UNAVAILABLE;
 	}
 
-	if (ver_format > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (format > FORMAT_VERSION || major > VERSION_MAJOR) {
 		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED,
 				vformat("File '%s' can't be loaded, as it uses a format version (%d) or engine version (%d.%d) which are not supported by your engine version (%s).",
-						local_path, ver_format, ver_major, ver_minor, VERSION_BRANCH));
+						local_path, format, major, minor, VERSION_BRANCH));
 	}
 
 	// Since we're not actually converting the file contents, leave the version
 	// numbers in the file untouched.
-	fw->store_32(ver_major);
-	fw->store_32(ver_minor);
-	fw->store_32(ver_format);
+	fw->store_32(major);
+	fw->store_32(minor);
+	fw->store_32(format);
 
 	save_ustring(fw, get_ustring(f)); //type
 
@@ -3031,7 +3031,7 @@ bool ResourceLoaderCompatBinary::should_threaded_load() const {
 	return use_sub_threads && is_real_load() && ResourceCompatLoader::is_globally_available() && load_type == ResourceCompatLoader::get_default_load_type();
 }
 
-Ref<ResourceLoader::LoadToken> ResourceLoaderCompatBinary::start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID uid, const int er_idx) {
+Ref<ResourceLoader::LoadToken> ResourceLoaderCompatBinary::start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID p_uid, const int er_idx) {
 	Ref<ResourceLoader::LoadToken> load_token;
 	Error err = OK;
 	if (!should_threaded_load()) {
@@ -3040,7 +3040,7 @@ Ref<ResourceLoader::LoadToken> ResourceLoaderCompatBinary::start_ext_load(const 
 		if (is_real_load()) {
 			external_resources.write[er_idx].fallback = ResourceCompatLoader::custom_load(p_path, p_type_hint, load_type, &err, use_sub_threads, cache_mode_for_external);
 		} else {
-			external_resources.write[er_idx].fallback = CompatFormatLoader::create_missing_external_resource(p_path, p_type_hint, uid, itos(er_idx));
+			external_resources.write[er_idx].fallback = CompatFormatLoader::create_missing_external_resource(p_path, p_type_hint, p_uid, itos(er_idx));
 		}
 		if (err != OK || external_resources[er_idx].fallback.is_null()) {
 			load_token = Ref<ResourceLoader::LoadToken>();
