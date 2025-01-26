@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=164 format=3 uid="uid://crq1fwn0ajw7b"]
+[gd_resource type="Theme" load_steps=166 format=3 uid="uid://crq1fwn0ajw7b"]
 
 [sub_resource type="StyleBoxFlat" id="1"]
 content_margin_left = 6.0
@@ -1090,12 +1090,28 @@ border_color = Color(0.397059, 0.423529, 0.482353, 1)
 
 [sub_resource type="StyleBoxEmpty" id="1402"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_qm34x"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.125086, 0.145771, 0.191732, 1)
+border_color = Color(0.196078, 0.231373, 0.309804, 1)
+
 [sub_resource type="StyleBoxFlat" id="1403"]
 content_margin_left = 4.0
 content_margin_top = 4.0
 content_margin_right = 4.0
 content_margin_bottom = 4.0
 bg_color = Color(0.0980392, 0.115686, 0.154902, 1)
+border_color = Color(0.196078, 0.231373, 0.309804, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wkhdc"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.249139, 0.282927, 0.357885, 1)
 border_color = Color(0.196078, 0.231373, 0.309804, 1)
 
 [sub_resource type="StyleBoxTexture" id="1404"]
@@ -1523,9 +1539,9 @@ Tree/styles/custom_button_hover = SubResource("4")
 Tree/styles/custom_button_pressed = SubResource("1402")
 Tree/styles/selected = SubResource("1385")
 Tree/styles/selected_focus = SubResource("1386")
-Tree/styles/title_button_hover = SubResource("1403")
+Tree/styles/title_button_hover = SubResource("StyleBoxFlat_qm34x")
 Tree/styles/title_button_normal = SubResource("1403")
-Tree/styles/title_button_pressed = SubResource("1403")
+Tree/styles/title_button_pressed = SubResource("StyleBoxFlat_wkhdc")
 VBoxContainer/constants/separation = 4
 VScrollBar/icons/decrement = SubResource("1371")
 VScrollBar/icons/decrement_highlight = SubResource("1371")

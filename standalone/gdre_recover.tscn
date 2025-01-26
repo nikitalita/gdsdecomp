@@ -1,113 +1,210 @@
-[gd_scene load_steps=4 format=3 uid="uid://bv7816js3kr4k"]
+[gd_scene load_steps=14 format=3 uid="uid://bv7816js3kr4k"]
 
+[ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_bucmk"]
+[ext_resource type="Script" uid="uid://cww2hw50p8q3i" path="res://gdre_file_tree.gd" id="2_02dmf"]
 [ext_resource type="Script" uid="uid://bga3f1eshrdxt" path="res://gdre_recover.gd" id="2_edjtc"]
+[ext_resource type="Texture2D" uid="uid://byablbp3l8foe" path="res://gdre_icons/gdre_Search.svg" id="3_i5ujv"]
 
-[sub_resource type="Theme" id="Theme_m335r"]
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_avhe5"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_p7bby"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_47yxm"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1bn3y"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_3os3m"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_jbkrx"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_au50u"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_y2b6b"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_bvmre"]
 
-[node name="GdreRecover" type="Control"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme = SubResource("Theme_m335r")
-script = ExtResource("2_edjtc")
-
-[node name="RecoverWindow" type="Window" parent="."]
-title = "Recover/Extract Project"
+[node name="GdreRecover" type="AcceptDialog"]
 position = Vector2i(0, 36)
 size = Vector2i(1152, 648)
-visible = false
-keep_title_visible = true
+visible = true
+theme = ExtResource("1_bucmk")
+ok_button_text = "Extract"
+script = ExtResource("2_edjtc")
 
-[node name="FileTree" type="Tree" parent="."]
+[node name="Control" type="Control" parent="."]
+custom_minimum_size = Vector2(730, 300)
+layout_mode = 3
+anchors_preset = 0
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 1144.0
+offset_bottom = 599.0
+
+[node name="FileTree" type="Tree" parent="Control"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = 109.0
-offset_right = -13.0
-offset_bottom = -65.0
+offset_left = 8.0
+offset_top = 102.0
+offset_right = -2.0
+offset_bottom = -47.0
 grow_horizontal = 2
 grow_vertical = 2
-columns = 3
+columns = 2
 column_titles_visible = true
+script = ExtResource("2_02dmf")
+metadata/_custom_type_script = ExtResource("2_02dmf")
 
-[node name="VersionLabel" type="RichTextLabel" parent="."]
+[node name="VersionLabel" type="RichTextLabel" parent="Control"]
 layout_mode = 0
-offset_left = 23.0
-offset_top = 16.0
-offset_right = 101.0
-offset_bottom = 46.0
+offset_left = 15.0
+offset_top = 8.0
+offset_right = 93.0
+offset_bottom = 38.0
 theme_override_font_sizes/bold_font_size = 16
+theme_override_styles/fill = SubResource("StyleBoxEmpty_avhe5")
+theme_override_styles/background = SubResource("StyleBoxEmpty_p7bby")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_47yxm")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_1bn3y")
 bbcode_enabled = true
 text = "[b]Version:[/b]"
 
-[node name="VersionText" type="Label" parent="."]
+[node name="VersionText" type="Label" parent="Control"]
 layout_mode = 0
-offset_left = 100.0
-offset_top = 16.0
-offset_right = 183.0
-offset_bottom = 42.0
+offset_left = 91.0
+offset_top = 5.0
+offset_right = 174.0
+offset_bottom = 36.0
 text = "0.0.0"
 
-[node name="InfoLabel" type="RichTextLabel" parent="."]
+[node name="InfoLabel" type="RichTextLabel" parent="Control"]
 layout_mode = 0
-offset_left = 249.0
-offset_top = 15.0
-offset_right = 327.0
-offset_bottom = 45.0
+offset_left = 247.0
+offset_top = 9.0
+offset_right = 325.0
+offset_bottom = 39.0
 theme_override_font_sizes/bold_font_size = 16
+theme_override_styles/fill = SubResource("StyleBoxEmpty_3os3m")
+theme_override_styles/background = SubResource("StyleBoxEmpty_jbkrx")
+theme_override_styles/focus = SubResource("StyleBoxEmpty_au50u")
+theme_override_styles/normal = SubResource("StyleBoxEmpty_y2b6b")
 bbcode_enabled = true
 text = "[b]Info:[/b]"
 
-[node name="InfoText" type="Label" parent="."]
+[node name="InfoText" type="Label" parent="Control"]
 layout_mode = 0
-offset_left = 302.0
-offset_top = 14.0
-offset_right = 386.0
-offset_bottom = 40.0
+offset_left = 294.0
+offset_top = 6.0
+offset_right = 487.0
+offset_bottom = 88.0
 text = "<info text>"
 
-[node name="RadioButtons" type="HBoxContainer" parent="."]
+[node name="RadioButtons" type="HBoxContainer" parent="Control"]
 layout_mode = 1
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
-offset_top = -48.0
-offset_right = 420.0
-offset_bottom = -17.0
+offset_left = 26.0
+offset_top = 7.0
+offset_right = 446.0
+offset_bottom = 38.0
 grow_vertical = 0
 
-[node name="ExtractOnly" type="CheckBox" parent="RadioButtons"]
+[node name="ExtractOnly" type="CheckBox" parent="Control/RadioButtons"]
 layout_mode = 2
 button_group = SubResource("ButtonGroup_bvmre")
 text = "Extract Only"
 
-[node name="FullRecovery" type="CheckBox" parent="RadioButtons"]
+[node name="FullRecovery" type="CheckBox" parent="Control/RadioButtons"]
 layout_mode = 2
 button_pressed = true
 button_group = SubResource("ButtonGroup_bvmre")
 text = "Full Recovery"
 
-[node name="ExtractButton" type="Button" parent="."]
+[node name="Filter" type="LineEdit" parent="Control"]
 layout_mode = 1
-anchors_preset = 7
+anchors_preset = -1
 anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -31.5
-offset_top = -48.0
-offset_right = 31.5
-offset_bottom = -17.0
-grow_horizontal = 2
-grow_vertical = 0
-text = "Extract"
+anchor_right = 0.997
+offset_left = 264.0
+offset_top = 63.0
+offset_right = 0.407959
+offset_bottom = 94.0
+placeholder_text = "Filter Files"
+clear_button_enabled = true
+right_icon = ExtResource("3_i5ujv")
 
-[connection signal="close_requested" from="RecoverWindow" to="." method="_close_requested"]
-[connection signal="pressed" from="ExtractButton" to="." method="_extract_pressed"]
+[node name="Uncheck" type="Button" parent="Control"]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 154.0
+offset_top = 63.0
+offset_right = 255.0
+offset_bottom = 94.0
+grow_horizontal = 2
+tooltip_text = "Unchecks all shown files"
+text = "Uncheck all"
+
+[node name="Check" type="Button" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = 63.0
+offset_top = 64.0
+offset_right = 144.0
+offset_bottom = 95.0
+grow_horizontal = 0
+tooltip_text = "Checks all shown files"
+text = "Check all"
+
+[node name="Directory" type="LineEdit" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 119.0
+offset_top = -37.0
+offset_right = -96.0
+offset_bottom = -6.0
+
+[node name="DirectoryButton" type="Button" parent="Control"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -83.0
+offset_top = -37.0
+offset_right = -3.0
+offset_bottom = -6.0
+text = "Select"
+
+[node name="DirectoryLabel" type="Label" parent="Control"]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 9.0
+offset_top = -37.0
+offset_right = 105.0
+offset_bottom = -6.0
+text = "Extract to..."
+
+[node name="ExtractDirDialog" type="FileDialog" parent="."]
+title = "Open a Directory"
+ok_button_text = "Select a directory to extract to..."
+dialog_hide_on_ok = true
+file_mode = 2
+access = 2
+use_native_dialog = true
+
+[connection signal="text_changed" from="Control/Filter" to="." method="_on_filter_text_changed"]
+[connection signal="pressed" from="Control/Uncheck" to="." method="_on_uncheck_all_pressed"]
+[connection signal="pressed" from="Control/Check" to="." method="_on_check_all_pressed"]
+[connection signal="pressed" from="Control/DirectoryButton" to="." method="_on_directory_button_pressed"]
