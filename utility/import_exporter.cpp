@@ -108,7 +108,7 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 		}
 	};
 	if (err != OK) {
-		if ((err == ERR_UNAVAILABLE) && iinfo->get_ver_major() >= 4 && iinfo->is_dirty()) {
+		if ((err == ERR_UNAVAILABLE || err == ERR_PRINTER_ON_FIRE) && iinfo->get_ver_major() >= 4 && iinfo->is_dirty()) {
 			iinfo->save_to(output_dir.path_join(iinfo->get_import_md_path().replace("res://", "")));
 			if_err_func();
 		}
