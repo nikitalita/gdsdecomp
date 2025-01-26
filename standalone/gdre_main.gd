@@ -27,6 +27,29 @@ enum PckMenuID {
 	PATCH_PCK
 }
 
+enum GDScriptMenuID {
+	DECOMPILE,
+	COMPILE
+}
+
+enum REToolsMenuID {
+	RECOVER,
+	SET_KEY,
+	ABOUT,
+	REPORT_BUG,
+	QUIT
+}
+
+enum ResourcesMenuID {
+	BIN_TO_TXT,
+	TXT_TO_BIN,
+	_SEP,
+	TEXTURE_TO_PNG,
+	OGGSTREAM_TO_OGG,
+	MP3STREAM_TO_MP3,
+	SAMPLE_TO_WAV,
+}
+
 func test_text_to_bin(txt_to_bin: String, output_dir: String):
 	var importer:ImportExporter = ImportExporter.new()
 	var dst_file = txt_to_bin.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
@@ -222,23 +245,117 @@ func open_recover_file_dialog():
 func open_new_pck_dialog():
 	launch_new_pck_window()
 
-	
+func _on_GDScriptMenu_item_selected(index):
+	match index:
+		GDScriptMenuID.DECOMPILE:
+			# Decompile
+			pass # TODO: open_decompile_file_dialog()
+			# open_decompile_file_dialog()
+		GDScriptMenuID.COMPILE:
+			# Compile
+			pass # TODO: open_compile_file_dialog()
+			# open_compile_file_dialog()
 
 func _on_REToolsMenu_item_selected(index):
 	match index:
-		0:
+		REToolsMenuID.RECOVER:
 			# Recover Project...
 			open_recover_file_dialog()
-		1:  # set key
+		REToolsMenuID.SET_KEY:  # set key
 			# Open the set key dialog
 			open_setenc_window()
-		2:  # about
+		REToolsMenuID.ABOUT:  # about
 			open_about_window()
-		3:  # Report a bug
+		REToolsMenuID.REPORT_BUG:  # Report a bug
 			OS.shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
-		4:  # Quit
+		REToolsMenuID.QUIT:  # Quit
 			get_tree().quit()
-			
+
+func _on_ResourcesMenu_item_selected(index):
+	match index:
+		ResourcesMenuID.BIN_TO_TXT:
+			# Convert binary resources to text...
+			$BinToTextFileDialog.popup_centered()
+		ResourcesMenuID.TXT_TO_BIN:
+			# Convert text resources to binary...
+			$TextToBinFileDialog.popup_centered()
+		ResourcesMenuID.TEXTURE_TO_PNG:
+			# Convert textures to PNG...
+			$TextureToPNGFileDialog.popup_centered()
+		ResourcesMenuID.OGGSTREAM_TO_OGG:
+			# Convert OGG streams to OGG...
+			$OggStreamToOGGFileDialog.popup_centered()
+		ResourcesMenuID.MP3STREAM_TO_MP3:
+			# Convert MP3 streams to MP3...
+			$MP3StreamToMP3FileDialog.popup_centered()
+		ResourcesMenuID.SAMPLE_TO_WAV:
+			# Convert samples to WAV...
+			$SampleToWAVFileDialog.popup_centered()
+	
+
+func get_recent_error_string():
+	var error = GDRESettings.get_errors()
+	if (error.is_empty()):
+		return ""
+	var error_message = ""
+	for err in error:
+		error_message += err.strip_edges() + "\n"
+	return error_message
+
+
+func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	GDRESettings.get_errors()
+	var had_errors = false
+	for path in paths:
+		var new_path = path.get_basename()
+		if path.get_extension().to_lower() == "scn":
+			new_path += ".tscn"
+		else:
+			new_path += ".tres"
+		if ResourceCompatLoader.to_text(path, new_path) != OK:
+			had_errors = true
+	if had_errors:
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+
+
+func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	GDRESettings.get_errors()
+	var had_errors = false
+	for path in paths:
+		var new_path = path.get_basename()
+		if path.get_extension().to_lower() == "tscn":
+			new_path += ".scn"
+		else:
+			new_path += ".res"
+		if ResourceCompatLoader.to_binary(path, new_path) != OK:
+			had_errors = true
+	if had_errors:
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+
+
+func _do_export(paths, new_ext):
+	GDRESettings.get_errors()
+	var had_errors = false
+	for path in paths:
+		var new_path = path.get_basename() + new_ext
+		if Exporter.export_file(new_path, path) != OK:
+			had_errors = true
+	if had_errors:
+		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+
+
+func _on_texture_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	_do_export(paths, ".png")
+
+func _on_ogg_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	_do_export(paths, ".wav")
+
+func _on_sample_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	_do_export(paths, ".wav")
+
+func _on_mp_3_stream_to_mp_3_file_dialog_files_selected(paths: PackedStringArray) -> void:
+	_do_export(paths, ".mp3")
+
 
 func _on_PCKMenu_item_selected(index):
 	match index:
@@ -433,6 +550,8 @@ func _ready():
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
 	GDRESettings.connect("write_log_message", self._on_re_editor_standalone_write_log_message)
 	$MenuContainer/PCKMenu.get_popup().connect("id_pressed", self._on_PCKMenu_item_selected)
+	$MenuContainer/GDScriptMenu.get_popup().connect("id_pressed", self._on_GDScriptMenu_item_selected)
+	$MenuContainer/ResourcesMenu.get_popup().connect("id_pressed", self._on_ResourcesMenu_item_selected)
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	$LegalNoticeWindow/OkButton.connect("pressed", $LegalNoticeWindow.hide)
 	$LegalNoticeWindow.connect("close_requested", $LegalNoticeWindow.hide)
