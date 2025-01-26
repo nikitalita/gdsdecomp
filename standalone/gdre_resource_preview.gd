@@ -17,7 +17,7 @@ var TEXTURE_INFO: Label = null
 var RESOURCE_INFO: RichTextLabel = null
 var VIEWER: Control = null
 
-var AUDIO_PLAYER: Control = null
+var MEDIA_PLAYER: Control = null
 
 
 
@@ -67,8 +67,8 @@ const IMAGE_FORMAT_NAME = [
 func reset():
 	CODE_VIEWER.visible = false
 	CODE_VIEWER.text = ""
-	AUDIO_PLAYER.visible = false
-	AUDIO_PLAYER.reset()
+	MEDIA_PLAYER.visible = false
+	MEDIA_PLAYER.reset()
 	TEXT_VIEW.visible = false
 	TEXTURE_VIEW.visible = false
 	TEXTURE_INFO.text = ""
@@ -192,9 +192,14 @@ func load_resource(path: String) -> void:
 	elif (is_code(ext)):
 		error_opening = not load_code(path)
 	elif (is_sample(ext)):
-		error_opening = not AUDIO_PLAYER.load_sample(path)
+		error_opening = not MEDIA_PLAYER.load_sample(path)
 		if not error_opening:
-			AUDIO_PLAYER.visible = true
+			MEDIA_PLAYER.visible = true
+	elif (is_video(ext)):
+		not_a_resource = true
+		error_opening = not MEDIA_PLAYER.load_video(path)
+		if not error_opening:
+			MEDIA_PLAYER.visible = true
 	elif (is_image(ext)):
 		error_opening = not load_texture(path)
 		not_a_resource = true
@@ -290,6 +295,12 @@ func is_sample(ext, p_type = ""):
 		return true
 	return false
 
+func is_video(ext, p_type = ""):
+	if (ext == "webm" || ext == "ogv" || ext == "mp4" || ext == "avi" || ext == "mov" || ext == "flv" || ext == "mkv" || ext == "wmv" || ext == "mpg" || ext == "mpeg"):
+		return true
+	return false
+
+
 func is_texture(ext, p_type = ""):
 	if (ext == "ctex" || ext == "stex" || ext == "tex"):
 		return true
@@ -309,7 +320,7 @@ func _reset_code_options_menu(word_wrap_enabled: bool):
 	var current_code_edit: CodeEdit = CODE_VIEWER
 	if CODE_VIEWER.visible:
 		current_code_edit = CODE_VIEWER
-	elif TEXT_VIEWER.visible :
+	elif TEXT_VIEWER.visible:
 		current_code_edit = TEXT_VIEWER
 	elif TEXT_RESOURCE_VIEWER.visible:
 		current_code_edit = TEXT_RESOURCE_VIEWER
@@ -326,7 +337,7 @@ func _on_code_viewer_options_pressed(id) -> void:
 
 func _on_gdre_resource_preview_visibility_changed() -> void:
 	if not self.visible:
-		AUDIO_PLAYER.stop()
+		MEDIA_PLAYER.stop()
 	pass # Replace with function body.
 
 
@@ -337,7 +348,7 @@ func _ready():
 	CODE_VIWER_OPTIONS = $VBoxContainer/ResourceView/TextView/CodeOptsBox/CodeViewerOptions
 	TEXT_VIEW = $VBoxContainer/ResourceView/TextView
 	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
-	AUDIO_PLAYER = $VBoxContainer/ResourceView/AudioPlayer
+	MEDIA_PLAYER = $VBoxContainer/ResourceView/MediaPlayer
 	TEXTURE_RECT = $VBoxContainer/ResourceView/TextureView/TextureRect
 	TEXTURE_VIEW = $VBoxContainer/ResourceView/TextureView
 	TEXTURE_INFO = $VBoxContainer/ResourceView/TextureView/TextureInfo

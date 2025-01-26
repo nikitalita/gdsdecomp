@@ -1,67 +1,156 @@
 extends Control
 var AUDIO_PLAYER: Control = null
-var AUDIO_PLAYER_TIME_LABEL: Label = null
+var TIME_LABEL: Label = null
 var AUDIO_PLAYER_STREAM: AudioStreamPlayer = null
+var VIDEO_PLAYER_STREAM: VideoStreamPlayer = null
+var VIDEO_VIEW_BOX: Control = null
+var VIDEO_ASPECT_RATIO_CONTAINER: AspectRatioContainer = null
+var viadg: VideoStreamTheora
 var AUDIO_PREVIEW_BOX: GDREAudioPreviewBox = null
 var AUDIO_VIEW_BOX: Control = null
 var AUDIO_STREAM_INFO: Label = null
 var PROGRESS_BAR: Slider = null
 var PLAY_BUTTON: Button = null
 var PAUSE_BUTTON: Button = null
+var controller: PlayerController = null
 var dragging_slider: bool = false
 var last_updated_time: float = 0
 var last_seek_pos: float = -1
 
 func reset():
+	if controller:
+		controller.stop()
+	controller = PlayerController.new()
 	AUDIO_VIEW_BOX.visible = false
 	AUDIO_PREVIEW_BOX.reset()
 	AUDIO_PLAYER_STREAM.stream = null
-	PROGRESS_BAR.value = 0
-	PROGRESS_BAR.max_value = 0
+	VIDEO_VIEW_BOX.visible = false
+	VIDEO_PLAYER_STREAM.stream = null
+	setup_progress_bar()
 	last_updated_time = 0
 	last_updated_time = -1
 	dragging_slider = false
 
+
+class PlayerController:
+	enum PlayerType {
+		NONE,
+		AUDIO,
+		VIDEO
+	}
+	func _init(_player = null):
+		pass
+	func stop():
+		pass
+	func play(_pos: float):
+		pass
+	func is_playing() -> bool:
+		return false
+	func seek(_pos: float):
+		pass
+	func is_stream_loaded() -> bool:
+		return false
+	func get_stream_length() -> float:
+		return 0
+	func get_playback_position() -> float:
+		return 0
+	func supports_seek() -> bool:
+		return false
+	func get_type() -> PlayerType:
+		return PlayerType.NONE
+	pass
+
+class AudioPlayerController extends PlayerController:
+	var audio_player: AudioStreamPlayer = null
+	func _init(p_audio_player: AudioStreamPlayer):
+		audio_player = p_audio_player
+	func stop():
+		audio_player.stop()
+	func play(pos: float):
+		audio_player.play(pos)
+	func is_playing() -> bool:
+		return audio_player.playing
+	func seek(pos: float):
+		audio_player.seek(pos)
+	func is_stream_loaded() -> bool:
+		return !(not audio_player or not audio_player.stream)
+	func get_stream_length() -> float:
+		if not is_stream_loaded():
+			return 0
+		return audio_player.stream.get_length()
+	func get_playback_position() -> float:
+		if not is_stream_loaded():
+			return 0
+		return audio_player.get_playback_position()
+	func supports_seek() -> bool:
+		return true
+	func get_type() -> PlayerType:
+		return PlayerType.AUDIO
+
+class VideoPlayerController extends PlayerController:
+	var video_player: VideoStreamPlayer = null
+	func _init(p_video_player: VideoStreamPlayer):
+		video_player = p_video_player
+	func stop():
+		video_player.stop()
+	func play(pos: float):
+		if supports_seek():
+			video_player.stream_position = pos
+		video_player.play()
+	func is_playing() -> bool:
+		return video_player.is_playing()
+	func seek(pos: float):
+		if supports_seek():
+			video_player.stream_position = pos
+	func is_stream_loaded() -> bool:
+		return !(not video_player or not video_player.stream)
+	func get_stream_length() -> float:
+		if not is_stream_loaded():
+			return 0
+		return video_player.get_stream_length()
+	func get_playback_position() -> float:
+		if not is_stream_loaded():
+			return 0
+		return video_player.stream_position
+	func supports_seek() -> bool:
+		if not is_stream_loaded():
+			return false
+		if video_player.get_stream_length() == 0:
+			return false
+		return true
+	func get_type() -> PlayerType:
+		return PlayerType.VIDEO
+
 func stop():
-	AUDIO_PLAYER_STREAM.stop()
+	controller.stop()
 
 func play():
 	var pos = PROGRESS_BAR.value
-	if (PROGRESS_BAR.value == PROGRESS_BAR.max_value):
+	if (not controller.supports_seek() or PROGRESS_BAR.value == PROGRESS_BAR.max_value):
 		pos = 0
-	AUDIO_PLAYER_STREAM.play(pos)
+	controller.play(pos)
 	update_progress_bar()
 
 func is_playing() -> bool:
-	return AUDIO_PLAYER_STREAM.playing
-
-func _seek(pos: float):
-	AUDIO_PLAYER_STREAM.seek(pos)
+	return controller.is_playing()
 
 func seek(pos: float):
+	if not controller.supports_seek():
+		return
 	var length = get_stream_length()
 	if (length - pos < PROGRESS_BAR.step):
 		pos = length - PROGRESS_BAR.step
-	_seek(pos)
+	controller.seek(pos)
 	last_seek_pos = pos
 
 func is_stream_loaded() -> bool:
-	return !(not AUDIO_PLAYER_STREAM or not AUDIO_PLAYER_STREAM.stream)
+	return controller.is_stream_loaded()
 
 func get_stream_length() -> float:
-	if not is_stream_loaded():
-		return 0
-	return AUDIO_PLAYER_STREAM.stream.get_length()
+	return controller.get_stream_length()
 
 func get_playback_position() -> float:
-	if not is_stream_loaded():
-		return 0
-	return AUDIO_PLAYER_STREAM.get_playback_position()
-
-func update_audio_preview_pos():
-	if not is_stream_loaded():
-		return
-	AUDIO_PREVIEW_BOX.update_pos(get_playback_position())
+	return controller.get_playback_position()
 
 
 const sample_info_box_text_format = """WAV
@@ -94,12 +183,45 @@ func sample_format_to_string(format: int) -> String:
 			return "Quite OK"
 	return "Unknown"
 
-func load_sample(path):
-	AUDIO_VIEW_BOX.visible = true
-	var audio_stream: AudioStream = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
-	AUDIO_PLAYER_STREAM.stream = audio_stream
-	if (AUDIO_PLAYER_STREAM.stream == null):
+func is_video(path) -> bool:
+	var ext = path.get_extension().to_lower()
+	return ext == "ogv" or ext == "mp4" or ext == "webm"
+
+func is_audio(path) -> bool:
+	return !is_video(path)
+
+
+func load_media(path):
+	if is_video(path):
+		return load_video(path)
+	return load_sample(path)
+	
+
+func load_video(path):
+	var video_stream: VideoStream = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	if (video_stream == null):
 		return false
+	reset()
+	VIDEO_VIEW_BOX.visible = true
+	VIDEO_PLAYER_STREAM.stream = video_stream
+	VIDEO_PLAYER_STREAM.expand = false
+	var texture: Texture2D = VIDEO_PLAYER_STREAM.get_video_texture()
+	var sz = texture.get_size()
+	VIDEO_PLAYER_STREAM.expand = true
+	VIDEO_ASPECT_RATIO_CONTAINER.ratio = sz.x / sz.y
+	controller = VideoPlayerController.new(VIDEO_PLAYER_STREAM)
+	setup_progress_bar()
+	return true
+
+
+func load_sample(path):
+	var audio_stream: AudioStream = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	if (audio_stream == null):
+		return false
+	reset()
+	AUDIO_VIEW_BOX.visible = true
+	AUDIO_PLAYER_STREAM.stream = audio_stream
+	controller = AudioPlayerController.new(AUDIO_PLAYER_STREAM)
 	AUDIO_PREVIEW_BOX.set_stream(AUDIO_PLAYER_STREAM.stream)
 	# check if it's an AudioStreamSample
 	if (audio_stream.get_class() == "AudioStreamWAV"):
@@ -132,20 +254,8 @@ func load_sample(path):
 		AUDIO_STREAM_INFO.text = info_string
 	else:
 		AUDIO_STREAM_INFO.text = ""
-	if (AUDIO_PLAYER_STREAM.stream.get_length() < 30):
-		PROGRESS_BAR.step = 0.01
-	else:
-		PROGRESS_BAR.step = 0.1
-	update_progress_bar()
+	setup_progress_bar()
 	return true
-
-func update_progress_bar():
-	if not is_stream_loaded():
-		return
-	PROGRESS_BAR.max_value = get_stream_length()
-	PROGRESS_BAR.value = get_playback_position()
-	update_text_label()
-
 
 func time_from_float(time: float, step: float) -> String:
 	var minutes = int(time / 60)
@@ -159,9 +269,34 @@ func time_from_float(time: float, step: float) -> String:
 		ret += "." + str(rounded_microseconds).pad_zeros(rounded_microseconds_zero_padding)
 	return ret
 
+func setup_progress_bar():
+	if (get_stream_length() < 30):
+		PROGRESS_BAR.step = 0.01
+	else:
+		PROGRESS_BAR.step = 0.1
+	PROGRESS_BAR.value = get_playback_position()
+	PROGRESS_BAR.max_value = get_stream_length()
+	PROGRESS_BAR.editable = controller.supports_seek()
+	update_text_label()
+
+func update_progress_bar():
+	if not PROGRESS_BAR.editable or not is_stream_loaded():
+		return
+	PROGRESS_BAR.max_value = get_stream_length()
+	PROGRESS_BAR.value = get_playback_position()
+	update_text_label()
+
+func update_audio_preview_pos():
+	if controller.get_type() == PlayerController.PlayerType.AUDIO:
+		if not is_stream_loaded() or controller.supports_seek():
+			return
+		AUDIO_PREVIEW_BOX.update_pos(get_playback_position())
 
 func update_text_label():
-	AUDIO_PLAYER_TIME_LABEL.text = time_from_float(PROGRESS_BAR.value, PROGRESS_BAR.step) + " / " + time_from_float(PROGRESS_BAR.max_value, PROGRESS_BAR.step)
+	if not controller.supports_seek():
+		TIME_LABEL.text = "--:-- / --:--"
+	else:
+		TIME_LABEL.text = time_from_float(PROGRESS_BAR.value, PROGRESS_BAR.step) + " / " + time_from_float(PROGRESS_BAR.max_value, PROGRESS_BAR.step)
 
 
 func _on_play_pressed() -> void:
@@ -197,7 +332,7 @@ func _on_audio_stream_player_finished() -> void:
 	pass # Replace with function body.
 
 func _process(delta: float) -> void:
-	if not is_stream_loaded() or not AUDIO_PLAYER.visible:
+	if not is_stream_loaded() or not self.visible:
 		return
 	if is_playing():
 		if not dragging_slider:
@@ -223,15 +358,17 @@ func _on_audio_preview_box_pos_changed(value: float) -> void:
 	update_text_label()
 
 func _ready():
-	AUDIO_PLAYER = get_node(".")
-	AUDIO_PLAYER_TIME_LABEL = get_node("BarHBox/TimeLabel")
-	AUDIO_PLAYER_STREAM = get_node("AudioStreamPlayer")
+	TIME_LABEL = get_node("BarHBox/TimeLabel")
 	PROGRESS_BAR = get_node("BarHBox/ProgressBar")
 	PLAY_BUTTON = get_node("Play")
 	PAUSE_BUTTON = get_node("Pause")
+	AUDIO_PLAYER_STREAM = get_node("AudioStreamPlayer")
 	AUDIO_PREVIEW_BOX = get_node("AudioViewBox/AudioPreviewBox")
 	AUDIO_VIEW_BOX = get_node("AudioViewBox")
 	AUDIO_STREAM_INFO = get_node("AudioViewBox/AudioStreamInfo")
+	VIDEO_PLAYER_STREAM = get_node("VideoViewBox/AspectRatioContainer/VideoStreamPlayer")
+	VIDEO_VIEW_BOX = get_node("VideoViewBox")
+	VIDEO_ASPECT_RATIO_CONTAINER = get_node("VideoViewBox/AspectRatioContainer")
 	# connect signals
 	PROGRESS_BAR.connect("drag_started", self._on_slider_drag_started)
 	PROGRESS_BAR.connect("drag_ended", self._on_slider_drag_ended)
@@ -240,6 +377,7 @@ func _ready():
 	PAUSE_BUTTON.connect("pressed", self._on_pause_pressed)
 	PROGRESS_BAR.connect("value_changed", self._on_progress_bar_value_changed)
 	AUDIO_PREVIEW_BOX.connect("pos_changed", self._on_audio_preview_box_pos_changed)
-
+	controller = PlayerController.new()
 	#load_sample("res://anomaly 105 jun12.ogg")
 	# load_sample("res://2.wav")
+	# load_media("res://Door_OGV.ogv")
