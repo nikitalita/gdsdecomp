@@ -749,7 +749,7 @@ void ResourceFormatLoaderCompatTexture2D::get_recognized_extensions(List<String>
 
 // handles type
 bool ResourceFormatLoaderCompatTexture2D::handles_type(const String &p_type) const {
-	return p_type == "CompressedTexture2D" || p_type == "StreamTexture" || "Texture2D";
+	return p_type == "CompressedTexture2D" || p_type == "StreamTexture" || p_type == "Texture2D";
 }
 
 // get resource type
