@@ -2,7 +2,6 @@
 
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
-#include "compat/texture_loader_compat.h"
 #include "utility/common.h"
 
 #include "core/error/error_list.h"

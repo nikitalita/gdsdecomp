@@ -1,7 +1,5 @@
 #pragma once
 #include "compat/fake_script.h"
-#include "compat/resource_import_metadatav2.h"
-#include "core/io/file_access.h"
 #include "core/io/missing_resource.h"
 #include "core/io/resource_loader.h"
 #include "core/io/resource_saver.h"
@@ -21,7 +19,7 @@ class ResourceCompatLoader : public Object {
 		MAX_LOADERS = 64,
 		MAX_CONVERTERS = 8192,
 	};
-	static Ref<CompatFormatLoader> loader[MAX_LOADERS];
+	static Ref<CompatFormatLoader> loaders[MAX_LOADERS];
 	static Ref<ResourceCompatConverter> converters[MAX_CONVERTERS];
 
 	static int loader_count;
