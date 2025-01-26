@@ -11,30 +11,34 @@ class Node;
 #include "scene/gui/button.h"
 #include "scene/gui/popup.h"
 #include "scene/gui/progress_bar.h"
-class ProgressDialog : public Popup {
-	GDCLASS(ProgressDialog, Popup);
+class ProgressDialog : public PopupPanel {
+	GDCLASS(ProgressDialog, PopupPanel);
 	struct Task {
 		String task;
-		VBoxContainer *vb;
-		ProgressBar *progress;
-		Label *state;
+		VBoxContainer *vb = nullptr;
+		ProgressBar *progress = nullptr;
+		Label *state = nullptr;
+		uint64_t last_progress_tick = 0;
 	};
-	bool canceled;
-	HBoxContainer *cancel_hb;
-	Button *cancel;
+	HBoxContainer *cancel_hb = nullptr;
+	Button *cancel = nullptr;
 
-	RBMap<String, Task> tasks;
-	VBoxContainer *main;
+	HashMap<String, Task> tasks;
+	VBoxContainer *main = nullptr;
 	uint64_t last_progress_tick;
+
+	LocalVector<Window *> host_windows;
 
 	static ProgressDialog *singleton;
 	void _popup();
 
 	void _cancel_pressed();
-	bool cancelled;
+
+	void _update_ui();
+	bool canceled = false;
 
 protected:
-	void _notification(int p_what);
+	void _notification(int p_notification);
 	static void _bind_methods();
 
 public:
@@ -42,6 +46,8 @@ public:
 	void add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel = false);
 	bool task_step(const String &p_task, const String &p_state, int p_step = -1, bool p_force_redraw = true);
 	void end_task(const String &p_task);
+
+	void add_host_window(Window *p_window);
 
 	ProgressDialog();
 };

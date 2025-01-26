@@ -205,17 +205,25 @@ public:
 class GodotREEditorStandalone : public Control {
 	GDCLASS(GodotREEditorStandalone, Control)
 
+	static GodotREEditorStandalone *singleton;
 	GodotREEditor *editor_ctx;
 	HBoxContainer *menu_hb;
+	ProgressDialog *progress_dialog;
 
 protected:
+	void _notification(int p_notification);
 	static void _bind_methods();
 
 public:
 	void show_about_dialog();
+	static void progress_add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel);
+	static bool progress_task_step(const String &p_task, const String &p_state, int p_step, bool p_force_refresh);
+	static void progress_end_task(const String &p_task);
+
 	void pck_select_request(const Vector<String> &p_path);
 	void _write_log_message(String p_message);
 	String get_version();
+	static GodotREEditorStandalone *get_singleton() { return singleton; }
 
 	GodotREEditorStandalone();
 	~GodotREEditorStandalone();

@@ -8,6 +8,8 @@
 #include "utility/common.h"
 #include "utility/packed_file_info.h"
 
+#include <editor/gdre_editor.h>
+
 const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 bool PckDumper::_pck_file_check_md5(Ref<PackedFileInfo> &file) {
@@ -23,6 +25,11 @@ bool PckDumper::_pck_file_check_md5(Ref<PackedFileInfo> &file) {
 Error PckDumper::check_md5_all_files() {
 	Vector<String> f;
 	int ch = 0;
+	if (!GDRESettings::get_singleton()->is_headless()) {
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "pck_dump_to_dir", "Reading PCK archive, click cancel to skip MD5 checking...", static_cast<int>(GDRESettings::get_singleton()->get_file_count()), true };
+		return _check_md5_all_files(f, ch, &pr);
+	}
+
 	return _check_md5_all_files(f, ch, nullptr);
 }
 
@@ -156,6 +163,11 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 }
 Error PckDumper::pck_dump_to_dir(const String &dir, const Vector<String> &files_to_extract = Vector<String>()) {
 	String t;
+	if (!GDRESettings::get_singleton()->is_headless()) {
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "pck_dump_to_dir", "Extracting files...",
+			static_cast<int>(files_to_extract.is_empty() ? GDRESettings::get_singleton()->get_file_count() : files_to_extract.size()), true };
+		return _pck_dump_to_dir(dir, files_to_extract, &pr, t);
+	}
 	return _pck_dump_to_dir(dir, files_to_extract, nullptr, t);
 }
 
