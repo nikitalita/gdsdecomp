@@ -27,6 +27,7 @@
 #include "utility/import_info.h"
 
 #include <compat/script_loader.h>
+#include <editor/gdre_editor.h>
 
 using namespace gdre;
 
@@ -47,6 +48,10 @@ int get_ver_rev() {
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &files_to_export) {
 	String t;
+	if (!GDRESettings::get_singleton()->is_headless()) {
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "export_imports", "Exporting resources...", GDRESettings::get_singleton()->get_import_files().size(), true };
+		return _export_imports(p_out_dir, files_to_export, &pr, t);
+	}
 	return _export_imports(p_out_dir, files_to_export, nullptr, t);
 }
 
