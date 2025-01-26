@@ -148,4 +148,5 @@ env_gdsdecomp.add_source_files(env.modules_sources, "utility/*.cpp")
 
 env_gdsdecomp.add_source_files(env.modules_sources, "external/tga/*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "external/etcpak-decompress/*.cpp")
+env_gdsdecomp.add_source_files(env.modules_sources, "external/tinygltf/tiny_gltf.cc")
 env_gdsdecomp.add_source_files(env.modules_sources, "module_etc_decompress/*.cpp")
