@@ -14,7 +14,19 @@ mmp3thirdparty_dir = "#thirdparty/minimp3/"
 liboggthirdparty_dir = "#thirdparty/libogg/"
 webpthirdparty_dir = "#thirdparty/libwebp/"
 
+# hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13 in the macos/detect.py script
+# TODO: remove this hack once the minimum macOS version is updated to 10.15
+if env["platform"] == "macos" and env["arch"] == "x86_64":
+    env.Append(CPPFLAGS=["-mmacosx-version-min=10.15"])
+    env.Append(LINKFLAGS=["-mmacosx-version-min=10.15"])
+    env.Append(CXXFLAGS=["-mmacosx-version-min=10.15"])
+    env.Append(ASFLAGS=["-mmacosx-version-min=10.15"])
+    env_modules.Append(CPPFLAGS=["-mmacosx-version-min=10.15"])
+    env_modules.Append(LINKFLAGS=["-mmacosx-version-min=10.15"])
+    env_modules.Append(CXXFLAGS=["-mmacosx-version-min=10.15"])
+    env_modules.Append(ASFLAGS=["-mmacosx-version-min=10.15"])
 env_gdsdecomp = env_modules.Clone()
+
 
 # Append the include path to include the current directory
 # This is a hack for tests, since the test headers get built from tests/test_main.cpp,
