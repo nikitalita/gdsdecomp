@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=166 format=3 uid="uid://crq1fwn0ajw7b"]
+[gd_resource type="Theme" load_steps=169 format=3 uid="uid://crq1fwn0ajw7b"]
 
 [sub_resource type="StyleBoxFlat" id="1"]
 content_margin_left = 6.0
@@ -149,6 +149,14 @@ content_margin_bottom = 4.0
 bg_color = Color(0.147059, 0.173529, 0.232353, 1)
 draw_center = false
 border_color = Color(0.122549, 0.144608, 0.193627, 1)
+
+[sub_resource type="SystemFont" id="SystemFont_qm34x"]
+font_names = PackedStringArray("Cascadia Code", "Consolas", "Monospace")
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_l0g3i"]
+bg_color = Color(0.0965684, 0.120984, 0.166773, 1)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_b4rug"]
 
 [sub_resource type="Image" id="Image_qc34w"]
 data = {
@@ -1258,6 +1266,11 @@ CheckButton/styles/disabled = SubResource("19")
 CheckButton/styles/hover = SubResource("19")
 CheckButton/styles/normal = SubResource("19")
 CheckButton/styles/pressed = SubResource("19")
+CodeEdit/colors/font_readonly_color = Color(0.875, 0.875, 0.875, 1)
+CodeEdit/fonts/font = SubResource("SystemFont_qm34x")
+CodeEdit/styles/focus = SubResource("StyleBoxFlat_l0g3i")
+CodeEdit/styles/normal = SubResource("StyleBoxFlat_l0g3i")
+CodeEdit/styles/read_only = SubResource("StyleBoxEmpty_b4rug")
 ColorPicker/constants/h_width = 30
 ColorPicker/constants/label_width = 10
 ColorPicker/constants/margin = 8

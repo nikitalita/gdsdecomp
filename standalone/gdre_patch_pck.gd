@@ -135,7 +135,7 @@ func add_project(paths: PackedStringArray) -> int:
 		popup_error_box("Error: failed to open " + str(paths), "Error")
 		return err
 	var type = GDRESettings.get_pack_type()
-	if (type != 0 and type != 4):
+	if (type != PackInfo.PCK and type != PackInfo.EXE):
 		GDRESettings.unload_project()
 		clear_selected_pack()
 		popup_error_box("Error: You can only use this to patch PCKs or embedded PCKs", "Error")
