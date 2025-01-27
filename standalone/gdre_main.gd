@@ -250,10 +250,10 @@ func _on_GDScriptMenu_item_selected(index):
 		GDScriptMenuID.DECOMPILE:
 			# Decompile
 			pass # TODO: open_decompile_file_dialog()
-			# open_decompile_file_dialog()
+			$GdreDecompile.show_win()
 		GDScriptMenuID.COMPILE:
-			# Compile
-			pass # TODO: open_compile_file_dialog()
+			$GdreCompile.show_win()
+			
 			# open_compile_file_dialog()
 
 func _on_REToolsMenu_item_selected(index):
