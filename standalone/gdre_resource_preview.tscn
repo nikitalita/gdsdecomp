@@ -311,6 +311,7 @@ offset_left = -0.5
 offset_right = 0.5
 grow_horizontal = 2
 grow_vertical = 2
+theme_type_variation = &"FlatMenuButton"
 icon = ExtResource("6_coejo")
 item_count = 1
 popup/item_0/text = "Word Wrap"
