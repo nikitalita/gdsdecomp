@@ -2,27 +2,37 @@ class_name GDREAudioPreviewBox
 extends ColorRect
 
 @export var editable: bool = true
+@export var backgroundColor: Color = Color("21262d")
+@export var lineColor: Color = Color("ffffff")
+@export var autoSetIndicatorBGColor: bool = true:
+	set(val):
+		if val:
+			indicatorBGColor = _get_indicator_color(backgroundColor)
+	get:
+		return autoSetIndicatorBGColor
+@export var indicatorLineColor: Color = Color("c8c9cb")
+@export var indicatorBGColor: Color = Color("909396bf"):
+	set(val):
+		if not autoSetIndicatorBGColor:
+			indicatorBGColor = val
+		else:
+			indicatorBGColor = _get_indicator_color(backgroundColor)
+	get:
+		return indicatorBGColor
+
 var preview: GDREAudioStreamPreview = null
 var stream: AudioStream = null
 var pos: float = 0
 var dragging: bool = false
 
-func _get_indicator_color(color):
-	return color.lerp(Color(1, 1, 1, 0.5), 0.5)
-func _get_indicator_color_full_white(color):
-	var col = _get_indicator_color(color)
-	col.a = 1
-	return col
-func _get_default_indicator_color():
-	return _get_indicator_color(self.color)
 
 signal pos_changed(pos: float)
 
 const EMPTY_COLOR = Color(0,0,0,1)
 const DEFAULT_BACKGROUND = Color("21262d") # 0.129 0.149 0.176
-@export var lineColor: Color = Color(1, 1, 1, 1)
-@export var indicatorBGColor: Color = EMPTY_COLOR
-@export var indicatorLineColor: Color = EMPTY_COLOR
+
+func _get_indicator_color(p_color):
+	return p_color.lerp(Color(1, 1, 1, 0.5), 0.5)
 
 func _on_input(input: InputEvent):
 	if not editable:
@@ -49,13 +59,13 @@ func _on_input(input: InputEvent):
 			_set_pos(new_pos)
 			emit_signal("pos_changed", pos)
 
+func _init():
+	self.color = backgroundColor
+	if autoSetIndicatorBGColor:
+		indicatorBGColor = _get_indicator_color(backgroundColor)
 
 func _ready():
 	GDREAudioStreamPreviewGenerator.connect("preview_updated", self._on_preview_updated)
-	if indicatorBGColor == EMPTY_COLOR:
-		indicatorBGColor = _get_default_indicator_color()
-	if indicatorLineColor == EMPTY_COLOR:
-		indicatorLineColor = _get_indicator_color_full_white(indicatorBGColor)
 	self.gui_input.connect(self._on_input)
 
 func set_stream(p_stream):
