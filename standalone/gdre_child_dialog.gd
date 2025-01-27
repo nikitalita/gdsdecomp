@@ -21,23 +21,14 @@ static func popup_box(parent_window: Node, dialog: AcceptDialog, message: String
 	dialog.set_title(box_title)
 	var _confirm_func: Callable
 	var _cancel_func: Callable
-	var disconnect_func: Callable = func():
-		if (dialog.visible):
-			return
-		var arr = dialog.get_signal_connection_list("confirmed")
-		for dict in arr:
-			if (dict.callable == confirm_func):
-				dialog.disconnect("confirmed", confirm_func)
-		arr = dialog.get_signal_connection_list("canceled")
-		for dict in arr:
-			if (dict.callable == cancel_func):
-				dialog.disconnect("canceled", cancel_func)
-		# if (not had_dialog):
-		# 	dialog.call_deferred("queue_free")
-
+	var arr = dialog.get_signal_connection_list("confirmed")
+	for dict in arr:
+		dialog.disconnect("confirmed", dict.callable)
+	arr = dialog.get_signal_connection_list("canceled")
+	for dict in arr:
+		dialog.disconnect("canceled", dict.callable)
 	dialog.connect("confirmed", confirm_func)
 	dialog.connect("canceled", cancel_func)
-	dialog.connect("visibility_changed", disconnect_func)
 	dialog.popup_centered()
 
 func popup_error_box(message: String, box_title: String, call_func: Callable = void_func):
