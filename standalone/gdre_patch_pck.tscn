@@ -49,8 +49,8 @@ anchor_right = 0.804
 anchor_bottom = 0.79
 offset_left = 8.0
 offset_top = 8.0
-offset_right = 286.0
-offset_bottom = 87.08
+offset_right = 1492.0
+offset_bottom = 599.0
 
 [node name="FileTree" type="Tree" parent="Control"]
 layout_mode = 1
