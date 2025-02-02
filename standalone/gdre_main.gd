@@ -71,15 +71,9 @@ func _on_re_editor_standalone_dropped_files(files: PackedStringArray):
 		new_files.append(dequote(file))
 	_on_recover_project_files_selected(new_files)
 
-func popup_error_box(message: String, title: String, parent_window: Window) -> AcceptDialog:
-	var dialog = AcceptDialog.new()
-	dialog.set_text(message)
-	dialog.set_title(title)
-	get_tree().get_root().add_child(dialog)	
-	dialog.connect("confirmed", parent_window.show)
-	dialog.connect("canceled", parent_window.show)
-	dialog.popup_centered()
-	return dialog
+func popup_error_box(message: String, title: String, root_window = self):
+	GDREChildDialog.popup_box(root_window, ERROR_DIALOG, message, title)
+
 
 const ERR_SKIP = 45
 
@@ -128,7 +122,7 @@ func _on_new_pck_selected(pck_path: String):
 	creator.encrypt = NEW_PCK_DIALOG.ENCRYPT.is_pressed()
 	var err = creator.pck_create(pck_path, directory, includes, excludes)
 	if (err):
-		popup_error_box("Error creating PCK file!", "Error", REAL_ROOT_WINDOW)
+		popup_error_box("Error creating PCK file!", "Error")
 		return
 
 
@@ -190,7 +184,7 @@ func _on_recover_project_dir_selected(path):
 		launch_recovery_window([path])
 	else:
 		# pop up an accept dialog
-		popup_error_box("Invalid Selection!!", "Error", REAL_ROOT_WINDOW)
+		popup_error_box("Invalid Selection!!", "Error")
 		return
 
 func open_subwindow(window: Window):
@@ -315,7 +309,7 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 		if ResourceCompatLoader.to_text(path, new_path) != OK:
 			had_errors = true
 	if had_errors:
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+		popup_error_box("Error: failed to convert files:\n" + get_recent_error_string(), "Error")
 
 
 func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> void:
@@ -330,7 +324,7 @@ func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> voi
 		if ResourceCompatLoader.to_binary(path, new_path) != OK:
 			had_errors = true
 	if had_errors:
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+		popup_error_box("Error: failed to convert files:\n" + get_recent_error_string(), "Error")
 
 
 func _do_export(paths, new_ext):
@@ -341,7 +335,7 @@ func _do_export(paths, new_ext):
 		if Exporter.export_file(new_path, path) != OK:
 			had_errors = true
 	if had_errors:
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to convert files:\n" + get_recent_error_string(), "Error")
+		popup_error_box("Error: failed to convert files:\n" + get_recent_error_string(), "Error")
 
 
 func _on_texture_file_dialog_files_selected(paths: PackedStringArray) -> void:
@@ -1465,11 +1459,11 @@ func _on_gdre_patch_pck_do_patch_pck(dest_pck: String, file_map: Dictionary[Stri
 	var pack_infos = GDRESettings.get_pack_info_list()
 	if (pack_infos.is_empty()):
 		GDRESettings.unload_project()
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: no PCK files found, cannot patch", "Error")
+		popup_error_box("Error: no PCK files found, cannot patch", "Error")
 		return
 	if (pack_infos.size() > 1):
 		GDRESettings.unload_project()
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: multiple PCK files found, cannot patch", "Error")
+		popup_error_box("Error: multiple PCK files found, cannot patch", "Error")
 		return
 	var embed_pck = ""
 	if (pack_infos[0].get_type() == 4 and should_embed):
@@ -1478,7 +1472,7 @@ func _on_gdre_patch_pck_do_patch_pck(dest_pck: String, file_map: Dictionary[Stri
 	var err = pck_creator.add_files(file_map)
 	if (err != OK):
 		GDRESettings.unload_project()
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to add files to PCK:\n" + pck_creator.get_error_message(), "Error")
+		popup_error_box("Error: failed to add files to PCK:\n" + pck_creator.get_error_message(), "Error")
 		return
 	err = pck_creator.finish_pck()
 	GDRESettings.unload_project()
@@ -1486,10 +1480,10 @@ func _on_gdre_patch_pck_do_patch_pck(dest_pck: String, file_map: Dictionary[Stri
 		var tmp_path = pck_creator.get_error_message()
 		err = DirAccess.remove_absolute(dest_pck)
 		if (err != OK):
-			GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to remove existing PCK:\n" + dest_pck, "Error")
+			popup_error_box("Error: failed to remove existing PCK:\n" + dest_pck, "Error")
 		err = DirAccess.rename_absolute(tmp_path, dest_pck)
 	if (err != OK):
-		GDREChildDialog.popup_box(self, ERROR_DIALOG, "Error: failed to write PCK:\n" + pck_creator.get_error_message(), "Error")
+		popup_error_box("Error: failed to write PCK:\n" + pck_creator.get_error_message(), "Error")
 		return
-	GDREChildDialog.popup_box(self, ERROR_DIALOG, "PCK patching complete", "Success")
+	popup_error_box("PCK patching complete", "Success")
 	pass # Replace with function body.
