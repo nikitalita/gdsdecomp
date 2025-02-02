@@ -402,6 +402,10 @@ func _on_save_pck_dialog_file_selected(path: String) -> void:
 		close()
 	var file_map: Dictionary[String, String] = {}
 	var pck_files = FILE_TREE.get_checked_files()
+	var ext = path.get_extension()
+	var dot_ext = "." + ext
+	if (path.ends_with(dot_ext + dot_ext)):
+		path = path.trim_suffix(dot_ext + dot_ext) + dot_ext
 
 	var patch_files = PATCH_FILE_TREE.get_root().get_children()
 	var reverse_map = {}
