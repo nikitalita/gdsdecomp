@@ -187,7 +187,7 @@ func _on_save_dialog_file_selected(path: String) -> void:
 	var ext = path.get_extension()
 	var dot_ext = "." + ext
 	if (path.ends_with(dot_ext + dot_ext)):
-		path = path.trim_prefix(dot_ext + dot_ext) + dot_ext
+		path = path.trim_suffix(dot_ext + dot_ext) + dot_ext
 		
 	emit_signal("save_pck_requested", path)
 	# var creator = PckCreator.new()
