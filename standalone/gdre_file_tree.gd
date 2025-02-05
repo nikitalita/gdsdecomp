@@ -47,10 +47,11 @@ enum ColType {
 
 @export var flat_mode: bool = false:
 	set(val):
+		if flat_mode == val:
+			return
 		flat_mode = val
 		if flat_mode:
 			self.hide_root = true
-
 		else:
 			self.hide_root = false
 		if not root:
@@ -392,7 +393,7 @@ func sort_tree(item:TreeItem, recursive: bool = true):
 	var arr: Array = []
 	while (it):
 		if recursive:
-			sort_tree(it)
+			sort_tree(it, recursive)
 		arr.append(it)
 		it = it.get_next()
 	if (arr.size() <= 1):
@@ -518,7 +519,7 @@ func set_fold_all(item: TreeItem, collapsed: bool = true, recursive: bool = fals
 # creating and adding items
 
 func create_file_item(p_parent_item: TreeItem, p_fullname: String, p_name: String, p_icon: Texture2D, p_size: int = -1, p_error: String = "", p_info: String = "", p_idx: int = -1) -> TreeItem:
-	var item: TreeItem = self.create_item(p_parent_item, p_idx)
+	var item: TreeItem = p_parent_item.create_child(p_idx)
 	if check_mode:
 		item.set_cell_mode(_name_col, TreeItem.CELL_MODE_CHECK)
 		item.set_checked(_name_col, true)
@@ -545,11 +546,7 @@ func create_file_item(p_parent_item: TreeItem, p_fullname: String, p_name: Strin
 	return item
 
 func add_files_from_packed_infos(infos: Array, skipped_md5_check: bool = false):
-	# reverse alphabetical order, we want to put directories at the front in alpha order
-
-	# infos.sort_custom(func(a, b) -> bool:
-	# 	return a.get_path().filenocasecmp_to(b.get_path()) <= 0
-	# )
+	# reverse alphabetical order, we want to put directories at the front in alpha order	
 	for file in infos:
 		_add_file_from_packed_info(file, skipped_md5_check)
 	# collapse all the first level directories
