@@ -149,6 +149,10 @@ void GDREProgressDialog::Task::init(VBoxContainer *main) {
 	VBoxContainer *vb2 = memnew(VBoxContainer);
 	vb->add_margin_child(label, vb2);
 	progress = memnew(ProgressBar);
+	if (indeterminate) {
+		steps = 1;
+		progress->set_indeterminate(true);
+	}
 	progress->set_max(steps);
 	progress->set_value(steps);
 	vb2->add_child(progress);
@@ -182,10 +186,12 @@ bool GDREProgressDialog::Task::update() {
 	if (!vb) {
 		return false;
 	}
-	if (!was_forced && state->get_text() == current_step.state && progress->get_value() == current_step.step) {
-		return false;
+	if (!indeterminate) {
+		if (!was_forced && state->get_text() == current_step.state && progress->get_value() == current_step.step) {
+			return false;
+		}
+		progress->set_value(current_step.step);
 	}
-	progress->set_value(current_step.step);
 	state->set_text(current_step.state);
 	last_progress_tick = OS::get_singleton()->get_ticks_usec();
 	return true;
@@ -260,7 +266,7 @@ bool GDREProgressDialog::is_safe_to_redraw() {
 
 void GDREProgressDialog::add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel) {
 	ERR_FAIL_COND_MSG(tasks.contains(p_task), "Task '" + p_task + "' already exists.");
-	Task t = { p_task, p_label, p_steps, p_can_cancel };
+	Task t = { p_task, p_label, p_steps, p_can_cancel, p_steps == -1 };
 	tasks.try_emplace_l(p_task, [=](TaskMap::value_type &v) {}, t);
 	if (is_safe_to_redraw()) {
 		return;

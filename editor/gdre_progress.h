@@ -79,6 +79,8 @@ class GDREProgressDialog : public PopupPanel {
 		String label;
 		int steps = -1;
 		bool can_cancel = false;
+		bool indeterminate = false;
+
 		bool initialized = false;
 		Step current_step;
 		bool force_next_redraw = false;
