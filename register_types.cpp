@@ -296,6 +296,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GDREAudioStreamPreview>();
 
 	ClassDB::register_class<GDRECommon>();
+	ClassDB::register_class<EditorProgressGDDC>();
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
 	audio_stream_preview_generator = memnew(GDREAudioStreamPreviewGenerator);

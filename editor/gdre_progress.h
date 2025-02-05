@@ -131,10 +131,18 @@ public:
 	GDREProgressDialog();
 };
 
-struct EditorProgressGDDC {
+struct EditorProgressGDDC : public RefCounted {
+	GDCLASS(EditorProgressGDDC, RefCounted);
+
+protected:
+	String get_task();
+	static Ref<EditorProgressGDDC> create(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false);
+	static void _bind_methods();
+
+public:
 	String task;
-	GDREProgressDialog *progress_dialog;
 	bool step(const String &p_state, int p_step = -1, bool p_force_refresh = true);
+	EditorProgressGDDC();
 	EditorProgressGDDC(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false);
 	~EditorProgressGDDC();
 };

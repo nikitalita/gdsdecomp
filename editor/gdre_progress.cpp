@@ -384,27 +384,39 @@ GDREProgressDialog::GDREProgressDialog() {
 	set_process(true);
 }
 
+String EditorProgressGDDC::get_task() {
+	return task;
+}
+
+Ref<EditorProgressGDDC> EditorProgressGDDC::create(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel) {
+	return memnew(EditorProgressGDDC(nullptr, p_task, p_label, p_amount, p_can_cancel));
+}
+
+void EditorProgressGDDC::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("step", "state", "step", "force_refresh"), &EditorProgressGDDC::step, DEFVAL(-1), DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("get_task"), &EditorProgressGDDC::get_task);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("create", "parent", "task", "label", "amount", "can_cancel"), &EditorProgressGDDC::create, DEFVAL(false));
+}
 bool EditorProgressGDDC::step(const String &p_state, int p_step, bool p_force_refresh) {
-	if (progress_dialog) {
-		return progress_dialog->task_step(task, p_state, p_step, p_force_refresh);
+	if (GDREProgressDialog::get_singleton()) {
+		return GDREProgressDialog::get_singleton()->task_step(task, p_state, p_step, p_force_refresh);
 	}
 	return false;
 }
-
+EditorProgressGDDC::EditorProgressGDDC() {}
 EditorProgressGDDC::EditorProgressGDDC(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel) {
-	progress_dialog = GDREProgressDialog::get_singleton();
-	if (progress_dialog) {
+	if (GDREProgressDialog::get_singleton()) {
 		if (p_parent) {
-			progress_dialog->add_host_window(p_parent->get_window());
+			GDREProgressDialog::get_singleton()->add_host_window(p_parent->get_window());
 		}
-		progress_dialog->add_task(p_task, p_label, p_amount, p_can_cancel);
+		GDREProgressDialog::get_singleton()->add_task(p_task, p_label, p_amount, p_can_cancel);
 	}
 	task = p_task;
 }
 
 EditorProgressGDDC::~EditorProgressGDDC() {
 	// if no EditorNode...
-	if (progress_dialog) {
-		progress_dialog->end_task(task);
+	if (GDREProgressDialog::get_singleton()) {
+		GDREProgressDialog::get_singleton()->end_task(task);
 	}
 }
