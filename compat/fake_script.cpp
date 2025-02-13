@@ -85,7 +85,14 @@ Error FakeGDScript::reload(bool p_keep_state) {
 		binary_buffer = FileAccess::get_file_as_bytes(script_path);
 	}
 	is_binary = binary_buffer.size() >= 4 && binary_buffer[0] == 'G' && binary_buffer[1] == 'D' && binary_buffer[2] == 'S' && binary_buffer[3] == 'C';
-
+	if (!is_binary) {
+		for (int i = 0; i < binary_buffer.size(); i++) {
+			if (binary_buffer[i] == 0) {
+				is_binary = true;
+				break;
+			}
+		}
+	}
 	if (is_binary) {
 		err = decomp->decompile_buffer(binary_buffer);
 		if (err) {
