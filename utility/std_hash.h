@@ -103,6 +103,65 @@ struct HashMapHasher64 {
 	static _FORCE_INLINE_ _NON_MSVC_CONSTEXPR_ std::size_t hash(const Projection &p) {
 		return phmap::HashState().combine(0, p.columns[0].x, p.columns[0].y, p.columns[0].z, p.columns[0].w, p.columns[1].x, p.columns[1].y, p.columns[1].z, p.columns[1].w, p.columns[2].x, p.columns[2].y, p.columns[2].z, p.columns[2].w, p.columns[3].x, p.columns[3].y, p.columns[3].z, p.columns[3].w);
 	}
+	static _FORCE_INLINE_ _NON_MSVC_CONSTEXPR_ std::size_t hash(const Variant &p) {
+		switch (p.get_type()) {
+			case Variant::NIL:
+				return 0;
+			case Variant::BOOL:
+				return std::hash<bool>{}(p.operator bool() ? 1 : 0);
+			case Variant::INT:
+				return std::hash<int64_t>{}(p.operator int64_t());
+			case Variant::FLOAT:
+				return std::hash<double>{}(p.operator double());
+			case Variant::STRING:
+				return hash(p.operator String());
+			case Variant::VECTOR2:
+				return hash(p.operator Vector2());
+			case Variant::VECTOR2I:
+				return hash(p.operator Vector2i());
+			case Variant::RECT2:
+				return hash(p.operator Rect2());
+			case Variant::RECT2I:
+				return hash(p.operator Rect2i());
+			case Variant::TRANSFORM2D:
+				return hash(p.operator Transform2D());
+			case Variant::VECTOR3:
+				return hash(p.operator Vector3());
+			case Variant::VECTOR3I:
+				return hash(p.operator Vector3i());
+			case Variant::VECTOR4:
+				return hash(p.operator Vector4());
+			case Variant::VECTOR4I:
+				return hash(p.operator Vector4i());
+			case Variant::PLANE:
+				return hash(p.operator Plane());
+			case Variant::QUATERNION:
+				return hash(p.operator Quaternion());
+			case Variant::AABB:
+				return hash(p.operator AABB());
+			case Variant::BASIS:
+				return hash(p.operator Basis());
+			case Variant::TRANSFORM3D:
+				return hash(p.operator Transform3D());
+			case Variant::PROJECTION:
+				return hash(p.operator Projection());
+			case Variant::COLOR:
+				return hash(p.operator Color());
+			case Variant::STRING_NAME:
+				return hash(p.operator StringName());
+			case Variant::NODE_PATH:
+				return hash(p.operator NodePath());
+			case Variant::RID:
+				return hash(p.operator RID());
+			case Variant::DICTIONARY:
+				return splitmix64(p.operator Dictionary().hash());
+			case Variant::ARRAY:
+				return splitmix64(p.operator Array().hash());
+			default:
+				break;
+		}
+		return splitmix64(p.hash());
+	}
 };
 
 #ifdef GODOT_STD_HASH_USE_32
