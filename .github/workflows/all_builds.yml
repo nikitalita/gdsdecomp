@@ -26,7 +26,7 @@ on:
 env:
   GODOT_BASE_BRANCH: master
   # Change the README too
-  GODOT_MAIN_SYNC_REF: 23c1389f92b090bf1fdc324988244a55c1568214
+  GODOT_MAIN_SYNC_REF: 594d64ec244b6b99321e2096987d4d69de4c8845
   SCONSFLAGS: verbose=yes warnings=all werror=no module_text_server_fb_enabled=yes minizip=yes deprecated=yes
   SCONSFLAGS_TEMPLATE: no_editor_splash=yes module_camera_enabled=no module_mobile_vr_enabled=no module_upnp_enabled=no module_websocket_enabled=no module_csg_enabled=yes module_gridmap_enabled=yes use_static_cpp=yes builtin_freetype=yes builtin_libpng=yes builtin_zlib=yes builtin_libwebp=yes builtin_libvorbis=yes builtin_libogg=yes disable_3d=no
   SCONS_CACHE_MSVC_CONFIG: true
@@ -260,7 +260,7 @@ jobs:
         shell: bash
         run: |
           chmod a+x bin/godot*
-    
+
       - name: run tests
         shell: bash
         run: |
@@ -321,12 +321,12 @@ jobs:
         with:
           name: GDRE_tools-template_release-${{ matrix.platform }}
           path: bin
-    
+
       - name: set permissions
         shell: bash
         run: |
           chmod a+x bin/godot*
-  
+
       - name: Download rcedit.exe
         uses: robinraju/release-downloader@v1.5
         if: matrix.platform == 'windows'

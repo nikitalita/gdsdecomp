@@ -11,7 +11,7 @@
 #include <modules/gdscript/gdscript_tokenizer_buffer.h>
 #include <scene/resources/resource_format_text.h>
 
-#include <core/version_generated.gen.h>
+#include "core/version_generated.gen.h"
 #include <utility/file_access_gdre.h>
 #include <utility/import_exporter.h>
 #include <utility/pck_dumper.h>
@@ -80,24 +80,24 @@ TEST_CASE("[GDSDecomp][ProjectConfigLoader] loading example from current engine"
 
 	SUBCASE("Text project loading") {
 		ProjectConfigLoader loader;
-		CHECK(loader.load_cfb(text_project_path, VERSION_MAJOR, VERSION_MINOR) == OK);
+		CHECK(loader.load_cfb(text_project_path, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR) == OK);
 		CHECK(loader.get_config_version() == ProjectConfigLoader::CURRENT_CONFIG_VERSION);
 	}
 	SUBCASE("Binary project loading") {
 		ProjectConfigLoader loader;
-		CHECK(loader.load_cfb(binary_project_path, VERSION_MAJOR, VERSION_MINOR) == OK);
+		CHECK(loader.load_cfb(binary_project_path, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR) == OK);
 		// config version isn't saved in binary
 		CHECK(loader.get_config_version() == 0);
 	}
 	SUBCASE("Text project saving") {
 		ProjectConfigLoader loader;
-		CHECK(loader.load_cfb(binary_project_path, VERSION_MAJOR, VERSION_MINOR) == OK);
+		CHECK(loader.load_cfb(binary_project_path, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR) == OK);
 		PackedStringArray engine_features = loader.get_setting("application/config/features", PackedStringArray());
 		CHECK(engine_features.size() >= 1);
 		String engine_version = engine_features[0];
 		auto temp_project_dir = get_tmp_path().path_join("new_project");
 		CHECK(gdre::ensure_dir(temp_project_dir) == OK);
-		CHECK(loader.save_cfb(temp_project_dir, VERSION_MAJOR, VERSION_MINOR) == OK);
+		CHECK(loader.save_cfb(temp_project_dir, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR) == OK);
 		auto new_project_path = temp_project_dir.path_join("project.godot");
 		auto old_project_text = FileAccess::get_file_as_string(text_project_path);
 		auto new_project_text = FileAccess::get_file_as_string(new_project_path);
@@ -127,9 +127,9 @@ TEST_CASE("[GDSDecomp] GDRESettings project loading") {
 	CHECK(settings->is_project_config_loaded());
 	CHECK(settings->get_pack_path() == tmp_pck_path);
 
-	CHECK(settings->get_ver_major() == VERSION_MAJOR);
-	CHECK(settings->get_ver_minor() == VERSION_MINOR);
-	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));
+	CHECK(settings->get_ver_major() == GODOT_VERSION_MAJOR);
+	CHECK(settings->get_ver_minor() == GODOT_VERSION_MINOR);
+	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, GODOT_VERSION_PATCH));
 	CHECK(decomp.is_valid());
 	CHECK(settings->get_bytecode_revision() != 0);
 	CHECK(settings->get_bytecode_revision() == decomp->get_bytecode_rev());
@@ -243,9 +243,9 @@ TEST_CASE("[GDSDecomp] uh oh") {
 	CHECK(settings->pack_has_project_config());
 	CHECK(settings->is_project_config_loaded());
 	CHECK(settings->get_pack_path() == pck_path);
-	CHECK(settings->get_ver_major() == VERSION_MAJOR);
-	CHECK(settings->get_ver_minor() == VERSION_MINOR);
-	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));
+	CHECK(settings->get_ver_major() == GODOT_VERSION_MAJOR);
+	CHECK(settings->get_ver_minor() == GODOT_VERSION_MINOR);
+	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, GODOT_VERSION_PATCH));
 	CHECK(decomp.is_valid());
 	CHECK(settings->get_bytecode_revision() != 0);
 	CHECK(settings->get_bytecode_revision() == decomp->get_bytecode_rev());

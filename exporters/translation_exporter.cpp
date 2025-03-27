@@ -538,15 +538,15 @@ struct KeyWorker {
 			return;
 		}
 		const CharString &res_s = res_strings[i];
-		try_num_suffix(res_s);
+		try_num_suffix(res_s.get_data());
 
 		for (const auto &E : common_suffixes_t) {
-			try_key_suffix(res_s, E);
-			try_num_suffix(res_s, E);
+			try_key_suffix(res_s.get_data(), E.get_data());
+			try_num_suffix(res_s.get_data(), E.get_data());
 		}
 		for (const auto &E : common_prefixes_t) {
-			try_key_prefix(E, res_s);
-			try_num_suffix(E, res_s);
+			try_key_prefix(E.get_data(), res_s.get_data());
+			try_num_suffix(E.get_data(), res_s.get_data());
 		}
 		last_completed++;
 	}
@@ -575,7 +575,7 @@ struct KeyWorker {
 		auto frs_size = filtered_resource_strings.size();
 		for (uint32_t j = 0; j < frs_size; j++) {
 			const CharString &res_s2 = res_strings[j];
-			try_key_suffix(res_s, res_s2);
+			try_key_suffix(res_s.get_data(), res_s2.get_data());
 		}
 		++last_completed;
 	}
@@ -962,10 +962,10 @@ struct KeyWorker {
 			pop_charstr_vectors();
 			for (const auto &prefix : common_prefixes_t) {
 				for (const auto &suffix : common_suffixes_t) {
-					if (try_key_suffix(prefix, suffix)) {
+					if (try_key_suffix(prefix.get_data(), suffix.get_data())) {
 						reg_successful_prefix(prefix.get_data());
 					}
-					try_num_suffix(prefix, suffix);
+					try_num_suffix(prefix.get_data(), suffix.get_data());
 				}
 			}
 			if (filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS) {

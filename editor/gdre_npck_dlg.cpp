@@ -33,7 +33,7 @@ NewPackDialog::NewPackDialog() {
 	ver_major->set_min(0);
 	ver_major->set_max(99999);
 	ver_major->set_step(1);
-	ver_major->set_value(VERSION_MAJOR);
+	ver_major->set_value(GODOT_VERSION_MAJOR);
 	ver_major->connect("value_changed", callable_mp(this, &NewPackDialog::_val_change));
 	dir_hbc->add_child(ver_major);
 
@@ -41,7 +41,7 @@ NewPackDialog::NewPackDialog() {
 	ver_minor->set_min(0);
 	ver_minor->set_max(99999);
 	ver_minor->set_step(1);
-	ver_minor->set_value(VERSION_MINOR);
+	ver_minor->set_value(GODOT_VERSION_MINOR);
 	ver_minor->connect("value_changed", callable_mp(this, &NewPackDialog::_val_change));
 	dir_hbc->add_child(ver_minor);
 

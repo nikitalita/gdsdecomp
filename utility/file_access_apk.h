@@ -109,6 +109,8 @@ public:
 	virtual bool file_exists(const String &p_name) override; ///< return true if a file exists
 
 	virtual void close() override;
+	virtual uint64_t _get_access_time(const String &p_file) override { return 0; }
+	virtual int64_t _get_size(const String &p_file) override { return -1; }
 
 	virtual uint64_t _get_modified_time(const String &p_file) override { return 0; } // todo
 	virtual BitField<FileAccess::UnixPermissionFlags> _get_unix_permissions(const String &p_file) override { return 0; }
