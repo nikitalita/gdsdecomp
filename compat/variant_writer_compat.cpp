@@ -879,7 +879,7 @@ struct VarWriter {
 		// c[idx + chars] = 0;
 		n = p_num;
 		do {
-			int mod = ABS(n % base);
+			int mod = Math::abs(n % base);
 			c[(--chars + idx)] = '0' + mod;
 			n /= base;
 		} while (n);

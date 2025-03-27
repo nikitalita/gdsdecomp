@@ -5,7 +5,7 @@
 #include "test_common.h"
 #include "tests/test_macros.h"
 
-#include <core/version_generated.gen.h>
+#include "core/version_generated.gen.h"
 #include <modules/gdscript/gdscript_tokenizer_buffer.h>
 #include <utility/common.h>
 #include <utility/glob.h>
@@ -216,7 +216,7 @@ TEST_CASE("[GDSDecomp][Bytecode] GDScriptTokenizer outputs bytecode_version == L
 }
 
 TEST_CASE("[GDSDecomp][Bytecode] Bytecode for current engine version has same number of tokens") {
-	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));
+	auto decomp = GDScriptDecomp::create_decomp_for_version(vformat("%d.%d.%d", GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, GODOT_VERSION_PATCH));
 	CHECK(decomp.is_valid());
 	CHECK(decomp->get_token_max() == GDScriptTokenizerBuffer::Token::TK_MAX);
 }

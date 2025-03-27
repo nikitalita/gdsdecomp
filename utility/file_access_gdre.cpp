@@ -197,6 +197,19 @@ GDREPackedData *GDREPackedData::get_singleton() {
 	return singleton;
 }
 
+int64_t GDREPackedData::get_file_size(const String &p_path) {
+	String simplified_path = p_path.simplify_path().trim_prefix("res://");
+	PathMD5 pmd5(simplified_path.md5_buffer());
+	HashMap<PathMD5, PackedData::PackedFile, PathMD5>::Iterator E = files.find(pmd5);
+	if (!E) {
+		return -1; //not found
+	}
+	if (E->value.offset == 0) {
+		return -1; //was erased
+	}
+	return E->value.size;
+}
+
 Ref<FileAccess> GDREPackedData::try_open_path(const String &p_path) {
 	String simplified_path = p_path.simplify_path().trim_prefix("res://");
 	PathMD5 pmd5(simplified_path.md5_buffer());
@@ -444,6 +457,24 @@ Error FileAccessGDRE::_set_read_only_attribute(const String &p_file, bool p_ro) 
 		return proxy->_set_read_only_attribute(p_file, p_ro);
 	}
 	return FAILED;
+}
+
+uint64_t FileAccessGDRE::_get_access_time(const String &p_file) {
+	if (proxy.is_valid()) {
+		return ((FileAccessGDRE *)proxy.ptr())->_get_access_time(p_file);
+	}
+	return 0;
+}
+
+int64_t FileAccessGDRE::_get_size(const String &p_file) {
+	if (PathFinder::gdre_packed_data_valid_path(p_file)) {
+		return GDREPackedData::get_singleton()->get_file_size(p_file);
+	}
+
+	if (proxy.is_valid()) {
+		return ((FileAccessGDRE *)proxy.ptr())->_get_size(p_file);
+	}
+	return 0;
 }
 
 // DirAccessGDRE

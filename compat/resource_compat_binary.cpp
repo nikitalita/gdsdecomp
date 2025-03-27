@@ -1190,7 +1190,7 @@ void ResourceLoaderCompatBinary::open(Ref<FileAccess> p_f, bool p_no_resources, 
 	print_bl("minor: " + itos(ver_minor));
 	print_bl("format: " + itos(ver_format));
 
-	if (ver_format > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (ver_format > FORMAT_VERSION || ver_major > GODOT_VERSION_MAJOR) {
 		f.unref();
 		ERR_FAIL_MSG(vformat("File '%s' can't be loaded, as it uses a format version (%d) or engine version (%d.%d) which are not supported by your engine version (%s).",
 				local_path, ver_format, ver_major, ver_minor, VERSION_BRANCH));
@@ -1326,7 +1326,7 @@ String ResourceLoaderCompatBinary::recognize(Ref<FileAccess> p_f) {
 	f->get_32(); // ver_minor
 	uint32_t fmt = f->get_32();
 
-	if (fmt > FORMAT_VERSION || major > VERSION_MAJOR) {
+	if (fmt > FORMAT_VERSION || major > GODOT_VERSION_MAJOR) {
 		f.unref();
 		return "";
 	}
@@ -1367,7 +1367,7 @@ String ResourceLoaderCompatBinary::recognize_script_class(Ref<FileAccess> p_f) {
 	f->get_32(); // ver_minor
 	uint32_t ver_fmt = f->get_32();
 
-	if (ver_fmt > FORMAT_VERSION || major > VERSION_MAJOR) {
+	if (ver_fmt > FORMAT_VERSION || major > GODOT_VERSION_MAJOR) {
 		f.unref();
 		return "";
 	}
@@ -1569,7 +1569,7 @@ Error ResourceFormatLoaderCompatBinary::rename_dependencies(const String &p_path
 		return ERR_UNAVAILABLE;
 	}
 
-	if (ver_format > FORMAT_VERSION || ver_major > VERSION_MAJOR) {
+	if (ver_format > FORMAT_VERSION || ver_major > GODOT_VERSION_MAJOR) {
 		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED,
 				vformat("File '%s' can't be loaded, as it uses a format version (%d) or engine version (%d.%d) which are not supported by your engine version (%s).",
 						local_path, ver_format, ver_major, ver_minor, VERSION_BRANCH));
@@ -2827,7 +2827,7 @@ Error ResourceFormatSaverCompatBinaryInstance::set_uid(const String &p_path, Res
 		return ERR_UNAVAILABLE;
 	}
 
-	if (format > FORMAT_VERSION || major > VERSION_MAJOR) {
+	if (format > FORMAT_VERSION || major > GODOT_VERSION_MAJOR) {
 		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED,
 				vformat("File '%s' can't be loaded, as it uses a format version (%d) or engine version (%d.%d) which are not supported by your engine version (%s).",
 						local_path, format, major, minor, VERSION_BRANCH));

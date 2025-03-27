@@ -207,11 +207,10 @@ Error GDScriptDecomp::get_ids_consts_tokens_v2(const Vector<uint8_t> &p_buffer, 
 			}
 			cs.write[j] = decode_uint32(tmp);
 		}
-
-		String s(reinterpret_cast<const char32_t *>(cs.ptr()), len);
+		String s = String::utf32({ reinterpret_cast<const char32_t *>(cs.ptr()), len });
 		b += len * 4;
 		total_len -= len * 4;
-		identifiers.write[i] = s;
+		identifiers.write[i] = StringName(s);
 	}
 
 	constants.resize(constant_count);

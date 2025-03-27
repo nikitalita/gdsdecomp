@@ -84,7 +84,7 @@ public:
 	static bool real_packed_data_has_pack_loaded();
 	bool has_loaded_packs();
 	String fix_res_path(const String &p_path);
-
+	int64_t get_file_size(const String &p_path);
 	static String get_current_file_access_class(FileAccess::AccessType p_access_type);
 	static String get_current_dir_access_class(DirAccess::AccessType p_access_type);
 	static String get_os_file_access_class_name();
@@ -122,6 +122,8 @@ public:
 
 	virtual uint8_t get_8() const override; ///< get a byte
 	virtual uint64_t get_buffer(uint8_t *p_dst, uint64_t p_length) const override;
+	virtual uint64_t _get_access_time(const String &p_file) override;
+	virtual int64_t _get_size(const String &p_file) override;
 
 	virtual Error get_error() const override; ///< get last error
 	virtual String fix_path(const String &p_path) const override; ///< fix a path, i.e. make it absolute and in the OS format

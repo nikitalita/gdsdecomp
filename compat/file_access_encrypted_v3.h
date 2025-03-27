@@ -95,6 +95,8 @@ public:
 	virtual bool _get_read_only_attribute(const String &p_file) override;
 	virtual Error _set_read_only_attribute(const String &p_file, bool p_ro) override;
 	virtual bool _get_hidden_attribute(const String &p_file) override;
+	virtual int64_t _get_size(const String &p_file) override { return -1; }
+	virtual uint64_t _get_access_time(const String &p_file) override { return 0; }
 	virtual void close() override;
 
 	FileAccessEncryptedv3() {}

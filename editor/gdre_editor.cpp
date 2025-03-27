@@ -32,7 +32,7 @@
 
 #include "gdre_icons.gen.h"
 
-#if VERSION_MAJOR < 4
+#if GODOT_VERSION_MAJOR < 4
 #error Unsupported Godot version
 #endif
 

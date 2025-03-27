@@ -11,12 +11,12 @@
 #include <core/io/resource_format_binary.h>
 #include <scene/resources/resource_format_text.h>
 
-#include <core/version_generated.gen.h>
+#include "core/version_generated.gen.h"
 
 namespace TestEngineAsserts {
 
 TEST_CASE("[GDSDecomp] Engine version major is still 4") {
-	CHECK(VERSION_MAJOR == 4);
+	CHECK(GODOT_VERSION_MAJOR == 4);
 }
 
 TEST_CASE("[GDSDecomp][PackedData] Current PCK version hasn't changed") {
