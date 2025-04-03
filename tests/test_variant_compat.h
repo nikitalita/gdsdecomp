@@ -61,7 +61,8 @@ template <class T>
 void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val) {
 	SUBCASE(vformat("%s write_to_string v4 compat", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 4, nullptr, nullptr, true);
+		// TODO: this will start failing on -INFINITY test when p_compat fix lands; update tests when it does
+		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 4, 5, nullptr, nullptr, true);
 		CHECK(error == OK);
 		String gd_ret;
 		error = VariantWriter::write_to_string(p_val, gd_ret, nullptr, nullptr, true);
@@ -71,7 +72,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val) {
 	}
 	SUBCASE(vformat("%s write_to_string v4 no compat", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 4, nullptr, nullptr, false);
+		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 4, 5, nullptr, nullptr, false);
 		CHECK(error == OK);
 		String gd_ret;
 		error = VariantWriter::write_to_string(p_val, gd_ret, nullptr, nullptr, false);
@@ -169,6 +170,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] float") {
 	test_variant_write_all<float>("0.0", 0.0, "0.0", "0.0");
 	test_variant_write_all<float>("1.0", 1.0, "1.0", "1.0");
 	test_variant_write_all<float>("INFINITY", INFINITY, "inf", "inf");
+	// TODO: this will start failing when p_compat fix lands; update VariantWriterCompat::rtosfix when it does
 	test_variant_write_all<float>("-INFINITY", -INFINITY, "-inf", "inf_neg");
 	test_variant_write_all<float>("NAN", NAN, "nan", "nan");
 }
