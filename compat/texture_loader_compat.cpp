@@ -749,7 +749,7 @@ void ResourceFormatLoaderCompatTexture2D::get_recognized_extensions(List<String>
 
 // handles type
 bool ResourceFormatLoaderCompatTexture2D::handles_type(const String &p_type) const {
-	return p_type == "CompressedTexture2D" || p_type == "StreamTexture" || p_type == "Texture2D";
+	return p_type == "CompressedTexture2D" || p_type == "StreamTexture" || p_type == "Texture2D" || p_type == "Texture";
 }
 
 // get resource type
@@ -859,7 +859,7 @@ void ResourceFormatLoaderCompatTexture3D::get_recognized_extensions(List<String>
 }
 
 bool ResourceFormatLoaderCompatTexture3D::handles_type(const String &p_type) const {
-	return p_type == "CompressedTexture3D" || p_type == "StreamTexture3D" || p_type == "Texture3D";
+	return p_type == "CompressedTexture3D" || p_type == "StreamTexture3D" || p_type == "Texture3D" || p_type == "Texture";
 }
 
 String ResourceFormatLoaderCompatTexture3D::get_resource_type(const String &p_path) const {
@@ -937,7 +937,7 @@ void ResourceFormatLoaderCompatTextureLayered::get_recognized_extensions(List<St
 }
 
 bool ResourceFormatLoaderCompatTextureLayered::handles_type(const String &p_type) const {
-	return p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray";
+	return p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray" || p_type == "Texture";
 }
 
 String ResourceFormatLoaderCompatTextureLayered::get_resource_type(const String &p_path) const {
