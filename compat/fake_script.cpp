@@ -209,7 +209,7 @@ Error FakeGDScript::parse_script() {
 	Vector<uint32_t> &tokens = script_state.tokens;
 	auto bytecode_version = script_state.bytecode_version;
 
-	bool first_constant = true;
+	bool first_annotation = true;
 	// reserved words can be used as class members in GDScript 2.0. Hooray.
 	auto is_gdscript20_accessor = [&](int i) {
 		return bytecode_version >= GDScriptDecomp::GDSCRIPT_2_0_VERSION && decomp->check_prev_token(i, tokens, GT::G_TK_PERIOD);
@@ -219,18 +219,22 @@ Error FakeGDScript::parse_script() {
 		uint32_t local_token = tokens[i] & GDScriptDecomp::TOKEN_MASK;
 		GlobalToken curr_token = decomp->get_global_token(local_token);
 		switch (curr_token) {
-			case GT::G_TK_CONSTANT: {
-				uint32_t constant = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
-				ERR_FAIL_COND_V(constant >= (uint32_t)constants.size(), ERR_INVALID_DATA);
+			case GT::G_TK_ANNOTATION: {
+				if (first_annotation) {
+					uint32_t a_id = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
+					ERR_FAIL_COND_V(a_id >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 
-				// TODO: handle GDScript 2.0 multi-line strings: we have to check the number of newlines
-				// in the string and if the next token has a line number difference >= the number of newlines
-				if (first_constant) {
-					first_constant = false;
-					if (constants[constant] == "@tool") {
+					const StringName &annotation = identifiers[a_id];
+					if (annotation == "@tool") {
 						tool = true;
 					}
 				}
+				first_annotation = false;
+			} break;
+			case GT::G_TK_PR_EXPORT: {
+			} break;
+			case GT::G_TK_PR_TOOL: {
+				tool = true;
 			} break;
 			case GT::G_TK_PR_CLASS: {
 				// if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
@@ -241,7 +245,7 @@ Error FakeGDScript::parse_script() {
 				// }
 			} break;
 			case GT::G_TK_PR_CLASS_NAME: {
-				if (!is_gdscript20_accessor(i) && global_name.is_empty() && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
+				if (global_name.is_empty() && !is_gdscript20_accessor(i) && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 					uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 					ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 					global_name = identifiers[identifier];
@@ -249,7 +253,7 @@ Error FakeGDScript::parse_script() {
 				}
 			} break;
 			case GT::G_TK_PR_EXTENDS: {
-				if (!is_gdscript20_accessor(i) && base_type.is_empty()) {
+				if (base_type.is_empty() && !is_gdscript20_accessor(i)) {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_CONSTANT)) {
 						uint32_t constant = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
 						ERR_FAIL_COND_V(constant >= (uint32_t)constants.size(), ERR_INVALID_DATA);
