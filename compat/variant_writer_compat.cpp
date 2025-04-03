@@ -764,7 +764,7 @@ static constexpr _ALWAYS_INLINE_ uint64_t max_integer_str_len() {
 }
 } //namespace
 
-template <int ver_major, bool is_pcfg, bool is_script>
+template <int ver_major, bool is_pcfg, bool is_script, bool p_compat = false, bool after_4_4 = false>
 struct VarWriter {
 	static String num_scientific(double p_num) {
 		if (Math::is_nan(p_num) || Math::is_inf(p_num)) {
@@ -785,6 +785,9 @@ struct VarWriter {
 		*last = 0;
 		return buffer;
 	}
+	// TODO: Turn this on when p_compat fix lands
+	// Also update tests
+	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && /*!p_compat &&*/ after_4_4));
 
 	static String rtosfix(float p_value) {
 		if (p_value == 0.0) {
@@ -795,7 +798,7 @@ struct VarWriter {
 		}
 		if (isinf(p_value)) {
 			if (p_value < 0) {
-				if constexpr (ver_major > 2) {
+				if constexpr (use_inf_neg) {
 					return "inf_neg";
 				} else {
 					return "-inf";
@@ -816,7 +819,7 @@ struct VarWriter {
 		}
 		if (isinf(p_value)) {
 			if (p_value < 0) {
-				if constexpr (ver_major > 2) {
+				if constexpr (use_inf_neg) {
 					return "inf_neg";
 				} else {
 					return "-inf";
@@ -937,11 +940,11 @@ struct VarWriter {
 	}
 
 	static Error write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud);
-	static Error write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count, bool p_compat);
+	static Error write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count);
 }; // struct VariantWriterCompatInstance
 
-template <int ver_major, bool is_pcfg, bool is_script>
-Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count, bool p_compat) {
+template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_3>
+Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_3>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count) {
 	switch (p_variant.get_type()) {
 		case Variant::NIL: {
 			p_store_string_func(p_store_string_ud, "null");
@@ -954,7 +957,7 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p
 		} break;
 		case Variant::FLOAT: {
 			String s = rtosfix(p_variant.operator double());
-			if (s != "inf" && s != "inf_neg" && s != "nan") {
+			if (s != "-inf" && s != "inf" && s != "inf_neg" && s != "nan") {
 				if (!s.contains(".") && !s.contains("e")) {
 					s += ".0";
 				}
@@ -1166,7 +1169,7 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p
 					}
 
 					p_store_string_func(p_store_string_ud, "\"" + E.name + "\":");
-					write_compat_v4(obj->get(E.name), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count, p_compat);
+					write_compat_v4(obj->get(E.name), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
 				}
 			}
 
@@ -1255,9 +1258,9 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p
 					p_store_string_func(p_store_string_ud, "{\n");
 
 					for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
-						write_compat_v4(E->get(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count, p_compat);
+						write_compat_v4(E->get(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
 						p_store_string_func(p_store_string_ud, ": ");
-						write_compat_v4(dict[E->get()], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count, p_compat);
+						write_compat_v4(dict[E->get()], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
 						if (E->next()) {
 							p_store_string_func(p_store_string_ud, ",\n");
 						} else {
@@ -1323,7 +1326,7 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p
 					} else {
 						p_store_string_func(p_store_string_ud, ", ");
 					}
-					write_compat_v4(var, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count, p_compat);
+					write_compat_v4(var, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
 				}
 
 				p_store_string_func(p_store_string_ud, "]");
@@ -1419,8 +1422,8 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v4(const Variant &p
 	return OK;
 } // VarWriter::write_compat_v4
 
-template <int ver_major, bool is_pcfg, bool is_script>
-Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_3>
+Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_3>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	// for v2 and v3...
 	switch ((Variant::Type)p_variant.get_type()) {
 		case Variant::Type::NIL: {
@@ -1756,51 +1759,13 @@ Error VarWriter<ver_major, is_pcfg, is_script>::write_compat_v2_v3(const Variant
 	return OK;
 } // VarWriter::write_compat_v2_v3
 
-Error VariantWriterCompat::write_compat(const Variant &p_variant, const uint32_t ver_major, StoreStringFunc p_store_string_func, void *p_store_string_ud, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool is_pcfg, bool p_compat, bool is_script) {
-	switch (ver_major) {
-		case 4: {
-			if (is_script) {
-				return VarWriter<4, false, true>::write_compat_v4(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, 0, p_compat);
-			} else {
-				return VarWriter<4, false, false>::write_compat_v4(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, 0, p_compat);
-			}
-		} break;
-		case 3: {
-			if (is_pcfg && is_script) {
-				return VarWriter<3, true, true>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else if (is_pcfg) {
-				return VarWriter<3, true, false>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else if (is_script) {
-				return VarWriter<3, false, true>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else {
-				return VarWriter<3, false, false>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			}
-		} break;
-		case 1:
-		case 2: {
-			if (is_pcfg && is_script) {
-				return VarWriter<2, true, true>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else if (is_pcfg) {
-				return VarWriter<2, true, false>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else if (is_script) {
-				return VarWriter<2, false, true>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			} else {
-				return VarWriter<2, false, false>::write_compat_v2_v3(p_variant, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-			}
-		}
-		default:
-			break;
-	}
-	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
-}
-
 static Error _write_to_str(void *ud, const String &p_string) {
 	String *str = (String *)ud;
 	(*str) += p_string;
 	return OK;
 }
 
-Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
 		case 1:
@@ -1813,7 +1778,19 @@ Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, Stri
 		} break;
 
 		case 4: {
-			return VarWriter<4, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0, p_compat_4x_force_v3);
+			if (ver_minor > 4) {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, false, true, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, false, true, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			} else {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, false, true, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, false, true, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			}
 		} break;
 
 		default:
@@ -1823,7 +1800,7 @@ Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, Stri
 }
 
 // project.cfg variants are written differently than resource variants in Godot 2.x
-Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
 		case 1:
@@ -1836,14 +1813,26 @@ Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String
 		} break;
 
 		case 4: {
-			return VarWriter<4, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0, p_compat_4x_force_v3);
+			if (ver_minor > 4) {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, true, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, true, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			} else {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, true, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, true, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			}
 		} break;
 		default:
 			break;
 	}
 	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
 }
-Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
 		case 1:
@@ -1856,7 +1845,19 @@ Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_s
 		} break;
 
 		case 4: {
-			return VarWriter<4, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0, p_compat_4x_force_v3);
+			if (ver_minor > 4) {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, false, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, false, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			} else {
+				if (p_compat_4x_force_v3) {
+					return VarWriter<4, false, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				} else {
+					return VarWriter<4, false, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+				}
+			}
 		} break;
 		default:
 			break;
