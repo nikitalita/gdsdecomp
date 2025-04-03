@@ -4,8 +4,30 @@
 #include "variant_decoder_compat.h"
 #include <utility/gdre_settings.h>
 
+Error FakeGDScript::_reload_from_file() {
+	ERR_FAIL_COND_V_MSG(script_path.is_empty(), ERR_FILE_NOT_FOUND, "Script path is empty");
+	Error err = OK;
+	// check the first four bytes to see if it's a binary file
+	auto ext = script_path.get_extension().to_lower();
+	is_binary = false;
+	if (ext == "gde") {
+		is_binary = true;
+		err = GDScriptDecomp::get_buffer_encrypted(script_path, 3, GDRESettings::get_singleton()->get_encryption_key(), binary_buffer);
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Error reading encrypted file: " + script_path);
+	} else {
+		binary_buffer = FileAccess::get_file_as_bytes(script_path);
+		is_binary = binary_buffer.size() >= 4 && binary_buffer[0] == 'G' && binary_buffer[1] == 'D' && binary_buffer[2] == 'S' && binary_buffer[3] == 'C';
+		if (!is_binary) {
+			source = String::utf8(reinterpret_cast<const char *>(binary_buffer.ptr()), binary_buffer.size());
+			binary_buffer.clear();
+		}
+	}
+	return reload(false);
+}
+
 void FakeGDScript::reload_from_file() {
-	reload();
+	Error err = _reload_from_file();
+	ERR_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
 }
 
 bool FakeGDScript::can_instantiate() const {
@@ -51,20 +73,9 @@ String FakeGDScript::get_source_code() const {
 }
 
 void FakeGDScript::set_source_code(const String &p_code) {
-	if (decomp.is_null()) {
-		decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
-		ERR_FAIL_COND_MSG(decomp.is_null(), "Unknown version, failed to decompile");
-	}
+	is_binary = false;
 	source = p_code;
-	binary_buffer = decomp->compile_code_string(source);
-	if (binary_buffer.size() == 0) {
-		auto mst = decomp->get_error_message();
-		ERR_FAIL_MSG("Error compiling code: " + mst);
-	}
-	auto err = decomp->get_script_state(binary_buffer, script_state);
-	ERR_FAIL_COND_MSG(err != OK, "Error parsing bytecode");
-	err = parse_script();
-	ERR_FAIL_COND_MSG(err != OK, "Error parsing script");
+	reload(false);
 }
 
 Error FakeGDScript::reload(bool p_keep_state) {
@@ -73,19 +84,8 @@ Error FakeGDScript::reload(bool p_keep_state) {
 
 	decomp = GDScriptDecomp::create_decomp_for_commit(revision);
 	ERR_FAIL_COND_V_MSG(decomp.is_null(), ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
-	Error err = OK;
-	// check the first four bytes to see if it's a binary file
-	auto ext = script_path.get_extension().to_lower();
-	bool is_binary = false;
-	if (ext == "gde") {
-		is_binary = true;
-		err = decomp->get_buffer_encrypted(script_path, 3, GDRESettings::get_singleton()->get_encryption_key(), binary_buffer);
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Error reading encrypted file: " + script_path);
-	} else {
-		binary_buffer = FileAccess::get_file_as_bytes(script_path);
-	}
-	is_binary = binary_buffer.size() >= 4 && binary_buffer[0] == 'G' && binary_buffer[1] == 'D' && binary_buffer[2] == 'S' && binary_buffer[3] == 'C';
 
+	Error err = OK;
 	if (is_binary) {
 		err = decomp->decompile_buffer(binary_buffer);
 		if (err) {
@@ -95,7 +95,6 @@ Error FakeGDScript::reload(bool p_keep_state) {
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Error decompiling binary file: " + script_path);
 		source = decomp->get_script_text();
 	} else {
-		source = String::utf8(reinterpret_cast<const char *>(binary_buffer.ptr()), binary_buffer.size());
 		binary_buffer = decomp->compile_code_string(source);
 		if (binary_buffer.size() == 0) {
 			auto mst = decomp->get_error_message();
@@ -200,6 +199,11 @@ Variant FakeGDScript::get_rpc_config() const {
 
 Error FakeGDScript::parse_script() {
 	using GT = GlobalToken;
+	Error err = OK;
+	if (script_state.bytecode_version == -1) {
+		err = reload(false);
+		ERR_FAIL_COND_V(err != OK, err);
+	}
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
@@ -302,7 +306,7 @@ String FakeGDScript::get_script_path() const {
 
 Error FakeGDScript::load_source_code(const String &p_path) {
 	script_path = p_path;
-	return reload();
+	return _reload_from_file();
 }
 
 // FakeEmbeddedScript

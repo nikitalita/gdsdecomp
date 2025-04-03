@@ -165,7 +165,7 @@ public:
 
 	// bytecode_version, ids,  constants, tokens, lines, columns
 	struct ScriptState {
-		int bytecode_version;
+		int bytecode_version = -1;
 		Vector<StringName> identifiers;
 		Vector<Variant> constants;
 		Vector<uint32_t> tokens;

@@ -11,6 +11,8 @@ class FakeGDScript : public Script {
 	bool tool = false;
 	bool valid = false;
 	bool reloading = false;
+	bool is_binary = false;
+	String original_class = "GDScript";
 
 	using GlobalToken = GDScriptDecomp::GlobalToken;
 	// Ref<GDScriptNativeClass> native;
@@ -54,6 +56,7 @@ protected:
 	static void _bind_methods();
 
 public:
+	Error _reload_from_file();
 	virtual void reload_from_file() override;
 
 	virtual bool can_instantiate() const override;
@@ -112,7 +115,7 @@ public:
 	virtual bool is_placeholder_fallback_enabled() const override;
 
 	virtual Variant get_rpc_config() const override;
-	virtual String get_save_class() const override { return "GDScript"; }
+	virtual String get_save_class() const override { return original_class; }
 
 	String get_script_path() const;
 	Error load_source_code(const String &p_path);
