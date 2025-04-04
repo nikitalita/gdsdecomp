@@ -17,6 +17,7 @@ theme = ExtResource("1_crn14")
 script = ExtResource("1_tgfma")
 
 [node name="VBoxContainer" type="VSplitContainer" parent="."]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -26,10 +27,12 @@ grow_vertical = 2
 split_offset = 220
 
 [node name="ResourceView" type="Control" parent="VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="TextureView" type="Control" parent="VBoxContainer/ResourceView"]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -39,6 +42,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="TextureRect" type="TextureRect" parent="VBoxContainer/ResourceView/TextureView"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -50,6 +54,7 @@ expand_mode = 1
 stretch_mode = 5
 
 [node name="TextureInfo" type="Label" parent="VBoxContainer/ResourceView/TextureView"]
+unique_name_in_owner = true
 layout_direction = 2
 layout_mode = 1
 anchors_preset = -1
@@ -70,18 +75,22 @@ No Mipmaps
 Memory: 1024 B"
 
 [node name="MediaPlayer" parent="VBoxContainer/ResourceView" instance=ExtResource("4_crn14")]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 
 [node name="TextView" parent="VBoxContainer/ResourceView" instance=ExtResource("5_1bufa")]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 
 [node name="ResourceInfoContainer" type="Control" parent="VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="ResourceInfo" type="RichTextLabel" parent="VBoxContainer/ResourceInfoContainer"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0

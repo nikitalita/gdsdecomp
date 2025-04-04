@@ -1,17 +1,6 @@
 class_name GDREResourcePreview
 extends Control
 
-var TEXT_VIEW: GDRETextEditor = null
-
-var TEXTURE_RECT: TextureRect = null
-var TEXTURE_VIEW: Control = null
-var TEXTURE_INFO: Label = null
-var RESOURCE_INFO: RichTextLabel = null
-var VIEWER: Control = null
-var VBOX_CONTAINER: VSplitContainer = null
-var MEDIA_PLAYER: Control = null
-
-
 
 const RESOURCE_INFO_TEXT_FORMAT = "[b]Path:[/b] %s\n[b]Type:[/b] %s\n[b]Format:[/b] %s"
 const IMAGE_FORMAT_NAME = [
@@ -57,37 +46,37 @@ const IMAGE_FORMAT_NAME = [
 ]
 
 func reset():
-	MEDIA_PLAYER.visible = false
-	MEDIA_PLAYER.reset()
-	TEXT_VIEW.visible = false
-	TEXT_VIEW.reset()
-	TEXTURE_VIEW.visible = false
-	TEXTURE_INFO.text = ""
-	TEXTURE_RECT.texture = null
-	RESOURCE_INFO.text = ""
+	%MediaPlayer.visible = false
+	%MediaPlayer.reset()
+	%TextView.visible = false
+	%TextView.reset()
+	%TextureView.visible = false
+	%TextureInfo.text = ""
+	%TextureRect.texture = null
+	%ResourceInfo.text = ""
 
 
 var previous_res_info_size = Vector2(0, 0)
 
 func load_texture(path):
 	if is_image(path.get_extension().to_lower()):
-		TEXTURE_RECT.texture = ImageTexture.create_from_image(Image.load_from_file(path))
+		%TextureRect.texture = ImageTexture.create_from_image(Image.load_from_file(path))
 	else:
-		TEXTURE_RECT.texture = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
-	if (TEXTURE_RECT.texture == null):
+		%TextureRect.texture = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	if (%TextureRect.texture == null):
 		return false
-	TEXTURE_RECT.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	TEXTURE_RECT.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	var image = TEXTURE_RECT.texture.get_image()
-	var info_text = str(TEXTURE_RECT.texture.get_width()) + "x" + str(TEXTURE_RECT.texture.get_height()) + " " + IMAGE_FORMAT_NAME[image.get_format()] 
+	%TextureRect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	%TextureRect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var image = %TextureRect.texture.get_image()
+	var info_text = str(%TextureRect.texture.get_width()) + "x" + str(%TextureRect.texture.get_height()) + " " + IMAGE_FORMAT_NAME[image.get_format()]
 	if image.has_mipmaps():
-		
+
 		info_text += "\n" + str(image.get_mipmap_count()) + " Mipmaps" + "\n" + "Memory: " + String.humanize_size(image.get_data_size())
 	else:
 		info_text += "\n" + "No Mipmaps" + "\n" + "Memory: " + String.humanize_size(image.get_data_size())
 
-	TEXTURE_INFO.text = info_text
-	TEXTURE_VIEW.visible = true
+	%TextureInfo.text = info_text
+	%TextureView.visible = true
 	return true
 
 func pop_resource_info(path: String):
@@ -95,9 +84,9 @@ func pop_resource_info(path: String):
 		var info = ResourceCompatLoader.get_resource_info(path)
 		var type = info["type"]
 		var format = info["format_type"]
-		RESOURCE_INFO.text = RESOURCE_INFO_TEXT_FORMAT % [path, type, format]
+		%ResourceInfo.text = RESOURCE_INFO_TEXT_FORMAT % [path, type, format]
 	else:
-		RESOURCE_INFO.text = "[b]Path:[/b] " + path
+		%ResourceInfo.text = "[b]Path:[/b] " + path
 
 func load_resource(path: String) -> void:
 	reset()
@@ -105,26 +94,26 @@ func load_resource(path: String) -> void:
 	var error_opening = false
 	var not_supported = false
 	if (is_shader(ext)):
-		TEXT_VIEW.load_gdshader(path)
-		TEXT_VIEW.visible = true
+		%TextView.load_gdshader(path)
+		%TextView.visible = true
 	elif (is_code(ext)):
-		error_opening = not TEXT_VIEW.load_code(path)
-		TEXT_VIEW.visible = true
+		error_opening = not %TextView.load_code(path)
+		%TextView.visible = true
 	elif (is_sample(ext)):
-		error_opening = not MEDIA_PLAYER.load_sample(path)
+		error_opening = not %MediaPlayer.load_sample(path)
 		if not error_opening:
-			MEDIA_PLAYER.visible = true
+			%MediaPlayer.visible = true
 	elif (is_video(ext)):
-		error_opening = not MEDIA_PLAYER.load_video(path)
+		error_opening = not %MediaPlayer.load_video(path)
 		if not error_opening:
-			MEDIA_PLAYER.visible = true
+			%MediaPlayer.visible = true
 	elif (is_image(ext)):
 		error_opening = not load_texture(path)
 	elif (is_texture(ext)):
 		error_opening = not load_texture(path)
 	elif (is_text_resource(ext) or is_ini_like(ext)):
-		TEXT_VIEW.load_text_resource(path)
-		TEXT_VIEW.visible = true
+		%TextView.load_text_resource(path)
+		%TextView.visible = true
 	elif is_binary_project_settings(path):
 		pass
 		var loader = ProjectConfigLoader.new()
@@ -147,8 +136,8 @@ func load_resource(path: String) -> void:
 			text_file = "engine.cfg"
 		var temp_path = OS.get_temp_dir().path_join(text_file)
 		var config = loader.save_cfb(OS.get_temp_dir(), ver_major, 0)
-		TEXT_VIEW.load_text_resource(temp_path)
-		TEXT_VIEW.visible = true
+		%TextView.load_text_resource(temp_path)
+		%TextView.visible = true
 		var da = DirAccess.open(OS.get_temp_dir())
 		if da:
 			da.remove(temp_path)
@@ -162,30 +151,30 @@ func load_resource(path: String) -> void:
 		if ResourceCompatLoader.to_text(path, temp_path) != OK:
 			error_opening = true
 		else:
-			TEXT_VIEW.load_text_resource(temp_path)
-			TEXT_VIEW.visible = true
+			%TextView.load_text_resource(temp_path)
+			%TextView.visible = true
 			var da = DirAccess.open(tmp_dir)
 			if da:
 				da.remove(temp_path)
 
 	elif (is_text(ext) or is_content_text(path)):
-		TEXT_VIEW.load_text(path)
-		TEXT_VIEW.visible = true
+		%TextView.load_text(path)
+		%TextView.visible = true
 		return
 	else:
 		not_supported = true
 	if (not_supported):
-		TEXT_VIEW.load_text_string("Not a supported resource")
-		TEXT_VIEW.visible = true
-		RESOURCE_INFO.text = path
+		%TextView.load_text_string("Not a supported resource")
+		%TextView.visible = true
+		%ResourceInfo.text = path
 	elif (error_opening):
-		TEXT_VIEW.load_text_string("Error opening resource")
-		TEXT_VIEW.visible = true
-		RESOURCE_INFO.text = path
-	if (RESOURCE_INFO.text == ""):
+		%TextView.load_text_string("Error opening resource")
+		%TextView.visible = true
+		%ResourceInfo.text = path
+	if (%ResourceInfo.text == ""):
 		pop_resource_info(path)
-		
-	
+
+
 
 	# TODO: handle binary resources
 	# var res_info:Dictionary = ResourceCompatLoader.get_resource_info(path)
@@ -203,7 +192,7 @@ func is_content_text(path):
 	if GDRECommon.detect_utf8(data):
 		return true
 	return false
-	
+
 func is_shader(ext, p_type = ""):
 	if (ext == "shader" || ext == "gdshader"):
 		return true
@@ -224,7 +213,7 @@ func is_text_resource(ext, p_type = ""):
 
 func is_ini_like(ext, p_type = ""):
 	return ext == "cfg" || ext == "remap" || ext == "import" || ext == "gdextension" || ext == "gdnative" || ext == "godot"
-	
+
 
 func is_non_resource_smp(ext, p_type = ""):
 	return (ext == "wav" || ext == "ogg" || ext == "mp3")
@@ -255,37 +244,26 @@ func is_image(ext, p_type = ""):
 	return false
 
 func get_currently_visible_view() -> Control:
-	if TEXT_VIEW.visible:
-		return TEXT_VIEW
-	elif MEDIA_PLAYER.visible:
-		return MEDIA_PLAYER
-	elif TEXTURE_VIEW.visible:
-		return TEXTURE_VIEW
+	if %TextView.visible:
+		return %TextView
+	elif %MediaPlayer.visible:
+		return %MediaPlayer
+	elif %TextureView.visible:
+		return %TextureView
 	return null
 
 
 func _on_gdre_resource_preview_visibility_changed() -> void:
 	if not self.is_visible_in_tree():
+		%MediaPlayer.stop()
 		self.reset()
-		MEDIA_PLAYER.stop()
 	pass # Replace with function body.
 
 func _ready():
-	TEXT_VIEW = $VBoxContainer/ResourceView/TextView
-	MEDIA_PLAYER = $VBoxContainer/ResourceView/MediaPlayer
-	TEXTURE_RECT = $VBoxContainer/ResourceView/TextureView/TextureRect
-	TEXTURE_VIEW = $VBoxContainer/ResourceView/TextureView
-	TEXTURE_INFO = $VBoxContainer/ResourceView/TextureView/TextureInfo
-	VIEWER = $VBoxContainer/ResourceView
-	VBOX_CONTAINER = $VBoxContainer
-	RESOURCE_INFO = $VBoxContainer/ResourceInfoContainer/ResourceInfo
-	# reset()
 	self.connect("visibility_changed", self._on_gdre_resource_preview_visibility_changed)
-	# RESOURCE_INFO.minimum_size_changed.connect(self.reset_resource_info_size)
 	self.connect("resized", self._on_resized)
 	previous_res_info_size = Vector2(0, 100)
-	$VBoxContainer/ResourceInfoContainer.custom_minimum_size = previous_res_info_size
-	#_on_resized()
+	%ResourceInfoContainer.custom_minimum_size = previous_res_info_size
 	# TODO: remove me
 	#load_resource("res://gdre_file_tree.gd")
 	# load_resource("res://.godot/imported/gdre_Script.svg-4c68c9c5e02f5e7a41dddea59a95e245.ctex")
@@ -296,21 +274,21 @@ func _ready():
 
 func _on_v_box_container_drag_started() -> void:
 	pass
-	$VBoxContainer/ResourceInfoContainer.custom_minimum_size = Vector2(0,0)
-	previous_res_info_size = $VBoxContainer/ResourceInfoContainer.size
+	%ResourceInfoContainer.custom_minimum_size = Vector2(0,0)
+	previous_res_info_size = %ResourceInfoContainer.size
 
 
 func _on_v_box_container_drag_ended() -> void:
 	pass
-	previous_res_info_size = $VBoxContainer/ResourceInfoContainer.size
-	$VBoxContainer/ResourceInfoContainer.custom_minimum_size = Vector2(0, previous_res_info_size.y)
+	previous_res_info_size = %ResourceInfoContainer.size
+	%ResourceInfoContainer.custom_minimum_size = Vector2(0, previous_res_info_size.y)
 
 
 func _on_resized() -> void:
 	# get the current size of the currently visible view so that it stays the same when we set the split_offset
 	var current_view = get_currently_visible_view()
 	var current_view_size = current_view.size if current_view else Vector2(0, 0)
-	VBOX_CONTAINER.split_offset = self.size.y / 2.0 - previous_res_info_size.y
+	$VBoxContainer.split_offset = self.size.y / 2.0 - previous_res_info_size.y
 	if current_view:
 		current_view.size = current_view_size
 	pass # Replace with function body.
