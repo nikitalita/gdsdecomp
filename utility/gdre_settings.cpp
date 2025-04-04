@@ -595,6 +595,12 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		}
 	}
 
+	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_FILE_CANT_READ, "FATAL ERROR: loaded project pack, but didn't load files from it!");
+	if (_cmd_line_extract) {
+		// we don't want to load the imports and project config if we're just extracting.
+		return OK;
+	}
+
 	// Load embedded zips within the pck
 	auto zip_files = get_file_list({ "*.zip" });
 	if (zip_files.size() > 0) {
@@ -615,11 +621,6 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 				load_pack_gdscript_cache();
 			}
 		}
-	}
-	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_FILE_CANT_READ, "FATAL ERROR: loaded project pack, but didn't load files from it!");
-	if (_cmd_line_extract) {
-		// we don't want to load the imports and project config if we're just extracting.
-		return OK;
 	}
 
 	if (!has_valid_version() || current_project->suspect_version) {
