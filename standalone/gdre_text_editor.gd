@@ -6,6 +6,10 @@ var CODE_VIWER_OPTIONS_POPUP: PopupMenu = null
 var CODE_VIEWER: CodeEdit = null
 var TEXT_VIEW: Control = null
 
+const GDRESOURCE_COMMENTS = [";"]
+const GDSHADER_COMMENTS = ["//", "/* */"]
+const GDSCRIPT_COMMENTS = ["#"]
+
 var show_tabs_popup_id: int = 0
 var show_spaces_popup_id: int = 0
 var word_wrap_popup_id: int = 0
@@ -111,6 +115,7 @@ func set_shader_viewer_props():
 	CODE_VIEWER.draw_control_chars = true
 	CODE_VIEWER.draw_tabs = true
 	CODE_VIEWER.draw_spaces = true
+	CODE_VIEWER.delimiter_comments = GDSHADER_COMMENTS
 
 func set_code_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdscript_highlighter
@@ -121,6 +126,7 @@ func set_code_viewer_props():
 	CODE_VIEWER.draw_control_chars = true
 	CODE_VIEWER.draw_tabs = true
 	CODE_VIEWER.draw_spaces = true
+	CODE_VIEWER.delimiter_comments = GDSCRIPT_COMMENTS
 
 
 func set_resource_viewer_props():
@@ -132,7 +138,7 @@ func set_resource_viewer_props():
 	CODE_VIEWER.draw_control_chars = false
 	CODE_VIEWER.draw_tabs = false
 	CODE_VIEWER.draw_spaces = false
-
+	CODE_VIEWER.delimiter_comments = GDRESOURCE_COMMENTS
 func set_text_viewer_props():
 	CODE_VIEWER.syntax_highlighter = null
 	CODE_VIEWER.gutters_draw_line_numbers = false
@@ -142,6 +148,7 @@ func set_text_viewer_props():
 	CODE_VIEWER.draw_control_chars = false
 	CODE_VIEWER.draw_tabs = false
 	CODE_VIEWER.draw_spaces = false
+	CODE_VIEWER.delimiter_comments = PackedStringArray()
 
 func reset_popup_menu(menu: PopupMenu) -> void:
 	menu.set_item_checked(menu.get_item_index(show_tabs_popup_id),  CODE_VIEWER.draw_tabs)
