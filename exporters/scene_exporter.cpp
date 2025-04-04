@@ -230,7 +230,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		// 	// if it has a shader, we have to set gltf_load to false and do a real load on the textures, otherwise shaders will not be applied to the textures
 		// 	ResourceCompatLoader::set_default_gltf_load(false);
 		// }
-		ResourceCompatLoader::set_default_gltf_load(false);
 		auto set_cache_res = [&](const dep_info &info, Ref<Resource> texture, bool force_replace) {
 			if (texture.is_null() || (!force_replace && ResourceCache::get_ref(info.dep).is_valid())) {
 				return;
