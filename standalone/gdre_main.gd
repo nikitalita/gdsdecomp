@@ -297,7 +297,7 @@ func get_recent_error_string():
 	return error_message
 
 
-func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> void:
+func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> void:
 	GDRESettings.get_errors()
 	var had_errors = false
 	for path in paths:
@@ -312,7 +312,7 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 		popup_error_box("Error: failed to convert files:\n" + get_recent_error_string(), "Error")
 
 
-func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> void:
+func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> void:
 	GDRESettings.get_errors()
 	var had_errors = false
 	for path in paths:
