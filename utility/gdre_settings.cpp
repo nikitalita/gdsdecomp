@@ -45,7 +45,7 @@ String GDRESettings::_get_cwd() {
 		return ".";
 
 	String result;
-	if (result.parse_utf16(buffer.ptr())) {
+	if (result.append_utf16(buffer.ptr())) {
 		return ".";
 	}
 	return result.simplify_path();
