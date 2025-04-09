@@ -844,16 +844,31 @@ String DirAccessGDRE::fix_path(const String &p_path) const {
 //get_current_file_access_class
 String GDREPackedData::get_current_file_access_class(FileAccess::AccessType p_access_type) {
 	Ref<FileAccess> fa = FileAccess::create(p_access_type);
-	Ref<FILE_ACCESS_OS> fa_os = fa;
-	if (fa_os.is_valid()) {
+	// Ref<FILE_ACCESS_OS> fa_os = fa;
+	// if (fa_os.is_valid()) {
+	// 	return FILE_ACCESS_OS_STR;
+	// }
+	// Ref<FileAccessPack> fa_pack = fa;
+	// if (fa_pack.is_valid()) {
+	// 	return "FileAccessPack";
+	// }
+	// Ref<FileAccessGDRE> fa_gdre = fa;
+	// if (fa_gdre.is_valid()) {
+	// 	return "FileAccessGDRE";
+	// }
+	// return "";
+	//use dynamic_cast instead for now, Ref casting is broken because of GDSOFTCLASS changes
+	FileAccess *fa_ptr = fa.ptr();
+	FILE_ACCESS_OS *fa_os = dynamic_cast<FILE_ACCESS_OS *>(fa_ptr);
+	if (fa_os) {
 		return FILE_ACCESS_OS_STR;
 	}
-	Ref<FileAccessPack> fa_pack = fa;
-	if (fa_pack.is_valid()) {
+	FileAccessPack *fa_pack = dynamic_cast<FileAccessPack *>(fa_ptr);
+	if (fa_pack) {
 		return "FileAccessPack";
 	}
-	Ref<FileAccessGDRE> fa_gdre = fa;
-	if (fa_gdre.is_valid()) {
+	FileAccessGDRE *fa_gdre = dynamic_cast<FileAccessGDRE *>(fa_ptr);
+	if (fa_gdre) {
 		return "FileAccessGDRE";
 	}
 	return "";
@@ -861,16 +876,30 @@ String GDREPackedData::get_current_file_access_class(FileAccess::AccessType p_ac
 
 String GDREPackedData::get_current_dir_access_class(DirAccess::AccessType p_access_type) {
 	Ref<DirAccess> da = DirAccess::create(p_access_type);
-	Ref<DIR_ACCESS_OS> da_os = da;
-	if (da_os.is_valid()) {
+	// Ref<DIR_ACCESS_OS> da_os = da;
+	// if (da_os.is_valid()) {
+	// 	return DIR_ACCESS_OS_STR;
+	// }
+	// Ref<DirAccessPack> da_pack = da;
+	// if (da_pack.is_valid()) {
+	// 	return "DirAccessPack";
+	// }
+	// Ref<DirAccessGDRE> da_gdre = da;
+	// if (da_gdre.is_valid()) {
+	// 	return "DirAccessGDRE";
+	// }
+	// use dynamic_cast instead for now, Ref casting is broken because of GDSOFTCLASS changes
+	DirAccess *da_ptr = da.ptr();
+	DIR_ACCESS_OS *da_os = dynamic_cast<DIR_ACCESS_OS *>(da_ptr);
+	if (da_os) {
 		return DIR_ACCESS_OS_STR;
 	}
-	Ref<DirAccessPack> da_pack = da;
-	if (da_pack.is_valid()) {
+	DirAccessPack *da_pack = dynamic_cast<DirAccessPack *>(da_ptr);
+	if (da_pack) {
 		return "DirAccessPack";
 	}
-	Ref<DirAccessGDRE> da_gdre = da;
-	if (da_gdre.is_valid()) {
+	DirAccessGDRE *da_gdre = dynamic_cast<DirAccessGDRE *>(da_ptr);
+	if (da_gdre) {
 		return "DirAccessGDRE";
 	}
 	return "";

@@ -674,7 +674,7 @@ void GodotREEditor::_compile_process() {
 		Vector<uint8_t> file = FileAccess::get_file_as_bytes(files[i]);
 		if (file.size() > 0) {
 			String txt;
-			txt.parse_utf8((const char *)file.ptr(), file.size());
+			txt.append_utf8((const char *)file.ptr(), file.size());
 			file = dce->compile_code_string(txt);
 			if (file.is_empty()) {
 				failed_files += files[i] + " (" + dce->get_error_message() + ")\n";

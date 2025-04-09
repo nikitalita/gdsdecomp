@@ -1888,10 +1888,9 @@ void ResourceFormatSaverCompatTextInstance::_find_resources(const Variant &p_var
 			// COMPAT: get the missing resources too
 			Dictionary missing_resources = res->get_meta(META_MISSING_RESOURCES, Dictionary());
 			if (missing_resources.size()) {
-				List<Variant> keys;
-				missing_resources.get_key_list(&keys);
-				for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
-					_find_resources(missing_resources[E->get()]);
+				LocalVector<Variant> keys = missing_resources.get_key_list();
+				for (const Variant &E : keys) {
+					_find_resources(missing_resources[E]);
 				}
 			}
 
@@ -1910,8 +1909,7 @@ void ResourceFormatSaverCompatTextInstance::_find_resources(const Variant &p_var
 			Dictionary d = p_variant;
 			_find_resources(d.get_typed_key_script());
 			_find_resources(d.get_typed_value_script());
-			List<Variant> keys;
-			d.get_key_list(&keys);
+			LocalVector<Variant> keys = d.get_key_list();
 			for (const Variant &E : keys) {
 				// Of course keys should also be cached, after all we can't prevent users from using resources as keys, right?
 				// See also ResourceFormatSaverBinaryInstance::_find_resources (when p_variant is of type Variant::DICTIONARY)

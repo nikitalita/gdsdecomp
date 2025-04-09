@@ -78,6 +78,7 @@ public:
 };
 
 class FileAccessAPK : public FileAccess {
+	GDSOFTCLASS(FileAccessAPK, FileAccess);
 	unzFile zfile = nullptr;
 	unz_file_info64 file_info;
 

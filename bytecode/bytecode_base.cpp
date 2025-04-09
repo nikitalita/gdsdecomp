@@ -317,7 +317,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 
 		cs.write[cs.size() - 1] = 0;
 		String s;
-		s.parse_utf8((const char *)cs.ptr());
+		s.append_utf8((const char *)cs.ptr());
 		b += len;
 		total_len -= len + 4;
 		identifiers.write[i] = s;
