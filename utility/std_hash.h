@@ -139,7 +139,7 @@ struct HashMapHasher64 {
 			case Variant::QUATERNION:
 				return hash(p.operator Quaternion());
 			case Variant::AABB:
-				return hash(p.operator AABB());
+				return hash(p.operator ::AABB());
 			case Variant::BASIS:
 				return hash(p.operator Basis());
 			case Variant::TRANSFORM3D:
@@ -153,7 +153,7 @@ struct HashMapHasher64 {
 			case Variant::NODE_PATH:
 				return hash(p.operator NodePath());
 			case Variant::RID:
-				return hash(p.operator RID());
+				return hash(p.operator ::RID());
 			case Variant::DICTIONARY:
 				return splitmix64(p.operator Dictionary().hash());
 			case Variant::ARRAY:
