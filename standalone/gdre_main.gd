@@ -153,7 +153,7 @@ func launch_recovery_window(paths: PackedStringArray):
 
 func setup_new_pck_window():
 	pass
-	
+
 	if not RECOVERY_DIALOG:
 		RECOVERY_DIALOG = $GdreRecover
 	if not NEW_PCK_DIALOG:
@@ -176,7 +176,7 @@ func launch_patch_pck_window():
 func _on_recover_project_files_selected(paths: PackedStringArray):
 	close_recover_file_dialog()
 	launch_recovery_window(paths)
-	
+
 func _on_recover_project_dir_selected(path):
 	# just check if the dir path ends in ".app"
 	close_recover_file_dialog()
@@ -247,7 +247,7 @@ func _on_GDScriptMenu_item_selected(index):
 			$GdreDecompile.show_win()
 		GDScriptMenuID.COMPILE:
 			$GdreCompile.show_win()
-			
+
 			# open_compile_file_dialog()
 
 func _on_REToolsMenu_item_selected(index):
@@ -285,7 +285,7 @@ func _on_ResourcesMenu_item_selected(index):
 		ResourcesMenuID.SAMPLE_TO_WAV:
 			# Convert samples to WAV...
 			$SampleToWAVFileDialog.popup_centered()
-	
+
 
 func get_recent_error_string():
 	var error = GDRESettings.get_errors()
@@ -415,7 +415,7 @@ func _on_setenc_key_ok_pressed():
 			return
 	# close the window
 	$SetEncryptionKeyWindow.hide()
-	
+
 func _on_setenc_key_cancel_pressed():
 	$SetEncryptionKeyWindow.hide()
 
@@ -437,7 +437,7 @@ func check_version() -> bool:
 	http.request_completed.connect(_on_version_check_completed)
 	http.request("https://api.github.com/repos/bruvzg/gdsdecomp/releases/latest")
 	return true
-	
+
 func is_new_version(new_version: String):
 	var curr_version = GDRESettings.get_gdre_version()
 	if curr_version == new_version:
@@ -463,10 +463,10 @@ func _on_version_check_completed(_result, response_code, _headers, body):
 	var draft = json["draft"]
 	var prerelease = json["prerelease"]
 	var curr_version = GDRESettings.get_gdre_version()
-	
+
 	if draft or (prerelease and not ("-" in curr_version)) or not is_new_version(checked_version):
 		return
-	
+
 	var update_str = "Update available! Click here! " + curr_version
 	repo_url = latest_release_url
 	$version_lbl.text = update_str
@@ -534,7 +534,7 @@ func _notification(what: int) -> void:
 		handle_quit()
 	elif what == NOTIFICATION_WM_ABOUT:
 		open_about_window()
-	
+
 
 
 func get_glob_files(glob: String) -> PackedStringArray:
@@ -613,8 +613,8 @@ func test_decomp(fname):
 	if f.get_extension() == "gdc":
 		print("decompiling " + f)
 		#
-		#if decomp.decompile_byte_code(output_dir.path_join(f)) != OK: 
-		if decomp.decompile_byte_code(f) != OK: 
+		#if decomp.decompile_byte_code(output_dir.path_join(f)) != OK:
+		if decomp.decompile_byte_code(f) != OK:
 			print("error decompiling " + f)
 		else:
 			var text = decomp.get_script_text()
@@ -632,8 +632,8 @@ func export_imports(output_dir:String, files: PackedStringArray):
 	importer.set_multi_thread(not disable_multi_threading)
 	importer.export_imports(output_dir, files)
 	importer.reset()
-				
-	
+
+
 func dump_files(output_dir:String, files: PackedStringArray, ignore_checksum_errors: bool = false) -> int:
 	var err:int = OK;
 	var pckdump = PckDumper.new()
@@ -677,7 +677,7 @@ var GLOB_NOTES = """Notes on Include/Exclude globs:
 	- As a special case, if the glob has a wildcard and does contain a directory, it will be assumed to be a recursive pattern.
 		- Example: '*.gdc' would be equivalent to 'res://**/*.gdc'
 	- Include/Exclude globs will only match files that are actually in the project PCK/dir, not any non-present resource source files.
-		Example: 
+		Example:
 			- A project contains the file "res://main.gdc". 'res://main.gd' is the source file of 'res://main.gdc',
 			  but is not included in the project PCK.
 			- Performing project recovery with the include glob 'res://main.gd' would not recover 'main.gd'.
@@ -698,8 +698,8 @@ var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>          Either the commit hash of the bytecode revision (e.g. 'f3f05dc'),
 										   or the version of the engine (e.g. '4.3.0')
---output=<DIR>                          Directory where compiled files will be output to. 
-										  - If not specified, compiled files will be output to the same location 
+--output=<DIR>                          Directory where compiled files will be output to.
+										  - If not specified, compiled files will be output to the same location
 										  (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
 """
 
@@ -848,14 +848,14 @@ func recovery(  input_files:PackedStringArray,
 			print_usage()
 			print("Error: failed to set key!")
 			return
-	
+
 	err = GDRESettings.load_project(input_files, extract_only)
 	if (err != OK):
 		print_usage()
 		print("Error: failed to open ", (input_files))
 		return
 
-	print("Successfully loaded PCK!") 
+	print("Successfully loaded PCK!")
 	ver_major = GDRESettings.get_ver_major()
 	ver_minor = GDRESettings.get_ver_minor()
 	var version:String = GDRESettings.get_version_string()
@@ -909,7 +909,7 @@ func recovery(  input_files:PackedStringArray,
 			print(GLOB_NOTES)
 			return
 
-	if output_dir != input_file and not is_dir: 
+	if output_dir != input_file and not is_dir:
 		if (da.file_exists(output_dir)):
 			print("Error: output dir appears to be a file, not extracting...")
 			return
@@ -992,7 +992,7 @@ func load_pck(input_files: PackedStringArray, extract_only: bool, includes, excl
 			print_usage()
 			print("Error: failed to set key!")
 			return []
-	
+
 	err = GDRESettings.load_project(input_files, extract_only)
 	if (err != OK):
 		print_usage()
@@ -1025,7 +1025,7 @@ func load_pck(input_files: PackedStringArray, extract_only: bool, includes, excl
 		print(GLOB_NOTES)
 		return []
 	return files
-	
+
 
 
 func print_version():
@@ -1088,7 +1088,7 @@ func compile(files: PackedStringArray, bytecode_version: String, output_dir: Str
 		var out_f = FileAccess.open(out_file, FileAccess.WRITE)
 		out_f.store_buffer(bytecode)
 		out_f.close()
-		print("Compiled " + file + " to " + out_file)		
+		print("Compiled " + file + " to " + out_file)
 	print("Compilation complete")
 	return 0
 
@@ -1117,7 +1117,7 @@ func decompile(files: PackedStringArray, bytecode_version: String, output_dir: S
 			return -1
 	for file in new_files:
 		var src_ext = file.get_extension().to_lower()
-		
+
 		if src_ext != "gdc" and src_ext != "gde":
 			print("Error: " + file + " is not a GDScript bytecode file")
 			continue
@@ -1139,7 +1139,7 @@ func decompile(files: PackedStringArray, bytecode_version: String, output_dir: S
 			continue
 		out_f.store_string(text)
 		out_f.close()
-		print("Decompiled " + file + " to " + out_file)		
+		print("Decompiled " + file + " to " + out_file)
 	print("Decompilation complete")
 	return 0
 
@@ -1382,7 +1382,7 @@ func _start_patch_pck(dest_pck: String, pack_info: PackInfo, embed_pck: String =
 	if not embed_pck.is_empty():
 		embed = true
 	var pck_creator = PckCreator.new()
-	pck_creator.start_pck(dest_pck, 
+	pck_creator.start_pck(dest_pck,
 							pack_info.get_fmt_version(),
 							engine_version.major,
 							engine_version.minor,
