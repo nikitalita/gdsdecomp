@@ -87,7 +87,7 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 			WARN_PRINT("Bytes read less than slen!");
 		}
 		String key;
-		key.parse_utf8(cs.ptr());
+		key.append_utf8(cs.ptr());
 
 		uint32_t vlen = f->get_32();
 		Vector<uint8_t> d;

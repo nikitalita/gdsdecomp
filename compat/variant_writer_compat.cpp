@@ -785,9 +785,8 @@ struct VarWriter {
 		*last = 0;
 		return buffer;
 	}
-	// TODO: Turn this on when p_compat fix lands
-	// Also update tests
-	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && /*!p_compat &&*/ after_4_4));
+
+	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && !p_compat && after_4_4));
 
 	static String rtosfix(float p_value) {
 		if (p_value == 0.0) {
@@ -1245,8 +1244,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_3>::write_compa
 				ERR_PRINT("Max recursion reached");
 				p_store_string_func(p_store_string_ud, "{}");
 			} else {
-				List<Variant> keys;
-				dict.get_key_list(&keys);
+				LocalVector<Variant> keys = dict.get_key_list();
 				keys.sort_custom<StringLikeVariantOrder>();
 
 				if (keys.is_empty()) {
@@ -1257,11 +1255,12 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_3>::write_compa
 
 					p_store_string_func(p_store_string_ud, "{\n");
 
-					for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
-						write_compat_v4(E->get(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+					for (size_t i = 0; i < keys.size(); i++) {
+						const Variant &E = keys[i];
+						write_compat_v4(E, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
 						p_store_string_func(p_store_string_ud, ": ");
-						write_compat_v4(dict[E->get()], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
-						if (E->next()) {
+						write_compat_v4(dict[E], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+						if (i < keys.size() - 1) {
 							p_store_string_func(p_store_string_ud, ",\n");
 						} else {
 							p_store_string_func(p_store_string_ud, "\n");
@@ -1623,20 +1622,20 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_3>::write_compa
 		case Variant::DICTIONARY: {
 			Dictionary dict = p_variant;
 
-			List<Variant> keys;
-			dict.get_key_list(&keys);
+			LocalVector<Variant> keys = dict.get_key_list();
 			keys.sort();
 
 			p_store_string_func(p_store_string_ud, "{\n");
-			for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
+			for (size_t i = 0; i < keys.size(); i++) {
+				const Variant &E = keys[i];
 				/*
 				if (!_check_type(dict[E->get()]))
 					continue;
 				*/
-				write_compat_v2_v3(E->get(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
+				write_compat_v2_v3(E, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
 				p_store_string_func(p_store_string_ud, ": ");
-				write_compat_v2_v3(dict[E->get()], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
-				if (E->next())
+				write_compat_v2_v3(dict[E], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
+				if (i < keys.size() - 1)
 					p_store_string_func(p_store_string_ud, ",\n");
 			}
 

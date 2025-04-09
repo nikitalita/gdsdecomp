@@ -38,6 +38,8 @@
 #define ENCRYPTED_HEADER_MAGIC 0x43454447
 
 class FileAccessEncryptedv3 : public FileAccess {
+	GDSOFTCLASS(FileAccessEncryptedv3, FileAccess);
+
 public:
 	enum Mode {
 		MODE_READ,

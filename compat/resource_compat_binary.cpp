@@ -174,7 +174,7 @@ StringName ResourceLoaderCompatBinary::_get_string() {
 		}
 		f->get_buffer((uint8_t *)&str_buf[0], len);
 		String s;
-		s.parse_utf8(&str_buf[0], len);
+		s.append_utf8(&str_buf[0], len);
 		return s;
 	}
 
@@ -1048,7 +1048,7 @@ static String get_ustring(Ref<FileAccess> f) {
 	str_buf.resize(len);
 	f->get_buffer((uint8_t *)&str_buf[0], len);
 	String s;
-	s.parse_utf8(&str_buf[0], len);
+	s.append_utf8(&str_buf[0], len);
 	return s;
 }
 
@@ -1062,7 +1062,7 @@ String ResourceLoaderCompatBinary::get_unicode_string() {
 	}
 	f->get_buffer((uint8_t *)&str_buf[0], len);
 	String s;
-	s.parse_utf8(&str_buf[0], len);
+	s.append_utf8(&str_buf[0], len);
 	return s;
 }
 
@@ -2112,8 +2112,7 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 			Dictionary d = p_property;
 			f->store_32(uint32_t(d.size()));
 
-			List<Variant> keys;
-			d.get_key_list(&keys);
+			LocalVector<Variant> keys = d.get_key_list();
 
 			for (const Variant &E : keys) {
 				write_variant(f, E, p_resource_map, p_external_resources, p_string_map);
@@ -2308,10 +2307,9 @@ void ResourceFormatSaverCompatBinaryInstance::_find_resources(const Variant &p_v
 			// COMPAT: get the missing resources too
 			Dictionary missing_resources = res->get_meta(META_MISSING_RESOURCES, Dictionary());
 			if (missing_resources.size()) {
-				List<Variant> keys;
-				missing_resources.get_key_list(&keys);
-				for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
-					_find_resources(missing_resources[E->get()]);
+				LocalVector<Variant> keys = missing_resources.get_key_list();
+				for (Variant key : keys) {
+					_find_resources(missing_resources[key]);
 				}
 			}
 
@@ -2332,8 +2330,7 @@ void ResourceFormatSaverCompatBinaryInstance::_find_resources(const Variant &p_v
 			Dictionary d = p_variant;
 			_find_resources(d.get_typed_key_script());
 			_find_resources(d.get_typed_value_script());
-			List<Variant> keys;
-			d.get_key_list(&keys);
+			LocalVector<Variant> keys = d.get_key_list();
 			for (const Variant &E : keys) {
 				_find_resources(E);
 				Variant v = d[E];

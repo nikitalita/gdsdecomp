@@ -89,7 +89,7 @@ Error load_model(const String &p_filename, tinygltf::Model &model, String &r_err
 	bool state = loader.LoadBinaryFromFile(&model, &error, &warning, filename);
 	ERR_FAIL_COND_V_MSG(!state, ERR_FILE_CANT_READ, vformat("Failed to load GLTF file: %s", error.c_str()));
 	if (error.size() > 0) { // validation errors, ignore for right now
-		r_error.parse_utf8(error.c_str());
+		r_error.append_utf8(error.c_str());
 	}
 	return OK;
 }

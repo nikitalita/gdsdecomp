@@ -33,7 +33,7 @@ static Error _decode_string(const uint8_t *&buf, int &len, int *r_len, String &r
 
 	String str;
 	// COMPAT: certain hacked Godot games have invalid utf-8 strings that parse valid on their version of Godot, so we need to handle them.
-	Error err = str.parse_utf8((const char *)buf, strlen);
+	Error err = str.append_utf8((const char *)buf, strlen);
 	if (err) {
 		// ERR_INVALID_DATA means that certain characters are not valid UTF-8 and were replaced with 0xFFFD; we can continue on after this error.
 		if (err == ERR_INVALID_DATA && !str.is_empty()) {
@@ -2225,10 +2225,9 @@ Error VariantDecoderCompat::encode_variant_3(const Variant &p_variant, uint8_t *
 			}
 			r_len += 4;
 
-			List<Variant> keys;
-			d.get_key_list(&keys);
+			LocalVector<Variant> keys = d.get_key_list();
 
-			for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
+			for (const Variant &E : keys) {
 				/*
 				CharString utf8 = E->->utf8();
 
@@ -2242,9 +2241,9 @@ Error VariantDecoderCompat::encode_variant_3(const Variant &p_variant, uint8_t *
 				while (r_len%4)
 					r_len++; //pad
 				*/
-				Variant *v = d.getptr(E->get());
+				Variant *v = d.getptr(E);
 				int len;
-				Error err = encode_variant_3(v ? E->get() : Variant("[Deleted Object]"), buf, len, p_full_objects, p_depth + 1);
+				Error err = encode_variant_3(v ? E : Variant("[Deleted Object]"), buf, len, p_full_objects, p_depth + 1);
 				ERR_FAIL_COND_V(err, err);
 				ERR_FAIL_COND_V(len % 4, ERR_BUG);
 				r_len += len;
@@ -2804,10 +2803,9 @@ Error VariantDecoderCompat::encode_variant_2(const Variant &p_variant, uint8_t *
 			}
 			r_len += 4;
 
-			List<Variant> keys;
-			d.get_key_list(&keys);
+			LocalVector<Variant> keys = d.get_key_list();
 
-			for (List<Variant>::Element *E = keys.front(); E; E = E->next()) {
+			for (const Variant &E : keys) {
 				/*
 				CharString utf8 = E->->utf8();
 
@@ -2822,12 +2820,12 @@ Error VariantDecoderCompat::encode_variant_2(const Variant &p_variant, uint8_t *
 					r_len++; //pad
 				*/
 				int len;
-				encode_variant_2(E->get(), buf, len);
+				encode_variant_2(E, buf, len);
 				ERR_FAIL_COND_V(len % 4, ERR_BUG);
 				r_len += len;
 				if (buf)
 					buf += len;
-				encode_variant_2(d[E->get()], buf, len);
+				encode_variant_2(d[E], buf, len);
 				ERR_FAIL_COND_V(len % 4, ERR_BUG);
 				r_len += len;
 				if (buf)

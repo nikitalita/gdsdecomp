@@ -106,7 +106,7 @@ Array AssetLibInfoGetter::search_for_assets(const String &plugin_name, int ver_m
 				break;
 			}
 			String response_str;
-			response_str.parse_utf8((const char *)response.ptr(), response.size());
+			response_str.append_utf8((const char *)response.ptr(), response.size());
 			Dictionary dict = JSON::parse_string(response_str);
 			if (dict.is_empty()) {
 				break;
@@ -154,7 +154,7 @@ Vector<Dictionary> AssetLibInfoGetter::get_assets_for_plugin(const String &plugi
 			continue;
 		}
 		String response_str;
-		response_str.parse_utf8((const char *)response.ptr(), response.size());
+		response_str.append_utf8((const char *)response.ptr(), response.size());
 		Dictionary asset = JSON::parse_string(response_str);
 		new_assets.append(asset);
 	}
@@ -199,7 +199,7 @@ Vector<Dictionary> AssetLibInfoGetter::get_list_of_edits(int asset_id) {
 			break;
 		}
 		String response_str;
-		response_str.parse_utf8((const char *)response.ptr(), response.size());
+		response_str.append_utf8((const char *)response.ptr(), response.size());
 		Dictionary response_obj = JSON::parse_string(response_str);
 		if (response_obj.is_empty()) {
 			break;
@@ -338,7 +338,7 @@ Error AssetLibInfoGetter::populate_plugin_version_hashes(PluginVersion &plugin_v
 		auto &gdext_path = E.key;
 		auto data = zip->read_file(gdext_path, true);
 		String gdext_str;
-		gdext_str.parse_utf8((const char *)data.ptr(), data.size());
+		gdext_str.append_utf8((const char *)data.ptr(), data.size());
 		Ref<ImportInfoGDExt> cf = memnew(ImportInfoGDExt);
 		cf->load_from_string("res://" + gdext_info.relative_path, gdext_str);
 		if (!cf->get_compatibility_minimum().is_empty()) {
@@ -393,7 +393,7 @@ Dictionary AssetLibInfoGetter::get_edit(int edit_id) {
 		return Dictionary();
 	}
 	String response_str;
-	response_str.parse_utf8((const char *)response.ptr(), response.size());
+	response_str.append_utf8((const char *)response.ptr(), response.size());
 	Dictionary response_obj = JSON::parse_string(response_str);
 	return response_obj;
 }
@@ -767,7 +767,7 @@ bool AssetLibInfoGetter::recache_gh_release_list(const String &plugin_name) {
 			break;
 		}
 		String response_str;
-		response_str.parse_utf8((const char *)response.ptr(), response.size());
+		response_str.append_utf8((const char *)response.ptr(), response.size());
 		Array response_obj = JSON::parse_string(response_str);
 		if (response_obj.is_empty()) {
 			break;
@@ -869,7 +869,7 @@ bool AssetLibInfoGetter::recache_gl_release_list(const String &plugin_name) {
 			break;
 		}
 		String response_str;
-		response_str.parse_utf8((const char *)response.ptr(), response.size());
+		response_str.append_utf8((const char *)response.ptr(), response.size());
 		Array response_obj = JSON::parse_string(response_str);
 		if (response_obj.is_empty()) {
 			break;

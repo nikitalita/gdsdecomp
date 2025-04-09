@@ -29,19 +29,18 @@ String ImportInfo::as_text(bool full) {
 	}
 	s += " ]";
 	s += "\n\tparams: {";
-	List<Variant> *keys = memnew(List<Variant>);
 	Dictionary params = get_params();
-	params.get_key_list(keys);
-	for (int i = 0; i < keys->size(); i++) {
+	auto keys = params.get_key_list();
+	for (int i = 0; i < keys.size(); i++) {
+		const Variant &key = keys[i];
 		// skip excessively long options list
 		if (!full && i == 8) {
-			s += "\n\t\t[..." + itos(keys->size() - i) + " others...]";
+			s += "\n\t\t[..." + itos(keys.size() - i) + " others...]";
 			break;
 		}
-		String t = (*keys).get(i);
+		String t = key;
 		s += "\n\t\t" + t + "=" + (String)params[t];
 	}
-	memdelete(keys);
 	s += "\n\t}\n}";
 	return s;
 }
@@ -435,10 +434,10 @@ Dictionary ImportInfoModern::get_params() const {
 }
 
 void ImportInfoModern::set_params(Dictionary params) {
-	List<Variant> param_keys;
-	params.get_key_list(&param_keys);
-	for (auto E = param_keys.front(); E; E = E->next()) {
-		cf->set_value("params", E->get(), params[E->get()]);
+	auto param_keys = params.get_key_list();
+	for (int i = 0; i < param_keys.size(); i++) {
+		const Variant &key = param_keys[i];
+		cf->set_value("params", key, params[key]);
 	}
 	dirty = true;
 }
@@ -784,10 +783,9 @@ Dictionary ImportInfov2::get_params() const {
 }
 
 void ImportInfov2::set_params(Dictionary params) {
-	List<Variant> param_keys;
-	params.get_key_list(&param_keys);
-	for (auto E = param_keys.front(); E; E = E->next()) {
-		v2metadata->set_option(E->get(), params[E->get()]);
+	LocalVector<Variant> param_keys = params.get_key_list();
+	for (auto &E : param_keys) {
+		v2metadata->set_option(E, params[E]);
 	}
 	dirty = true;
 }

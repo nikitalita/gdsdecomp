@@ -138,6 +138,7 @@ public:
 };
 
 class DirAccessGDRE : public DirAccess {
+	GDSOFTCLASS(DirAccessGDRE, DirAccess);
 	GDREPackedData::PackedDir *current;
 
 	List<String> list_dirs;

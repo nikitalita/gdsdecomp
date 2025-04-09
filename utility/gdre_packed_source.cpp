@@ -392,7 +392,7 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 		cs[sl] = 0;
 
 		String path;
-		path.parse_utf8(cs.ptr());
+		path.append_utf8(cs.ptr());
 		String p_file = path.get_file();
 		ERR_FAIL_COND_V_MSG(p_file.begins_with("gdre_") && p_file != "gdre_export.log", false, "Don't try to extract the GDRE pack files, just download the source from github.");
 
