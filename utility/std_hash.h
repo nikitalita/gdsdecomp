@@ -1,6 +1,7 @@
 
 #ifndef STD_HASH_H
 #define STD_HASH_H
+#include <core/math/aabb.h>
 #include <core/typedefs.h>
 #include <core/variant/variant.h>
 #include <external/parallel_hashmap/phmap_utils.h>
