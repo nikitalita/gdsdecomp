@@ -105,39 +105,6 @@ inline String remove_comments(const String &script_text) {
 	return new_text;
 }
 
-inline void output_diff(const String &script_name, const String &decompiled_string_stripped, const String &helper_script_text_stripped) {
-	// write the script to a temp path
-	auto old_path = get_tmp_path().path_join(script_name + ".old.gd");
-	auto new_path = get_tmp_path().path_join(script_name + ".new.gd");
-	gdre::ensure_dir(get_tmp_path());
-	auto fa = FileAccess::open(new_path, FileAccess::WRITE);
-	if (fa.is_valid()) {
-		fa->store_string(decompiled_string_stripped);
-		fa->flush();
-		fa->close();
-		auto fa2 = FileAccess::open(old_path, FileAccess::WRITE);
-		if (fa2.is_valid()) {
-			fa2->store_string(helper_script_text_stripped);
-			fa2->flush();
-			fa2->close();
-			auto thingy = { String("-u"), old_path, new_path };
-			List<String> args;
-			for (auto &arg : thingy) {
-				args.push_back(arg);
-			}
-			String pipe;
-			OS::get_singleton()->execute("diff", args, &pipe);
-			auto temp_path_diff = new_path + ".diff";
-			auto fa_diff = FileAccess::open(temp_path_diff, FileAccess::WRITE);
-			if (fa_diff.is_valid()) {
-				fa_diff->store_string(pipe);
-				fa_diff->flush();
-				fa_diff->close();
-			}
-		}
-	}
-}
-
 inline void test_script_text(const String &script_name, const String &helper_script_text, int revision, bool helper_script, bool no_text_equality_check) {
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(revision);
 	CHECK(decomp.is_valid());
@@ -174,6 +141,7 @@ inline void test_script_text(const String &script_name, const String &helper_scr
 
 #if DEBUG_ENABLED
 	if (!no_text_equality_check && gdre::remove_whitespace(decompiled_string_stripped) != gdre::remove_whitespace(helper_script_text_stripped)) {
+		TextDiff::print_diff(TextDiff::get_diff_with_header(script_name, script_name, decompiled_string_stripped, helper_script_text_stripped));
 		output_diff(script_name, decompiled_string_stripped, helper_script_text_stripped);
 	}
 #endif
@@ -188,6 +156,7 @@ inline void test_script_text(const String &script_name, const String &helper_scr
 	err = decomp->test_bytecode_match(bytecode, recompiled_bytecode);
 #if DEBUG_ENABLED
 	if (err) {
+		TextDiff::print_diff(TextDiff::get_diff_with_header(script_name, script_name, decompiled_string_stripped, helper_script_text_stripped));
 		output_diff(script_name, decompiled_string_stripped, helper_script_text_stripped);
 	}
 #endif
