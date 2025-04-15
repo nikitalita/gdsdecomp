@@ -5,7 +5,6 @@
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
 #include "editor/editor_settings.h"
-#endif
 /*************************************************************************/
 
 #include "gdre_enc_key.h"
@@ -107,3 +106,4 @@ void EncKeyDialog::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_key"), &EncKeyDialog::get_key);
 	ClassDB::bind_method(D_METHOD("_script_encryption_key_changed", "key"), &EncKeyDialog::_script_encryption_key_changed);
 }
+#endif // TOOLS_ENABLED

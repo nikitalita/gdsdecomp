@@ -99,6 +99,7 @@ public:
 	void remove_host_window(Window *p_window);
 
 	GDREProgressDialog();
+	~GDREProgressDialog();
 };
 
 struct EditorProgressGDDC {

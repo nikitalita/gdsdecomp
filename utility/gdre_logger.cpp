@@ -1,6 +1,6 @@
 #include "gdre_logger.h"
 #include "core/os/mutex.h"
-#include "editor/gdre_editor.h"
+#include "editor/gdre_standalone.h"
 #include "gdre_settings.h"
 
 #include "core/io/dir_access.h"

@@ -4,7 +4,6 @@
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
 #include "editor/editor_settings.h"
-#endif
 
 #include "gdre_pck_dlg.h"
 
@@ -366,3 +365,4 @@ void PackDialog::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_dir_select_request", "path"), &PackDialog::_dir_select_request);
 	ClassDB::bind_method(D_METHOD("_item_edited"), &PackDialog::_item_edited);
 }
+#endif // TOOLS_ENABLED

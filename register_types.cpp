@@ -5,6 +5,7 @@
 #include "register_types.h"
 #include "compat/fake_script.h"
 #include "core/object/class_db.h"
+#include "editor/gdre_standalone.h"
 #include "modules/regex/regex.h"
 #include "utility/file_access_gdre.h"
 #include "utility/gdre_audio_stream_preview.h"
@@ -230,6 +231,11 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+#ifdef TOOLS_ENABLED
+	ClassDB::register_class<PackDialog>();
+	ClassDB::register_class<NewPackDialog>();
+#endif
+
 	ClassDB::register_class<SemVer>();
 	ClassDB::register_class<GodotVer>();
 	ClassDB::register_class<Glob>();
@@ -289,8 +295,6 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<PackedFileInfo>();
 	ClassDB::register_class<GDRESettings::PackInfo>();
 
-	ClassDB::register_class<PackDialog>();
-	ClassDB::register_class<NewPackDialog>();
 	ClassDB::register_class<ScriptCompDialog>();
 	ClassDB::register_class<ScriptDecompDialog>();
 	ClassDB::register_class<GDREAudioStreamPreviewGenerator>();
