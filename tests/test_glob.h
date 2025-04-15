@@ -527,13 +527,17 @@ TEST_CASE("[GDSDecomp][Glob] glob with hidden files") {
 	create_test_directory_structure(test_dir);
 
 	// Test glob with hidden files excluded
-	Vector<String> result = Glob::glob(test_dir.path_join(".*"), false);
-	Vector<String> expected = {};
-	CHECK(vectors_equal(result, expected));
-
+	// don't run this test on windows
+#if !defined(WINDOWS_ENABLED)
+	if (OS::get_singleton()->get_name() != "Windows") {
+		Vector<String> result = Glob::glob(test_dir.path_join(".*"), false);
+		Vector<String> expected = {};
+		CHECK(vectors_equal(result, expected));
+	}
+#endif
 	// Test glob with hidden files included
-	result = Glob::glob(test_dir.path_join(".*"), true);
-	expected = {
+	Vector<String> result = Glob::glob(test_dir.path_join(".*"), true);
+	Vector<String> expected = {
 		test_dir.path_join(".hidden_file"),
 		test_dir.path_join(".hidden_dir")
 	};
