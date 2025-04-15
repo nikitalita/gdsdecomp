@@ -12,29 +12,6 @@
 #include "utility/file_access_gdre.h"
 
 namespace TestResourceLoading {
-_ALWAYS_INLINE_ String get_test_resources_path() {
-	return get_gdsdecomp_path().path_join("tests/test_files");
-}
-
-_ALWAYS_INLINE_ Vector<String> get_test_versions() {
-	Vector<String> versions;
-	Ref<DirAccess> da = DirAccess::open(get_test_resources_path());
-	da->list_dir_begin();
-	while (true) {
-		String file = da->get_next();
-		if (file.is_empty()) {
-			break;
-		}
-		if (file == "." || file == "..") {
-			continue;
-		}
-
-		if (da->current_is_dir()) {
-			versions.push_back(file);
-		}
-	}
-	return versions;
-}
 
 TEST_CASE("[GDSDecomp][ResourceLoading] Basic resource loading") {
 	// Get available test versions
