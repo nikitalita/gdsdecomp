@@ -190,8 +190,7 @@ Ref<ImportInfo> ImportInfo::copy(const Ref<ImportInfo> &p_iinfo) {
 	return r_iinfo;
 }
 
-ImportInfo::ImportInfo() :
-		RefCounted() {
+ImportInfo::ImportInfo() {
 	import_md_path = "";
 	ver_major = 0;
 	ver_minor = 0;
@@ -199,30 +198,25 @@ ImportInfo::ImportInfo() :
 	iitype = IInfoType::BASE;
 }
 
-ImportInfoModern::ImportInfoModern() :
-		ImportInfo() {
+ImportInfoModern::ImportInfoModern() {
 	cf.instantiate();
 	iitype = IInfoType::MODERN;
 }
 
-ImportInfov2::ImportInfov2() :
-		ImportInfo() {
+ImportInfov2::ImportInfov2() {
 	v2metadata.instantiate();
 	iitype = IInfoType::V2;
 }
 
-ImportInfoDummy::ImportInfoDummy() :
-		ImportInfo() {
+ImportInfoDummy::ImportInfoDummy() {
 	iitype = IInfoType::DUMMY;
 }
 
-ImportInfoRemap::ImportInfoRemap() :
-		ImportInfoDummy() {
+ImportInfoRemap::ImportInfoRemap() {
 	iitype = IInfoType::REMAP;
 }
 
-ImportInfoGDExt::ImportInfoGDExt() :
-		ImportInfoDummy() {
+ImportInfoGDExt::ImportInfoGDExt() {
 	iitype = IInfoType::GDEXT;
 }
 
