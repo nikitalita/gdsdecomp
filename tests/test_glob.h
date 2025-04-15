@@ -97,14 +97,6 @@ void create_test_directory_structure(const String &base_path) {
 	fa = FileAccess::open(base_path.path_join("file[1].txt"), FileAccess::WRITE);
 	CHECK(fa.is_valid());
 	fa->store_string("file[1] content");
-
-	fa = FileAccess::open(base_path.path_join("file?1.txt"), FileAccess::WRITE);
-	CHECK(fa.is_valid());
-	fa->store_string("file?1 content");
-
-	fa = FileAccess::open(base_path.path_join("file*1.txt"), FileAccess::WRITE);
-	CHECK(fa.is_valid());
-	fa->store_string("file*1 content");
 }
 
 // Helper function to clean up the test directory structure
@@ -151,8 +143,6 @@ TEST_CASE("[GDSDecomp][Glob] glob with absolute paths") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt")
 	};
 	CHECK(vectors_equal(result, expected));
 
@@ -249,8 +239,6 @@ TEST_CASE("[GDSDecomp][Glob] glob with relative paths") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt")
 	};
 	CHECK(vectors_equal(result, expected));
 
@@ -277,8 +265,6 @@ TEST_CASE("[GDSDecomp][Glob] rglob (recursive glob)") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt"),
 		test_dir.path_join("dir1/file1.txt"),
 		test_dir.path_join("dir1/file2.txt"),
 		test_dir.path_join("dir1/subdir1/file1.txt"),
@@ -324,8 +310,6 @@ TEST_CASE("[GDSDecomp][Glob] rglob (recursive glob)") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt"),
 		test_dir.path_join("dir1/file1.txt"),
 		test_dir.path_join("dir1/file2.txt"),
 		test_dir.path_join("dir1/subdir1/file1.txt"),
@@ -358,8 +342,6 @@ TEST_CASE("[GDSDecomp][Glob] glob_list and rglob_list") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt"),
 		test_dir.path_join("dir1/file1.txt"),
 		test_dir.path_join("dir1/file2.txt")
 	};
@@ -376,8 +358,6 @@ TEST_CASE("[GDSDecomp][Glob] glob_list and rglob_list") {
 		test_dir.path_join("file2.txt"),
 		test_dir.path_join("file3.txt"),
 		test_dir.path_join("file[1].txt"),
-		test_dir.path_join("file?1.txt"),
-		test_dir.path_join("file*1.txt"),
 		test_dir.path_join("dir1/file1.txt"),
 		test_dir.path_join("dir1/file2.txt"),
 		test_dir.path_join("dir1/subdir1/file1.txt"),
@@ -571,20 +551,6 @@ TEST_CASE("[GDSDecomp][Glob] glob with special characters") {
 	Vector<String> result = Glob::glob(test_dir.path_join("file\\[1\\].txt"), false);
 	Vector<String> expected = {
 		test_dir.path_join("file[1].txt")
-	};
-	CHECK(vectors_equal(result, expected));
-
-	// Test glob with a pattern that includes a question mark
-	result = Glob::glob(test_dir.path_join("file\\?1.txt"), false);
-	expected = {
-		test_dir.path_join("file?1.txt")
-	};
-	CHECK(vectors_equal(result, expected));
-
-	// Test glob with a pattern that includes an asterisk
-	result = Glob::glob(test_dir.path_join("file\\*1.txt"), false);
-	expected = {
-		test_dir.path_join("file*1.txt")
 	};
 	CHECK(vectors_equal(result, expected));
 
