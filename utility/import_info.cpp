@@ -595,11 +595,11 @@ Error ImportInfoRemap::_load(const String &p_path) {
 Error ImportInfov2::_load(const String &p_path) {
 	Error err;
 	ResourceInfo res_info;
+	preferred_import_path = p_path;
 	err = ImportInfo::get_resource_info(preferred_import_path, res_info);
 	if (err) {
 		ERR_FAIL_V_MSG(err, "Could not load resource info from " + p_path);
 	}
-	preferred_import_path = p_path;
 	String dest;
 	String source_file;
 	String importer;
