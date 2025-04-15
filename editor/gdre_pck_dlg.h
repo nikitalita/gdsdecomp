@@ -4,10 +4,12 @@
 
 #ifndef GODOT_RE_PCK_DLG_H
 #define GODOT_RE_PCK_DLG_H
+#ifdef TOOLS_ENABLED
 
 #include "core/io/resource.h"
 #include "core/templates/rb_map.h"
 
+#include "editor/themes/editor_scale.h"
 #include "scene/gui/check_box.h"
 #include "scene/gui/control.h"
 #include "scene/gui/dialogs.h"
@@ -16,13 +18,6 @@
 #include "scene/gui/line_edit.h"
 #include "scene/gui/spin_box.h"
 #include "scene/gui/text_edit.h"
-
-#ifdef TOOLS_ENABLED
-
-#include "editor/themes/editor_scale.h"
-#else
-#define EDSCALE 1.0
-#endif
 
 class PackDialog : public AcceptDialog {
 	GDCLASS(PackDialog, AcceptDialog)
@@ -85,4 +80,5 @@ public:
 	~PackDialog();
 };
 
-#endif
+#endif // TOOLS_ENABLED
+#endif // GODOT_RE_PCK_DLG_H

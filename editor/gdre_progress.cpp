@@ -31,14 +31,16 @@
 #include "gdre_progress.h"
 
 #include "core/os/os.h"
-#include "gdre_editor.h"
 #include "main/main.h"
 #include "servers/display_server.h"
+#include <editor/gdre_standalone.h>
 
 #include <utility/gdre_settings.h>
 #ifdef TOOLS_ENABLED
 #include "editor/editor_interface.h"
+#include "editor/editor_node.h"
 #endif
+
 void GDREBackgroundProgress::_add_task(const String &p_task, const String &p_label, int p_steps) {
 	_THREAD_SAFE_METHOD_
 	ERR_FAIL_COND_MSG(tasks.has(p_task), "Task '" + p_task + "' already exists.");
@@ -292,9 +294,22 @@ GDREProgressDialog::GDREProgressDialog() {
 	cancel->connect(SceneStringName(pressed), callable_mp(this, &GDREProgressDialog::_cancel_pressed));
 }
 
+GDREProgressDialog::~GDREProgressDialog() {
+	singleton = nullptr;
+}
+
 bool EditorProgressGDDC::step(const String &p_state, int p_step, bool p_force_refresh) {
 	if (progress_dialog) {
 		return progress_dialog->task_step(task, p_state, p_step, p_force_refresh);
+	} else {
+#ifdef TOOLS_ENABLED
+		if (Thread::is_main_thread()) {
+			return EditorNode::progress_task_step(task, p_state, p_step, p_force_refresh);
+		} else {
+			EditorNode::progress_task_step_bg(task, p_step);
+			return false;
+		}
+#endif
 	}
 	return false;
 }
@@ -306,6 +321,14 @@ EditorProgressGDDC::EditorProgressGDDC(Node *p_parent, const String &p_task, con
 			progress_dialog->add_host_window(p_parent->get_window());
 		}
 		progress_dialog->add_task(p_task, p_label, p_amount, p_can_cancel);
+	} else {
+#ifdef TOOLS_ENABLED
+		if (Thread::is_main_thread()) {
+			EditorNode::progress_add_task(p_task, p_label, p_amount, p_can_cancel);
+		} else {
+			EditorNode::progress_add_task_bg(p_task, p_label, p_amount);
+		}
+#endif
 	}
 	task = p_task;
 }
@@ -314,5 +337,13 @@ EditorProgressGDDC::~EditorProgressGDDC() {
 	// if no EditorNode...
 	if (progress_dialog) {
 		progress_dialog->end_task(task);
+	} else {
+#ifdef TOOLS_ENABLED
+		if (Thread::is_main_thread()) {
+			EditorNode::progress_end_task(task);
+		} else {
+			EditorNode::progress_end_task_bg(task);
+		}
+#endif
 	}
 }

@@ -8,7 +8,7 @@
 #include "utility/common.h"
 #include "utility/packed_file_info.h"
 
-#include <editor/gdre_editor.h>
+#include <editor/gdre_standalone.h>
 
 const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 

@@ -4,7 +4,7 @@
 
 #ifndef GODOT_RE_ENC_KEY_H
 #define GODOT_RE_ENC_KEY_H
-
+#ifdef TOOLS_ENABLED
 #include "core/io/resource.h"
 #include "core/templates/rb_map.h"
 
@@ -16,12 +16,7 @@
 #include "scene/gui/spin_box.h"
 #include "scene/gui/text_edit.h"
 
-#ifdef TOOLS_ENABLED
-
 #include "editor/themes/editor_scale.h"
-#else
-#define EDSCALE 1.0
-#endif
 
 class EncKeyDialog : public AcceptDialog {
 	GDCLASS(EncKeyDialog, AcceptDialog)
@@ -43,4 +38,5 @@ public:
 	~EncKeyDialog();
 };
 
-#endif
+#endif // TOOLS_ENABLED
+#endif // GODOT_RE_ENC_KEY_H

@@ -4,7 +4,6 @@
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
 #include "editor/editor_settings.h"
-#endif
 
 #include "gdre_npck_dlg.h"
 
@@ -206,3 +205,4 @@ void NewPackDialog::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("_exe_select_request", "path"), &NewPackDialog::_exe_select_request);
 	ClassDB::bind_method(D_METHOD("_val_change", "val"), &NewPackDialog::_val_change);
 }
+#endif

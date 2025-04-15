@@ -11,7 +11,7 @@
 #include "utility/packed_file_info.h"
 
 #include <core/io/file_access_encrypted.h>
-#include <editor/gdre_editor.h>
+#include <editor/gdre_standalone.h>
 #include <scene/resources/surface_tool.h>
 
 void PckCreator::reset() {
