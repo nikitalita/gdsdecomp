@@ -801,7 +801,6 @@ Error ImportInfov2::save_to(const String &new_import_file) {
 }
 
 Error ImportInfoModern::save_md5_file(const String &output_dir) {
-	String md5_file_path;
 	Vector<String> dest_files = get_dest_files();
 	if (dest_files.size() == 0) {
 		return ERR_PRINTER_ON_FIRE;
@@ -814,9 +813,9 @@ Error ImportInfoModern::save_md5_file(const String &output_dir) {
 	if (export_dest != actual_source) {
 		return ERR_PRINTER_ON_FIRE;
 	}
-	Vector<String> spl = dest_files[0].split("-");
+	Vector<String> spl = dest_files[0].rsplit("-", true, 1);
 	ERR_FAIL_COND_V_MSG(spl.size() < 2, ERR_FILE_BAD_PATH, "Weird import path!");
-	md5_file_path = output_dir.path_join(spl[0].replace_first("res://", "") + "-" + spl[1].get_basename() + ".md5");
+	String md5_file_base = spl[0].replace_first("res://", "");
 	// check if each exists
 	for (int i = 0; i < dest_files.size(); i++) {
 		if (!FileAccess::exists(dest_files[i])) {
@@ -829,12 +828,14 @@ Error ImportInfoModern::save_md5_file(const String &output_dir) {
 	ERR_FAIL_COND_V_MSG(dst_md5.is_empty(), ERR_FILE_BAD_PATH, "Can't open import resources to check md5!");
 
 	if (src_md5.is_empty()) {
-		String src_path = export_dest.is_empty() ? get_source_file() : export_dest;
-		src_md5 = FileAccess::get_md5(output_dir.path_join(src_path.replace_first("res://", "")));
+		String exported_src_path = output_dir.path_join(actual_source.replace_first("res://", ""));
+		src_md5 = FileAccess::get_md5(exported_src_path);
 		if (src_md5.is_empty()) {
 			ERR_FAIL_COND_V_MSG(src_md5.is_empty(), ERR_FILE_BAD_PATH, "Can't open exported resource to check md5!");
 		}
 	}
+	String md5_file_path = output_dir.path_join(md5_file_base + "-" + actual_source.md5_text() + ".md5");
+	gdre::ensure_dir(md5_file_path.get_base_dir());
 	Ref<FileAccess> md5_file = FileAccess::open(md5_file_path, FileAccess::WRITE);
 	ERR_FAIL_COND_V_MSG(md5_file.is_null(), ERR_FILE_CANT_OPEN, "Can't open exported resource to check md5!");
 	md5_file->store_string("source_md5=\"" + src_md5 + "\"\ndest_md5=\"" + dst_md5 + "\"\n\n");
