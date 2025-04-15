@@ -12,6 +12,7 @@ Import("env_modules")
 etcpak_dir = "#thirdparty/etcpak/"
 mmp3thirdparty_dir = "#thirdparty/minimp3/"
 liboggthirdparty_dir = "#thirdparty/libogg/"
+libvorbisthirdparty_dir = "#thirdparty/libvorbis/"
 webpthirdparty_dir = "#thirdparty/libwebp/"
 
 # hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13 in the macos/detect.py script
@@ -32,7 +33,10 @@ env_gdsdecomp = env_modules.Clone()
 # This is a hack for tests, since the test headers get built from tests/test_main.cpp,
 # and the headers that our tests pull in are relative to the current directory.
 # TODO: Figure out a way to not have to do this
-env.Append(CPPPATH=["#modules/gdsdecomp/"])
+if env["tests"]:
+    env.Append(CPPPATH=["#modules/gdsdecomp/"])
+    env.Append(CPPPATH=[liboggthirdparty_dir])
+    env.Append(CPPPATH=[libvorbisthirdparty_dir])
 env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp/"])
 env_gdsdecomp.Append(CPPPATH=["#thirdparty/thorsvg/"])
 
