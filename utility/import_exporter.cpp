@@ -272,33 +272,18 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 			pr->step("Decompiling scripts...", 0, true);
 		}
 		Vector<String> to_decompile = partial_export ? get_vector_intersection(get_settings()->get_code_files(), files_to_export) : get_settings()->get_code_files();
-		bool has_non_compiled_scripts = Glob::rglob("res://addons/**/*.gd", true).size() > 0;
-		// check if res://addons exists
-		Ref<DirAccess> res_da = DirAccess::open("res://");
-		Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
-		if (res_da->dir_exists("res://addons")) {
-			// Only recreate plugin configs if we are exporting files within the addons directory
-			if (partial_export) {
-				// TODO: This doesn't handle '[' and '?' in the path
-				Vector<String> addon_code_files = Glob::rglob_list({ "res://addons/**/*.gdc", "res://addons/**/*.gde" });
-				addon_first_level_dirs = Glob::dirs_in_names(files_to_export, addon_first_level_dirs);
-				auto new_code_files = Glob::names_in_dirs(addon_code_files, addon_first_level_dirs);
-				for (auto &code_file : new_code_files) {
-					if (!to_decompile.has(code_file)) {
-						to_decompile.push_back(code_file);
-					}
-				}
-			}
-			// we need to copy the addons to the output directory
-		}
 		if (to_decompile.size() > 0) {
 			decompile_scripts(output_dir, to_decompile);
 		}
-		if (has_non_compiled_scripts || to_decompile.size() > 0) {
-			// This only works if we decompile the scripts first
-			recreate_plugin_configs(output_dir, addon_first_level_dirs);
-		}
 	}
+	Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
+	if (addon_first_level_dirs.size() > 0) {
+		if (partial_export) {
+			addon_first_level_dirs = Glob::dirs_in_names(files_to_export, addon_first_level_dirs);
+		}
+		recreate_plugin_configs(output_dir, addon_first_level_dirs);
+	}
+
 	if (pr) {
 		if (pr->step("Exporting resources...", 0, true)) {
 			return ERR_SKIP;
@@ -582,23 +567,20 @@ Error ImportExporter::decompile_scripts(const String &p_out_dir, const Vector<St
 
 Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir) {
 	Error err;
-	static const Vector<String> wildcards = { "*.gd" };
+	static const Vector<String> wildcards = { "*.gdc", "*.gde", "*.gd" };
 	String rel_plugin_path = String("addons").path_join(plugin_dir);
-	String abs_plugin_path = output_dir.path_join(rel_plugin_path);
-	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
+	auto gd_scripts = gdre::get_recursive_dir_list(String("res://").path_join(rel_plugin_path), wildcards, false);
 	String main_script;
 
-	bool found_our_platform = true;
 	if (gd_scripts.is_empty()) {
 		return OK;
 	}
 
 	for (int j = 0; j < gd_scripts.size(); j++) {
-		String gd_script_abs_path = abs_plugin_path.path_join(gd_scripts[j]);
-		String gd_text = FileAccess::get_file_as_string(gd_script_abs_path, &err);
-		ERR_FAIL_COND_V_MSG(err, err, "failed to open gd_script " + gd_script_abs_path + "!");
-		if (gd_text.find("extends EditorPlugin") != -1) {
-			main_script = gd_scripts[j];
+		String gd_script_abs_path = String("res://").path_join(rel_plugin_path).path_join(gd_scripts[j]);
+		Ref<FakeGDScript> gd_script = ResourceCompatLoader::non_global_load(gd_script_abs_path, "", &err);
+		if (gd_script->get_instance_base_type() == "EditorPlugin") {
+			main_script = gd_scripts[j].get_basename() + ".gd";
 			break;
 		}
 	}
@@ -611,17 +593,19 @@ Error ImportExporter::recreate_plugin_config(const String &output_dir, const Str
 			"author=\"Unknown\"\n" +
 			"version=\"1.0\"\n" +
 			"script=\"" + main_script + "\"";
-	Ref<FileAccess> f = FileAccess::open(abs_plugin_path.path_join("plugin.cfg"), FileAccess::WRITE, &err);
-	ERR_FAIL_COND_V_MSG(err, err, "can't open plugin.cfg for writing");
-	f->store_string(plugin_cfg_text);
+	String output_plugin_path = output_dir.path_join(rel_plugin_path);
+	gdre::ensure_dir(output_plugin_path);
+	Ref<FileAccess> f = FileAccess::open(output_plugin_path.path_join("plugin.cfg"), FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err || f.is_null(), ERR_FILE_CANT_WRITE, "can't open plugin.cfg for writing");
+	ERR_FAIL_COND_V_MSG(!f->store_string(plugin_cfg_text), ERR_FILE_CANT_WRITE, "can't write plugin.cfg");
 	print_verbose("Recreated plugin config for " + plugin_dir);
-	return found_our_platform ? OK : ERR_PRINTER_ON_FIRE;
+	return OK;
 }
 
 // Recreates the "plugin.cfg" files for each plugin to avoid loading errors.
 Error ImportExporter::recreate_plugin_configs(const String &output_dir, const Vector<String> &plugin_dirs) {
 	Error err;
-	if (!DirAccess::exists(output_dir.path_join("addons"))) {
+	if (!DirAccess::exists("res://addons")) {
 		return OK;
 	}
 	print_line("Recreating plugin configs...");
