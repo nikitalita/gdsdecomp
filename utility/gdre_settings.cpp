@@ -256,6 +256,10 @@ String GDRESettings::get_cwd() {
 	return GDRESettings::_get_cwd();
 }
 
+void GDRESettings::set_exec_dir(const String &p_cwd) {
+	GDRESettings::exec_dir = p_cwd;
+}
+
 String GDRESettings::get_exec_dir() {
 	return GDRESettings::exec_dir;
 }

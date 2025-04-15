@@ -273,6 +273,8 @@ public:
 	Ref<ImportInfo> get_import_info_by_source(const String &p_path);
 	Vector<String> get_code_files();
 	String get_exec_dir();
+	// Only for testing, don't use this
+	void set_exec_dir(const String &p_cwd);
 	bool are_imports_loaded() const;
 	bool is_project_config_loaded() const;
 	bool is_headless() const;
