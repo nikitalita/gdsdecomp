@@ -20,8 +20,6 @@
 
 #ifdef TOOLS_ENABLED
 class EditorNode;
-#include "editor/progress_dialog.h"
-#include "editor/themes/editor_scale.h"
 #else
 #define EDSCALE 1.0
 #endif
@@ -30,7 +28,7 @@ class EditorNode;
 #include "gdre_enc_key.h"
 #include "gdre_npck_dlg.h"
 #include "gdre_pck_dlg.h"
-#include "gdre_progress.h"
+#include "utility/gdre_progress.h"
 #ifdef TOOLS_ENABLED
 class ResultDialog : public AcceptDialog {
 	GDCLASS(ResultDialog, AcceptDialog)

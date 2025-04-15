@@ -5,7 +5,7 @@
 #include "core/object/ref_counted.h"
 #include "core/object/worker_thread_pool.h"
 
-#include "editor/gdre_progress.h"
+#include "utility/gdre_progress.h"
 
 #include "gd_parallel_hashmap.h"
 #include "packed_file_info.h"

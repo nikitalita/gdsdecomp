@@ -5,13 +5,15 @@
 #include "register_types.h"
 #include "compat/fake_script.h"
 #include "core/object/class_db.h"
-#include "editor/gdre_standalone.h"
 #include "modules/regex/regex.h"
 #include "utility/file_access_gdre.h"
 #include "utility/gdre_audio_stream_preview.h"
+#include "utility/gdre_standalone.h"
 #include "utility/text_diff.h"
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
+#include "editor/gdre_editor.h"
+
 #endif
 
 #include "bytecode/bytecode_versions.h"
@@ -22,7 +24,6 @@
 #include "compat/sample_loader_compat.h"
 #include "compat/script_loader.h"
 #include "compat/texture_loader_compat.h"
-#include "editor/gdre_editor.h"
 #include "exporters/autoconverted_exporter.h"
 #include "exporters/export_report.h"
 #include "exporters/fontfile_exporter.h"
@@ -234,6 +235,9 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 #ifdef TOOLS_ENABLED
 	ClassDB::register_class<PackDialog>();
 	ClassDB::register_class<NewPackDialog>();
+	ClassDB::register_class<ScriptCompDialog>();
+	ClassDB::register_class<ScriptDecompDialog>();
+
 #endif
 
 	ClassDB::register_class<SemVer>();
@@ -295,8 +299,6 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<PackedFileInfo>();
 	ClassDB::register_class<GDRESettings::PackInfo>();
 
-	ClassDB::register_class<ScriptCompDialog>();
-	ClassDB::register_class<ScriptDecompDialog>();
 	ClassDB::register_class<GDREAudioStreamPreviewGenerator>();
 	ClassDB::register_class<GDREAudioStreamPreview>();
 

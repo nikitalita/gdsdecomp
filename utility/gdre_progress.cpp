@@ -33,7 +33,7 @@
 #include "core/os/os.h"
 #include "main/main.h"
 #include "servers/display_server.h"
-#include <editor/gdre_standalone.h>
+#include "utility/gdre_standalone.h"
 
 #include <utility/gdre_settings.h>
 #ifdef TOOLS_ENABLED

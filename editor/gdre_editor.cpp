@@ -5,7 +5,7 @@
 
 #include "exporters/sample_exporter.h"
 #include "exporters/texture_exporter.h"
-#include "gdre_version.gen.h"
+#include "utility/gdre_version.gen.h"
 /*************************************************************************/
 #include "editor/editor_node.h"
 #include "editor/editor_settings.h"

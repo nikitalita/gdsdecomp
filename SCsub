@@ -126,7 +126,7 @@ def write_version_header():
             else:
                 version_info = res
 
-    f = open("editor/gdre_version.gen.h", "w")
+    f = open("utility/gdre_version.gen.h", "w")
     # check if we're not on a tag
     process = Popen([git, "status", "--porcelain"], stdout=PIPE)
     # define GDRE_VERSION "dev-poc (for Godot 4.0)"
@@ -158,7 +158,8 @@ if env["builtin_libwebp"]:
 env_gdsdecomp.add_source_files(env.modules_sources, "*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "bytecode/*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "compat/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "editor/*.cpp")
+if env["target"] == "editor":
+    env_gdsdecomp.add_source_files(env.modules_sources, "editor/*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "exporters/*.cpp")
 env_gdsdecomp.add_source_files(env.modules_sources, "utility/*.cpp")
 
