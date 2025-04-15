@@ -28,6 +28,7 @@
 #include "core/os/os.h"
 #include "core/templates/hash_map.h"
 #include "modules/regex/regex.h"
+#include "utility/common.h"
 #include "utility/gdre_settings.h"
 
 #include <functional>
@@ -39,7 +40,7 @@ namespace {
 // '&', '~', (extended character set operations)
 // '#' (comment) and WHITESPACE (ignored) in verbose mode
 static const String special_characters = "()[]{}?*+-|^$\\.&~# \t\n\r\v\f";
-
+static const String glob_characters = "[]*?";
 HashMap<char32_t, String> _init_map() {
 	HashMap<char32_t, String> map;
 	for (int i = 0; i < special_characters.length(); i++) {
@@ -97,9 +98,12 @@ Vector<String> filter(const Vector<String> &names,
 		const String &pattern) {
 	// std::cout << "Pattern: " << pattern << "\n";
 	Vector<String> result;
+	auto translated = Glob::translate(pattern);
+	auto re = RegEx::create_from_string(translated);
 	for (auto &name : names) {
 		// std::cout << "Checking for " << name.string() << "\n";
-		if (Glob::fnmatch(name, pattern)) {
+		auto match = re->search(name);
+		if (match.is_valid()) {
 			result.push_back(name);
 		}
 	}
@@ -156,11 +160,8 @@ Vector<String> rlistdir(const String &dirname, bool dironly, bool include_hidden
 Vector<String> glob2(const String &dirname, [[maybe_unused]] const String &pattern,
 		bool dironly, bool include_hidden) {
 	// std::cout << "In glob2\n";
-	Vector<String> result;
+	Vector<String> result = rlistdir(dirname, dironly, include_hidden);
 	//assert(is_recursive(pattern));
-	for (auto &dir : rlistdir(dirname, dironly, include_hidden)) {
-		result.push_back(dir);
-	}
 	if (dironly) {
 		result.push_back(dirname);
 	}
@@ -256,7 +257,7 @@ String Glob::translate(const String &pattern) {
 			if (j >= n) {
 				result_string += "\\[";
 			} else {
-				auto stuff = pattern.substr(i, j);
+				auto stuff = pattern.substr(i, j - i);
 				if (stuff.find("--") == String::npos) {
 					stuff.replace(String{ "\\" }, String{ R"(\\)" });
 				} else {
@@ -270,17 +271,17 @@ String Glob::translate(const String &pattern) {
 
 					while (true) {
 						size_t off = k;
-						k = pattern.substr(off, j).find("-");
+						k = pattern.substr(off, j - off).find("-");
 						if (k == -1) {
 							break;
 						}
 						k += off;
-						chunks.push_back(pattern.substr(i, k));
+						chunks.push_back(pattern.substr(i, k - i));
 						i = k + 1;
 						k = k + 3;
 					}
 
-					chunks.push_back(pattern.substr(i, j));
+					chunks.push_back(pattern.substr(i, j - i));
 					// Escape backslashes and hyphens for set difference (--).
 					// Hyphens that create ranges shouldn't be escaped.
 					bool first = true;
@@ -315,7 +316,7 @@ String Glob::translate(const String &pattern) {
 			}
 		}
 	}
-	return String{ "((" } + result_string + String{ R"()|[\r\n])$)" };
+	return String{ "^((" } + result_string + String{ R"()|[\r\n])$)" };
 }
 
 bool Glob::has_magic(const String &pathname) {
@@ -468,23 +469,23 @@ Vector<String> Glob::rglob(const String &pathname, bool hidden) {
 }
 
 Vector<String> Glob::glob_list(const Vector<String> &pathnames, bool hidden) {
-	Vector<String> result;
+	HashSet<String> result;
 	for (auto &pathname : pathnames) {
 		for (auto &match : _glob(pathname, false, false, hidden)) {
-			result.push_back(std::move(match));
+			result.insert(std::move(match));
 		}
 	}
-	return result;
+	return gdre::hashset_to_vector(result);
 }
 
 Vector<String> Glob::rglob_list(const Vector<String> &pathnames, bool hidden) {
-	Vector<String> result;
+	HashSet<String> result;
 	for (auto &pathname : pathnames) {
 		for (auto &match : _glob(pathname, true, false, hidden)) {
-			result.push_back(std::move(match));
+			result.insert(std::move(match));
 		}
 	}
-	return result;
+	return gdre::hashset_to_vector(result);
 }
 
 void Glob::_bind_methods() {
