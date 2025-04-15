@@ -7,11 +7,6 @@
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
 #include "utility/common.h"
 
-bool OggStrExporter::handles_import(const String &importer, const String &resource_type) const {
-	// Check if the importer can handle the specified resource type
-	return importer == "ogg_vorbis" || importer == "oggvorbisstr" || resource_type == "AudioStreamOGGVorbis";
-}
-
 Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &sample, Vector<uint8_t> &r_data) {
 	Ref<OggPacketSequence> packet_sequence = sample->get_packet_sequence();
 	auto page_data = packet_sequence->get_packet_data();
@@ -169,14 +164,12 @@ Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<
 		print_verbose("Converted " + src_path + " to " + dst_path);
 		report->set_saved_path(dst_path);
 	}
-
-	// Here you would add the actual export logic
-	// For now, we will just simulate a successful export
 	return report;
 }
 
 void OggStrExporter::get_handled_types(List<String> *out) const {
 	out->push_back("AudioStreamOGGVorbis");
+	out->push_back("AudioStreamOggVorbis");
 }
 
 void OggStrExporter::get_handled_importers(List<String> *out) const {
