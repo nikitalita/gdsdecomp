@@ -50,8 +50,224 @@ HashMap<char32_t, String> _init_map() {
 	}
 	return map;
 }
+#ifdef WINDOWS_ENABLED
+static constexpr bool is_windows = true;
+#else
+static constexpr bool is_windows = false;
+#endif
 
 static const HashMap<char32_t, String> special_characters_map = _init_map();
+
+String simplify_path(const String &path) {
+	String s = path;
+	String drive;
+
+	// Check if we have a special path (like res://) or a protocol identifier.
+	int p = s.find("://");
+	bool found = false;
+	if (p > 0) {
+		bool only_chars = true;
+		for (int i = 0; i < p; i++) {
+			if (!is_ascii_alphanumeric_char(s[i])) {
+				only_chars = false;
+				break;
+			}
+		}
+		if (only_chars) {
+			found = true;
+			drive = s.substr(0, p + 3);
+			s = s.substr(p + 3);
+		}
+	}
+	if (!found) {
+		if (path.is_network_share_path()) {
+			// Network path, beginning with // or \\.
+			drive = s.substr(0, 2);
+			s = s.substr(2);
+		} else if (s.begins_with("/") || s.begins_with("\\")) {
+			// Absolute path.
+			drive = s.substr(0, 1);
+			s = s.substr(1);
+		} else {
+			// Windows-style drive path, like C:/ or C:\.
+			p = s.find(":/");
+			if (p == -1) {
+				p = s.find(":\\");
+			}
+			if (p != -1 && p < s.find_char('/')) {
+				drive = s.substr(0, p + 2);
+				s = s.substr(p + 2);
+			}
+		}
+	}
+
+	// s = s.replace("\\", "/");
+	while (true) { // in case of using 2 or more slash
+		String compare = s.replace("//", "/");
+		if (s == compare) {
+			break;
+		} else {
+			s = compare;
+		}
+	}
+	Vector<String> dirs = s.split("/", false);
+
+	for (int i = 0; i < dirs.size(); i++) {
+		String d = dirs[i];
+		if (d == ".") {
+			dirs.remove_at(i);
+			i--;
+		} else if (d == "..") {
+			if (i != 0 && dirs[i - 1] != "..") {
+				dirs.remove_at(i);
+				dirs.remove_at(i - 1);
+				i -= 2;
+			}
+		}
+	}
+
+	s = "";
+
+	for (int i = 0; i < dirs.size(); i++) {
+		if (i > 0) {
+			s += "/";
+		}
+		s += dirs[i];
+	}
+
+	return drive + s;
+}
+
+String normalize_path(const String &path) {
+	String sanitized = path;
+	int backslash_pos = sanitized.find_char('\\');
+	if (backslash_pos != -1) {
+		return simplify_path(sanitized);
+	}
+	int slash_pos = sanitized.find_char('/');
+	bool non_windows_path = slash_pos != -1 || (!is_windows) || !path.is_absolute_path();
+
+	while (backslash_pos != -1) {
+		// check if the character after the backslash is a glob character
+		if (non_windows_path) {
+			if (glob_characters.find_char(sanitized[backslash_pos + 1]) != String::npos) {
+				sanitized[backslash_pos] = '/';
+				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
+			}
+		} else {
+			if (sanitized[backslash_pos + 1] == '*' || sanitized[backslash_pos + 1] == '?') {
+				sanitized[backslash_pos] = '/';
+				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
+			}
+		}
+	}
+	return simplify_path(sanitized);
+}
+
+int get_last_dir_sep(const String &path) {
+	// if the path contains escaped glob characters, don't use get_file()
+	int slash_sep = path.rfind_char('/');
+	int backslash_sep = path.rfind_char('\\');
+	bool not_windows_path = slash_sep != -1 || !is_windows;
+	// we only check for escaped glob characters if the path seperators are '/'; otherwise all bets are off
+	while (backslash_sep > slash_sep) {
+		// check if the character after the backslash is a glob character
+		if (path.size() > backslash_sep + 1) {
+			if (not_windows_path) {
+				if (glob_characters.find_char(path[backslash_sep + 1]) != String::npos) {
+					backslash_sep = path.rfind_char('\\', backslash_sep - 1);
+					continue;
+				}
+			} else {
+				// illegal glob characters in windows paths
+				if (path[backslash_sep + 1] == '*' || path[backslash_sep + 1] == '?') {
+					backslash_sep = path.rfind_char('\\', backslash_sep - 1);
+					continue;
+					// [] are legal in windows paths; as such, we only check for them if the path is not absolute
+				} else if (!path.is_absolute_path() && (path[backslash_sep + 1] == '[' || path[backslash_sep + 1] == ']')) {
+					backslash_sep = path.rfind_char('\\', backslash_sep - 1);
+					continue;
+				}
+			}
+		}
+		return backslash_sep;
+	}
+	return MAX(slash_sep, backslash_sep);
+}
+
+// `get_base_dir()` but with escaped glob characters
+
+String get_base_dir(const String &path) {
+	int end = 0;
+
+	// URL scheme style base.
+	int basepos = path.find("://");
+	if (basepos != -1) {
+		end = basepos + 3;
+	}
+
+	// Windows top level directory base.
+	if (end == 0) {
+		basepos = path.find(":/");
+		if (basepos == -1) {
+			basepos = path.find(":\\");
+		}
+		if (basepos != -1) {
+			end = basepos + 2;
+		}
+	}
+
+	// Windows UNC network share path.
+	if (end == 0) {
+		if (path.is_network_share_path()) {
+			basepos = path.find_char('/', 2);
+			if (basepos == -1) {
+				basepos = path.find_char('\\', 2);
+			}
+			int servpos = path.find_char('/', basepos + 1);
+			if (servpos == -1) {
+				servpos = path.find_char('\\', basepos + 1);
+			}
+			if (servpos != -1) {
+				end = servpos + 1;
+			}
+		}
+	}
+
+	// Unix root directory base.
+	if (end == 0) {
+		if (path.begins_with("/")) {
+			end = 1;
+		}
+	}
+
+	String rs;
+	String base;
+	if (end != 0) {
+		rs = path.substr(end, path.length());
+		base = path.substr(0, end);
+	} else {
+		rs = path;
+	}
+
+	int sep = get_last_dir_sep(rs);
+	if (sep == -1) {
+		return base;
+	}
+
+	return base + rs.substr(0, sep);
+}
+
+// `get_file()` but with escaped glob characters
+String get_file_name(const String &path) {
+	// if the path contains escaped glob characters, don't use get_file()
+	int sep = get_last_dir_sep(path);
+	if (sep == -1) {
+		return path;
+	}
+
+	return path.substr(sep + 1, path.length());
+}
 
 String get_real_cwd() {
 	return GDRESettings::get_singleton()->get_exec_dir();
@@ -65,11 +281,11 @@ String get_real_dir(const String &path) {
 }
 
 String get_real_base_dir(const String &path) {
-	return get_real_dir(path).get_base_dir();
+	return get_base_dir(get_real_dir(path));
 }
 
 bool dir_exists(const String &path, bool include_hidden = false) {
-	String basename = path.get_file();
+	String basename = get_file_name(path);
 	Ref<DirAccess> da = DirAccess::open(get_real_base_dir(path));
 	if (da.is_null()) {
 		return false;
@@ -82,7 +298,7 @@ bool dir_exists(const String &path, bool include_hidden = false) {
 }
 
 bool dir_or_file_exists(const String &path, bool include_hidden = false) {
-	String basename = path.get_file();
+	String basename = get_file_name(path);
 	Ref<DirAccess> da = DirAccess::open(get_real_base_dir(path));
 	if (da.is_null()) {
 		return false;
@@ -179,7 +395,7 @@ Vector<String> glob1(const String &dirname, const String &pattern,
 	Vector<String> filtered_names;
 	for (auto &n : names) {
 		if (!is_hidden(n) || include_hidden) {
-			filtered_names.push_back(n.get_file());
+			filtered_names.push_back(get_file_name(n));
 		}
 	}
 	return filter(filtered_names, pattern);
@@ -239,6 +455,15 @@ String Glob::translate(const String &pattern) {
 	while (i < n) {
 		auto c = pattern[i];
 		i += 1;
+		if (c == '\\') {
+			// if the next character is a glob character, skip past it
+			if (glob_characters.find_char(pattern[i]) != String::npos) {
+				result_string += "\\";
+				result_string += pattern[i];
+				i += 1;
+				continue;
+			}
+		}
 		if (c == '*') {
 			result_string += ".*";
 		} else if (c == '?') {
@@ -334,8 +559,8 @@ Vector<String> Glob::_glob(const String &inpath, bool recursive,
 		path = expand_tilde(path);
 	}
 
-	const String dirname = path.get_base_dir();
-	const String basename = path.get_file();
+	const String dirname = get_base_dir(get_real_dir(path));
+	const String basename = get_file_name(get_real_dir(path));
 
 	if (!has_magic(path)) {
 		//assert(!dironly);
@@ -382,7 +607,7 @@ Vector<String> Glob::_glob(const String &inpath, bool recursive,
 	for (auto &d : dirs) {
 		for (auto &name : glob_in_dir(d, basename, dironly, include_hidden)) {
 			String subresult = name;
-			if (name.get_base_dir().is_empty()) {
+			if (get_base_dir(name).is_empty()) {
 				subresult = d.path_join(name);
 			}
 			result.push_back(subresult);
@@ -455,7 +680,7 @@ Vector<String> Glob::dirs_in_names(const Vector<String> &names, const Vector<Str
 	}
 	patterns = pattern_match_list(names, patterns);
 	for (int i = 0; i < patterns.size(); i++) {
-		patterns.write[i] = patterns[i].get_base_dir();
+		patterns.write[i] = get_base_dir(patterns[i]);
 	}
 	return patterns;
 }
