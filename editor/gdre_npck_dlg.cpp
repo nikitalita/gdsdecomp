@@ -9,7 +9,7 @@
 
 #include "core/version.h"
 
-#include "gdre_version.gen.h"
+#include "utility/gdre_version.gen.h"
 
 NewPackDialog::NewPackDialog() {
 	set_title(RTR("Create new PCK..."));

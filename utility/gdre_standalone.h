@@ -1,9 +1,9 @@
 #pragma once
 #include "core/object/object.h"
-#include "editor/gdre_progress.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/control.h"
 #include "scene/gui/tree.h"
+#include "utility/gdre_progress.h"
 
 class GodotREEditorStandalone : public Control {
 	GDCLASS(GodotREEditorStandalone, Control)
