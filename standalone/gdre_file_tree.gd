@@ -47,10 +47,11 @@ enum ColType {
 
 @export var flat_mode: bool = false:
 	set(val):
+		if flat_mode == val:
+			return
 		flat_mode = val
 		if flat_mode:
 			self.hide_root = true
-
 		else:
 			self.hide_root = false
 		if not root:
@@ -95,7 +96,7 @@ func set_column_map_cache(val: Dictionary):
 	_info_col_exists = _info_col != -1
 	columns = val.size()
 
-@export var columnMap: Dictionary[ColType, int] = { ColType.NAME: 0, ColType.SIZE: 1}: 
+@export var columnMap: Dictionary[ColType, int] = { ColType.NAME: 0, ColType.SIZE: 1}:
 	set(val):
 		set_column_map_cache(val)
 		columnMap = val
@@ -105,7 +106,7 @@ func set_column_map_cache(val: Dictionary):
 @export var nameColumnName: String = "File Name"
 @export var sizeColumnName: String = "Size"
 @export var infoColumnName: String = "Info"
-		
+
 # cached column positions for performance reasons
 var _name_col = 0
 var _size_col = -1
@@ -197,7 +198,7 @@ func _on_gui_input(input:InputEvent):
 				KEY_C:
 					var selected_items = get_highlighted_items()
 					var rows = []
-					
+
 					for item in selected_items:
 						var arr = []
 						for col in range(columns):
@@ -392,7 +393,7 @@ func sort_tree(item:TreeItem, recursive: bool = true):
 	var arr: Array = []
 	while (it):
 		if recursive:
-			sort_tree(it)
+			sort_tree(it, recursive)
 		arr.append(it)
 		it = it.get_next()
 	if (arr.size() <= 1):
@@ -433,7 +434,7 @@ func sort_tree(item:TreeItem, recursive: bool = true):
 	var names: PackedStringArray = []
 	for i in range(arr.size()):
 		names.push_back(arr[i].get_text(_name_col))
-	
+
 	arr[0].move_before(arr[1])
 	for i in range(1, arr.size()):
 		arr[i].move_after(arr[i - 1])
@@ -518,7 +519,7 @@ func set_fold_all(item: TreeItem, collapsed: bool = true, recursive: bool = fals
 # creating and adding items
 
 func create_file_item(p_parent_item: TreeItem, p_fullname: String, p_name: String, p_icon: Texture2D, p_size: int = -1, p_error: String = "", p_info: String = "", p_idx: int = -1) -> TreeItem:
-	var item: TreeItem = self.create_item(p_parent_item, p_idx)
+	var item: TreeItem = p_parent_item.create_child(p_idx)
 	if check_mode:
 		item.set_cell_mode(_name_col, TreeItem.CELL_MODE_CHECK)
 		item.set_checked(_name_col, true)
@@ -546,10 +547,6 @@ func create_file_item(p_parent_item: TreeItem, p_fullname: String, p_name: Strin
 
 func add_files_from_packed_infos(infos: Array, skipped_md5_check: bool = false):
 	# reverse alphabetical order, we want to put directories at the front in alpha order
-
-	# infos.sort_custom(func(a, b) -> bool:
-	# 	return a.get_path().filenocasecmp_to(b.get_path()) <= 0
-	# )
 	for file in infos:
 		_add_file_from_packed_info(file, skipped_md5_check)
 	# collapse all the first level directories
@@ -630,7 +627,7 @@ func add_file_to_item_node_mode(p_item: TreeItem, p_fullname: String, p_name: St
 			if (it.get_text(_name_col) == fld_name) :
 				return add_file_to_item_node_mode(it, p_fullname, path, p_icon, p_size, p_error, p_info);
 			it = it.get_next()
-		
+
 		var folder_item:TreeItem = create_file_item(p_item, "", fld_name, folder_icon, -1, "", "")
 		return add_file_to_item_node_mode(folder_item, p_fullname, path, p_icon, p_size, p_error, p_info);
 
@@ -659,7 +656,7 @@ func _filter_item(filter_str: String, item: TreeItem, is_glob: bool, clear_filte
 	else:
 		item.visible = false
 		return false
-	
+
 func _filter(filter_str):
 	var is_glob = filter_str.contains("*")
 	var clear_filter = filter_str.is_empty() or filter_str == "*"
@@ -682,7 +679,7 @@ func filter(filter_str: String):
 		prev_filter_string = filter_str
 		return
 	_filter(filter_str)
-			
+
 func check_all_shown(checked: bool):
 	var it: TreeItem = root.get_first_child()
 	while (it):
@@ -736,7 +733,7 @@ func _ready():
 	right_click_menu.visible = false
 	right_click_menu.connect("id_pressed", self._on_right_click_id)
 	right_click_menu.connect("visibility_changed", self._on_right_click_visibility_changed)
-	
+
 	add_child(right_click_menu)
 	set_column_map_cache(columnMap)
 	if self.columns <= 0:
