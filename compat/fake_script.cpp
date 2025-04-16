@@ -256,11 +256,11 @@ Error FakeGDScript::parse_script() {
 			case GT::G_TK_PR_EXTENDS: {
 				if (base_type.is_empty() && !is_gdscript20_accessor(i)) {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_CONSTANT)) {
-						uint32_t constant = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
+						uint32_t constant = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 						ERR_FAIL_COND_V(constant >= (uint32_t)constants.size(), ERR_INVALID_DATA);
 						base_type = constants[constant];
 					} else if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
-						uint32_t identifier = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
+						uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 						ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 						base_type = identifiers[identifier];
 					} else {
