@@ -579,7 +579,7 @@ Error ImportExporter::recreate_plugin_config(const String &output_dir, const Str
 	for (int j = 0; j < gd_scripts.size(); j++) {
 		String gd_script_abs_path = String("res://").path_join(rel_plugin_path).path_join(gd_scripts[j]);
 		Ref<FakeGDScript> gd_script = ResourceCompatLoader::non_global_load(gd_script_abs_path, "", &err);
-		if (gd_script->get_instance_base_type() == "EditorPlugin") {
+		if (gd_script.is_valid() && gd_script->get_instance_base_type() == "EditorPlugin") {
 			main_script = gd_scripts[j].get_basename() + ".gd";
 			break;
 		}
