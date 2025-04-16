@@ -301,6 +301,9 @@ Error gdre::unzip_file_to_dir(const String &zip_path, const String &output_dir) 
 }
 
 String gdre::get_md5(const String &dir, bool ignore_code_signature) {
+	if (dir.is_empty()) {
+		return "";
+	}
 	auto da = DirAccess::create_for_path(dir);
 	if (da->dir_exists(dir)) {
 		return get_md5_for_dir(dir, ignore_code_signature);
