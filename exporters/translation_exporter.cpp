@@ -45,8 +45,8 @@ Error TranslationExporter::export_file(const String &out_path, const String &res
 		return key;                               \
 	}
 
-static const HashSet<char32_t> ALL_PUNCTUATION = gdre::vector_to_hashset(Vector<char32_t>({ '.', '!', '?', ',', ';', ':', '(', ')', '[', ']', '{', '}', '<', '>', '/', '\\', '|', '`', '~', '@', '#', '$', '%', '^', '&', '*', '-', '_', '+', '=', '\'', '"', '\n', '\t', ' ' }));
-static const HashSet<char32_t> REMOVABLE_PUNCTUATION = HashSet<char32_t>(gdre::vector_to_hashset(Vector<char32_t>{ '.', '!', '?', ',', ';', ':', '%' }));
+static const HashSet<char32_t> ALL_PUNCTUATION = { '.', '!', '?', ',', ';', ':', '(', ')', '[', ']', '{', '}', '<', '>', '/', '\\', '|', '`', '~', '@', '#', '$', '%', '^', '&', '*', '-', '_', '+', '=', '\'', '"', '\n', '\t', ' ' };
+static const HashSet<char32_t> REMOVABLE_PUNCTUATION = { '.', '!', '?', ',', ';', ':', '%' };
 static const Vector<String> STANDARD_SUFFIXES = { "Name", "Text", "Title", "Description", "Label", "Button", "Speech", "Tooltip", "Legend", "Body", "Content" };
 
 static const char *MISSING_KEY_PREFIX = "<!MissingKey:";
