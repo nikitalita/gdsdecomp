@@ -131,6 +131,16 @@ public:
 	GDREProgressDialog();
 };
 
+struct StdOutProgress {
+	String label;
+	int amount = 0;
+	int current_step = 0;
+	int width = 30;
+	bool step(int p_step = -1, bool p_force_refresh = true);
+	void end();
+	void print_status_bar(const String &p_status, float p_progress);
+};
+
 struct EditorProgressGDDC : public RefCounted {
 	GDCLASS(EditorProgressGDDC, RefCounted);
 
@@ -140,6 +150,7 @@ protected:
 public:
 	static Ref<EditorProgressGDDC> create(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel = false);
 	String task;
+	StdOutProgress stdout_progress;
 	String get_task();
 	bool step(const String &p_state, int p_step = -1, bool p_force_refresh = true);
 	EditorProgressGDDC();

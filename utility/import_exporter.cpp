@@ -47,11 +47,8 @@ int get_ver_rev() {
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &files_to_export) {
 	String t;
-	if (!GDRESettings::get_singleton()->is_headless()) {
-		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "export_imports", "Exporting resources...", GDRESettings::get_singleton()->get_import_files().size(), true };
-		return _export_imports(p_out_dir, files_to_export, &pr, t);
-	}
-	return _export_imports(p_out_dir, files_to_export, nullptr, t);
+	EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "export_imports", "Exporting resources...", GDRESettings::get_singleton()->get_import_files().size(), true };
+	return _export_imports(p_out_dir, files_to_export, &pr, t);
 }
 
 Ref<ImportExporterReport> ImportExporter::get_report() {
@@ -365,7 +362,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 				this,
 				&ImportExporter::_do_export,
 				tokens.ptrw(),
-				tokens.size(), -1, false, SNAME("ImportExporter::export_imports"));
+				tokens.size(), -1, true, SNAME("ImportExporter::export_imports"));
 		if (pr) {
 			while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
 				OS::get_singleton()->delay_usec(10000);
