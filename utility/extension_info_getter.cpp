@@ -11,6 +11,8 @@
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
+#include "utility/task_manager.h"
+
 #include <sys/types.h>
 #include <cstdint>
 
@@ -273,7 +275,8 @@ Error AssetLibInfoGetter::populate_plugin_version_hashes(PluginVersion &plugin_v
 	String url = plugin_version.download_url;
 	String new_temp_foldr = temp_folder.path_join(itos(plugin_version.release_id));
 	String zip_path = new_temp_foldr.path_join("plugin.zip");
-	Error err = gdre::download_file_sync(url, zip_path);
+	auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);
+	Error err = TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
 	if (err) {
 		return err;
 	}

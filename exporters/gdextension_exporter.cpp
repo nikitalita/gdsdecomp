@@ -7,6 +7,8 @@
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
 #include "utility/import_info.h"
+#include "utility/task_manager.h"
+
 Error GDExtensionExporter::export_file(const String &p_dest_path, const String &p_src_path) {
 	auto report = export_resource(p_dest_path.get_base_dir(), ImportInfo::load_from_file(p_src_path));
 	return report->get_error();
@@ -147,7 +149,8 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 			String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
 			if (!url.is_empty()) {
 				String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
-				err = gdre::download_file_sync(url, zip_path);
+				auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);
+				err = TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
 				if (err == OK) {
 					report->set_saved_path(zip_path);
 					return report;
