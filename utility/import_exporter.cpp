@@ -330,6 +330,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 			iinfo->set_export_dest(iinfo->get_source_file());
 		}
 		bool supports_multithreading = opt_multi_thread;
+		bool is_high_priority = iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative";
 		if (exporter_map.has(iinfo->get_importer())) {
 			if (!exporter_map.get(iinfo->get_importer())->supports_multithread()) {
 				supports_multithreading = false;
@@ -337,11 +338,20 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		} else {
 			supports_multithreading = false;
 		}
-		paths_to_export.push_back(iinfo->get_path());
-		if (supports_multithreading) {
-			tokens.push_back({ iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+		if (is_high_priority) {
+			paths_to_export.insert(0, iinfo->get_path());
+			if (supports_multithreading) {
+				tokens.insert(0, { iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+			} else {
+				non_multithreaded_tokens.insert(0, { iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+			}
 		} else {
-			non_multithreaded_tokens.push_back({ iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+			paths_to_export.push_back(iinfo->get_path());
+			if (supports_multithreading) {
+				tokens.push_back({ iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+			} else {
+				non_multithreaded_tokens.push_back({ iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
+			}
 		}
 	}
 	int64_t num_multithreaded_tokens = tokens.size();
@@ -355,7 +365,7 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 				this,
 				&ImportExporter::_do_export,
 				tokens.ptrw(),
-				tokens.size(), -1, true, SNAME("ImportExporter::export_imports"));
+				tokens.size(), -1, false, SNAME("ImportExporter::export_imports"));
 		if (pr) {
 			while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
 				OS::get_singleton()->delay_usec(10000);

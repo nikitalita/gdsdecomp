@@ -326,19 +326,26 @@ String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 	return FileAccess::get_multiple_md5(files);
 }
 
-Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, float *p_progress) {
+Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, float *p_progress, bool *p_cancelled) {
+#define WGET_CANCELLED_CHECK()         \
+	if (p_cancelled && *p_cancelled) { \
+		return ERR_SKIP;               \
+	}
+	WGET_CANCELLED_CHECK();
 	Ref<HTTPClientTCP> client;
 	client.instantiate();
 	client->set_blocking_mode(true);
 	Error err;
 	String url = p_url;
 	auto connect_to_host_and_request = [&](const String &url) {
+		WGET_CANCELLED_CHECK();
 		bool is_https = url.begins_with("https://");
 		String host = url.get_slice("://", 1).get_slice("/", 0);
 		String thingy = (is_https ? "https://" : "http://") + host;
 		Error err = client->connect_to_host(thingy, is_https ? 443 : 80);
 		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
 		while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
+			WGET_CANCELLED_CHECK();
 			err = client->poll();
 			if (err) {
 				return err;
@@ -347,6 +354,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 		if (client->get_status() != HTTPClient::STATUS_CONNECTED) {
 			return ERR_CANT_CONNECT;
 		}
+		WGET_CANCELLED_CHECK();
 		err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
 		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
 		return OK;
@@ -358,6 +366,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	int response_code = 0;
 	int response_body_length = 0;
 	auto _handle_response = [&]() -> Error {
+		WGET_CANCELLED_CHECK();
 		if (!client->has_response()) {
 			return ERR_CANT_OPEN;
 		}
@@ -402,6 +411,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	err = connect_to_host_and_request(p_url);
 
 	auto _retry = [&] {
+		WGET_CANCELLED_CHECK();
 		if (retries <= 0) {
 			ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Failed to download file from %s", p_url));
 		}
@@ -411,6 +421,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	};
 
 	while (!done) {
+		WGET_CANCELLED_CHECK();
 		auto status = client->get_status();
 		switch (status) {
 			case HTTPClient::STATUS_REQUESTING: {
@@ -461,11 +472,12 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	}
 	ERR_FAIL_COND_V_MSG(response.is_empty(), ERR_CANT_CREATE, "Failed to download file from " + p_url);
 	return OK;
+#undef WGET_CANCELLED_CHECK
 }
 
-Error gdre::download_file_sync(const String &p_url, const String &output_path, float *p_progress) {
+Error gdre::download_file_sync(const String &p_url, const String &output_path, float *p_progress, bool *p_cancelled) {
 	Vector<uint8_t> response;
-	Error err = wget_sync(p_url, response, 5, p_progress);
+	Error err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
 	if (err) {
 		return err;
 	}
