@@ -90,7 +90,12 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 	Error err = OK;
 	auto files = GDRESettings::get_singleton()->get_file_info_list();
 	int skipped_files = 0;
-	String task_desc = RTR("Reading PCK archive, click cancel to skip MD5 checking...");
+	String task_desc;
+	if (GDRESettings::get_singleton()->is_headless()) {
+		task_desc = RTR("Reading PCK archive...");
+	} else {
+		task_desc = RTR("Reading PCK archive, click cancel to skip MD5 checking...");
+	}
 	if (opt_multi_thread) {
 		Vector<String> paths_to_check;
 

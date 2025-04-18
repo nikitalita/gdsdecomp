@@ -33,6 +33,7 @@
 #include "core/os/os.h"
 #include "main/main.h"
 #include "servers/display_server.h"
+#include "utility/gdre_logger.h"
 #include "utility/gdre_standalone.h"
 
 #include <utility/gd_parallel_queue.h>
@@ -394,14 +395,36 @@ Ref<EditorProgressGDDC> EditorProgressGDDC::create(Node *p_parent, const String 
 	return memnew(EditorProgressGDDC(nullptr, p_task, p_label, p_amount, p_can_cancel));
 }
 
+bool StdOutProgress::step(int p_step, bool p_force_refresh) {
+	auto prev_step = current_step;
+	if (p_step == -1) {
+		current_step++;
+	} else {
+		current_step = p_step;
+	}
+	float progress = (float)current_step / (float)amount;
+	size_t progress_percent = MIN((size_t)(progress * 100), 100);
+	size_t prev_progress_percent = MIN((size_t)(((float)prev_step / (float)amount) * 100), 100);
+	if (progress_percent != prev_progress_percent) {
+		GDRELogger::print_status_bar(label, progress);
+	}
+	return false;
+}
+
+void StdOutProgress::end() {
+	GDRELogger::print_status_bar(label, 1.0f);
+	GDRELogger::stdout_print("\n");
+}
+
 void EditorProgressGDDC::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("step", "state", "step", "force_refresh"), &EditorProgressGDDC::step, DEFVAL(-1), DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("get_task"), &EditorProgressGDDC::get_task);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("create", "parent", "task", "label", "amount", "can_cancel"), &EditorProgressGDDC::create, DEFVAL(false));
 }
+
 bool EditorProgressGDDC::step(const String &p_state, int p_step, bool p_force_refresh) {
 	if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless()) {
-		return false;
+		return stdout_progress.step(p_step, p_force_refresh);
 	}
 	if (GDREProgressDialog::get_singleton()) {
 		return GDREProgressDialog::get_singleton()->task_step(task, p_state, p_step, p_force_refresh);
@@ -422,6 +445,7 @@ EditorProgressGDDC::EditorProgressGDDC(const String &p_task, const String &p_lab
 		EditorProgressGDDC(nullptr, p_task, p_label, p_amount, p_can_cancel) {}
 EditorProgressGDDC::EditorProgressGDDC(Node *p_parent, const String &p_task, const String &p_label, int p_amount, bool p_can_cancel) {
 	task = p_task;
+	stdout_progress = { p_label, p_amount, 0 };
 	if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless()) {
 		return;
 	}
@@ -444,7 +468,7 @@ EditorProgressGDDC::EditorProgressGDDC(Node *p_parent, const String &p_task, con
 EditorProgressGDDC::~EditorProgressGDDC() {
 	// if no EditorNode...
 	if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless()) {
-		// do nothing
+		stdout_progress.end();
 	} else if (GDREProgressDialog::get_singleton()) {
 		GDREProgressDialog::get_singleton()->end_task(task);
 	} else {
