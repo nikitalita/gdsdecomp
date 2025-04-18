@@ -20,6 +20,9 @@ thread_local Vector<String> thread_error_queue;
 std::atomic<uint64_t> GDRELogger::error_count = 0;
 std::atomic<uint64_t> GDRELogger::warning_count = 0;
 StaticParallelQueue<String, 2048> GDRELogger::error_queue;
+Logger *GDRELogger::stdout_logger = nullptr;
+std::atomic<bool> GDRELogger::just_printed_status_bar = false;
+static constexpr const char *STATUS_BAR_CLEAR = "\r                                                                      \r";
 
 void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 	if (disabled || !should_log(p_err)) {
@@ -28,6 +31,9 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 			thread_error_count++;
 		}
 		return;
+	}
+	if (just_printed_status_bar.exchange(false)) {
+		stdout_print(STATUS_BAR_CLEAR);
 	}
 	if (file.is_valid() || inGuiMode() || is_prebuffering) {
 		const int static_buf_size = 512;
@@ -172,4 +178,30 @@ GDRELogger::GDRELogger() {
 
 GDRELogger::~GDRELogger() {
 	close_file();
+}
+
+void GDRELogger::stdout_print(const char *p_format, ...) {
+	if (!stdout_logger) {
+		return;
+	}
+	va_list args;
+	va_start(args, p_format);
+	stdout_logger->logv(p_format, args, false);
+	va_end(args);
+	just_printed_status_bar = false;
+}
+
+void GDRELogger::print_status_bar(const String &p_status, float p_progress) {
+	size_t width = 30;
+	size_t progress_width = MIN(width, width * p_progress);
+
+	String progress_bar;
+	for (size_t i = 0; i < progress_width; i++) {
+		progress_bar += "=";
+	}
+	for (size_t i = progress_width; i < width; i++) {
+		progress_bar += " ";
+	}
+	stdout_print("\r%s [%s] %d%%", p_status.utf8().get_data(), progress_bar.utf8().get_data(), (int)(p_progress * 100));
+	just_printed_status_bar = true;
 }

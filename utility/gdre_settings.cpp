@@ -2082,31 +2082,48 @@ void GDRESettings::_bind_methods() {
 
 #ifdef WINDOWS_ENABLED
 #include "platform/windows/os_windows.h"
+#include "platform/windows/windows_terminal_logger.h"
 #define PLATFORM_OS OS_Windows
+#define STDOUT_LOGGER WindowsTerminalLogger
 #endif
 #ifdef LINUXBSD_ENABLED
+#include "drivers/unix/os_unix.h"
 #include "platform/linuxbsd/os_linuxbsd.h"
 #define PLATFORM_OS OS_LinuxBSD
+#define STDOUT_LOGGER UnixTerminalLogger
 #endif
 #ifdef MACOS_ENABLED
 #include "drivers/unix/os_unix.h"
+#include "platform/macos/macos_terminal_logger.h"
 #define PLATFORM_OS OS_Unix
-#endif
-#ifdef UWP_ENABLED
-#include "platform/uwp/os_uwp.h"
-#define PLATFORM_OS OS_UWP
+#define STDOUT_LOGGER MacOSTerminalLogger
 #endif
 #ifdef WEB_ENABLED
+#include "core/io/logger.h"
 #include "platform/web/os_web.h"
 #define PLATFORM_OS OS_Web
+#define STDOUT_LOGGER StdLogger
 #endif
-#if defined(__ANDROID__)
+#ifdef ANDROID_ENABLED
 #include "platform/android/os_android.h"
+#include <android/log.h>
 #define PLATFORM_OS OS_Android
+// TODO: This is a hack to get around the fact that AndroidLogger is not exposed in the header
+class GDREAndroidLogger : public Logger {
+public:
+	virtual void logv(const char *p_format, va_list p_list, bool p_err) {
+		__android_log_vprint(p_err ? ANDROID_LOG_ERROR : ANDROID_LOG_INFO, "godot", p_format, p_list);
+	}
+
+	virtual ~AndroidLogger() {}
+};
+#define STDOUT_LOGGER GDREAndroidLogger
 #endif
 #ifdef IPHONE_ENABLED
+#include "platform/ios/ios_terminal_logger.h"
 #include "platform/ios/os_ios.h"
 #define PLATFORM_OS OS_IOS
+#define STDOUT_LOGGER IOSTerminalLogger
 #endif
 // A hack to add another logger to the OS singleton
 template <class T>
@@ -2116,6 +2133,9 @@ class GDREOS : public T {
 public:
 	static void do_add_logger(GDREOS<T> *ptr, Logger *p_logger) {
 		ptr->add_logger(p_logger);
+	}
+	static void do_set_logger(GDREOS<T> *ptr, CompositeLogger *p_logger) {
+		ptr->_set_logger(p_logger);
 	}
 };
 
@@ -2127,5 +2147,13 @@ void GDRESettings::add_logger() {
 	OS *os_singleton = OS::get_singleton();
 	String os_name = os_singleton->get_name();
 	GDREOS<PLATFORM_OS> *_gdre_os = reinterpret_cast<GDREOS<PLATFORM_OS> *>(os_singleton);
-	GDREOS<PLATFORM_OS>::do_add_logger(_gdre_os, logger);
+	STDOUT_LOGGER *stdout_logger = memnew(STDOUT_LOGGER);
+	GDRELogger::set_stdout_logger(stdout_logger);
+
+	// TODO: add a logger for global debug logging if it's enabled
+	Vector<Logger *> loggers;
+	loggers.push_back(logger);
+	loggers.push_back(stdout_logger);
+	GDREOS<PLATFORM_OS>::do_set_logger(_gdre_os, memnew(CompositeLogger(loggers)));
+	// GDREOS<PLATFORM_OS>::do_add_logger(_gdre_os, logger);
 }
