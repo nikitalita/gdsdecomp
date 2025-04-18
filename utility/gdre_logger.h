@@ -3,7 +3,9 @@
 #include "core/io/logger.h"
 #include "gd_parallel_queue.h"
 
+class GDRESettings;
 class GDRELogger : public Logger {
+	friend class GDRESettings;
 	Ref<FileAccess> file;
 	String base_path;
 	bool disabled = false;
@@ -13,8 +15,14 @@ class GDRELogger : public Logger {
 	bool is_prebuffering = false;
 	Mutex buffer_mutex;
 	Vector<String> buffer;
+	static std::atomic<bool> just_printed_status_bar;
+	static Logger *stdout_logger;
+	static void set_stdout_logger(Logger *p_logger) { stdout_logger = p_logger; }
 
 public:
+	// print only to stdout, not to the file
+	static void stdout_print(const char *p_format, ...);
+	static void print_status_bar(const String &p_status, float p_progress);
 	String get_path() { return base_path; }
 	GDRELogger();
 	bool is_prebuffering_enabled() { return is_prebuffering; }
