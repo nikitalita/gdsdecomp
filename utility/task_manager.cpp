@@ -48,8 +48,8 @@ void TaskManager::update_progress_bg() {
 	});
 }
 
-TaskManager::DownloadTaskID TaskManager::add_download_task(const String &p_download_url, const String &p_save_path) {
-	return download_thread.add_download_task(p_download_url, p_save_path);
+TaskManager::DownloadTaskID TaskManager::add_download_task(const String &p_download_url, const String &p_save_path, bool silent) {
+	return download_thread.add_download_task(p_download_url, p_save_path, silent);
 }
 
 Error TaskManager::wait_for_download_task_completion(DownloadTaskID p_task_id) {
@@ -65,7 +65,9 @@ void TaskManager::DownloadTaskData::run_singlethreaded() {
 }
 
 void TaskManager::DownloadTaskData::wait_for_task_completion_internal() {
-	WorkerThreadPool::get_singleton()->wait_for_task_completion(task_id);
+	while (!is_done()) {
+		OS::get_singleton()->delay_usec(10000);
+	}
 }
 
 bool TaskManager::DownloadTaskData::is_done() {
@@ -86,20 +88,16 @@ void TaskManager::DownloadTaskData::callback_data(void *p_data) {
 }
 
 void TaskManager::DownloadTaskData::start_internal() {
-	if (task_id != -1) {
-		return;
+	if (!silent) {
+		progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(task_id), get_current_task_step_description(), 1000, true);
 	}
-	if (!singlethreaded) {
-		task_id = WorkerThreadPool::get_singleton()->add_template_task(
-				this, &TaskManager::DownloadTaskData::callback_data, nullptr, true, get_current_task_step_description());
-	} else {
-		task_id = abs(rand());
-	}
-	progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(task_id), get_current_task_step_description(), 1000, true);
+	// TODO: this won't return until it's finished because start() is called in the worker thread, so we need to set `started` to true here. Refactor this?
+	started = true;
+	callback_data(nullptr);
 }
 
-TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path) :
-		download_url(p_download_url), save_path(p_save_path) {
+TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool silent) :
+		download_url(p_download_url), save_path(p_save_path), silent(silent) {
 	auto_start = false;
 }
 
@@ -113,20 +111,24 @@ void TaskManager::DownloadQueueThread::main_loop() {
 			OS::get_singleton()->delay_usec(10000);
 			continue;
 		}
-		std::shared_ptr<BaseTemplateTaskData> task;
+		std::shared_ptr<DownloadTaskData> task;
 		tasks.if_contains(item, [&](auto &v) {
 			task = v.second;
-			task->start();
+			if (task) {
+				MutexLock lock(worker_mutex);
+				running_task = task;
+				worker_cv.notify_all();
+			}
 		});
-		if (!task) {
-			continue;
-		}
 		while (!task->is_done() && !task->is_waiting) {
 			task->update_progress();
 			OS::get_singleton()->delay_usec(50000);
 		}
 		while (!task->is_done()) {
 			OS::get_singleton()->delay_usec(10000);
+		}
+		if (!task->is_waiting) {
+			task->finish_progress();
 		}
 		if (task->is_canceled()) {
 			// pop off the rest of the queue
@@ -141,10 +143,11 @@ void TaskManager::DownloadQueueThread::main_loop() {
 	}
 }
 
-TaskManager::DownloadTaskID TaskManager::DownloadQueueThread::add_download_task(const String &p_download_url, const String &p_save_path) {
+TaskManager::DownloadTaskID TaskManager::DownloadQueueThread::add_download_task(const String &p_download_url, const String &p_save_path, bool silent) {
 	MutexLock lock(write_mutex);
-	DownloadTaskID task_id = current_task_id.fetch_add(1);
-	tasks.try_emplace(task_id, std::make_shared<DownloadTaskData>(p_download_url, p_save_path));
+
+	DownloadTaskID task_id = ++current_task_id;
+	tasks.try_emplace(task_id, std::make_shared<DownloadTaskData>(p_download_url, p_save_path, silent));
 	queue.try_push(task_id);
 	return task_id;
 }
@@ -169,21 +172,50 @@ Error TaskManager::DownloadQueueThread::wait_for_task_completion(DownloadTaskID 
 	} else {
 		err = task->get_download_error();
 	}
-	tasks.erase(p_task_id);
+	size_t val = tasks.erase(p_task_id);
+	size_t size = tasks.size();
 	waiting = false;
 	return err;
 }
+
+void TaskManager::DownloadQueueThread::worker_main_loop() {
+	while (running) {
+		if (!running_task) {
+			MutexLock lock(worker_mutex);
+			worker_cv.wait(lock);
+		}
+		if (!running_task) {
+			continue;
+		}
+		running_task->start();
+		running_task = nullptr;
+	}
+}
+
 void TaskManager::DownloadQueueThread::thread_func(void *p_userdata) {
 	((DownloadQueueThread *)p_userdata)->main_loop();
 }
-
+void TaskManager::DownloadQueueThread::worker_thread_func(void *p_userdata) {
+	((DownloadQueueThread *)p_userdata)->worker_main_loop();
+}
 TaskManager::DownloadQueueThread::DownloadQueueThread() {
 	thread = memnew(Thread);
 	thread->start(thread_func, this);
+	worker_thread = memnew(Thread);
+	worker_thread->start(worker_thread_func, this);
 }
 
 TaskManager::DownloadQueueThread::~DownloadQueueThread() {
 	running = false;
+	{
+		MutexLock lock(worker_mutex);
+		worker_cv.notify_all();
+	}
 	thread->wait_to_finish();
+	worker_thread->wait_to_finish();
 	memdelete(thread);
+	memdelete(worker_thread);
+	running_task = nullptr;
+	current_task_id = -1;
+	tasks.clear();
 }

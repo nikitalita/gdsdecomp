@@ -28,6 +28,7 @@ class AssetLibInfoGetter {
 	static HashMap<String, String> GODOT_VERSION_RELEASE_DATES;
 	static constexpr const char *PLUGIN_CACHE_ENV_VAR = "GDRE_PLUGIN_CACHE_DIR";
 	static Mutex cache_mutex;
+	static bool is_prepopping;
 
 	static PluginBin get_plugin_bin(const String &oath, const SharedObject &obj);
 	static bool init_plugin_version_from_edit(Dictionary edit_list_entry, PluginVersion &version);

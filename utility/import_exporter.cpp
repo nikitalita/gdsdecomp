@@ -455,9 +455,14 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		if (iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative") {
 			if (!ret->get_message().is_empty()) {
 				report->failed_gdnative_copy.push_back(ret->get_message());
-			} else if (!ret->get_saved_path().is_empty()) {
+			} else if (!ret->get_saved_path().is_empty() && ret->get_download_task_id() != -1) {
 				Ref<ImportInfoGDExt> iinfo_gdext = iinfo;
-				if (!iinfo.is_valid()) {
+				Error err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
+				if (err != OK) {
+					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+					continue;
+				}
+				if (!iinfo_gdext.is_valid()) {
 					// wtf?
 					ERR_PRINT("Invalid ImportInfoGDExt");
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
