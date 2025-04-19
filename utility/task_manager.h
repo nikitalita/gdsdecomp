@@ -1,9 +1,9 @@
+#pragma once
 #include "core/error/error_macros.h"
 #include "core/object/worker_thread_pool.h"
 #include "utility/gd_parallel_hashmap.h"
 #include "utility/gd_parallel_queue.h"
 #include "utility/gdre_progress.h"
-#include "utility/gdre_settings.h"
 
 class TaskManager : public Object {
 	GDCLASS(TaskManager, Object);
@@ -41,6 +41,9 @@ public:
 		}
 		bool is_canceled() { return canceled; }
 		void cancel() { canceled = true; }
+		void finish_progress() {
+			progress = nullptr;
+		}
 		// returns true if the task was cancelled before completion
 		bool update_progress(bool p_force_refresh = false) {
 			if (!is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
@@ -82,6 +85,7 @@ public:
 				}
 				wait_for_task_completion_internal();
 			}
+			finish_progress();
 			return is_canceled();
 		}
 
@@ -210,6 +214,7 @@ public:
 	class DownloadTaskData : public BaseTemplateTaskData {
 		String download_url;
 		String save_path;
+		bool silent = false;
 		float download_progress = 0.0f;
 		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
 		Error download_error = OK;
@@ -219,7 +224,7 @@ public:
 		virtual void wait_for_task_completion_internal() override;
 
 	public:
-		DownloadTaskData(const String &p_download_url, const String &p_save_path);
+		DownloadTaskData(const String &p_download_url, const String &p_save_path, bool p_silent = false);
 
 		virtual void run_singlethreaded() override;
 		virtual int get_current_task_step_value() override;
@@ -233,20 +238,25 @@ public:
 
 	class DownloadQueueThread {
 		Thread *thread = nullptr;
+		Thread *worker_thread = nullptr;
 		Mutex write_mutex;
 		std::atomic<bool> running = true;
 		std::atomic<bool> waiting = false;
-		std::condition_variable cv;
+		mutable BinaryMutex worker_mutex;
+		ConditionVariable worker_cv;
+		std::shared_ptr<DownloadTaskData> running_task;
 		std::atomic<DownloadTaskID> current_task_id = 0;
 
 		ParallelFlatHashMap<DownloadTaskID, std::shared_ptr<DownloadTaskData>> tasks;
 		StaticParallelQueue<DownloadTaskID, 1024> queue;
 
 		void main_loop();
+		void worker_main_loop();
 		static void thread_func(void *p_userdata);
+		static void worker_thread_func(void *p_userdata);
 
 	public:
-		DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path);
+		DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 		Error wait_for_task_completion(DownloadTaskID p_task_id);
 		DownloadQueueThread();
 		~DownloadQueueThread();
@@ -298,7 +308,7 @@ public:
 		return task.wait_for_completion() ? ERR_SKIP : OK;
 	}
 
-	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path);
+	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
 	Error wait_for_group_task_completion(WorkerThreadPool::GroupID p_group_id);
 	void update_progress_bg();

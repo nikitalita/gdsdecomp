@@ -150,11 +150,9 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 			if (!url.is_empty()) {
 				String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
 				auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);
-				err = TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
-				if (err == OK) {
-					report->set_saved_path(zip_path);
-					return report;
-				}
+				report->set_download_task_id(task_id);
+				report->set_saved_path(zip_path);
+				return report;
 			}
 		}
 	}

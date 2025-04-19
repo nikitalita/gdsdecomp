@@ -387,6 +387,10 @@ GDREProgressDialog::GDREProgressDialog() {
 	set_process(true);
 }
 
+GDREProgressDialog::~GDREProgressDialog() {
+	singleton = nullptr;
+}
+
 String EditorProgressGDDC::get_task() {
 	return task;
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "core/object/ref_counted.h"
 #include "utility/import_info.h"
+#include "utility/task_manager.h"
 #include <sys/types.h>
 
 class ExportReport : public RefCounted {
@@ -25,6 +26,7 @@ private:
 	String unsupported_format_type;
 	Vector<String> error_messages;
 	Vector<String> message_detail;
+	TaskManager::DownloadTaskID download_task_id = -1;
 	Error error = OK;
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
 	MetadataStatus rewrote_metadata = NOT_DIRTY;
@@ -48,6 +50,9 @@ public:
 
 	void set_saved_path(const String &p_saved_path) { saved_path = p_saved_path; }
 	String get_saved_path() const { return saved_path; }
+
+	void set_download_task_id(TaskManager::DownloadTaskID p_download_task_id) { download_task_id = p_download_task_id; }
+	TaskManager::DownloadTaskID get_download_task_id() const { return download_task_id; }
 
 	void set_error(Error p_error) { error = p_error; }
 	Error get_error() const { return error; }

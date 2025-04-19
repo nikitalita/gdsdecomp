@@ -86,6 +86,8 @@ HashMap<String, Vector<String>> AssetLibInfoGetter::non_asset_lib_release_file_m
 
 HashMap<String, String> AssetLibInfoGetter::GODOT_VERSION_RELEASE_DATES = init_map(_GODOT_VERSION_RELEASE_DATES, GODOT_VERSION_RELEASE_DATES_COUNT);
 
+bool AssetLibInfoGetter::is_prepopping = false;
+
 Array AssetLibInfoGetter::search_for_assets(const String &plugin_name, int ver_major) {
 	static const Vector<String> _GODOT_VERSIONS = { "2.99", "3.99", "4.99" };
 	Vector<String> godot_versions;
@@ -275,8 +277,13 @@ Error AssetLibInfoGetter::populate_plugin_version_hashes(PluginVersion &plugin_v
 	String url = plugin_version.download_url;
 	String new_temp_foldr = temp_folder.path_join(itos(plugin_version.release_id));
 	String zip_path = new_temp_foldr.path_join("plugin.zip");
-	auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);
-	Error err = TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
+	Error err = OK;
+	if (!is_prepopping) {
+		auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);
+		err = TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
+	} else {
+		err = gdre::download_file_sync(url, zip_path);
+	}
 	if (err) {
 		return err;
 	}
@@ -526,6 +533,7 @@ struct PrePopTask {
 };
 
 void AssetLibInfoGetter::prepop_plugin_cache(const Vector<String> &plugin_names, bool multithread) {
+	is_prepopping = true;
 	Vector<PrePopToken> tokens;
 	for (int i = 0; i < plugin_names.size(); i++) {
 		auto plugin_name = plugin_names[i];
@@ -568,6 +576,7 @@ void AssetLibInfoGetter::prepop_plugin_cache(const Vector<String> &plugin_names,
 			task.do_task(i, tokens.ptr());
 		}
 	}
+	is_prepopping = false;
 }
 
 String AssetLibInfoGetter::get_plugin_download_url(const String &plugin_name, const Vector<String> hashes) {
