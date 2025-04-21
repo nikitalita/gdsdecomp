@@ -28,6 +28,7 @@
 #include "exporters/export_report.h"
 #include "exporters/fontfile_exporter.h"
 #include "exporters/gdextension_exporter.h"
+#include "exporters/gdscript_exporter.h"
 #include "exporters/mp3str_exporter.h"
 #include "exporters/oggstr_exporter.h"
 #include "exporters/resource_exporter.h"
@@ -76,6 +77,7 @@ static Ref<OggStreamConverterCompat> ogg_converter = nullptr;
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
 static Ref<FontFileExporter> fontfile_exporter = nullptr;
 static Ref<GDExtensionExporter> gdextension_exporter = nullptr;
+static Ref<GDScriptExporter> gdscript_exporter = nullptr;
 static Ref<Mp3StrExporter> mp3str_exporter = nullptr;
 static Ref<OggStrExporter> oggstr_exporter = nullptr;
 static Ref<SampleExporter> sample_exporter = nullptr;
@@ -132,6 +134,7 @@ void init_exporters() {
 	scene_exporter = memnew(SceneExporter);
 	texture_exporter = memnew(TextureExporter);
 	translation_exporter = memnew(TranslationExporter);
+	gdscript_exporter = memnew(GDScriptExporter);
 	Exporter::add_exporter(auto_converted_exporter);
 	Exporter::add_exporter(fontfile_exporter);
 	Exporter::add_exporter(gdextension_exporter);
@@ -141,6 +144,7 @@ void init_exporters() {
 	Exporter::add_exporter(scene_exporter);
 	Exporter::add_exporter(texture_exporter);
 	Exporter::add_exporter(translation_exporter);
+	Exporter::add_exporter(gdscript_exporter);
 }
 
 void deinit_exporters() {
@@ -171,6 +175,9 @@ void deinit_exporters() {
 	if (translation_exporter.is_valid()) {
 		Exporter::remove_exporter(translation_exporter);
 	}
+	if (gdscript_exporter.is_valid()) {
+		Exporter::remove_exporter(gdscript_exporter);
+	}
 	auto_converted_exporter = nullptr;
 	fontfile_exporter = nullptr;
 	gdextension_exporter = nullptr;
@@ -180,6 +187,7 @@ void deinit_exporters() {
 	scene_exporter = nullptr;
 	texture_exporter = nullptr;
 	translation_exporter = nullptr;
+	gdscript_exporter = nullptr;
 }
 
 void deinit_loaders() {
@@ -270,6 +278,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<SceneExporter>();
 	ClassDB::register_class<TextureExporter>();
 	ClassDB::register_class<TranslationExporter>();
+	ClassDB::register_class<GDScriptExporter>();
+	ClassDB::register_class<GDExtensionExporter>();
 
 	ClassDB::register_class<ResourceCompatLoader>();
 	ClassDB::register_class<CompatFormatLoader>();
