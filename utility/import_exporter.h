@@ -111,6 +111,7 @@ class ImportExporter : public RefCounted {
 
 	Ref<ImportExporterReport> report;
 	void _do_export(uint32_t i, ExportToken *tokens);
+	String get_export_token_description(uint32_t i, ExportToken *tokens);
 	Error handle_auto_converted_file(const String &autoconverted_file, const String &output_dir);
 	Error rewrite_import_source(const String &rel_dest_path, const String &output_dir, const Ref<ImportInfo> &iinfo);
 	static Vector<String> get_v2_wildcards();

@@ -107,6 +107,7 @@ public:
 		WorkerThreadPool::GroupID group_id = -1;
 		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
 		std::atomic<int64_t> last_completed = -1;
+		int progress_start = 0;
 
 	public:
 		GroupTaskData(
@@ -122,7 +123,8 @@ public:
 				bool p_high_priority,
 				bool p_runs_current_thread = false,
 				bool p_progress_enabled = true,
-				Ref<EditorProgressGDDC> p_progress = nullptr) :
+				Ref<EditorProgressGDDC> p_progress = nullptr,
+				int p_progress_start = 0) :
 				instance(p_instance),
 				method(p_method),
 				userdata(p_userdata),
@@ -133,7 +135,8 @@ public:
 				description(p_description),
 				can_cancel(p_can_cancel),
 				high_priority(p_high_priority),
-				progress_enabled(p_progress_enabled) {
+				progress_enabled(p_progress_enabled),
+				progress_start(p_progress_start) {
 			runs_current_thread = p_runs_current_thread;
 			progress = p_progress;
 		}
@@ -188,7 +191,7 @@ public:
 		}
 
 		inline int get_current_task_step_value() override {
-			return last_completed;
+			return last_completed + progress_start;
 		}
 
 		void run_on_current_thread() override {
@@ -292,11 +295,13 @@ public:
 			const String &p_task,
 			const String &p_label,
 			bool p_can_cancel = true,
-			int p_tasks = -1, bool p_high_priority = true,
-			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr) {
+			int p_tasks = -1,
+			bool p_high_priority = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0) {
 		// bool is_singlethreaded = GDRESettings::get_singleton()->get_setting("singlethreaded", false);
 		bool is_singlethreaded = false;
-		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, is_singlethreaded, true, p_preexisting_progress);
+		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, is_singlethreaded, true, p_preexisting_progress, p_progress_start);
 		task->start();
 		auto group_id = ++current_group_task_id;
 		bool already_exists = false;
@@ -315,8 +320,13 @@ public:
 			int p_elements,
 			R p_task_step_callback,
 			const String &p_task,
-			const String &p_label, bool p_can_cancel = true, int p_tasks = -1, bool p_high_priority = true, Ref<EditorProgressGDDC> p_preexisting_progress = nullptr) {
-		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, p_preexisting_progress);
+			const String &p_label,
+			bool p_can_cancel = true,
+			int p_tasks = -1,
+			bool p_high_priority = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0) {
+		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, p_preexisting_progress, p_progress_start);
 		return wait_for_group_task_completion(task_id);
 	}
 
@@ -328,8 +338,11 @@ public:
 			int p_elements,
 			R p_task_step_callback,
 			const String &p_task,
-			const String &p_label, bool p_can_cancel = true, Ref<EditorProgressGDDC> p_preexisting_progress = nullptr) {
-		GroupTaskData<C, M, U, R> task = GroupTaskData<C, M, U, R>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, -1, true, true, true, p_preexisting_progress);
+			const String &p_label,
+			bool p_can_cancel = true,
+			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
+			int p_progress_start = 0) {
+		GroupTaskData<C, M, U, R> task = GroupTaskData<C, M, U, R>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, -1, true, true, true, p_preexisting_progress, p_progress_start);
 		task.start();
 		return task.wait_for_completion() ? ERR_SKIP : OK;
 	}
