@@ -1,13 +1,29 @@
 #include "fake_script.h"
 
 #include "core/string/ustring.h"
-#include "variant_decoder_compat.h"
 #include <utility/gdre_settings.h>
 
+#define FAKEGDSCRIPT_FAIL_COND_V_MSG(cond, val, msg) \
+	if (unlikely(cond)) {                            \
+		error_message = msg;                         \
+		ERR_FAIL_V_MSG(val, msg);                    \
+	}
+
+#define FAKEGDSCRIPT_FAIL_V_MSG(val, msg) \
+	error_message = msg;                  \
+	ERR_FAIL_V_MSG(val, msg);
+
+#define FAKEGDSCRIPT_FAIL_COND_MSG(cond, msg) \
+	if (unlikely(cond)) {                     \
+		error_message = msg;                  \
+		ERR_FAIL_MSG(msg);                    \
+	}
+
 Error FakeGDScript::_reload_from_file() {
+	error_message.clear();
 	source.clear();
 	binary_buffer.clear();
-	ERR_FAIL_COND_V_MSG(script_path.is_empty(), ERR_FILE_NOT_FOUND, "Script path is empty");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(script_path.is_empty(), ERR_FILE_NOT_FOUND, "Script path is empty");
 	Error err = OK;
 	// check the first four bytes to see if it's a binary file
 	auto ext = script_path.get_extension().to_lower();
@@ -15,14 +31,14 @@ Error FakeGDScript::_reload_from_file() {
 	if (ext == "gde") {
 		is_binary = true;
 		err = GDScriptDecomp::get_buffer_encrypted(script_path, 3, GDRESettings::get_singleton()->get_encryption_key(), binary_buffer);
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Error reading encrypted file: " + script_path);
+		FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error reading encrypted file: " + script_path);
 	} else {
 		binary_buffer = FileAccess::get_file_as_bytes(script_path, &err);
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Error reading file: " + script_path);
+		FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error reading file: " + script_path);
 		is_binary = binary_buffer.size() >= 4 && binary_buffer[0] == 'G' && binary_buffer[1] == 'D' && binary_buffer[2] == 'S' && binary_buffer[3] == 'C';
 		if (!is_binary) {
 			err = source.append_utf8(reinterpret_cast<const char *>(binary_buffer.ptr()), binary_buffer.size());
-			ERR_FAIL_COND_V_MSG(err != OK, err, "Error reading file: " + script_path);
+			FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error reading file: " + script_path);
 			binary_buffer.clear();
 		}
 	}
@@ -31,7 +47,7 @@ Error FakeGDScript::_reload_from_file() {
 
 void FakeGDScript::reload_from_file() {
 	Error err = _reload_from_file();
-	ERR_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
+	FAKEGDSCRIPT_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
 }
 
 bool FakeGDScript::can_instantiate() const {
@@ -83,32 +99,32 @@ void FakeGDScript::set_source_code(const String &p_code) {
 }
 
 Error FakeGDScript::reload(bool p_keep_state) {
+	error_message.clear();
 	auto revision = GDRESettings::get_singleton()->get_bytecode_revision();
-	ERR_FAIL_COND_V_MSG(!revision, ERR_UNCONFIGURED, "No bytecode revision set!");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(!revision, ERR_UNCONFIGURED, "No bytecode revision set");
 
 	decomp = GDScriptDecomp::create_decomp_for_commit(revision);
-	ERR_FAIL_COND_V_MSG(decomp.is_null(), ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(decomp.is_null(), ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
 
 	Error err = OK;
 	if (is_binary) {
 		err = decomp->decompile_buffer(binary_buffer);
 		if (err) {
-			auto mst = decomp->get_error_message();
-			ERR_FAIL_V_MSG(err, "Error decompiling code " + script_path + ": " + mst);
+			error_message = "Error decompiling code: " + decomp->get_error_message();
+			ERR_FAIL_V_MSG(err, "Error decompiling code " + script_path + ": " + decomp->get_error_message());
 		}
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Error decompiling binary file: " + script_path);
 		source = decomp->get_script_text();
 	} else {
 		binary_buffer = decomp->compile_code_string(source);
 		if (binary_buffer.size() == 0) {
-			auto mst = decomp->get_error_message();
-			ERR_FAIL_V_MSG(ERR_PARSE_ERROR, "Error compiling code " + script_path + ": " + mst);
+			error_message = "Error compiling code: " + decomp->get_error_message();
+			ERR_FAIL_V_MSG(ERR_PARSE_ERROR, "Error compiling code " + script_path + ": " + decomp->get_error_message());
 		}
 	}
 	err = decomp->get_script_state(binary_buffer, script_state);
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Error parsing bytecode");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing bytecode");
 	err = parse_script();
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Error parsing script");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing script");
 	valid = true;
 	return OK;
 }
@@ -203,7 +219,6 @@ Variant FakeGDScript::get_rpc_config() const {
 
 Error FakeGDScript::parse_script() {
 	using GT = GlobalToken;
-	Error err = OK;
 	ERR_FAIL_COND_V(script_state.bytecode_version == -1, ERR_PARSE_ERROR);
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
@@ -314,6 +329,10 @@ Error FakeGDScript::load_source_code(const String &p_path) {
 	return _reload_from_file();
 }
 
+String FakeGDScript::get_error_message() const {
+	return error_message;
+}
+
 // FakeEmbeddedScript
 
 bool FakeEmbeddedScript::_get(const StringName &p_name, Variant &r_ret) const {
@@ -382,3 +401,7 @@ void FakeEmbeddedScript::set_original_class(const String &p_class) {
 String FakeEmbeddedScript::get_original_class() const {
 	return original_class;
 }
+
+#undef FAKEGDSCRIPT_FAIL_COND_V_MSG
+#undef FAKEGDSCRIPT_FAIL_V_MSG
+#undef FAKEGDSCRIPT_FAIL_COND_MSG
