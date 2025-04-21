@@ -17,7 +17,7 @@ TaskManager *TaskManager::get_singleton() {
 }
 
 //	void wait_for_group_task_completion(WorkerThreadPool::GroupID p_group_id);
-Error TaskManager::wait_for_group_task_completion(WorkerThreadPool::GroupID p_group_id) {
+Error TaskManager::wait_for_group_task_completion(GroupTaskID p_group_id) {
 	Error err = OK;
 	{
 		std::shared_ptr<BaseTemplateTaskData> task;
@@ -60,7 +60,7 @@ int TaskManager::DownloadTaskData::get_current_task_step_value() {
 	return download_progress * 1000;
 }
 
-void TaskManager::DownloadTaskData::run_singlethreaded() {
+void TaskManager::DownloadTaskData::run_on_current_thread() {
 	callback_data(nullptr);
 }
 
@@ -78,10 +78,6 @@ String TaskManager::DownloadTaskData::get_current_task_step_description() {
 	return "Downloading " + download_url;
 }
 
-WorkerThreadPool::TaskID TaskManager::DownloadTaskData::get_task_id() {
-	return task_id;
-}
-
 void TaskManager::DownloadTaskData::callback_data(void *p_data) {
 	download_error = gdre::download_file_sync(download_url, save_path, &download_progress, &canceled);
 	done = true;
@@ -91,9 +87,6 @@ void TaskManager::DownloadTaskData::start_internal() {
 	if (!silent) {
 		progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(rand()), get_current_task_step_description(), 1000, true);
 	}
-	// TODO: this won't return until it's finished because start() is called in the worker thread, so we need to set `started` to true here. Refactor this?
-	started = true;
-	callback_data(nullptr);
 }
 
 TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool silent) :
@@ -187,6 +180,7 @@ void TaskManager::DownloadQueueThread::worker_main_loop() {
 			continue;
 		}
 		running_task->start();
+		running_task->run_on_current_thread();
 		running_task = nullptr;
 	}
 }
