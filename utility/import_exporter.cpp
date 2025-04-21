@@ -216,6 +216,10 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 	last_completed++;
 }
 
+String ImportExporter::get_export_token_description(uint32_t i, ExportToken *tokens) {
+	return tokens[i].iinfo.is_valid() ? tokens[i].iinfo->get_path() : "";
+}
+
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	reset_log();
@@ -224,7 +228,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	report = Ref<ImportExporterReport>(memnew(ImportExporterReport(get_settings()->get_version_string())));
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
-	uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
 	const String output_dir = !p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path();
 	Error err = OK;
 	if (opt_lossy) {
@@ -239,7 +242,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
-	EditorProgressGDDC *pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
+	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {
@@ -267,10 +270,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		recreate_plugin_configs(output_dir, addon_first_level_dirs);
 	}
 
-	if (pr) {
-		if (pr->step("Exporting resources...", 0, true)) {
-			return ERR_SKIP;
-		}
+	if (pr->step("Exporting resources...", 0, true)) {
+		return ERR_SKIP;
 	}
 	HashMap<String, Ref<ResourceExporter>> exporter_map;
 	for (int i = 0; i < Exporter::exporter_count; i++) {
@@ -283,7 +284,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
-	Vector<String> paths_to_export;
 	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
@@ -331,14 +331,12 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			supports_multithreading = false;
 		}
 		if (is_high_priority) {
-			paths_to_export.insert(0, iinfo->get_path());
 			if (supports_multithreading) {
 				tokens.insert(0, { iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
 			} else {
 				non_multithreaded_tokens.insert(0, { iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
 			}
 		} else {
-			paths_to_export.push_back(iinfo->get_path());
 			if (supports_multithreading) {
 				tokens.push_back({ iinfo, nullptr, output_dir, supports_multithreading, opt_rewrite_imd_v2, opt_rewrite_imd_v3, opt_write_md5_files });
 			} else {
@@ -353,48 +351,37 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		last_completed = -1;
 		cancelled = false;
 		print_line("Exporting resources in parallel...");
-		WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(
+		Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&ImportExporter::_do_export,
 				tokens.ptrw(),
-				tokens.size(), -1, true, SNAME("ImportExporter::export_imports"));
-		if (pr) {
-			while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
-				OS::get_singleton()->delay_usec(10000);
-				int i = last_completed;
-				if (i < 0) {
-					i = 0;
-				} else if (i >= num_multithreaded_tokens) {
-					i = num_multithreaded_tokens - 1;
-				}
-				bool cancel = pr->step(paths_to_export[i], i, true);
-				if (cancel) {
-					cancelled = true;
-					WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
-					return ERR_SKIP;
-				}
-			}
+				tokens.size(),
+				&ImportExporter::get_export_token_description,
+				"ImportExporter::export_imports",
+				"Exporting resources...",
+				true, -1, true, pr, 0);
+		if (err != OK) {
+			print_line("Export cancelled!");
+			return err;
 		}
-		// Always wait for completion; otherwise we leak memory.
-		WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
 	}
 	GDRELogger::clear_error_queues();
-	for (int i = 0; i < non_multithreaded_tokens.size(); i++) {
-		ExportToken &token = non_multithreaded_tokens.write[i];
-		if (pr) {
-			if (OS::get_singleton()->get_ticks_usec() - last_progress_upd > 10000) {
-				last_progress_upd = OS::get_singleton()->get_ticks_usec();
-				if (pr->step(token.iinfo->get_path(), num_multithreaded_tokens + i, false)) {
-					return ERR_SKIP;
-				}
-			}
-		}
-		_do_export(i, non_multithreaded_tokens.ptrw());
+	err = TaskManager::get_singleton()->run_task_on_current_thread(
+			this,
+			&ImportExporter::_do_export,
+			non_multithreaded_tokens.ptrw(),
+			non_multithreaded_tokens.size(),
+			&ImportExporter::get_export_token_description,
+			"ImportExporter::export_imports",
+			"Exporting resources...",
+			true, pr, num_multithreaded_tokens);
+
+	if (err != OK) {
+		print_line("Export cancelled!");
+		return err;
 	}
 	tokens.append_array(non_multithreaded_tokens);
-	if (pr) {
-		pr->step("Finalizing...", tokens.size() - 1, true);
-	}
+	pr->step("Finalizing...", tokens.size() - 1, true);
 	report->session_files_total = tokens.size();
 	// add to report
 	for (int i = 0; i < tokens.size(); i++) {
@@ -490,7 +477,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			dir->remove(get_settings()->get_project_config_path().get_file());
 		}
 	}
-	memdelete(pr);
+	pr = nullptr;
 	report->print_report();
 	ResourceCompatLoader::set_default_gltf_load(false);
 	ResourceCompatLoader::unmake_globally_available();
