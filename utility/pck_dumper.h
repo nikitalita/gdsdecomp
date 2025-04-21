@@ -14,13 +14,13 @@ class PckDumper : public RefCounted {
 	bool skip_failed_md5 = false;
 	bool should_check_md5 = false;
 	bool opt_multi_thread = true;
-	std::atomic<bool> cancelled = false;
-	std::atomic<int> last_completed = 0;
+	std::atomic<int> completed_cnt = 0;
 	std::atomic<int> skipped_cnt = 0;
 	std::atomic<int> broken_cnt = 0;
 
 	bool _pck_file_check_md5(Ref<PackedFileInfo> &file);
 	void _do_md5_check(uint32_t i, Ref<PackedFileInfo> *tokens);
+	String get_file_description(int64_t i, Ref<PackedFileInfo> *userdata);
 	void reset();
 	struct ExtractToken {
 		Ref<PackedFileInfo> file;
@@ -28,13 +28,10 @@ class PckDumper : public RefCounted {
 		Error err = OK;
 	};
 	void _do_extract(uint32_t i, ExtractToken *tokens);
-	Error wait_for_task(WorkerThreadPool::GroupID group_task, const Vector<String> &paths_to_check, EditorProgressGDDC *pr);
+	String get_extract_token_description(int64_t i, ExtractToken *userdata);
 
 protected:
 	static void _bind_methods();
-
-	String get_file_description(int64_t i, Ref<PackedFileInfo> *userdata);
-	String get_extract_token_description(int64_t i, ExtractToken *userdata);
 
 public:
 	Error check_md5_all_files();
