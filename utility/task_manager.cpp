@@ -89,7 +89,7 @@ void TaskManager::DownloadTaskData::callback_data(void *p_data) {
 
 void TaskManager::DownloadTaskData::start_internal() {
 	if (!silent) {
-		progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(task_id), get_current_task_step_description(), 1000, true);
+		progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(rand()), get_current_task_step_description(), 1000, true);
 	}
 	// TODO: this won't return until it's finished because start() is called in the worker thread, so we need to set `started` to true here. Refactor this?
 	started = true;
@@ -172,8 +172,7 @@ Error TaskManager::DownloadQueueThread::wait_for_task_completion(DownloadTaskID 
 	} else {
 		err = task->get_download_error();
 	}
-	size_t val = tasks.erase(p_task_id);
-	size_t size = tasks.size();
+	tasks.erase(p_task_id);
 	waiting = false;
 	return err;
 }
