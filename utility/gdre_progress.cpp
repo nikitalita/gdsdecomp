@@ -323,6 +323,7 @@ void GDREProgressDialog::end_task(const String &p_task) {
 }
 
 void GDREProgressDialog::main_thread_update() {
+	ERR_FAIL_COND_MSG(!is_safe_to_redraw(), "Cannot update progress dialog from non-main thread or while flushing messages.");
 	bool should_update = _process_removals();
 	bool p_can_cancel = false;
 	bool initialized = false;

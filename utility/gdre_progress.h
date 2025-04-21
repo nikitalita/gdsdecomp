@@ -113,12 +113,12 @@ class GDREProgressDialog : public PopupPanel {
 
 	void _update_ui();
 	std::atomic<bool> canceled = false;
-	bool is_safe_to_redraw();
 
 protected:
 	void _notification(int p_what);
 
 public:
+	bool is_safe_to_redraw();
 	static GDREProgressDialog *get_singleton() { return singleton; }
 	void add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel = false);
 	bool task_step(const String &p_task, const String &p_state, int p_step = -1, bool p_force_redraw = true);
