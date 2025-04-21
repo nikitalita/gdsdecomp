@@ -44,13 +44,6 @@ int get_ver_rev() {
 	return get_settings()->get_ver_rev();
 }
 
-// export all the imported resources
-Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &files_to_export) {
-	String t;
-	EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "export_imports", "Exporting resources...", GDRESettings::get_singleton()->get_import_files().size(), true };
-	return _export_imports(p_out_dir, files_to_export, &pr, t);
-}
-
 Ref<ImportExporterReport> ImportExporter::get_report() {
 	return report;
 }
@@ -224,7 +217,8 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 	last_completed++;
 }
 
-Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<String> &_files_to_export, EditorProgressGDDC *pr, String &error_string) {
+// export all the imported resources
+Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	reset_log();
 	ResourceCompatLoader::make_globally_available();
 	ResourceCompatLoader::set_default_gltf_load(true);
@@ -244,7 +238,9 @@ Error ImportExporter::_export_imports(const String &p_out_dir, const Vector<Stri
 		return OK;
 	}
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
+	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {

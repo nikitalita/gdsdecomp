@@ -832,13 +832,9 @@ void GodotREEditor::_pck_extract_files_process() {
 	Ref<ImportExporter> ie;
 
 	if (is_full_recovery && !err) {
-		// memdelete(pr);
 		ie.instantiate();
-		EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck_res", RTR("Exporting resources..."), GDRESettings::get_singleton()->get_import_files().size(), true));
-		String error_string;
-		err = ie->_export_imports(dir, files, pr, error_string);
+		err = ie->export_imports(dir, files);
 	}
-	// memdelete(pr);
 	pck_file = String();
 	String log_path = GDRESettings::get_singleton()->get_log_file_path();
 	String report = "Log file written to " + log_path;

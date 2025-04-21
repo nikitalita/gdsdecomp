@@ -141,7 +141,6 @@ public:
 
 	void set_multi_thread(bool p_enable);
 
-	Error _export_imports(const String &output_dir, const Vector<String> &files_to_export, EditorProgressGDDC *pr, String &error_string);
 	Error export_imports(const String &output_dir = "", const Vector<String> &files_to_export = {});
 	Ref<ImportExporterReport> get_report();
 	void reset_log();
