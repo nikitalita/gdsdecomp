@@ -2,8 +2,6 @@
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
-#include "core/extension/gdextension.h"
-#include "core/extension/gdextension_library_loader.h"
 #include "gdre_settings.h"
 #include "utility/common.h"
 #include "utility/glob.h"

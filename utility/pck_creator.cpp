@@ -9,6 +9,7 @@
 #include "core/os/os.h"
 #include "utility/common.h"
 #include "utility/packed_file_info.h"
+#include "utility/task_manager.h"
 
 #include <core/io/file_access_encrypted.h>
 #include <scene/resources/surface_tool.h>
@@ -19,35 +20,8 @@ void PckCreator::reset() {
 	offset = 0;
 	error_string.clear();
 	cancelled = false;
-	last_completed = -1;
-	skipped_cnt = 0;
 	broken_cnt = 0;
 	data_read = 0;
-}
-
-Error PckCreator::wait_for_task(WorkerThreadPool::GroupID group_task, const Vector<String> &paths_to_check, EditorProgressGDDC *pr) {
-	if (pr) {
-		int64_t fl_sz = paths_to_check.size();
-		while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
-			OS::get_singleton()->delay_usec(10000);
-			int64_t i = last_completed;
-			if (i < 0) {
-				i = 0;
-			} else if (i >= fl_sz) {
-				i = fl_sz - 1;
-			}
-			bool cancel = pr->step(paths_to_check[i], i, true);
-			if (cancel) {
-				cancelled = true;
-				WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
-				return ERR_SKIP;
-			}
-		}
-	}
-
-	// Always wait for completion; otherwise we leak memory.
-	WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
-	return OK;
 }
 
 Vector<String> PckCreator::get_files_to_pack(const String &p_dir, const Vector<String> &include_filters, const Vector<String> &p_exclude_filters) {
@@ -93,36 +67,22 @@ Vector<String> PckCreator::get_files_to_pack(const String &p_dir, const Vector<S
 
 Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, const Vector<String> &include_filters, const Vector<String> &exclude_filters) {
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
-	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
-		Vector<String> file_paths_to_pack;
-		{
-			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_read_folder", "Reading folder structure...", -1, true };
+	Vector<String> file_paths_to_pack;
+	{
+		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_read_folder", "Reading folder structure...", -1, true };
 
-			file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
-			bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
-		}
-		Error err = OK;
-		{
-			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_folder_info", "Getting file info...", (int)file_paths_to_pack.size(), true };
-			err = _process_folder(p_pck_path, p_dir, file_paths_to_pack, &pr, error_string);
-		}
-		ERR_FAIL_COND_V_MSG(err, err, "Error processing folder: " + error_string);
-		{
-			EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_write_pck", "Writing PCK archive...", (int)file_paths_to_pack.size(), true };
-			err = _create_after_process(&pr, error_string);
-		}
-		ERR_FAIL_COND_V_MSG(err, err, "Error creating pck: " + error_string);
-		return OK;
+		file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
+		bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
 	}
-	auto file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
-	bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
-	Error err = _process_folder(p_pck_path, p_dir, file_paths_to_pack, nullptr, error_string);
+	Error err = OK;
+	{
+		err = _process_folder(p_pck_path, p_dir, file_paths_to_pack);
+	}
 	ERR_FAIL_COND_V_MSG(err, err, "Error processing folder: " + error_string);
-	err = _create_after_process(nullptr, error_string);
+	{
+		err = _create_after_process();
+	}
 	ERR_FAIL_COND_V_MSG(err, err, "Error creating pck: " + error_string);
-	uint64_t end_time = OS::get_singleton()->get_ticks_msec();
-	print_line("PCK creation took " + itos(end_time - start_time) + "ms");
-
 	return OK;
 }
 
@@ -134,7 +94,6 @@ void PckCreator::_do_process_folder(uint32_t i, File *tokens) {
 	String path = token.src_path;
 	if (!FileAccess::exists(path)) {
 		token.err = ERR_FILE_NOT_FOUND;
-		++last_completed;
 		++broken_cnt;
 		return;
 	}
@@ -142,7 +101,6 @@ void PckCreator::_do_process_folder(uint32_t i, File *tokens) {
 		Ref<FileAccess> file = FileAccess::open(path, FileAccess::READ);
 		if (file.is_null()) {
 			token.err = ERR_FILE_CANT_OPEN;
-			++last_completed;
 			++broken_cnt;
 			return;
 		}
@@ -150,19 +108,15 @@ void PckCreator::_do_process_folder(uint32_t i, File *tokens) {
 	}
 	if (token.size == 0) {
 		token.md5.resize_zeroed(16);
-		++last_completed;
 		return;
 	}
 	auto md5_str = FileAccess::get_md5(path);
 	if (md5_str.is_empty()) {
 		token.err = ERR_FILE_CANT_OPEN;
-		++last_completed;
 		++broken_cnt;
 		return;
 	}
 	token.md5 = md5_str.hex_decode();
-
-	++last_completed;
 }
 
 namespace {
@@ -195,15 +149,13 @@ const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 Error PckCreator::_process_folder(
 		const String &p_pck_path,
 		const String &p_dir,
-		const Vector<String> &file_paths_to_pack,
-		EditorProgressGDDC *pr, String &p_error_string) {
+		const Vector<String> &file_paths_to_pack) {
 	HashMap<String, String> map;
 	for (size_t i = 0; i < file_paths_to_pack.size(); i++) {
 		map[p_dir.path_join(file_paths_to_pack[i])] = file_paths_to_pack[i];
 	}
 	start_pck(p_pck_path, version, ver_major, ver_minor, ver_rev, encrypt, embed, exe_to_embed, watermark);
-	auto ret = _add_files(map, pr);
-	p_error_string = error_string;
+	auto ret = _add_files(map);
 	return ret;
 }
 
@@ -226,17 +178,11 @@ Error PckCreator::add_files(Dictionary file_paths_to_pack) {
 	for (auto &e : file_paths_to_pack.keys()) {
 		map[e] = file_paths_to_pack[e];
 	}
-	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
-		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_add_files", "Adding files to PCK archive...", (int)file_paths_to_pack.size(), true };
-		return _add_files(map, &pr);
-	} else {
-		return _add_files(map, nullptr);
-	}
+	return _add_files(map);
 }
 
 Error PckCreator::_add_files(
-		const HashMap<String, String> &file_paths_to_pack,
-		EditorProgressGDDC *pr) {
+		const HashMap<String, String> &file_paths_to_pack) {
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
 	files_to_pck.resize(file_paths_to_pack.size());
 	Vector<String> keys;
@@ -251,12 +197,15 @@ Error PckCreator::_add_files(
 	}
 	Error err = OK;
 	if (opt_multi_thread) {
-		WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(
+		auto group_task = TaskManager::get_singleton()->add_group_task(
 				this,
 				&PckCreator::_do_process_folder,
 				files_to_pck.ptrw(),
-				files_to_pck.size(), -1, true, SNAME("PckCreator::_do_process_folder"));
-		err = wait_for_task(group_task, keys, pr);
+				files_to_pck.size(),
+				&PckCreator::get_file_description,
+				"PckCreator::_do_process_folder",
+				"Getting file info...");
+		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 		if (err == ERR_SKIP) {
 			return ERR_SKIP;
 		}
@@ -320,13 +269,7 @@ Error PckCreator::read_and_write_file(size_t i, Ref<FileAccess> write_handle) {
 }
 
 Error PckCreator::finish_pck() {
-	Error error;
-	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless()) {
-		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_write_pck", "Writing PCK archive...", (int)files_to_pck.size(), true };
-		error = _create_after_process(&pr, error_string);
-	} else {
-		error = _create_after_process(nullptr, error_string);
-	}
+	Error error = _create_after_process();
 	ERR_FAIL_COND_V_MSG(error && error != ERR_SKIP && error != ERR_PRINTER_ON_FIRE, error, "Error creating pck: " + error_string);
 	return error;
 }
@@ -335,11 +278,47 @@ String PckCreator::get_file_description(int64_t i, File *userdata) {
 	return userdata[i].src_path;
 }
 
-Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_string) {
+void PckCreator::_do_write_file(uint32_t i, File *files_to_pck) {
+	if (encryption_error != OK) {
+		return;
+	}
+	DEV_ASSERT(f->get_position() == file_base + files_to_pck[i].ofs);
+	Ref<FileAccessEncrypted> fae;
+	Ref<FileAccess> ftmp = f;
+	if (encrypt) {
+		fae.instantiate();
+
+		Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
+		if (err != OK) {
+			encryption_error = err;
+			return;
+		}
+		ftmp = fae;
+	}
+	if (read_and_write_file(i, ftmp) != OK) {
+		error_string += files_to_pck[i].path + " (FileAccess error)\n";
+		broken_cnt++;
+	}
+
+	if (fae.is_valid()) {
+		ftmp.unref();
+		fae.unref();
+	}
+
+	int pad = _get_pad(PCK_PADDING, f->get_position());
+	for (int j = 0; j < pad; j++) {
+		f->store_8(0);
+	}
+}
+
+Error PckCreator::_create_after_process() {
+	Ref<EditorProgressGDDC> pr = EditorProgressGDDC::create(nullptr, "re_write_pck", "Writing PCK archive...", (int)files_to_pck.size(), true);
 	cancelled = false;
-	last_completed = -1;
-	skipped_cnt = 0;
 	broken_cnt = 0;
+	f = nullptr;
+	encryption_error = OK;
+	file_base = 0;
+	key = GDRESettings::get_singleton()->get_encryption_key();
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
 
 	auto temp_path = pck_path;
@@ -353,7 +332,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		temp_path = pck_path + ".tmp";
 	}
 
-	Ref<FileAccess> f = FileAccess::open(temp_path, FileAccess::WRITE);
+	f = FileAccess::open(temp_path, FileAccess::WRITE);
 	if (f.is_null()) {
 		error_string = ("Error opening PCK file: ") + temp_path;
 		return ERR_FILE_CANT_WRITE;
@@ -363,7 +342,6 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 
 	GDREPackedSource::EXEPCKInfo exe_pck_info;
 	int64_t absolute_exe_end = 0;
-	bool has_pck_already = false;
 	if (embed) {
 		// append to exe
 
@@ -372,15 +350,12 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			error_string = ("Error opening executable file: ") + exe_to_embed;
 			return ERR_FILE_CANT_READ;
 		}
-		if (pr) {
-			pr->step("Exec...", 0, true);
-		}
+		pr->step("Exec...", 0, true);
 
 		fs->seek_end();
 		absolute_exe_end = fs->get_position();
 		int64_t exe_end;
 		if (GDREPackedSource::get_exe_embedded_pck_info(exe_to_embed, exe_pck_info)) {
-			has_pck_already = true;
 			exe_end = exe_pck_info.pck_embed_off;
 		} else {
 			exe_end = absolute_exe_end;
@@ -400,8 +375,6 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		}
 	}
 	int64_t pck_start_pos = f->get_position();
-
-	auto key = GDRESettings::get_singleton()->get_encryption_key();
 
 	f->store_32(0x43504447); //GDPK
 	f->store_32(version);
@@ -424,9 +397,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		//reserved
 		f->store_32(0);
 	}
-	if (pr) {
-		pr->step("Header...", 0, true);
-	}
+	pr->step("Header...", 0, true);
 	f->store_32(files_to_pck.size()); //amount of files
 	// used by pck version 0-1, where the file offsets include the header size; pck version 2 uses the offset from the header
 	size_t header_size = f->get_position();
@@ -437,10 +408,13 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 	if (version == 2) {
 		if (encrypt) {
 			fae.instantiate();
-			ERR_FAIL_COND_V(fae.is_null(), ERR_BUG);
-
 			Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-			ERR_FAIL_COND_V(err != OK, err);
+			if (err != OK) {
+				encryption_error = err;
+				error_string = "Encryption error: Could not open file for writing (invalid key?)";
+				f = nullptr;
+				return err;
+			}
 
 			fhead = fae;
 		}
@@ -473,9 +447,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 	}
 
 	size_t header_padding = _get_pad(PCK_PADDING, header_size);
-	if (pr) {
-		pr->step("Directory...", 0, true);
-	}
+	pr->step("Directory...", 0, true);
 	for (size_t i = 0; i < files_to_pck.size(); i++) {
 		uint32_t string_len = files_to_pck[i].path.utf8().length();
 		uint32_t pad = _get_pad(4, string_len);
@@ -514,7 +486,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		f->store_8(0);
 	}
 
-	int64_t file_base = f->get_position();
+	file_base = f->get_position();
 	DEV_ASSERT(file_base == header_size + header_padding);
 	if (version == 2) {
 		f->seek(file_base_ofs);
@@ -522,40 +494,26 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		f->seek(file_base);
 	}
 
-	uint64_t last_progress_upd = 0;
-	for (size_t i = 0; i < files_to_pck.size(); i++) {
-		if (pr && OS::get_singleton()->get_ticks_usec() - last_progress_upd > 200000) {
-			last_progress_upd = OS::get_singleton()->get_ticks_usec();
-			if (pr->step(files_to_pck[i].path, i + 2, false)) {
-				cancelled = true;
-				break;
-			}
-		}
-		DEV_ASSERT(f->get_position() == file_base + files_to_pck[i].ofs);
-
-		Ref<FileAccess> ftmp = f;
-		if (encrypt) {
-			fae.instantiate();
-			ERR_FAIL_COND_V(fae.is_null(), ERR_BUG);
-
-			Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-			ERR_FAIL_COND_V(err != OK, err);
-			ftmp = fae;
-		}
-		if (read_and_write_file(i, ftmp) != OK) {
-			error_string += files_to_pck[i].path + " (FileAccess error)\n";
-			broken_cnt++;
-		}
-
-		if (fae.is_valid()) {
-			ftmp.unref();
-			fae.unref();
-		}
-
-		int pad = _get_pad(PCK_PADDING, f->get_position());
-		for (int j = 0; j < pad; j++) {
-			f->store_8(0);
-		}
+	Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
+			this,
+			&PckCreator::_do_write_file,
+			files_to_pck.ptrw(),
+			files_to_pck.size(),
+			&PckCreator::get_file_description,
+			"Writing files...",
+			"Writing files...",
+			true,
+			1, // single-threaded, but runs on the thread pool
+			true,
+			pr);
+	if (err) { // cancelled
+		f = nullptr;
+		return err;
+	}
+	if (encryption_error != OK) {
+		error_string = "Encryption error: Could not encrypt file!";
+		f = nullptr;
+		return encryption_error;
 	}
 	if (watermark != "") {
 		f->store_32(0);
@@ -582,8 +540,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 		embedded_size = current_eof - embedded_start;
 
 		// fixup headers
-		if (pr)
-			pr->step("Exec header fix...", files_to_pck.size() + 2, true);
+		pr->step("Exec header fix...", files_to_pck.size() + 2, true);
 		if (exe_pck_info.pck_section_header_pos != 0) {
 			if (exe_pck_info.type == GDREPackedSource::EXEPCKInfo::PE) {
 				// Set virtual size to a little to avoid it taking memory (zero would give issues)
@@ -593,7 +550,7 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 				f->store_32(embedded_size);
 				f->seek(exe_pck_info.pck_section_header_pos + 20);
 				f->store_32(embedded_start);
-			} else if ((exe_pck_info.type == GDREPackedSource::EXEPCKInfo::ELF)) {
+			} else if (exe_pck_info.type == GDREPackedSource::EXEPCKInfo::ELF) {
 				if (exe_pck_info.section_bit_size == 32) {
 					f->seek(exe_pck_info.pck_section_header_pos + 0x10);
 					f->store_32(embedded_start);
@@ -610,6 +567,8 @@ Error PckCreator::_create_after_process(EditorProgressGDDC *pr, String &error_st
 			WARN_PRINT("There is data at the end of the executable past the pck, this data will be lost!");
 		}
 	}
+	f->flush();
+	f = nullptr;
 	if (temp_path != pck_path) {
 		if (GDRESettings::get_singleton()->is_pack_loaded()) {
 			// refusing to remove the original file while a pack is loaded

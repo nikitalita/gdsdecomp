@@ -4,7 +4,6 @@
 
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
-#include "core/os/os.h"
 #include "utility/common.h"
 #include "utility/packed_file_info.h"
 
@@ -72,7 +71,7 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 	}
 	if (opt_multi_thread) {
 		Vector<String> paths_to_check;
-		WorkerThreadPool::GroupID group_task = TaskManager::get_singleton()->add_group_task(
+		auto group_task = TaskManager::get_singleton()->add_group_task(
 				this,
 				&PckDumper::_do_md5_check,
 				files.ptrw(),
@@ -82,7 +81,7 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 				task_desc, true, -1, true);
 		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	} else {
-		err = TaskManager::get_singleton()->run_singlethreaded_task(
+		err = TaskManager::get_singleton()->run_task_on_current_thread(
 				this,
 				&PckDumper::_do_md5_check,
 				files.ptrw(),
@@ -176,13 +175,12 @@ Error PckDumper::_pck_dump_to_dir(
 	Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	auto files = GDRESettings::get_singleton()->get_file_info_list();
 	Vector<uint8_t> key = GDRESettings::get_singleton()->get_encryption_key();
-	uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
 
 	if (DirAccess::create(DirAccess::ACCESS_FILESYSTEM).is_null()) {
 		return ERR_FILE_CANT_WRITE;
 	}
 	int files_extracted = 0;
-	Error err;
+	Error err = OK;
 	Vector<ExtractToken> tokens;
 	Vector<String> paths_to_extract;
 	int actual = 0;
@@ -197,7 +195,7 @@ Error PckDumper::_pck_dump_to_dir(
 	tokens.resize(actual);
 
 	if (opt_multi_thread) {
-		WorkerThreadPool::GroupID group_task = TaskManager::get_singleton()->add_group_task(
+		auto group_task = TaskManager::get_singleton()->add_group_task(
 				this,
 				&PckDumper::_do_extract,
 				tokens.ptrw(),
@@ -210,7 +208,7 @@ Error PckDumper::_pck_dump_to_dir(
 				true);
 		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	} else {
-		err = TaskManager::get_singleton()->run_singlethreaded_task(this,
+		err = TaskManager::get_singleton()->run_task_on_current_thread(this,
 				&PckDumper::_do_extract,
 				tokens.ptrw(),
 				tokens.size(),
@@ -249,7 +247,7 @@ Error PckDumper::_pck_dump_to_dir(
 		print_line("Extracted " + itos(files_extracted) + " files, no errors detected!");
 		//show_warning(RTR("No errors detected."), RTR("Read PCK"), RTR("The operation completed successfully!"));
 	}
-	return OK;
+	return err;
 }
 
 String PckDumper::get_file_description(int64_t p_index, Ref<PackedFileInfo> *p_userdata) {

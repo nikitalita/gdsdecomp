@@ -734,9 +734,6 @@ void GodotREEditor::_pck_select_request(const Vector<String> &p_paths) {
 		return;
 	}
 	pck_file_selection->set_visible(false);
-	// EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_read_pck_md5",
-	// 		RTR("Reading PCK archive, click cancel to skip MD5 checking..."),
-	// 		GDRESettings::get_singleton()->get_file_count(), true));
 
 	Ref<PckDumper> pckdump;
 	pckdump.instantiate();
@@ -825,7 +822,6 @@ void GodotREEditor::_pck_extract_files_process() {
 	String failed_files;
 	pck_dialog->set_visible(false);
 	ovd->set_visible(false);
-	// EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_ext_pck", RTR("Extracting files..."), files.size(), true));
 	Ref<PckDumper> pckdumper;
 	pckdumper.instantiate();
 	Error err = pckdumper->_pck_dump_to_dir(dir, files, failed_files);
@@ -1213,18 +1209,14 @@ void GodotREEditor::_pck_save_request(const String &p_path) {
 	pck_creator.set_exe_to_embed(pck_save_dialog->get_emb_source());
 	pck_creator.set_watermark(pck_save_dialog->get_watermark());
 	Error err;
-	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_read_folder", RTR("Reading folder structure..."), 1, true));
-	err = pck_creator._process_folder(p_path, pck_file, file_paths_to_pack, pr, error_string);
-	memdelete(pr);
+	err = pck_creator._process_folder(p_path, pck_file, file_paths_to_pack);
 	if (err) {
-		show_warning(RTR(error_string) + ":" + pck_file, RTR("New PCK"));
+		show_warning(RTR(pck_creator.get_error_message()) + ":" + pck_file, RTR("New PCK"));
 		return;
 	}
-	pr = memnew(EditorProgressGDDC(ne_parent, "re_write_pck", "Writing PCK archive...", (int)file_paths_to_pack.size(), true));
-	err = pck_creator._create_after_process(pr, error_string);
-	memdelete(pr);
+	err = pck_creator._create_after_process();
 	if (err) {
-		show_warning(RTR(error_string) + ":" + pck_file, RTR("New PCK"));
+		show_warning(RTR(pck_creator.get_error_message()) + ":" + pck_file, RTR("New PCK"));
 	}
 }
 

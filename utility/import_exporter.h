@@ -6,8 +6,6 @@
 #include "import_info.h"
 #include "utility/godotver.h"
 
-#include "utility/gdre_progress.h"
-
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
 
