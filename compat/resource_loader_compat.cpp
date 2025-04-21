@@ -129,6 +129,7 @@ void ResourceCompatLoader::get_base_extensions(List<String> *p_extensions, int v
 	HashSet<String> unique_extensions;
 	if (ver_major > 0) {
 		switch (ver_major) {
+			case 1:
 			case 2:
 				for (const auto &pair : core_recognized_extensions_v2) {
 					p_extensions->push_back(pair.first);
