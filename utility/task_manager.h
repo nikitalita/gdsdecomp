@@ -148,7 +148,7 @@ public:
 				// random group id
 				group_id = abs(rand());
 			} else {
-				group_id = WorkerThreadPool::get_singleton()->add_template_group_task(this, &GroupTaskData::task_callback, userdata, elements, tasks, high_priority, description);
+				group_id = WorkerThreadPool::get_singleton()->add_template_group_task(this, &GroupTaskData::task_callback, userdata, elements, tasks, high_priority, task);
 			}
 			if (progress_enabled) {
 				progress = EditorProgressGDDC::create(nullptr, task + itos(group_id), description, elements, can_cancel);
@@ -280,7 +280,7 @@ public:
 			int p_elements,
 			R p_task_step_callback,
 			const String &p_task,
-			const String &p_label, bool p_can_cancel = true, int p_tasks = -1, bool p_high_priority = false) {
+			const String &p_label, bool p_can_cancel = true, int p_tasks = -1, bool p_high_priority = true) {
 		// bool is_singlethreaded = GDRESettings::get_singleton()->get_setting("singlethreaded", false);
 		bool is_singlethreaded = false;
 		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, is_singlethreaded);
@@ -292,6 +292,19 @@ public:
 			CRASH_COND_MSG(already_exists, "Task already exists?!?!?!");
 		}
 		return group_id;
+	}
+
+	template <typename C, typename M, typename U, typename R>
+	Error run_multithreaded_group_task(
+			C *p_instance,
+			M p_method,
+			U p_userdata,
+			int p_elements,
+			R p_task_step_callback,
+			const String &p_task,
+			const String &p_label, bool p_can_cancel = true, int p_tasks = -1, bool p_high_priority = true) {
+		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority);
+		return wait_for_group_task_completion(task_id);
 	}
 
 	template <typename C, typename M, typename U, typename R>
