@@ -43,39 +43,13 @@ void PckDumper::_do_md5_check(uint32_t i, Ref<PackedFileInfo> *tokens) {
 			broken_cnt++;
 		}
 	}
-	// last_completed++;
+	completed_cnt++;
 }
 
 void PckDumper::reset() {
-	cancelled = false;
-	last_completed = -1;
+	completed_cnt = 0;
 	skipped_cnt = 0;
 	broken_cnt = 0;
-}
-
-Error PckDumper::wait_for_task(WorkerThreadPool::GroupID group_task, const Vector<String> &paths_to_check, EditorProgressGDDC *pr) {
-	if (pr) {
-		int fl_sz = paths_to_check.size();
-		while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
-			OS::get_singleton()->delay_usec(10000);
-			int i = last_completed;
-			if (i < 0) {
-				i = 0;
-			} else if (i >= fl_sz) {
-				i = fl_sz - 1;
-			}
-			bool cancel = pr->step(paths_to_check[i], i, true);
-			if (cancel) {
-				cancelled = true;
-				WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
-				return ERR_SKIP;
-			}
-		}
-	}
-
-	// Always wait for completion; otherwise we leak memory.
-	WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
-	return OK;
 }
 
 Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked_files) {
@@ -98,12 +72,6 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 	}
 	if (opt_multi_thread) {
 		Vector<String> paths_to_check;
-
-		// WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(
-		// 		this,
-		// 		&PckDumper::_do_md5_check,
-		// 		files.ptrw(),
-		// 		files.size(), -1, true, SNAME("PckDumper::_check_md5_all_files"));
 		WorkerThreadPool::GroupID group_task = TaskManager::get_singleton()->add_group_task(
 				this,
 				&PckDumper::_do_md5_check,
@@ -123,7 +91,7 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 				"PckDumper::_check_md5_all_files",
 				task_desc, true);
 	}
-	checked_files = last_completed + 1 - skipped_cnt;
+	checked_files = completed_cnt - skipped_cnt;
 	skipped_files = skipped_cnt;
 	if (broken_cnt > 0) {
 		err = ERR_BUG;
@@ -163,7 +131,7 @@ void PckDumper::_do_extract(uint32_t i, ExtractToken *tokens) {
 	Ref<FileAccess> pck_f = FileAccess::open(file->get_path(), FileAccess::READ, &err);
 	if (err || pck_f.is_null()) {
 		broken_cnt++;
-		last_completed++;
+		completed_cnt++;
 		tokens[i].err = ERR_FILE_CANT_OPEN;
 		return;
 	}
@@ -171,14 +139,14 @@ void PckDumper::_do_extract(uint32_t i, ExtractToken *tokens) {
 	err = gdre::ensure_dir(target_name.get_base_dir());
 	if (err != OK) {
 		broken_cnt++;
-		last_completed++;
+		completed_cnt++;
 		tokens[i].err = ERR_CANT_CREATE;
 		return;
 	}
 	Ref<FileAccess> fa = FileAccess::open(target_name, FileAccess::WRITE, &err);
 	if (err || fa.is_null()) {
 		broken_cnt++;
-		last_completed++;
+		completed_cnt++;
 		tokens[i].err = ERR_FILE_CANT_WRITE;
 		return;
 	}
@@ -191,7 +159,7 @@ void PckDumper::_do_extract(uint32_t i, ExtractToken *tokens) {
 		rq_size -= 16384;
 	}
 	fa->flush();
-	last_completed++;
+	completed_cnt++;
 	if (file->is_malformed() && file->get_raw_path() != file->get_path()) {
 		print_line("Warning: " + file->get_raw_path() + " is a malformed path!\nSaving to " + file->get_path() + " instead.");
 	}
@@ -202,7 +170,6 @@ Error PckDumper::_pck_dump_to_dir(
 		const String &dir,
 		const Vector<String> &files_to_extract,
 		String &error_string) {
-	last_completed = -1;
 	ERR_FAIL_COND_V_MSG(!GDRESettings::get_singleton()->is_pack_loaded(), ERR_DOES_NOT_EXIST,
 			"Pack not loaded!");
 	reset();
@@ -252,7 +219,7 @@ Error PckDumper::_pck_dump_to_dir(
 				RTR("Extracting files..."),
 				true);
 	}
-	files_extracted = last_completed + 1;
+	files_extracted = completed_cnt;
 	if (broken_cnt > 0) {
 		err = ERR_BUG;
 		for (int i = 0; i < tokens.size(); i++) {
