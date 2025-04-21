@@ -610,23 +610,29 @@ Error ImportInfov2::_load(const String &p_path) {
 	Vector<String> spl = p_path.get_file().split(".");
 	// Otherwise, we dont have any meta data, and we have to guess what it is
 	// If this is a "converted" file, then it won't have import metadata, and we expect that
+	String old_ext = p_path.get_extension().to_lower();
 	if (!p_path.contains(".converted.")) {
-		// The file loaded, but there was no metadata and it was not a ".converted." file
-		//WARN_PRINT("Could not load metadata from " + p_path);
-		String new_ext;
-		if (p_path.get_extension() == "tex") {
-			new_ext = "png";
-		} else if (p_path.get_extension() == "smp") {
-			new_ext = "wav";
-		} else if (p_path.get_extension() == "cbm") {
-			new_ext = "cube";
-		} else if (type == "AtlasTexture") {
-			new_ext = "png";
+		if ((old_ext == "gde" || old_ext == "gdc")) {
+			auto_converted_export = true;
+			source_file = p_path.get_basename() + ".gd";
+			old_ext = "gd";
+			importer = "script_bytecode";
 		} else {
-			new_ext = "fixme";
+			String new_ext;
+			if (old_ext == "tex") {
+				new_ext = "png";
+			} else if (old_ext == "smp") {
+				new_ext = "wav";
+			} else if (old_ext == "cbm") {
+				new_ext = "cube";
+			} else if (type == "AtlasTexture") {
+				new_ext = "png";
+			} else {
+				new_ext = "fixme";
+			}
+			// others??
+			source_file = String("res://.assets").path_join(p_path.replace("res://", "").get_base_dir().path_join(spl[0] + "." + new_ext));
 		}
-		// others??
-		source_file = String("res://.assets").path_join(p_path.replace("res://", "").get_base_dir().path_join(spl[0] + "." + new_ext));
 	} else {
 		auto_converted_export = true;
 		// if this doesn't match "filename.ext.converted.newext"
@@ -638,26 +644,28 @@ Error ImportInfov2::_load(const String &p_path) {
 	not_an_import = true;
 	// If it's a converted file without metadata, it won't have this, and we need it for checking if the file is lossy or not
 	if (importer == "") {
-		if (p_path.get_extension() == "scn") {
+		if (old_ext == "scn") {
 			importer = "scene";
-		} else if (p_path.get_extension() == "res") {
+		} else if (old_ext == "res") {
 			importer = "resource";
-		} else if (p_path.get_extension() == "tex") {
+		} else if (old_ext == "tex") {
 			importer = "texture";
-		} else if (p_path.get_extension() == "smp") {
+		} else if (old_ext == "smp") {
 			importer = "sample";
-		} else if (p_path.get_extension() == "fnt") {
+		} else if (old_ext == "fnt") {
 			importer = "font";
-		} else if (p_path.get_extension() == "msh") {
+		} else if (old_ext == "msh") {
 			importer = "mesh";
-		} else if (p_path.get_extension() == "xl") {
+		} else if (old_ext == "xl") {
 			importer = "translation";
-		} else if (p_path.get_extension() == "pbm") {
+		} else if (old_ext == "pbm") {
 			importer = "bitmask";
-		} else if (p_path.get_extension() == "cbm") {
+		} else if (old_ext == "cbm") {
 			importer = "cubemap";
-		} else if (p_path.get_extension() == "atex") {
+		} else if (old_ext == "atex") {
 			importer = "texture_atlas";
+		} else if (old_ext == "gdc" || old_ext == "gde") {
+			importer = "script_bytecode";
 		} else {
 			importer = "none";
 		}

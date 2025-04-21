@@ -2,7 +2,6 @@
 #include "import_exporter.h"
 
 #include "bytecode/bytecode_base.h"
-#include "bytecode/bytecode_tester.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
@@ -260,15 +259,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	Ref<DirAccess> dir = DirAccess::open(output_dir);
-	if (opt_decompile) {
-		if (pr) {
-			pr->step("Decompiling scripts...", 0, true);
-		}
-		Vector<String> to_decompile = partial_export ? get_vector_intersection(get_settings()->get_code_files(), files_to_export) : get_settings()->get_code_files();
-		if (to_decompile.size() > 0) {
-			decompile_scripts(output_dir, to_decompile);
-		}
-	}
 	Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
 	if (addon_first_level_dirs.size() > 0) {
 		if (partial_export) {
@@ -302,7 +292,16 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		}
 		String importer = iinfo->get_importer();
 		if (importer == "script_bytecode") {
-			continue;
+			if (iinfo->get_path().get_extension().to_lower() == "gde" && GDRESettings::get_singleton()->had_encryption_error()) {
+				// don't spam the logs with errors, just set the flag and skip
+				report->failed_scripts.push_back(iinfo->get_path());
+				report->had_encryption_error = true;
+				continue;
+			}
+			if (GDRESettings::get_singleton()->get_bytecode_revision() == 0) {
+				report->failed_scripts.push_back(iinfo->get_path());
+				continue;
+			}
 		}
 		// ***** Set export destination *****
 		// This is a Godot asset that was imported outside of project directory
@@ -401,9 +400,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	for (int i = 0; i < tokens.size(); i++) {
 		const ExportToken &token = tokens[i];
 		Ref<ImportInfo> iinfo = token.iinfo;
-		if (iinfo->get_importer() == "script_bytecode") {
-			continue;
-		}
 		String src_ext = iinfo->get_source_file().get_extension().to_lower();
 		Ref<ExportReport> ret = token.report;
 		if (ret.is_null()) {
@@ -425,6 +421,12 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			report->not_converted.push_back(ret);
 			continue;
 		} else if (err != OK) {
+			if (iinfo->get_importer() == "script_bytecode") {
+				report->failed_scripts.push_back(iinfo->get_path());
+				if (err == ERR_UNAUTHORIZED) {
+					report->had_encryption_error = true;
+				}
+			}
 			report->failed.push_back(ret);
 			print_verbose("Failed to convert " + iinfo->get_type() + " resource " + iinfo->get_path());
 			continue;
@@ -433,6 +435,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			report->exported_scenes = true;
 		} else if (iinfo->get_importer() == "csv_translation") {
 			report->translation_export_message += ret->get_message();
+		} else if (iinfo->get_importer() == "script_bytecode") {
+			report->decompiled_scripts.push_back(iinfo->get_path());
 		}
 		// ***** Record export result *****
 		auto metadata_status = ret->get_rewrote_metadata();
@@ -486,6 +490,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			dir->remove(get_settings()->get_project_config_path().get_file());
 		}
 	}
+	memdelete(pr);
 	report->print_report();
 	ResourceCompatLoader::set_default_gltf_load(false);
 	ResourceCompatLoader::unmake_globally_available();
@@ -496,85 +501,11 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	return OK;
 }
 
-Error ImportExporter::decompile_scripts(const String &p_out_dir, const Vector<String> &to_decompile) {
-	Ref<GDScriptDecomp> decomp;
-	// we have to remove remaps if they exist
-	bool has_remaps = get_settings()->has_any_remaps();
-	Vector<String> code_files = to_decompile;
-	if (code_files.is_empty()) {
-		code_files = get_settings()->get_code_files();
-	}
-	if (code_files.is_empty()) {
-		return OK;
-	}
-
-	auto add_to_failed = [&](int i) {
-		for (int j = i; j < code_files.size(); j++) {
-			report->failed_scripts.push_back(code_files[j]);
-		}
-	};
-
-	int revision = get_settings()->get_bytecode_revision();
-	if (revision == 0) {
-		// TODO: Only doing this so that it prints the test log messages to the logs in GUI mode
-		BytecodeTester::test_files(code_files, get_ver_major(), get_ver_minor(), true);
-		add_to_failed(0);
-		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
-	}
-	decomp = GDScriptDecomp::create_decomp_for_commit(revision);
-	if (decomp.is_null()) {
-		add_to_failed(0);
-		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
-	}
-
-	print_line("Script version " + decomp->get_engine_version() + " (rev 0x" + String::num_int64(decomp->get_bytecode_rev(), 16) + ") detected");
-	Error err;
-	ResourceFormatGDScriptLoader script_loader;
-	for (int i = 0; i < code_files.size(); i++) {
-		const String &f = code_files[i];
-		String dest_file = f.replace(".gdc", ".gd").replace(".gde", ".gd");
-		Ref<DirAccess> da = DirAccess::open(p_out_dir);
-		print_verbose("decompiling " + f);
-		bool encrypted = f.get_extension().to_lower() == "gde";
-		Ref<Script> script = script_loader.custom_load(f, {}, ResourceInfo::NON_GLOBAL_LOAD, &err);
-		if (err) {
-			String err_string = decomp->get_error_message();
-			// TODO: make it not fail hard on the first script that fails to decompile
-			if (encrypted) {
-				add_to_failed(i);
-				report->had_encryption_error = true;
-				ERR_FAIL_V_MSG(err, "error decompiling encrypted script " + f + ": " + err_string);
-			} else {
-				report->failed_scripts.push_back(f);
-				WARN_PRINT("error decompiling " + f + ": " + err_string);
-			}
-		} else {
-			String text = script->get_source_code();
-			String out_path = p_out_dir.path_join(dest_file.replace("res://", ""));
-			Ref<FileAccess> fa = FileAccess::open(out_path, FileAccess::WRITE);
-			if (fa.is_null()) {
-				report->failed_scripts.push_back(f);
-				continue;
-			}
-			fa->store_string(text);
-			if (has_remaps && get_settings()->has_remap(dest_file, f)) {
-				remove_remap_and_autoconverted(dest_file, f, p_out_dir);
-			} else {
-				handle_auto_converted_file(f, p_out_dir);
-			}
-			// TODO: make "remove_remap" do this instead
-			if (da->file_exists(f.replace(".gdc", ".gd.remap").replace("res://", ""))) {
-				da->remove(f.replace(".gdc", ".gd.remap").replace("res://", ""));
-			}
-			print_verbose("successfully decompiled " + f);
-			report->decompiled_scripts.push_back(f);
-		}
-	}
-	return OK;
-}
-
 Error ImportExporter::recreate_plugin_config(const String &output_dir, const String &plugin_dir) {
 	Error err;
+	if (GDRESettings::get_singleton()->get_bytecode_revision() == 0) {
+		return ERR_UNCONFIGURED;
+	}
 	static const Vector<String> wildcards = { "*.gdc", "*.gde", "*.gd" };
 	String rel_plugin_path = String("addons").path_join(plugin_dir);
 	auto gd_scripts = gdre::get_recursive_dir_list(String("res://").path_join(rel_plugin_path), wildcards, false);
@@ -750,7 +681,6 @@ void ImportExporter::set_multi_thread(bool p_enable) {
 void ImportExporter::_bind_methods() {
 	//Error ImportExporter::convert_res_txt_2_bin(const String &output_dir, const String &p_path, const String &p_dst) {
 
-	ClassDB::bind_method(D_METHOD("decompile_scripts", "output_dir", "files_to_decompile"), &ImportExporter::decompile_scripts, DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(""), DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("convert_res_txt_2_bin", "output_dir", "p_path", "p_dst"), &ImportExporter::convert_res_txt_2_bin);
 	ClassDB::bind_method(D_METHOD("convert_res_bin_2_txt", "output_dir", "p_path", "p_dst"), &ImportExporter::convert_res_bin_2_txt);

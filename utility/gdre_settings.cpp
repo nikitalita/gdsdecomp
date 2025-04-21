@@ -8,7 +8,6 @@
 #include "core/error/error_macros.h"
 #include "core/io/file_access.h"
 #include "core/object/class_db.h"
-#include "core/object/worker_thread_pool.h"
 #include "core/string/print_string.h"
 #include "modules/zip/zip_reader.h"
 #include "utility/common.h"
@@ -640,7 +639,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	err = detect_bytecode_revision();
 	if (err) {
-		if (err == ERR_PRINTER_ON_FIRE) {
+		if (err == ERR_UNAUTHORIZED) {
 			_set_error_encryption(true);
 		}
 		WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
@@ -695,7 +694,7 @@ Error GDRESettings::detect_bytecode_revision() {
 		// test this file to see if it decrypts properly
 		Vector<uint8_t> buffer;
 		Error err = GDScriptDecomp::get_buffer_encrypted(file, ver_major > 0 ? ver_major : 3, enc_key, buffer);
-		ERR_FAIL_COND_V_MSG(err, ERR_PRINTER_ON_FIRE, "Cannot determine bytecode revision: Encryption error (Did you set the correct key?)");
+		ERR_FAIL_COND_V_MSG(err, ERR_UNAUTHORIZED, "Cannot determine bytecode revision: Encryption error (Did you set the correct key?)");
 		bytecode_files.append_array(encrypted_files);
 	}
 	if (bytecode_files.is_empty()) {
@@ -963,6 +962,9 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 		}
 	}
 	return "";
+}
+bool GDRESettings::had_encryption_error() const {
+	return error_encryption;
 }
 // PackedSource doesn't pass back useful error information when loading packs,
 // this is a hack so that we can tell if it was an encryption error.
@@ -1695,6 +1697,10 @@ void GDRESettings::_do_import_load(uint32_t i, IInfoToken *tokens) {
 	}
 }
 
+String GDRESettings::get_IInfoToken_description(uint32_t i, IInfoToken *p_userdata) {
+	return p_userdata[i].path;
+}
+
 Error GDRESettings::load_import_files() {
 	Vector<String> resource_files;
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
@@ -1718,6 +1724,8 @@ Error GDRESettings::load_import_files() {
 		for (auto &ext : extensions) {
 			v2wildcards.push_back("*." + ext);
 		}
+		v2wildcards.push_back("*.gde");
+		v2wildcards.push_back("*.gdc");
 		resource_files = get_file_list(v2wildcards);
 	} else if (_ver_major == 3 || _ver_major == 4) {
 		resource_files = get_file_list(v3wildcards);
@@ -1729,13 +1737,20 @@ Error GDRESettings::load_import_files() {
 		tokens.push_back({ resource_files[i], nullptr, (int)get_ver_major(), (int)get_ver_minor() });
 	}
 
-	auto group_id = WorkerThreadPool::get_singleton()->add_template_group_task(
+	auto group_id = TaskManager::get_singleton()->add_group_task(
 			this,
 			&GDRESettings::_do_import_load,
 			tokens.ptrw(),
-			tokens.size(), -1, true, SNAME("GDRESettings::load_import_files"));
+			tokens.size(),
+			&GDRESettings::get_IInfoToken_description,
+			"GDRESettings::load_import_files",
+			RTR("Loading import files..."),
+			false);
 
-	WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_id);
+	Error err = TaskManager::get_singleton()->wait_for_group_task_completion(group_id);
+	if (err != OK) {
+		WARN_PRINT("Failed to load import files!");
+	}
 	for (int i = 0; i < tokens.size(); i++) {
 		if (tokens[i].info.is_null()) {
 			WARN_PRINT("Can't load import file: " + resource_files[i]);
@@ -1924,9 +1939,10 @@ void GDRESettings::load_all_resource_strings() {
 	Vector<String> r_files = get_file_list(wildcards);
 	Vector<StringLoadToken> tokens;
 	tokens.resize(r_files.size());
+	String engine_ver = get_version_string();
 	for (int i = 0; i < r_files.size(); i++) {
 		tokens.write[i].path = r_files[i];
-		tokens.write[i].engine_version = get_version_string();
+		tokens.write[i].engine_version = engine_ver;
 	}
 	print_line("Loading resource strings, this may take a while!!");
 	auto group_task = TaskManager::get_singleton()->add_group_task(
@@ -1935,7 +1951,7 @@ void GDRESettings::load_all_resource_strings() {
 			tokens.ptrw(),
 			tokens.size(),
 			&GDRESettings::get_string_load_token_description,
-			"GDRESettings::load_all_resource_strings", RTR("Loading resource strings..."), true, -1, true);
+			"GDRESettings::load_all_resource_strings", RTR("Loading resource strings..."));
 	Error err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	if (err != OK) {
 		WARN_PRINT("Failed to load resource strings!");

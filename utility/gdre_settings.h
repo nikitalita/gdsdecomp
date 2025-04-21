@@ -158,6 +158,7 @@ private:
 	};
 
 	void _do_import_load(uint32_t i, IInfoToken *tokens);
+	String get_IInfoToken_description(uint32_t i, IInfoToken *p_userdata);
 	void _do_string_load(uint32_t i, StringLoadToken *tokens);
 	String get_string_load_token_description(uint32_t i, StringLoadToken *p_userdata);
 	HashMap<ResourceUID::ID, UID_Cache> unique_ids; //unique IDs and utf8 paths (less memory used)
@@ -223,6 +224,7 @@ public:
 	String get_encryption_key_string();
 	bool is_pack_loaded() const;
 
+	bool had_encryption_error() const;
 	void _set_error_encryption(bool is_encryption_error);
 	Error set_encryption_key(Vector<uint8_t> key);
 	Error set_encryption_key_string(const String &key);
