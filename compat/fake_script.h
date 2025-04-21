@@ -44,6 +44,8 @@ class FakeGDScript : public Script {
 	HashMap<StringName, Pair<int, int>> subclasses;
 	Vector<uint8_t> binary_buffer;
 
+	String error_message;
+
 	Error parse_script();
 
 protected:
@@ -119,6 +121,8 @@ public:
 
 	String get_script_path() const;
 	Error load_source_code(const String &p_path);
+
+	String get_error_message() const;
 };
 
 class FakeEmbeddedScript : public Script {
