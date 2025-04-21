@@ -38,6 +38,7 @@ public:
 			start_internal();
 			started = true;
 		}
+		bool is_started() { return started; }
 		bool is_canceled() { return canceled; }
 		void cancel() { canceled = true; }
 		void finish_progress() {
@@ -142,7 +143,7 @@ public:
 		}
 
 		String get_current_task_step_description() override {
-			return (instance->*task_step_desc_callback)(last_completed, userdata);
+			return (instance->*task_step_desc_callback)(last_completed > 0 ? (int)last_completed : 0, userdata);
 		}
 
 		void start_internal() override {

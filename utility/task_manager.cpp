@@ -115,7 +115,7 @@ void TaskManager::DownloadQueueThread::main_loop() {
 		});
 		while (!task->is_done() && !task->is_waiting) {
 			task->update_progress();
-			OS::get_singleton()->delay_usec(50000);
+			OS::get_singleton()->delay_usec(10000);
 		}
 		while (!task->is_done()) {
 			OS::get_singleton()->delay_usec(10000);
@@ -160,6 +160,12 @@ Error TaskManager::DownloadQueueThread::wait_for_task_completion(DownloadTaskID 
 		return ERR_ALREADY_IN_USE;
 	}
 	Error err = OK;
+	while (!task->is_started()) {
+		if (GDREProgressDialog::get_singleton() && GDREProgressDialog::get_singleton()->is_safe_to_redraw()) {
+			GDREProgressDialog::get_singleton()->main_thread_update();
+		}
+		OS::get_singleton()->delay_usec(10000);
+	}
 	if (task->wait_for_completion()) {
 		err = ERR_SKIP;
 	} else {
