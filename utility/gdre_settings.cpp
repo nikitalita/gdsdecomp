@@ -1737,7 +1737,7 @@ Error GDRESettings::load_import_files() {
 		tokens.push_back({ resource_files[i], nullptr, (int)get_ver_major(), (int)get_ver_minor() });
 	}
 
-	auto group_id = TaskManager::get_singleton()->add_group_task(
+	Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
 			this,
 			&GDRESettings::_do_import_load,
 			tokens.ptrw(),
@@ -1747,7 +1747,6 @@ Error GDRESettings::load_import_files() {
 			RTR("Loading import files..."),
 			false);
 
-	Error err = TaskManager::get_singleton()->wait_for_group_task_completion(group_id);
 	if (err != OK) {
 		WARN_PRINT("Failed to load import files!");
 	}
@@ -1945,14 +1944,13 @@ void GDRESettings::load_all_resource_strings() {
 		tokens.write[i].engine_version = engine_ver;
 	}
 	print_line("Loading resource strings, this may take a while!!");
-	auto group_task = TaskManager::get_singleton()->add_group_task(
+	Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
 			this,
 			&GDRESettings::_do_string_load,
 			tokens.ptrw(),
 			tokens.size(),
 			&GDRESettings::get_string_load_token_description,
 			"GDRESettings::load_all_resource_strings", RTR("Loading resource strings..."));
-	Error err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	if (err != OK) {
 		WARN_PRINT("Failed to load resource strings!");
 	}
