@@ -26,6 +26,7 @@ private:
 	String unsupported_format_type;
 	Vector<String> error_messages;
 	Vector<String> message_detail;
+	Dictionary extra_info;
 	TaskManager::DownloadTaskID download_task_id = -1;
 	Error error = OK;
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
@@ -74,9 +75,14 @@ public:
 	void clear_message_detail() { message_detail.clear(); }
 	Vector<String> get_message_detail() const { return message_detail; }
 
+	void set_extra_info(const Dictionary &p_extra_info) { extra_info = p_extra_info; }
+	Dictionary get_extra_info() const { return extra_info; }
+
 	String get_path() const { return import_info->get_path(); }
 
 	ExportReport() {}
 	ExportReport(Ref<ImportInfo> p_import_info) :
 			import_info(p_import_info), source_path(p_import_info->get_source_file()), new_source_path(import_info->get_export_dest()) {}
 };
+
+VARIANT_ENUM_CAST(ExportReport::MetadataStatus);
