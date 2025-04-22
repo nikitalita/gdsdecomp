@@ -1,3 +1,4 @@
+#pragma once
 #include "core/variant/variant.h"
 #include "utility/godotver.h"
 
