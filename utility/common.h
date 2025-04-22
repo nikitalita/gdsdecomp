@@ -120,6 +120,25 @@ TypedArray<T> vector_to_typed_array(const Vector<T> &vec) {
 	return arr;
 }
 
+template <class T>
+Vector<T> array_to_vector(const Array &arr) {
+	Vector<T> vec;
+	for (int i = 0; i < arr.size(); i++) {
+		vec.push_back(arr[i]);
+	}
+	return vec;
+}
+
+template <class T>
+Array vector_to_array(const Vector<T> &vec) {
+	Array arr;
+	arr.resize(vec.size());
+	for (int i = 0; i < vec.size(); i++) {
+		arr.set(i, vec[i]);
+	}
+	return arr;
+}
+
 // specialization for Ref<T>
 template <class T>
 TypedArray<T> vector_to_typed_array(const Vector<Ref<T>> &vec) {
