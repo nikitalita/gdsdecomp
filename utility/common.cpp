@@ -368,7 +368,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	auto _handle_response = [&]() -> Error {
 		WGET_CANCELLED_CHECK();
 		if (!client->has_response()) {
-			return ERR_CANT_OPEN;
+			return ERR_BUG;
 		}
 
 		got_response = true;
@@ -379,6 +379,18 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 
 		for (const String &E : rheaders) {
 			response_headers.push_back(E);
+		}
+		if (response_code == 404) {
+			return ERR_FILE_NOT_FOUND;
+		}
+		if (response_code == 403) {
+			return ERR_UNAUTHORIZED;
+		}
+		if (response_code == 401) {
+			return ERR_UNAUTHORIZED;
+		}
+		if (response_code >= 400) {
+			return ERR_BUG;
 		}
 
 		if (response_code == 301 || response_code == 302) {
@@ -410,14 +422,18 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	};
 	err = connect_to_host_and_request(p_url);
 
-	auto _retry = [&] {
+	auto _retry = [&](Error err) {
 		WGET_CANCELLED_CHECK();
 		if (retries <= 0) {
 			ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Failed to download file from %s", p_url));
 		}
+		// Don't bother retrying if the file doesn't exist or we don't have access to it
+		if (response_code == 404 || response_code == 403 || response_code == 401) {
+			return err;
+		}
 		retries--;
 		response.clear();
-		return wget_sync(p_url, response, retries);
+		return wget_sync(p_url, response, retries, p_progress, p_cancelled);
 	};
 
 	while (!done) {
@@ -432,7 +448,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 				if (!got_response) {
 					err = _handle_response();
 					if (err != OK) {
-						return _retry();
+						return _retry(err);
 					}
 					response_body_length = client->get_response_body_length();
 					if (!client->is_response_chunked() && response_body_length == 0) {
@@ -440,13 +456,9 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 					}
 				} else {
 					err = client->poll();
-					// while (err != OK) {
-					// 	retries--;
-					// 	if (retries <= 0) {
-					// 		return err;
-					// 	}
-					// 	err = client->poll();
-					// }
+					if (err != OK) {
+						return _retry(err);
+					}
 					response.append_array(client->read_response_body_chunk());
 					if (p_progress) {
 						*p_progress = float(response.size()) / float(response_body_length);
@@ -458,7 +470,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 				if (!got_response) {
 					err = _handle_response();
 					if (err != OK) {
-						return _retry();
+						return _retry(err);
 					}
 				} else {
 					done = true;
@@ -466,7 +478,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 				break;
 			}
 			default: {
-				return _retry();
+				return _retry(OK);
 			}
 		}
 	}
