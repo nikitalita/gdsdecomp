@@ -166,6 +166,7 @@ struct KeyWorker {
 	uint64_t start_time = OS::get_singleton()->get_ticks_usec();
 	uint64_t start_of_multithread = start_time;
 	String path;
+	String current_stage;
 	//default_translation,  default_messages;
 	KeyWorker(const Ref<OptimizedTranslation> &p_default_translation,
 			const HashSet<String> &p_previous_keys_found) :
@@ -798,30 +799,33 @@ struct KeyWorker {
 #endif
 	}
 
-	template <typename M, typename NM, class VE>
-	void run_stage(M p_multi_method, NM non_multi_method, Vector<VE> p_userdata, const String &stage_name) {
+	String get_step_desc(uint32_t i, void *userdata) {
+		return "Searching for keys for " + path.get_file() + "... (" + current_stage + "/4) ";
+	}
+
+	template <typename M, class VE>
+	Error run_stage(M p_multi_method, Vector<VE> p_userdata, const String &stage_name, bool multi = true) {
 		// assert that M is a method belonging to this class
 		last_completed = 0;
+		auto desc = "TranslationExporter::find_missing_keys::" + stage_name;
 		cancel = false;
+		current_stage = stage_name;
 		static_assert(std::is_member_function_pointer<M>::value, "M must be a method of this class");
-		if (use_multithread) {
-			last_completed = 0;
-			auto desc = "TranslationExporter::find_missing_keys::" + stage_name;
-			WorkerThreadPool::GroupID group_id = WorkerThreadPool::get_singleton()->add_template_group_task(
-					this,
-					p_multi_method,
-					p_userdata.ptrw(),
-					p_userdata.size(), -1, true, StringName(desc));
-			wait_for_task(group_id, stage_name, p_userdata.size(), MAX_STAGE_TIME);
-		} else {
-			for (uint32_t i = 0; i < p_userdata.size(); i++) {
-				(this->*non_multi_method)(i, p_userdata.ptrw());
-				// if (i % 250 == 0 && check_for_timeout(strt, MAX_STAGE_TIME)) {
-				// 	break;
-				// }
-			}
+		int tasks = 1;
+		if (multi) {
+			tasks = -1;
 		}
+		Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
+				this,
+				p_multi_method,
+				p_userdata.ptrw(),
+				p_userdata.size(),
+				&KeyWorker::get_step_desc,
+				KeyWorker::get_step_desc(0, nullptr),
+				stage_name, true, tasks, true);
+
 		end_stage();
+		return err;
 	}
 
 	bool met_threshold() {
@@ -843,20 +847,53 @@ struct KeyWorker {
 		}
 	}
 
-	void stage_1() {
-		for (uint32_t i = 0; i < resource_strings.size(); i++) {
-			const String &key = resource_strings[i];
-			try_key(key);
-		}
-		// Stage 1.5: Previous keys found
-		if (key_to_message.size() != default_messages.size()) {
-			for (const String &key : previous_keys_found) {
-				try_key(key);
-			}
-		}
+	void stage_1(uint32_t i, String *resource_strings) {
+		const String &key = resource_strings[i];
+		try_key(key);
 	}
 
-	uint64_t run() {
+	int64_t pop_keys() {
+		int64_t missing_keys = 0;
+		keys.clear();
+
+		for (int i = 0; i < default_messages.size(); i++) {
+			auto &msg = default_messages[i];
+			bool found = false;
+			bool has_match = false;
+			String matching_key;
+			for (const auto &E : key_to_message) {
+				DEV_ASSERT(!get_value(E).is_empty());
+
+				if (get_value(E) == msg) {
+					has_match = true;
+					matching_key = get_key(E);
+					if (!keys.has(get_key(E))) {
+						keys.push_back(get_key(E));
+						found = true;
+						break;
+					}
+				}
+			}
+			if (!found) {
+				if (has_match) {
+					if (const auto &matching_message = key_to_message[matching_key]; msg != matching_message) {
+						WARN_PRINT(vformat("Found matching key '%s' for message '%s' but key is used for message '%s'", matching_key, msg, matching_message));
+					} else {
+						print_verbose(vformat("WARNING: Found duplicate key '%s' for message '%s'", matching_key, msg));
+						keys.push_back(matching_key);
+						continue;
+					}
+				} else {
+					print_verbose(vformat("Could not find key for message '%s'", msg));
+				}
+				missing_keys++;
+				keys.push_back(MISSING_KEY_PREFIX + String(msg).split("\n")[0] + ">");
+			}
+		}
+		return missing_keys;
+	}
+
+	int64_t run() {
 		cancel = false;
 		uint64_t missing_keys = 0;
 		HashSet<String> res_strings;
@@ -870,10 +907,11 @@ struct KeyWorker {
 		}
 		GDRESettings::get_singleton()->get_resource_strings(res_strings);
 		resource_strings = gdre::hashset_to_vector(res_strings);
-		for (uint32_t i = 0; i < resource_strings.size(); i++) {
-			const String &key = resource_strings[i];
-			try_key(key);
+		Error err = run_stage(&KeyWorker::stage_1, resource_strings, "Stage 1", false);
+		if (err != OK) {
+			return pop_keys();
 		}
+
 		// Stage 1.5: Previous keys found
 		if (key_to_message.size() != default_messages.size()) {
 			for (const String &key : previous_keys_found) {
@@ -904,7 +942,10 @@ struct KeyWorker {
 				word_regex->compile("\\b" + common_to_all_prefix + char_re + "+" + "\\b");
 			}
 
-			run_stage(&KeyWorker::partial_task, &KeyWorker::partial_task, resource_strings, "Stage 2");
+			err = run_stage(&KeyWorker::partial_task, resource_strings, "Stage 2");
+			if (err != OK) {
+				return pop_keys();
+			}
 		} else {
 			end_stage();
 		}
@@ -931,7 +972,8 @@ struct KeyWorker {
 				} else if (!keys_are_all_lower && keys_that_are_all_lower / key_to_message.size() > 0.9) {
 					// if so, we can safely assume that the keys are all lower case
 					keys_are_all_lower = true;
-				} else if (!keys_are_all_ascii && keys_that_are_all_ascii / key_to_message.size() > 0.9) {
+				}
+				if (!keys_are_all_ascii && keys_that_are_all_ascii / key_to_message.size() > 0.9) {
 					// if so, we can safely assume that the keys are all ascii
 					keys_are_all_ascii = true;
 				}
@@ -945,7 +987,10 @@ struct KeyWorker {
 			common_prefixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			common_suffixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			pop_charstr_vectors();
-			run_stage(&KeyWorker::prefix_suffix_task_2, &KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
+			Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
+			if (err != OK) {
+				return pop_keys();
+			}
 		}
 		// Stage 4: Combine resource strings with detected prefixes and suffixes
 		// If we're still missing keys and no keys have spaces, we try combining every string with every other string
@@ -984,54 +1029,23 @@ struct KeyWorker {
 				}
 			}
 			if (filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS) {
-				run_stage(&KeyWorker::prefix_suffix_task_2, &KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
+				Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
+				if (err != OK) {
+					return pop_keys();
+				}
 				// Stage 5: Combine resource strings with every other string
 				// If we're still missing keys, we try combining every string with every other string.
 				do_stage_5 = do_stage_5 && key_to_message.size() != default_messages.size() && filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS;
 				if (do_stage_5) {
-					run_stage(&KeyWorker::stage_5_task_2, &KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
+					Error err = run_stage(&KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
+					if (err != OK) {
+						return pop_keys();
+					}
 				}
 			}
 		}
 
-		missing_keys = 0;
-		keys.clear();
-
-		for (int i = 0; i < default_messages.size(); i++) {
-			auto &msg = default_messages[i];
-			bool found = false;
-			bool has_match = false;
-			String matching_key;
-			for (const auto &E : key_to_message) {
-				DEV_ASSERT(!get_value(E).is_empty());
-
-				if (get_value(E) == msg) {
-					has_match = true;
-					matching_key = get_key(E);
-					if (!keys.has(get_key(E))) {
-						keys.push_back(get_key(E));
-						found = true;
-						break;
-					}
-				}
-			}
-			if (!found) {
-				if (has_match) {
-					if (const auto &matching_message = key_to_message[matching_key]; msg != matching_message) {
-						WARN_PRINT(vformat("Found matching key '%s' for message '%s' but key is used for message '%s'", matching_key, msg, matching_message));
-					} else {
-						print_verbose(vformat("WARNING: Found duplicate key '%s' for message '%s'", matching_key, msg));
-						keys.push_back(matching_key);
-						continue;
-					}
-				} else {
-					print_verbose(vformat("Could not find key for message '%s'", msg));
-				}
-				missing_keys++;
-				keys.push_back(MISSING_KEY_PREFIX + String(msg).split("\n")[0] + ">");
-			}
-		}
-
+		missing_keys = pop_keys();
 		// print out the times taken
 		bl_debug("Key guessing took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
 		for (int i = 0; i < times.size(); i++) {
@@ -1153,6 +1167,10 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	f->flush();
 	f->close();
 	report->set_error(OK);
+	Dictionary extra_info;
+	extra_info["missing_keys"] = missing_keys;
+	extra_info["total_keys"] = default_messages.size();
+	report->set_extra_info(extra_info);
 	if (missing_keys) {
 		String translation_export_message = "WARNING: Could not recover " + itos(missing_keys) + " keys for " + iinfo->get_source_file() + "\n";
 		if (resave) {

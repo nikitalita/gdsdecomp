@@ -220,6 +220,52 @@ String ImportExporter::get_export_token_description(uint32_t i, ExportToken *tok
 	return tokens[i].iinfo.is_valid() ? tokens[i].iinfo->get_path() : "";
 }
 
+// TODO: rethink this, it's not really recovering any keys beyond the first time
+Error ImportExporter::_reexport_translations(Vector<ImportExporter::ExportToken> &non_multithreaded_tokens, size_t token_size, Ref<EditorProgressGDDC> pr) {
+	Vector<size_t> incomp_trans;
+	bool found_keys = false;
+	for (int i = 0; i < non_multithreaded_tokens.size(); i++) {
+		if (non_multithreaded_tokens[i].iinfo->get_importer() == "csv_translation") {
+			Dictionary extra_info = non_multithreaded_tokens[i].report->get_extra_info();
+			int missing_keys = extra_info.get("missing_keys", 0);
+			int total_keys = extra_info.get("total_keys", 0);
+			if (missing_keys < total_keys) {
+				found_keys = true;
+			}
+			if (non_multithreaded_tokens[i].iinfo->get_export_dest().contains("res://.assets")) {
+				incomp_trans.push_back(i);
+			}
+		}
+	}
+	// order from largest to smallest
+	incomp_trans.sort();
+	incomp_trans.reverse();
+	Vector<ExportToken> incomplete_translation_tokens;
+	Error err = OK;
+	if (incomp_trans.size() > 2 && found_keys) {
+		for (auto idx : incomp_trans) {
+			auto &token = non_multithreaded_tokens[idx];
+			token.iinfo->set_export_dest(token.iinfo->get_export_dest().replace("res://.assets", "res://"));
+			incomplete_translation_tokens.insert(0, token);
+			non_multithreaded_tokens.remove_at(idx);
+		}
+		size_t start = token_size + non_multithreaded_tokens.size() - incomplete_translation_tokens.size() - 1;
+		print_line("Re-exporting translations...");
+		pr->step("Re-exporting translations...", start, true);
+		err = TaskManager::get_singleton()->run_task_on_current_thread(
+				this,
+				&ImportExporter::_do_export,
+				incomplete_translation_tokens.ptrw(),
+				incomplete_translation_tokens.size(),
+				&ImportExporter::get_export_token_description,
+				"ImportExporter::export_imports",
+				"Exporting resources...",
+				true, pr, start);
+		non_multithreaded_tokens.append_array(incomplete_translation_tokens);
+	}
+	return err;
+}
+
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	reset_log();
@@ -380,6 +426,11 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		print_line("Export cancelled!");
 		return err;
 	}
+	// err = _reexport_translations(non_multithreaded_tokens, tokens.size(), pr);
+	// if (err != OK) {
+	// 	print_line("Export cancelled!");
+	// 	return err;
+	// }
 	tokens.append_array(non_multithreaded_tokens);
 	pr->step("Finalizing...", tokens.size() - 1, true);
 	report->session_files_total = tokens.size();
