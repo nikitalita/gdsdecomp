@@ -16,7 +16,10 @@ struct GHReleaseListCache {
 	AssetMap assets;
 };
 
+struct PrePopTask;
+
 class AssetLibInfoGetter {
+	friend struct PrePopTask;
 	static HashMap<String, String> non_asset_lib_plugins; // plugin_name -> github_url
 	static HashMap<String, Vector<String>> non_asset_lib_tag_masks; // plugin_name -> tag_suffixes
 	static HashMap<String, Vector<String>> non_asset_lib_release_file_masks; // plugin_name -> tag_suffixes
@@ -42,28 +45,25 @@ class AssetLibInfoGetter {
 	static String get_plugin_download_url_non_asset_lib(const String &plugin_name, const Vector<String> hashes);
 	static Vector<Pair<uint64_t, uint64_t>> get_gh_asset_pairs(const String &plugin_name);
 	static bool should_skip_tag(const String &plugin_name, const String &tag);
-
-public:
-	static PluginVersion get_plugin_version(int asset_id, const String &version);
-	static PluginVersion get_plugin_version_gh(const String &plugin_name, uint64_t release_id, uint64_t asset_id);
-
-	static String get_asset_lib_cache_folder();
-	static Array search_for_assets(const String &plugin_name, int ver_major = 0);
-	static Vector<int> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
 	static Vector<Dictionary> get_assets_for_plugin(const String &plugin_name);
 	static Vector<Dictionary> get_list_of_edits(int asset_id);
+	static Array search_for_assets(const String &plugin_name, int ver_major = 0);
+	static Vector<int> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
 	static Dictionary get_edit(int edit_id);
-	static void prepop_plugin_cache(const Vector<String> &plugin_names, bool multithread = false);
-
-	static Vector<String> get_plugin_version_numbers(const String &plugin_name, int asset_id);
-	static String get_plugin_download_url(const String &plugin_name, const Vector<String> hashes);
-	static void load_cache();
-	static void save_cache();
-
 	static String get_non_asset_lib_cache_folder();
 	static String get_main_cache_folder();
 	static HashMap<uint64_t, Vector<uint64_t>> get_gh_asset_ids(const String &plugin_name);
 	static Vector<Dictionary> get_list_of_gh_releases(const String &plugin_name);
 	static void load_non_asset_lib_cache();
 	static void save_non_asset_lib_cache();
+	static String get_asset_lib_cache_folder();
+	static Vector<String> get_plugin_version_numbers(const String &plugin_name, int asset_id);
+	static PluginVersion get_plugin_version_gh(const String &plugin_name, uint64_t release_id, uint64_t asset_id);
+
+public:
+	static PluginVersion get_plugin_version(int asset_id, const String &version);
+	static void prepop_plugin_cache(const Vector<String> &plugin_names, bool multithread = false);
+	static String get_plugin_download_url(const String &plugin_name, const Vector<String> hashes);
+	static void load_cache();
+	static void save_cache();
 };
