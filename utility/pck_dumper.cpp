@@ -71,7 +71,7 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 	}
 	if (opt_multi_thread) {
 		Vector<String> paths_to_check;
-		auto group_task = TaskManager::get_singleton()->add_group_task(
+		err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&PckDumper::_do_md5_check,
 				files.ptrw(),
@@ -79,7 +79,6 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 				&PckDumper::get_file_description,
 				"PckDumper::_check_md5_all_files",
 				task_desc, true, -1, true);
-		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	} else {
 		err = TaskManager::get_singleton()->run_task_on_current_thread(
 				this,
@@ -195,7 +194,7 @@ Error PckDumper::_pck_dump_to_dir(
 	tokens.resize(actual);
 
 	if (opt_multi_thread) {
-		auto group_task = TaskManager::get_singleton()->add_group_task(
+		err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&PckDumper::_do_extract,
 				tokens.ptrw(),
@@ -206,7 +205,6 @@ Error PckDumper::_pck_dump_to_dir(
 				true,
 				-1,
 				true);
-		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 	} else {
 		err = TaskManager::get_singleton()->run_task_on_current_thread(this,
 				&PckDumper::_do_extract,

@@ -197,7 +197,7 @@ Error PckCreator::_add_files(
 	}
 	Error err = OK;
 	if (opt_multi_thread) {
-		auto group_task = TaskManager::get_singleton()->add_group_task(
+		err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&PckCreator::_do_process_folder,
 				files_to_pck.ptrw(),
@@ -205,7 +205,6 @@ Error PckCreator::_add_files(
 				&PckCreator::get_file_description,
 				"PckCreator::_do_process_folder",
 				"Getting file info...");
-		err = TaskManager::get_singleton()->wait_for_group_task_completion(group_task);
 		if (err == ERR_SKIP) {
 			return ERR_SKIP;
 		}
