@@ -620,6 +620,7 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 	if (columns.size() > 0) {
 		use_spaces = true;
 	}
+	bool first_line = true;
 
 	auto handle_newline = [&](int i, GlobalToken curr_token) {
 		auto curr_line = state.get_token_line(i);
@@ -635,11 +636,14 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			if (curr_token != G_TK_NEWLINE && bytecode_version < GDSCRIPT_2_0_VERSION) {
 				script_text += "\\"; // line continuation
 			} else if (bytecode_version >= GDSCRIPT_2_0_VERSION && !lines.has(i)) {
-				script_text += "\\";
+				if (!first_line || (!gdre::remove_whitespace(line).is_empty())) {
+					script_text += "\\";
+				}
 			}
 			script_text += "\n";
 			prev_line++;
 		}
+		first_line = false;
 		line = String();
 		if (curr_token == G_TK_NEWLINE) {
 			indent = tokens[i] >> TOKEN_BITS;
