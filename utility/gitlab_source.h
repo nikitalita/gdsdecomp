@@ -20,6 +20,7 @@ private:
 	virtual String get_plugin_cache_path() override;
 
 	virtual bool recache_release_list(const String &plugin_name) override;
+	virtual String get_plugin_name() override;
 
 public:
 	GitLabSource();

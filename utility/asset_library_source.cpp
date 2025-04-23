@@ -306,7 +306,7 @@ Vector<String> AssetLibrarySource::get_plugin_version_numbers(const String &plug
 	return versions;
 }
 
-void AssetLibrarySource::load_cache() {
+void AssetLibrarySource::load_cache_internal() {
 	auto cache_folder = PluginManager::get_plugin_cache_path().path_join("asset_lib");
 	auto files = Glob::rglob(cache_folder.path_join("**/*.json"), true);
 
@@ -316,14 +316,7 @@ void AssetLibrarySource::load_cache() {
 		ERR_CONTINUE_MSG(fa.is_null(), "Failed to open file for reading: " + file);
 		String json = fa->get_as_text();
 		Dictionary d = JSON::parse_string(json);
-		auto version = PluginVersion::from_json(d);
-		if (version.cache_version != CACHE_VERSION) {
-			continue;
-		}
-		if (!asset_lib_cache.has(version.asset_id)) {
-			asset_lib_cache[version.asset_id] = {};
-		}
-		asset_lib_cache[version.asset_id][version.version] = version;
+		load_cache_data(file.get_file(), d);
 	}
 }
 
@@ -371,4 +364,21 @@ void AssetLibrarySource::prepop_cache(const Vector<String> &plugin_names, bool m
 
 bool AssetLibrarySource::handles_plugin(const String &plugin_name) {
 	return true;
+}
+
+String AssetLibrarySource::get_plugin_name() {
+	return "asset_lib";
+}
+
+void AssetLibrarySource::load_cache_data(const String &plugin_name, const Dictionary &data) {
+	ERR_FAIL_COND_MSG(data.is_empty(), "Failed to parse json string for plugin: " + plugin_name);
+
+	auto version = PluginVersion::from_json(data);
+	if (version.cache_version != CACHE_VERSION) {
+		return;
+	}
+	if (!asset_lib_cache.has(version.asset_id)) {
+		asset_lib_cache[version.asset_id] = {};
+	}
+	asset_lib_cache[version.asset_id][version.version] = version;
 }

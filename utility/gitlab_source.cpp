@@ -115,3 +115,7 @@ bool GitLabSource::recache_release_list(const String &plugin_name) {
 
 	return true;
 }
+
+String GitLabSource::get_plugin_name() {
+	return "gitlab";
+}

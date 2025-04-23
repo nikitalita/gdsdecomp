@@ -1,6 +1,10 @@
 #include "plugin_source.h"
 #include "common.h"
+#include "core/crypto/crypto_core.h"
 #include "core/error/error_list.h"
+#include "core/error/error_macros.h"
+#include "core/io/json.h"
+#include "core/io/marshalls.h"
 #include "modules/zip/zip_reader.h"
 #include "plugin_info.h"
 #include "utility/gdre_settings.h"
@@ -166,7 +170,7 @@ bool PluginSource::is_default() {
 	return false;
 }
 
-void PluginSource::load_cache() {
+void PluginSource::load_cache_internal() {
 	ERR_FAIL_MSG("Not implemented");
 }
 
@@ -184,6 +188,27 @@ String PluginSource::get_plugin_download_url(const String &plugin_name, const Ve
 
 Vector<String> PluginSource::get_plugin_version_numbers(const String &plugin_name) {
 	ERR_FAIL_V_MSG(Vector<String>(), "Not implemented");
+}
+
+void PluginSource::load_static_precache(const Dictionary &d) {
+	Dictionary data = d.get(get_plugin_name(), Dictionary());
+	for (auto &pair : data) {
+		String plugin_name = pair.key;
+		Dictionary d = pair.value;
+		load_cache_data(plugin_name, d);
+	}
+}
+
+void PluginSource::load_cache() {
+	load_cache_internal();
+}
+
+void PluginSource::load_cache_data(const String &plugin_name, const Dictionary &data) {
+	ERR_FAIL_MSG("Not implemented");
+}
+
+String PluginSource::get_plugin_name() {
+	ERR_FAIL_V_MSG(String(), "Not implemented");
 }
 
 void PluginSource::_bind_methods() {
