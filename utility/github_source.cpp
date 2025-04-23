@@ -22,6 +22,8 @@ static const HashMap<String, Vector<String>> release_file_masks = {
 	{ "orchestrator", { "*plugin*" } },
 	{ "discord-rpc-gd", { "*RPC*" } },
 	{ "discord-sdk-gd", { "*SDK*" } },
+	{ "godot-rapier2d", { "godot-rapier-2d*", "godot-rapier2d*" } },
+	{ "godot-rapier3d", { "godot-rapier-3d*", "godot-rapier3d*" } },
 };
 
 static const HashMap<String, Vector<String>> release_file_exclude_masks = {
@@ -32,6 +34,8 @@ static const HashMap<String, Vector<String>> release_file_exclude_masks = {
 };
 
 static const HashMap<String, String> plugin_map = {
+	{ "godot-rapier3d", "https://github.com/appsinacup/godot-rapier-physics" },
+	{ "godot-rapier2d", "https://github.com/appsinacup/godot-rapier-physics" },
 	{ "native_dialogs", "https://github.com/98teg/NativeDialogs" },
 	{ "ffmpeg", "https://github.com/EIRTeam/EIRTeam.FFmpeg" },
 	{ "discord-sdk-gd", "https://github.com/vaporvee/discord-rpc-godot" },
