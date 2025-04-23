@@ -322,3 +322,4 @@ platform/windows/godot_res.res
 # test files
 standalone/spriteTest.*
 standalone/character*
+.tmpcache/

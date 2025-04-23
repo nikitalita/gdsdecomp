@@ -16,7 +16,6 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
-//	void wait_for_group_task_completion(WorkerThreadPool::GroupID p_group_id);
 Error TaskManager::wait_for_group_task_completion(GroupTaskID p_group_id) {
 	Error err = OK;
 	{
