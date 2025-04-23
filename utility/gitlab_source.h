@@ -17,6 +17,7 @@ private:
 	virtual const HashMap<String, String> &get_plugin_repo_map() override;
 	virtual const HashMap<String, Vector<String>> &get_plugin_tag_masks() override;
 	virtual const HashMap<String, Vector<String>> &get_plugin_release_file_masks() override;
+	virtual const HashMap<String, Vector<String>> &get_plugin_release_file_exclude_masks() override;
 	virtual String get_plugin_cache_path() override;
 
 	virtual bool recache_release_list(const String &plugin_name) override;

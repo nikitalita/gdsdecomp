@@ -10,6 +10,7 @@ static const HashMap<String, Vector<String>> tag_masks = {};
 static const HashMap<String, Vector<String>> release_file_masks = {
 	{ "sg-physics-2d", { "*gdextension*" } },
 };
+static const HashMap<String, Vector<String>> release_file_exclude_masks = {};
 static const HashMap<String, String> plugin_map = {
 	{ "sg-physics-2d", "https://gitlab.com/snopek-games/sg-physics-2d" },
 };
@@ -36,6 +37,10 @@ const HashMap<String, Vector<String>> &GitLabSource::get_plugin_tag_masks() {
 
 const HashMap<String, Vector<String>> &GitLabSource::get_plugin_release_file_masks() {
 	return release_file_masks;
+}
+
+const HashMap<String, Vector<String>> &GitLabSource::get_plugin_release_file_exclude_masks() {
+	return release_file_exclude_masks;
 }
 
 bool GitLabSource::recache_release_list(const String &plugin_name) {

@@ -20,10 +20,26 @@ static const HashMap<String, Vector<String>> tag_masks = {
 static const HashMap<String, Vector<String>> release_file_masks = {
 	{ "limboai", { "*gdextension*" } },
 	{ "orchestrator", { "*plugin*" } },
+	{ "discord-rpc-gd", { "*RPC*" } },
+	{ "discord-sdk-gd", { "*SDK*" } },
+};
+
+static const HashMap<String, Vector<String>> release_file_exclude_masks = {
+	{ "godot-jolt", { "*symbols*" } },
+	{ "godot-steam-audio", { "*demo*" } },
+	{ "discord-rpc-gd", { "*Demo*" } },
+	{ "discord-sdk-gd", { "*Demo*" } },
 };
 
 static const HashMap<String, String> plugin_map = {
+	{ "native_dialogs", "https://github.com/98teg/NativeDialogs" },
+	{ "ffmpeg", "https://github.com/EIRTeam/EIRTeam.FFmpeg" },
+	{ "discord-sdk-gd", "https://github.com/vaporvee/discord-rpc-godot" },
+	{ "discord-rpc-gd", "https://github.com/vaporvee/discord-rpc-godot" },
+	{ "godot-steam-audio", "https://github.com/stechyo/godot-steam-audio" },
+	{ "m_terrain", "https://github.com/mohsenph69/Godot-MTerrain-plugin" },
 	{ "godotsteam", "https://github.com/GodotSteam/GodotSteam" },
+	{ "godot-jolt", "https://github.com/godot-jolt/godot-jolt" },
 	{ "orchestrator", "https://github.com/CraterCrash/godot-orchestrator" },
 	{ "limboai", "https://github.com/limbonaut/limboai" },
 	{ "terrain_3d", "https://github.com/TokisanGames/Terrain3D" },
@@ -50,6 +66,10 @@ const HashMap<String, Vector<String>> &GitHubSource::get_plugin_release_file_mas
 	return release_file_masks;
 }
 
+const HashMap<String, Vector<String>> &GitHubSource::get_plugin_release_file_exclude_masks() {
+	return release_file_exclude_masks;
+}
+
 String GitHubSource::get_plugin_cache_path() {
 	return PluginManager::get_plugin_cache_path().path_join("github");
 }
@@ -70,6 +90,15 @@ bool GitHubSource::should_skip_tag(const String &plugin_name, const String &tag)
 bool GitHubSource::should_skip_release(const String &plugin_name, const String &release_url) {
 	if (release_url.is_empty()) {
 		return true;
+	}
+	if (get_plugin_release_file_exclude_masks().has(plugin_name)) {
+		const auto &masks = get_plugin_release_file_exclude_masks()[plugin_name];
+		String file_name = release_url.get_file().to_lower();
+		for (int i = 0; i < masks.size(); i++) {
+			if (file_name.matchn(masks[i])) {
+				return true;
+			}
+		}
 	}
 	if (get_plugin_release_file_masks().has(plugin_name)) {
 		const auto &masks = get_plugin_release_file_masks()[plugin_name];
@@ -422,6 +451,9 @@ String GitHubSource::get_plugin_name() {
 
 void GitHubSource::load_cache_data(const String &plugin_name, const Dictionary &d) {
 	ERR_FAIL_COND_MSG(d.is_empty(), "Failed to parse json string for plugin: " + plugin_name);
+	if (!handles_plugin(plugin_name)) {
+		return;
+	}
 	if (!non_asset_lib_cache.has(plugin_name)) {
 		non_asset_lib_cache[plugin_name] = {};
 	}
