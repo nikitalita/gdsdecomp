@@ -353,3 +353,16 @@ public:
 	Error wait_for_group_task_completion(GroupTaskID p_group_id);
 	void update_progress_bg();
 };
+
+class DownloadToken {
+	String url;
+	String save_path;
+	TaskManager::DownloadTaskID task_id;
+
+	DownloadToken(const String &p_url, const String &p_save_path, TaskManager::DownloadTaskID p_task_id) :
+			url(p_url), save_path(p_save_path), task_id(p_task_id) {}
+
+	void cancel() {
+		TaskManager::get_singleton()->wait_for_download_task_completion(task_id);
+	}
+};

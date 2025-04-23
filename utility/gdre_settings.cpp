@@ -11,12 +11,12 @@
 #include "core/string/print_string.h"
 #include "modules/zip/zip_reader.h"
 #include "utility/common.h"
-#include "utility/extension_info_getter.h"
 #include "utility/file_access_gdre.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_packed_source.h"
 #include "utility/gdre_version.gen.h"
 #include "utility/import_info.h"
+#include "utility/plugin_manager.h"
 #include "utility/task_manager.h"
 
 #include "core/config/project_settings.h"
@@ -240,11 +240,11 @@ GDRESettings::GDRESettings() {
 	config.instantiate();
 	add_logger();
 	load_config();
-	AssetLibInfoGetter::load_cache();
+	PluginManager::load_cache();
 }
 
 GDRESettings::~GDRESettings() {
-	AssetLibInfoGetter::save_cache();
+	PluginManager::save_cache();
 	save_config();
 	remove_current_pack();
 	memdelete(gdre_packeddata_singleton);
@@ -1971,7 +1971,7 @@ void GDRESettings::get_resource_strings(HashSet<String> &r_strings) const {
 }
 
 void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
-	AssetLibInfoGetter::prepop_plugin_cache(plugins, true);
+	PluginManager::prepop_cache(plugins, true);
 }
 
 String GDRESettings::get_section_from_key(const String &p_setting) {

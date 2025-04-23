@@ -3,10 +3,10 @@
 #include "core/os/shared_object.h"
 #include "exporters/export_report.h"
 #include "utility/common.h"
-#include "utility/extension_info_getter.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
 #include "utility/import_info.h"
+#include "utility/plugin_manager.h"
 #include "utility/task_manager.h"
 
 Error GDExtensionExporter::export_file(const String &p_dest_path, const String &p_src_path) {
@@ -146,7 +146,7 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 			}
 		}
 		if (!hashes.is_empty()) {
-			String url = AssetLibInfoGetter::get_plugin_download_url(plugin_name, hashes);
+			String url = PluginManager::get_plugin_download_url(plugin_name, hashes);
 			if (!url.is_empty()) {
 				String zip_path = output_dir.path_join(".tmp").path_join(plugin_name + ".zip");
 				auto task_id = TaskManager::get_singleton()->add_download_task(url, zip_path);

@@ -36,14 +36,18 @@
 #include "exporters/scene_exporter.h"
 #include "exporters/texture_exporter.h"
 #include "exporters/translation_exporter.h"
+#include "utility/asset_library_source.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
+#include "utility/github_source.h"
+#include "utility/gitlab_source.h"
 #include "utility/glob.h"
 #include "utility/godotver.h"
 #include "utility/import_exporter.h"
 #include "utility/packed_file_info.h"
 #include "utility/pck_creator.h"
 #include "utility/pck_dumper.h"
+#include "utility/plugin_manager.h"
 #include "utility/task_manager.h"
 
 #include "module_etc_decompress/register_types.h"
@@ -84,6 +88,11 @@ static Ref<SampleExporter> sample_exporter = nullptr;
 static Ref<SceneExporter> scene_exporter = nullptr;
 static Ref<TextureExporter> texture_exporter = nullptr;
 static Ref<TranslationExporter> translation_exporter = nullptr;
+
+//plugin manager sources
+static Ref<GitHubSource> github_source = nullptr;
+static Ref<AssetLibrarySource> asset_library_source = nullptr;
+static Ref<GitLabSource> gitlab_source = nullptr;
 
 void init_ver_regex() {
 	SemVer::strict_regex = RegEx::create_from_string(GodotVer::strict_regex_str);
@@ -145,6 +154,32 @@ void init_exporters() {
 	Exporter::add_exporter(texture_exporter);
 	Exporter::add_exporter(translation_exporter);
 	Exporter::add_exporter(gdscript_exporter);
+}
+
+void init_plugin_manager_sources() {
+	github_source = memnew(GitHubSource);
+	gitlab_source = memnew(GitLabSource);
+	asset_library_source = memnew(AssetLibrarySource);
+
+	PluginManager::register_source(github_source, false);
+	PluginManager::register_source(gitlab_source, false);
+	PluginManager::register_source(asset_library_source, false);
+}
+
+void deinit_plugin_manager_sources() {
+	if (github_source.is_valid()) {
+		PluginManager::unregister_source(github_source);
+	}
+	if (gitlab_source.is_valid()) {
+		PluginManager::unregister_source(gitlab_source);
+	}
+	if (asset_library_source.is_valid()) {
+		PluginManager::unregister_source(asset_library_source);
+	}
+
+	github_source = nullptr;
+	gitlab_source = nullptr;
+	asset_library_source = nullptr;
 }
 
 void deinit_exporters() {
@@ -317,6 +352,11 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GDRECommon>();
 	ClassDB::register_class<TextDiff>();
 	ClassDB::register_class<TaskManager>();
+	ClassDB::register_class<PluginManager>();
+	ClassDB::register_class<GitHubSource>();
+	ClassDB::register_class<AssetLibrarySource>();
+	ClassDB::register_class<GitLabSource>();
+	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
 	audio_stream_preview_generator = memnew(GDREAudioStreamPreviewGenerator);
@@ -347,5 +387,6 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		memdelete(task_manager);
 		task_manager = nullptr;
 	}
+	deinit_plugin_manager_sources();
 	free_ver_regex();
 }
