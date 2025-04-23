@@ -167,8 +167,13 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 
 	if (addons.size() > 0) {
 		// check if the addons directory exists
-		auto th = addons[0];
+		auto th = addons[0].simplify_path();
 		if (th.contains(rel_gdext_path)) {
+			// if it contains "addons/", we want to only copy that directory, because the mod may contain other files (demos, samples, etc.) that we don't want to copy
+			if (rel_gdext_path.begins_with("addons/")) {
+				rel_gdext_path = rel_gdext_path.trim_prefix("addons/");
+				output = output_dir.path_join("addons");
+			}
 			auto idx = th.find(rel_gdext_path);
 			auto subpath = th.substr(0, idx);
 			tmp_dir = th.substr(0, idx);
@@ -179,7 +184,7 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 			auto parts = rel_gdext_path.split("/");
 			for (int i = 0; i < parts.size(); i++) {
 				prefix = prefix.path_join(parts[i]);
-				suffix = suffix.replace_first(parts[i] + "/", "");
+				suffix = suffix.trim_prefix(parts[i] + "/");
 				if (th.contains(suffix)) {
 					break;
 				}
