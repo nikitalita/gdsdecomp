@@ -16,6 +16,7 @@ class PluginManager : public Object {
 private:
 	static PluginManager *singleton;
 	static constexpr const char *PLUGIN_CACHE_ENV_VAR = "GDRE_PLUGIN_CACHE_DIR";
+	static constexpr const char *STATIC_PLUGIN_CACHE_PATH = "res://gdre_static_plugin_cache.json";
 	static constexpr const int MAX_SOURCES = 64;
 	static Ref<PluginSource> sources[MAX_SOURCES];
 	static int source_count;

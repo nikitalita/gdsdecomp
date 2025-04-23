@@ -59,11 +59,13 @@ public:
 	PluginVersion get_plugin_version(const String &plugin_name, const String &version) override;
 	String get_plugin_download_url(const String &plugin_name, const Vector<String> &hashes) override;
 	Vector<String> get_plugin_version_numbers(const String &plugin_name) override;
-	void load_cache() override;
+	String get_plugin_name() override;
+	void load_cache_internal() override;
 	void save_cache() override;
 	void prepop_cache(const Vector<String> &plugin_names, bool multithread = false) override;
 	bool handles_plugin(const String &plugin_name) override;
 	bool is_default() override { return false; }
+	void load_cache_data(const String &plugin_name, const Dictionary &data) override;
 };
 
 #endif // GITHUB_SOURCE_H

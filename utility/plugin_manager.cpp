@@ -78,7 +78,16 @@ String PluginManager::get_plugin_download_url(const String &plugin_name, const V
 }
 
 void PluginManager::load_cache() {
+	Dictionary d;
+	if (FileAccess::exists(STATIC_PLUGIN_CACHE_PATH)) {
+		auto file = FileAccess::open(STATIC_PLUGIN_CACHE_PATH, FileAccess::READ);
+		if (file.is_null()) {
+			ERR_PRINT("Failed to open static plugin cache file!");
+		}
+		d = JSON::parse_string(file->get_as_text());
+	}
 	for (int i = 0; i < source_count; ++i) {
+		sources[i]->load_static_precache(d);
 		sources[i]->load_cache();
 	}
 }

@@ -16,9 +16,16 @@ namespace {
 static const HashMap<String, Vector<String>> tag_masks = {
 	{ "godotsteam", { "*gdn*", "*gde*" } },
 };
-static const HashMap<String, Vector<String>> release_file_masks = {};
+
+static const HashMap<String, Vector<String>> release_file_masks = {
+	{ "limboai", { "*gdextension*" } },
+	{ "orchestrator", { "*plugin*" } },
+};
+
 static const HashMap<String, String> plugin_map = {
 	{ "godotsteam", "https://github.com/GodotSteam/GodotSteam" },
+	{ "orchestrator", "https://github.com/CraterCrash/godot-orchestrator" },
+	{ "limboai", "https://github.com/limbonaut/limboai" },
 	{ "terrain_3d", "https://github.com/TokisanGames/Terrain3D" },
 	{ "fmod", "https://github.com/utopia-rise/fmod-gdextension" },
 };
@@ -164,6 +171,10 @@ bool GitHubSource::init_plugin_version_from_release(Dictionary release_entry, ui
 	if (assets.is_empty()) {
 		return false;
 	}
+	uint64_t release_id = release_entry.get("id", 0);
+	if (release_id == 0) {
+		return false;
+	}
 	for (int i = 0; i < assets.size(); i++) {
 		Dictionary asset = assets[i];
 		if (uint64_t(asset.get("id", 0)) != gh_asset_id) {
@@ -186,7 +197,7 @@ bool GitHubSource::init_plugin_version_from_release(Dictionary release_entry, ui
 			String tag_name = release_entry.get("tag_name", "");
 			print_line("Got version info for " + name + " version: " + tag_name + ", download_url: " + download_url);
 			version.download_url = download_url;
-			version.asset_id = release_entry.get("id", 0);
+			version.asset_id = release_id; // TODO: rename plugin version asset_id and release_id to something like "primary_id" and "secondary_id"
 			version.release_id = gh_asset_id;
 			version.from_asset_lib = false;
 			version.version = tag_name;
@@ -356,7 +367,7 @@ Vector<String> GitHubSource::get_plugin_version_numbers(const String &plugin_nam
 	return versions;
 }
 
-void GitHubSource::load_cache() {
+void GitHubSource::load_cache_internal() {
 	auto cache_folder = get_plugin_cache_path();
 	auto files = Glob::rglob(cache_folder.path_join("**/*.json"), true);
 	MutexLock lock(cache_mutex);
@@ -364,25 +375,9 @@ void GitHubSource::load_cache() {
 		auto fa = FileAccess::open(file, FileAccess::READ);
 		ERR_CONTINUE_MSG(fa.is_null(), "Failed to open file for reading: " + file);
 		String json = fa->get_as_text();
+		auto plugin_name = file.get_file().replace(".json", "");
 		Dictionary d = JSON::parse_string(json);
-		String plugin_name = file.get_file().replace(".json", "");
-		if (!non_asset_lib_cache.has(plugin_name)) {
-			non_asset_lib_cache[plugin_name] = {};
-		}
-		for (auto &key : d.keys()) {
-			uint64_t release_id = key;
-			non_asset_lib_cache[plugin_name][release_id] = {};
-			Dictionary assets = d[key];
-			for (auto &A : assets.keys()) {
-				uint64_t asset_id = A;
-				Dictionary asset = assets[A];
-				PluginVersion version = PluginVersion::from_json(asset);
-				if (version.cache_version != CACHE_VERSION) {
-					continue;
-				}
-				non_asset_lib_cache[plugin_name][release_id][asset_id] = version;
-			}
-		}
+		load_cache_data(plugin_name, d);
 	}
 }
 
@@ -419,4 +414,29 @@ void GitHubSource::prepop_cache(const Vector<String> &plugin_names, bool multith
 
 bool GitHubSource::handles_plugin(const String &plugin_name) {
 	return get_plugin_repo_map().has(plugin_name);
+}
+
+String GitHubSource::get_plugin_name() {
+	return "github";
+}
+
+void GitHubSource::load_cache_data(const String &plugin_name, const Dictionary &d) {
+	ERR_FAIL_COND_MSG(d.is_empty(), "Failed to parse json string for plugin: " + plugin_name);
+	if (!non_asset_lib_cache.has(plugin_name)) {
+		non_asset_lib_cache[plugin_name] = {};
+	}
+	for (auto &key : d.keys()) {
+		uint64_t release_id = key;
+		non_asset_lib_cache[plugin_name][release_id] = {};
+		Dictionary assets = d[key];
+		for (auto &A : assets.keys()) {
+			uint64_t asset_id = A;
+			Dictionary asset = assets[A];
+			PluginVersion version = PluginVersion::from_json(asset);
+			if (version.cache_version != CACHE_VERSION) {
+				continue;
+			}
+			non_asset_lib_cache[plugin_name][release_id][asset_id] = version;
+		}
+	}
 }
