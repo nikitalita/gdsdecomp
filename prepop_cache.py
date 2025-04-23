@@ -8,6 +8,10 @@ import requests
 import platform
 import subprocess
 import glob
+
+PLUGINS_TO_PREPOP = ["native_dialogs", "ffmpeg", "discord-sdk-gd", "discord-rpc-gd", "godot-steam-audio", "m_terrain", "steam_api", "orchestrator", "limboai", "fmod", "godot-sqlite", "godotsteam", "godot-jolt", "debug_draw_3d", "terrain_3d", "sg-physics-2d"]
+
+
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 BIN_DIR: str = os.path.join(CURRENT_DIR, "..", "..", "bin")
 STANDALONE_DIR = os.path.join(CURRENT_DIR, "standalone")
@@ -48,7 +52,6 @@ def get_godot_arch():
 DEV_MODE = True #os.getenv("DEV_MODE", "0") != "0"
 GODOT_EXE = os.path.join(BIN_DIR, f"godot.{get_godot_platform()}.editor.{('dev.' if DEV_MODE else '')}{get_godot_arch()}")
 ARGS = [GODOT_EXE, "--headless", "--path", STANDALONE_DIR]
-PLUGINS_TO_PREPOP = ["steam_api", "orchestrator", "limboai", "fmod", "godot-sqlite", "godotsteam", "godot-jolt", "debug_draw_3d", "terrain_3d", "sg-physics-2d"]
 
 def get_plugin_name_from_file(file_path: str) -> str:
     # get only the filename from the path
