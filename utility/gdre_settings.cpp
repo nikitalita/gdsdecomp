@@ -1982,6 +1982,7 @@ void GDRESettings::load_config() {
 	config->clear();
 
 	set_setting("download_plugins", false);
+	set_setting("ask_for_download", true);
 	set_setting("last_showed_disclaimer", "<NONE>");
 	auto cfg_path = get_gdre_user_path().path_join("gdre_settings.cfg");
 	if (FileAccess::exists(cfg_path)) {
