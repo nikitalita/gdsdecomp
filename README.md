@@ -41,28 +41,48 @@ Grab the latest release version from here: https://github.com/GDRETools/gdsdecom
 ```bash
 gdre_tools --headless <main_command> [options]
 ```
+```
+Main commands:
+--recover=<GAME_PCK/EXE/APK/DIR>         Perform full project recovery on the specified PCK, APK, EXE, or extracted project directory.
+--extract=<GAME_PCK/EXE/APK>             Extract the specified PCK, APK, or EXE.
+--compile=<GD_FILE>                      Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
+--decompile=<GDC_FILE>                   Decompile GDC files to text (can be repeated and use globs)
+--pck-create=<PCK_DIR>                   Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
+--pck-patch=<GAME_PCK/EXE>               Patch a PCK file with the specified files
+--list-bytecode-versions                 List all available bytecode versions
+--txt-to-bin=<FILE>                      Convert text-based scene or resource files to binary format (can be repeated)
+--bin-to-txt=<FILE>                      Convert binary scene or resource files to text-based format (can be repeated)
 
-#### Main commands:
+Recover/Extract Options:
+--key=<KEY>                              The Key to use if project is encrypted as a 64-character hex string,
+                                              e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
+--output=<DIR>                           Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
+--scripts-only                           Only extract/recover scripts
+--include=<GLOB>                         Include files matching the glob pattern (can be repeated)
+--exclude=<GLOB>                         Exclude files matching the glob pattern (can be repeated)
+--ignore-checksum-errors                 Ignore MD5 checksum errors when extracting/recovering
 
-- `--recover=<GAME_PCK/EXE/APK/DIR>` : Perform full project recovery on the specified PCK, APK, EXE, or extracted project directory.
-- `--extract=<GAME_PCK/EXE/APK>` : Extract the specified PCK, APK, or EXE.
-- `--compile=<GD_FILE>` : Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
-- `--decompile=<GDC_FILE>` : Decompile GDScript files to text scripts (can be repeated and use globs, requires --bytecode)
-- `--list-bytecode-versions` : List all available bytecode versions
+Decompile/Compile Options:
+--bytecode=<COMMIT_OR_VERSION>           Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')
+--output=<DIR>                           Directory where compiled files will be output to.
+                                         - If not specified, compiled files will be output to the same location
+                                           (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
 
-#### Recover/Extract Options:
+Create PCK Options:
+--output=<OUTPUT_PCK/EXE>                The output PCK file to create
+--pck-version=<VERSION>                  The format version of the PCK file to create (0, 1, 2)
+--pck-engine-version=<ENGINE_VERSION>    The version of the engine to create the PCK for (x.y.z)
+--embed=<EXE_TO_EMBED>                   The executable to embed the PCK into
+--key=<KEY>                              64-character hex string to encrypt the PCK with
 
-- `--key=<KEY>` : The Key to use if project is encrypted as a 64-character hex string, e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
-- `--output=<DIR>` : Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
-- `--scripts-only` : Only extract/recover scripts
-- `--include=<GLOB>` : Include files matching the glob pattern (can be repeated)
-- `--exclude=<GLOB>` : Exclude files matching the glob pattern (can be repeated)
-- `--ignore-checksum-errors` : Ignore MD5 checksum errors when extracting/recovering
-
-#### Compile Options:
-
-- `--bytecode=<COMMIT_OR_VERSION>` : Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')
-- `--output=<DIR>` : Directory where compiled files will be output to. If not specified, compiled files will be output to the same location (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
+Patch PCK Options:
+--output=<OUTPUT_PCK/EXE>                The output PCK file to create
+--patch-file=<SRC_FILE>=<DEST_FILE>      The file to patch the PCK with (e.g. "/path/to/file.gd=res://file.gd") (can be repeated)
+--include=<GLOB>                         Only include files from original PCK matching the glob pattern (can be repeated)
+--exclude=<GLOB>                         Exclude files from original PCK matching the glob pattern (can be repeated)
+--embed=<EXE_TO_EMBED>                   The executable to embed the patched PCK into
+--key=<KEY>                              64-character hex string to decrypt/encrypt the PCK with
+```
 
 #### Notes on Include/Exclude globs:
 
