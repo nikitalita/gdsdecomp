@@ -5,7 +5,7 @@
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
 #include "utility/plugin_manager.h"
-
+#include "utility/task_manager.h"
 HashMap<String, String> AssetLibrarySource::GODOT_VERSION_RELEASE_DATES = {
 	{ "2.0", "2016-02-23" },
 	{ "2.1", "2016-09-08" },
@@ -260,8 +260,15 @@ PluginVersion AssetLibrarySource::get_plugin_version(const String &plugin_name, 
 String AssetLibrarySource::get_plugin_download_url(const String &plugin_name, const Vector<String> &hashes) {
 	auto asset_ids = search_for_asset_ids(plugin_name);
 	for (auto asset_id : asset_ids) {
+		// TODO: This is a hack to stop populating the cache when the user cancels the task
+		if (TaskManager::get_singleton()->is_current_group_task_canceled()) {
+			return "";
+		}
 		auto versions = get_version_strings_for_asset(asset_id);
 		for (auto &version : versions) {
+			if (TaskManager::get_singleton()->is_current_group_task_canceled()) {
+				return "";
+			}
 			auto plugin_version = get_plugin_asset_version(asset_id, version);
 			if (plugin_version.asset_id == 0) {
 				continue;

@@ -38,8 +38,8 @@ public:
 			start_internal();
 			started = true;
 		}
-		bool is_started() { return started; }
-		bool is_canceled() { return canceled; }
+		bool is_started() const { return started; }
+		bool is_canceled() const { return canceled; }
 		void cancel() { canceled = true; }
 		void finish_progress() {
 			progress = nullptr;
@@ -351,6 +351,7 @@ public:
 	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
 	Error wait_for_group_task_completion(GroupTaskID p_group_id);
+	bool is_current_group_task_canceled();
 	void update_progress_bg();
 };
 
