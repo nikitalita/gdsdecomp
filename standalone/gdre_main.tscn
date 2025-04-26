@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=3 uid="uid://el6o5uk15g2c"]
+[gd_scene load_steps=17 format=3 uid="uid://el6o5uk15g2c"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1"]
 [ext_resource type="Script" uid="uid://bqpxqjfn2qt1g" path="res://gdre_main.gd" id="2"]
@@ -14,6 +14,7 @@
 [ext_resource type="PackedScene" uid="uid://bv7816js3kr4k" path="res://gdre_recover.tscn" id="8_xa6jx"]
 [ext_resource type="PackedScene" uid="uid://bxwjy4fsjewmr" path="res://gdre_decompile.tscn" id="13_ql2ay"]
 [ext_resource type="PackedScene" uid="uid://cnhcpronl4bps" path="res://gdre_compile.tscn" id="14_8cc8u"]
+[ext_resource type="PackedScene" uid="uid://bhxdw5q2etvki" path="res://gdre_export_report.tscn" id="15_l08vw"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_x51e8"]
 
@@ -231,14 +232,22 @@ visible = false
 
 [node name="GdrePatchPck" parent="." instance=ExtResource("7_ubmam")]
 visible = false
+metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="GdreRecover" parent="." instance=ExtResource("8_xa6jx")]
+unique_name_in_owner = true
 visible = false
 
 [node name="GdreDecompile" parent="." instance=ExtResource("13_ql2ay")]
 visible = false
+metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="GdreCompile" parent="." instance=ExtResource("14_8cc8u")]
+visible = false
+metadata/_custom_type_script = "uid://cbggqwojxui00"
+
+[node name="GdreExportReport" parent="." instance=ExtResource("15_l08vw")]
+unique_name_in_owner = true
 visible = false
 
 [node name="ErrorDialog" type="AcceptDialog" parent="."]
