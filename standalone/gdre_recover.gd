@@ -178,10 +178,21 @@ func close():
 func clear():
 	FILE_TREE._clear()
 
+func _go():
+	hide_win()
+	emit_signal("recovery_confirmed", FILE_TREE.get_checked_files(), DIRECTORY.text, EXTRACT_ONLY.is_pressed())
+
+
 func confirm():
 	RESOURCE_PREVIEW.reset()
 	var files_to_extract = FILE_TREE.get_checked_files()
-	emit_signal("recovery_confirmed", files_to_extract, DIRECTORY.text, EXTRACT_ONLY.is_pressed())
+	if (GDRESettings.get_setting("ask_for_download", true)):
+		for file in FILE_TREE.get_checked_files():
+			var ext = file.get_extension().to_lower()
+			if ext == "gdextension" or ext == "gdnlib":
+				%DownloadConfirmDialog.popup_centered()
+				return
+	_go()
 
 
 func cancelled():
@@ -236,3 +247,14 @@ func _on_show_resource_preview_toggled(toggled_on: bool) -> void:
 		HSPLIT_CONTAINER.set_split_offset(0)
 		SHOW_PREVIEW_BUTTON.text = "Show Resource Preview..."
 		RESOURCE_PREVIEW.reset()
+
+
+func _on_download_confirm_dialog_canceled() -> void:
+	GDRESettings.set_setting("ask_for_download", not %DontAskAgainCheck.is_pressed())
+	GDRESettings.set_setting("download_plugins", false)
+	_go()
+
+func _on_download_confirm_dialog_confirmed() -> void:
+	GDRESettings.set_setting("ask_for_download", not %DontAskAgainCheck.is_pressed())
+	GDRESettings.set_setting("download_plugins", true)
+	_go()
