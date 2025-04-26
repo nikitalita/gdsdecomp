@@ -21,6 +21,7 @@ var ERROR_DIALOG: AcceptDialog = null
 var _file_dialog: Window = null
 var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
+var deferred_calls = []
 
 enum PckMenuID {
 	NEW_PCK,
@@ -126,6 +127,56 @@ func _on_new_pck_selected(pck_path: String):
 		return
 
 
+func _on_recovery_confirmed(files_to_extract: PackedStringArray, output_dir: String, extract_only: bool):
+	deferred_calls.append(func(): extract_and_recover(files_to_extract, output_dir, extract_only))
+
+func end_recovery():
+	GDRESettings.close_log_file()
+	GDRESettings.unload_project()
+
+func extract_and_recover(files_to_extract: PackedStringArray, output_dir: String, extract_only: bool):
+	%GdreRecover.hide_win()
+	if not extract_only:
+		GDRESettings.open_log_file(output_dir)
+	var log_path = GDRESettings.get_log_file_path()
+	GDRESettings.get_errors()
+	var report_str = "Log file written to " + log_path
+	report_str += "\nPlease include this file when reporting an issue!\n\n"
+	var pck_dumper = PckDumper.new()
+	var err = pck_dumper.pck_dump_to_dir(output_dir, files_to_extract)
+	if (err == ERR_SKIP):
+		popup_error_box("Recovery canceled!", "Cancelled")
+		end_recovery()
+		return
+	if (err != OK):
+		popup_error_box("Could not extract files:\n" + "".join(GDRESettings.get_errors()), "Error")
+		end_recovery()
+		return
+	# check if ExtractOnly is pressed
+	if (extract_only):
+		report_str = "Total files extracted: " + String.num(files_to_extract.size()) + "\n"
+		popup_error_box(report_str, "Info")
+		end_recovery()
+		return
+	GDRESettings.get_errors()
+	# otherwise, continue to recover
+	var import_exporter = ImportExporter.new()
+	err = import_exporter.export_imports(output_dir, files_to_extract)
+	if (err == ERR_SKIP):
+		popup_error_box("Recovery canceled!", "Cancelled")
+		end_recovery()
+		return
+	if (err != OK):
+		popup_error_box("Could not recover files:\n" + "".join(GDRESettings.get_errors()), "Error")
+		end_recovery()
+		return
+	var report = import_exporter.get_report()
+	end_recovery()
+	%GdreExportReport.clear()
+	%GdreExportReport.add_report(report)
+	#hide_win()
+	%GdreExportReport.show_win()
+
 var _last_paths = PackedStringArray()
 
 func _retry_recover():
@@ -148,7 +199,7 @@ func launch_recovery_window(paths: PackedStringArray):
 	#REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
 	#REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
 	RECOVERY_DIALOG.add_project(paths)
-	#RECOVERY_DIALOG.connect("recovery_done", self._on_recovery_done)
+
 	RECOVERY_DIALOG.show_win()
 
 func setup_new_pck_window():
@@ -175,13 +226,13 @@ func launch_patch_pck_window():
 
 func _on_recover_project_files_selected(paths: PackedStringArray):
 	close_recover_file_dialog()
-	launch_recovery_window(paths)
+	deferred_calls.append(func(): launch_recovery_window(paths))
 
 func _on_recover_project_dir_selected(path):
 	# just check if the dir path ends in ".app"
 	close_recover_file_dialog()
 	if path.ends_with(".app"):
-		launch_recovery_window([path])
+		deferred_calls.append(func(): launch_recovery_window([path]))
 	else:
 		# pop up an accept dialog
 		popup_error_box("Invalid Selection!!", "Error")
@@ -191,7 +242,6 @@ func open_subwindow(window: Window):
 	window.set_transient(true)
 	window.set_exclusive(true)
 	window.popup_centered()
-	window.set_unparent_when_invisible(true)
 
 func close_subwindow(window: Window):
 	window.hide()
@@ -550,6 +600,10 @@ func get_globs_files(globs: PackedStringArray) -> PackedStringArray:
 		files.append_array(get_glob_files(glob))
 	return files
 
+func _process(_delta):
+	if deferred_calls.size() > 0:
+		deferred_calls.pop_front().call()
+
 func _ready():
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	# If CLI arguments were passed in, just quit
@@ -573,7 +627,7 @@ func _ready():
 	$version_lbl.text = GDRESettings.get_gdre_version()
 	$LegalNoticeWindow/OkButton.connect("pressed", $LegalNoticeWindow.hide)
 	$LegalNoticeWindow.connect("close_requested", $LegalNoticeWindow.hide)
-
+	%GdreRecover.connect("recovery_confirmed", self._on_recovery_confirmed)
 	# check if the current screen is hidpi
 	if isHiDPI:
 		# set the content scaling factor to 2x
@@ -654,7 +708,7 @@ func dump_files(output_dir:String, files: PackedStringArray, ignore_checksum_err
 	# print("Extraction complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 	return err;
 
-var MAIN_COMMANDS = ["--recover", "--extract", "--compile", "--list-bytecode-versions"]
+var MAIN_COMMANDS = ["--recover", "--extract", "--compile", "--list-bytecode-versions", "--pck-create", "--pck-patch", "--txt-to-bin", "--bin-to-txt"]
 var MAIN_CMD_NOTES = """Main commands:
 --recover=<GAME_PCK/EXE/APK/DIR>   Perform full project recovery on the specified PCK, APK, EXE, or extracted project directory.
 --extract=<GAME_PCK/EXE/APK>       Extract the specified PCK, APK, or EXE.
@@ -1250,11 +1304,11 @@ func handle_cli(args: PackedStringArray) -> bool:
 		return true
 	for i in range(args.size()):
 		var arg:String = args[i]
-		if arg == "--help":
+		if arg == "--help" || arg == "--gdre-help":
 			print_version()
 			print_usage()
 			return true
-		elif arg.begins_with("--version"):
+		elif arg.begins_with("--version") || arg.begins_with("--gdre-version"):
 			print_version()
 			return true
 		elif arg.begins_with("--extract"):
@@ -1340,7 +1394,6 @@ func handle_cli(args: PackedStringArray) -> bool:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
 		return true
-	print(main_cmds)
 	if prepop.size() > 0:
 		var start_time = Time.get_ticks_msec()
 		GDRESettings.prepop_plugin_cache(prepop)

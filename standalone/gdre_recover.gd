@@ -28,6 +28,7 @@ var _is_test:bool = false
 var _file_dialog: FileDialog = null
 
 signal recovery_done()
+signal recovery_confirmed(files_to_extract: PackedStringArray, output_dir: String, extract_only: bool)
 
 func _propagate_check(item: TreeItem, checked: bool):
 	item.set_checked(0, checked)
@@ -43,6 +44,7 @@ func _on_item_edited():
 
 func show_win():
 	# get the screen size
+	set_process_input(true)
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 	var new_size = Vector2(safe_area.size.x - 100, safe_area.size.y - 100)
 	self.size = new_size
@@ -89,7 +91,7 @@ func _ready():
 
 
 
-	# load_test() 
+	# load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
@@ -114,7 +116,7 @@ func add_project(paths: PackedStringArray) -> int:
 	VERSION_TEXT.text = GDRESettings.get_version_string()
 	var arr: Array = GDRESettings.get_file_info_array()
 	FILE_TREE.add_files_from_packed_infos(arr, skipped)
-	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files)# + 
+	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files)# +
 	if FILE_TREE.num_broken > 0 or FILE_TREE.num_malformed > 0:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
 	DIRECTORY.text = DESKTOP_DIR.path_join(paths[0].get_file().get_basename())
@@ -125,59 +127,6 @@ func load_test():
 	const path = '/Users/nikita/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/CRUEL/Cruel.pck'
 	add_project([path])
 	show_win()
-	
-
-
-func extract_and_recover(output_dir: String):
-	if not EXTRACT_ONLY.is_pressed():
-		GDRESettings.open_log_file(output_dir)
-	var log_path = GDRESettings.get_log_file_path()
-	GDRESettings.get_errors()
-	var report_str = "Log file written to " + log_path
-	report_str += "\nPlease include this file when reporting an issue!\n\n"
-	var pck_dumper = PckDumper.new()
-	var files_to_extract = FILE_TREE.get_checked_files()
-	var err = pck_dumper.pck_dump_to_dir(output_dir, files_to_extract)
-	if (err == ERR_SKIP):
-		return
-	if (err != OK):
-		popup_box(POPUP_PARENT_WINDOW, ERROR_DIALOG, "Could not extract files:\n" + "".join(GDRESettings.get_errors()), "Error")
-		return
-	# check if ExtractOnly is pressed
-	if (EXTRACT_ONLY.is_pressed()):
-		report_str = "Total files extracted: " + String.num(files_to_extract.size()) + "\n"
-		popup_box(POPUP_PARENT_WINDOW, ERROR_DIALOG, report_str, "Info")
-		# GDRESettings.unload_pack()
-		return
-	GDRESettings.get_errors()
-	# otherwise, continue to recover
-	var import_exporter = ImportExporter.new()
-	err = import_exporter.export_imports(output_dir, files_to_extract)
-	if (err == ERR_SKIP):
-		return
-	if (err != OK):
-		popup_box(POPUP_PARENT_WINDOW, ERROR_DIALOG, "Could not recover files:\n" + "".join(GDRESettings.get_errors()), "Error")
-		return
-	var report = import_exporter.get_report()
-	GDRESettings.close_log_file()
-	REPORT_DIALOG = gdre_export_report.instantiate()
-	REPORT_DIALOG.set_root_window(POPUP_PARENT_WINDOW)
-	POPUP_PARENT_WINDOW.add_child(REPORT_DIALOG)
-	#POPUP_PARENT_WINDOW.move_child(REPORT_DIALOG, self.get_index() -1)
-	REPORT_DIALOG.add_report(report)
-	REPORT_DIALOG.connect("report_done", self._report_done)
-	#hide_win()
-	REPORT_DIALOG.show_win()
-
-func _report_done():
-	if REPORT_DIALOG:
-		REPORT_DIALOG.disconnect("report_done", self._report_done)
-		REPORT_DIALOG.hide_win()
-		POPUP_PARENT_WINDOW.remove_child(REPORT_DIALOG)
-		REPORT_DIALOG = null
-	else:
-		print("REPORT DONE WITHOUT REPORT_DIALOG?!?!")
-	close()
 
 func cancel_extract():
 	pass
@@ -185,12 +134,10 @@ func cancel_extract():
 
 
 var _last_path: String = ""
-func _on_dialog_close():
-	extract_and_recover(_last_path)
 
 func open_extract_dir_dialog(path:String = ""):
 	#var pck_path = path if !path.is_empty() else GDRESettings.get_pack_path().get_base_dir()
-	
+
 	_file_dialog.set_current_dir(DIRECTORY.text.get_base_dir())
 	open_subwindow(_file_dialog)
 
@@ -233,9 +180,9 @@ func clear():
 
 func confirm():
 	RESOURCE_PREVIEW.reset()
-	extract_and_recover(DIRECTORY.text)
-	# pop open a file dialog to pick a directory
-	
+	var files_to_extract = FILE_TREE.get_checked_files()
+	emit_signal("recovery_confirmed", files_to_extract, DIRECTORY.text, EXTRACT_ONLY.is_pressed())
+
 
 func cancelled():
 	close()

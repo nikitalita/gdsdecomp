@@ -6,9 +6,10 @@ const file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
 
 var NOTE_TREE : Tree = null
 var TOTALS_TREE: Tree = null
-var POPUP_PARENT_WINDOW : Window = null
 var EDITOR_MESSAGE_LABEL: RichTextLabel = null
 var LOG_FILE_LABEL: RichTextLabel = null
+var editor_message_default_text: String = ""
+var log_file_default_text: String = ""
 var recovery_folder: String = ""
 
 # var isHiDPI = DisplayServer.screen_get_dpi() >= 240
@@ -31,7 +32,8 @@ func _ready():
 	TOTALS_TREE =    $Control/TotalsTree
 	EDITOR_MESSAGE_LABEL = $Control/EditorMessageLabel
 	LOG_FILE_LABEL = $Control/LogFileLabel
-
+	editor_message_default_text = EDITOR_MESSAGE_LABEL.text
+	log_file_default_text = LOG_FILE_LABEL.text
 
 	if isHiDPI:
 		# get_viewport().size *= 2.0
@@ -43,15 +45,15 @@ func _ready():
 	# unless they're attached to windows
 	# The children are not already in the window for ease of GUI creation
 	clear()
-	
+
 	#if _is_test:
 		#load_test()
-	
+
 	pass # Replace with function body.
 
 func _on_click_uri(meta):
 	OS.shell_open(meta)
-	
+
 func ver_to_tag(ver:GodotVer):
 	var tag_str = String.num_uint64(ver.major) + "." + String.num_uint64(ver.minor)
 	if (ver.patch != 0):
@@ -68,19 +70,19 @@ func path_to_uri(path:String):
 		uri += "/"
 	uri += path.simplify_path()
 	return uri
-	
+
 func get_url_for_tag(tag: String, is_steam_release: bool = false):
 	if is_steam_release: # don't bother with the tag here
 		return "https://github.com/CoaguCo-Industries/GodotSteam/releases"
 	else:
 		return "https://github.com/godotengine/godot-builds/releases/tag/" + tag
-		
+
 func load_test():
 	const path = "/Users/nikita/Workspace/godot-test-bins/megaloot/Megaloot.exe"
 	# const path = "/Users/nikita/Workspace/godot-test-bins/satryn.apk"
 	# const output_dir = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract"
 	const output_dir = "/Users/nikita/Workspace/godot-test-bins/test_megaloot"
-	var _log_path = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract/gdre_export.log" 
+	var _log_path = "/Users/nikita/Workspace/godot-test-bins/test_satyrn_extract/gdre_export.log"
 	# convert log_path to URI
 	var err = GDRESettings.load_project([path])
 	assert(err == OK)
@@ -98,7 +100,7 @@ func add_ver_string(ver_string: String):
 	var ver = GodotVer.parse_godotver(ver_string)
 	var tag = ver_to_tag(ver)
 	EDITOR_MESSAGE_LABEL.text = EDITOR_MESSAGE_LABEL.text.replace("<GODOT_VER>", "[url=" + get_url_for_tag(tag) + "]"+ ver_string + "[/url]")
-	
+
 func add_log_file(log_path: String):
 	recovery_folder = log_path.get_base_dir()
 	var uri = path_to_uri(log_path)
@@ -133,6 +135,7 @@ func get_note_header_item_icon(_key: String) -> Texture2D:
 	return null
 
 func add_report(report: ImportExporterReport) -> int:
+	self.clear()
 	add_ver_string(report.get_ver())
 	add_log_file(report.get_log_file_location())
 	var notes = report.get_session_notes()
@@ -176,26 +179,29 @@ func add_report(report: ImportExporterReport) -> int:
 			continue
 		header_item.set_collapsed_recursive(true)
 
-			
+
 	return OK
 
-	
+
 func clear():
-	pass
-	
+	NOTE_TREE.clear()
+	TOTALS_TREE.clear()
+	EDITOR_MESSAGE_LABEL.text = editor_message_default_text
+	LOG_FILE_LABEL.text = log_file_default_text
+
 func close():
 	_exit_tree()
 	emit_signal("report_done")
 
 func cancel_extract():
 	close()
-	
+
 func _open_folder():
 	OS.shell_open(path_to_uri(recovery_folder))
 
 func confirmed():
 	close()
-	
+
 func cancelled():
 	close()
 

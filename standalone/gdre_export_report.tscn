@@ -51,13 +51,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
 offset_top = 8.0
-offset_right = 1144.0
-offset_bottom = 751.0
+offset_right = -8.0
+offset_bottom = -49.0
 grow_horizontal = 2
 grow_vertical = 2
 theme = SubResource("Theme_m335r")
 
 [node name="EditorMessageLabel" type="RichTextLabel" parent="Control"]
+layout_mode = 0
 offset_left = 11.0
 offset_top = 79.0
 offset_right = 918.0
@@ -74,6 +75,7 @@ If you find that you have many non-import errors upon opening the project
 (i.e. scripts or shaders have many errors), use the original game's binary as the export template."
 
 [node name="LogFileLabel" type="RichTextLabel" parent="Control"]
+layout_mode = 0
 offset_left = 13.0
 offset_top = 15.0
 offset_right = 1097.0
@@ -87,6 +89,7 @@ text = "Log file written to <LOG_FILE_URI>
 [b]Please include this file when reporting an issue![/b]"
 
 [node name="NotesLabel" type="RichTextLabel" parent="Control"]
+layout_mode = 0
 offset_left = 10.0
 offset_top = 201.0
 offset_right = 200.0
