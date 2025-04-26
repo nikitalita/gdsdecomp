@@ -217,3 +217,13 @@ TaskManager::DownloadQueueThread::~DownloadQueueThread() {
 	current_task_id = -1;
 	tasks.clear();
 }
+
+bool TaskManager::is_current_group_task_canceled() {
+	bool canceled = false;
+	group_id_to_description.for_each([&](auto &v) {
+		if (v.second->is_canceled()) {
+			canceled = true;
+		}
+	});
+	return canceled;
+}

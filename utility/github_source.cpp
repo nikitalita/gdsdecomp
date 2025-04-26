@@ -373,6 +373,9 @@ PluginVersion GitHubSource::get_plugin_version_gh(const String &plugin_name, uin
 String GitHubSource::get_plugin_download_url(const String &plugin_name, const Vector<String> &hashes) {
 	auto pairs = get_gh_asset_pairs(plugin_name);
 	for (auto &pair : pairs) {
+		if (TaskManager::get_singleton()->is_current_group_task_canceled()) {
+			return "";
+		}
 		auto plugin_version = get_plugin_version_gh(plugin_name, pair.first, pair.second);
 		if (plugin_version.asset_id == 0) {
 			continue;
