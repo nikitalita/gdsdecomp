@@ -216,7 +216,7 @@ uint64_t BytecodeTester::generic_test(const Vector<String> &p_paths, int ver_maj
 
 	if (candidates.size() == 1) {
 		if (print_log_on_fail) {
-			WARN_PRINT("Multiple passing candidates for bytecode version " + vformat("%d", detected_bytecode_version) + ":\n" + get_candidates_string(decomp_versions) + "\nChoosing only one that matches engine version: " + get_candidate_string(candidates[0]) + ".");
+			print_line("Multiple passing candidates for bytecode version " + vformat("%d", detected_bytecode_version) + ":\n" + get_candidates_string(decomp_versions) + "\nChoosing only one that matches engine version: " + get_candidate_string(candidates[0]) + ".");
 		}
 		return candidates[0]->get_bytecode_rev();
 	}
