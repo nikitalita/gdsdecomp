@@ -1270,8 +1270,8 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 	});
 
 	// reserved words can be used as class members in GDScript 2.0. Hooray.
-	auto is_gdscript20_accessor = [&](int i) {
-		return bytecode_version >= GDSCRIPT_2_0_VERSION && check_prev_token(i, tokens, G_TK_PERIOD);
+	auto is_accessor = [&](int i) {
+		return check_prev_token(i, tokens, G_TK_PERIOD);
 	};
 
 	for (int i = 0; i < tokens.size(); i++) {
@@ -1284,12 +1284,13 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 		if (cur_line != 0) {
 			line = cur_line;
 		}
+
 		// All of these assumptions should apply for all bytecodes that we have support for
 		switch (curr_token) {
 			// Functions go like:
 			// `func <literally_fucking_anything_resembling_an_identifier_including_keywords_and_built-in_funcs>(<arguments>)`
 			case G_TK_PR_FUNCTION: {
-				if (is_gdscript20_accessor(i)) {
+				if (is_accessor(i)) {
 					break;
 				}
 				SIZE_CHECK(2);
@@ -1302,6 +1303,9 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 				}
 			} break;
 			case G_TK_CF_PASS: {
+				if (is_accessor(i)) {
+					break;
+				}
 				if (bytecode_version < GDSCRIPT_2_0_VERSION) {
 					// next token has to be EOF, semicolon, or newline
 					SIZE_CHECK(1);
@@ -1313,7 +1317,7 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 				}
 			} break;
 			case G_TK_PR_STATIC: {
-				if (is_gdscript20_accessor(i)) {
+				if (is_accessor(i)) {
 					break;
 				}
 
@@ -1325,7 +1329,7 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 				}
 			} break;
 			case G_TK_PR_ENUM: { // not added until 2.1.3, but valid for all versions after
-				if (is_gdscript20_accessor(i)) {
+				if (is_accessor(i)) {
 					break;
 				}
 

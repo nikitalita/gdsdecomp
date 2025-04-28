@@ -700,7 +700,7 @@ Error GDRESettings::detect_bytecode_revision() {
 	if (bytecode_files.is_empty()) {
 		return guess_from_version(ERR_PARSE_ERROR);
 	}
-	auto revision = BytecodeTester::test_files(bytecode_files, ver_major, ver_minor);
+	auto revision = BytecodeTester::test_files(bytecode_files, ver_major, ver_minor, true);
 	if (revision == 0) {
 		ERR_FAIL_COND_V_MSG(need_correct_patch(ver_major, ver_minor), ERR_FILE_CANT_OPEN, "Cannot determine bytecode revision: Need the correct patch version for engine version " + itos(ver_major) + "." + itos(ver_minor) + ".x!");
 		return guess_from_version(ERR_FILE_CANT_OPEN);

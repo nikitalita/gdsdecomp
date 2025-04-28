@@ -223,12 +223,11 @@ Error FakeGDScript::parse_script() {
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
-	auto bytecode_version = script_state.bytecode_version;
 
 	bool first_annotation = true;
-	// reserved words can be used as class members in GDScript 2.0. Hooray.
-	auto is_gdscript20_accessor = [&](int i) {
-		return bytecode_version >= GDScriptDecomp::GDSCRIPT_2_0_VERSION && decomp->check_prev_token(i, tokens, GT::G_TK_PERIOD);
+	// reserved words can be used as class members in GDScript. Hooray.
+	auto is_accessor = [&](int i) {
+		return decomp->check_prev_token(i, tokens, GT::G_TK_PERIOD);
 	};
 
 	for (int i = 0; i < tokens.size(); i++) {
@@ -250,7 +249,9 @@ Error FakeGDScript::parse_script() {
 			case GT::G_TK_PR_EXPORT: {
 			} break;
 			case GT::G_TK_PR_TOOL: {
-				tool = true;
+				if (!is_accessor(i)) {
+					tool = true;
+				}
 			} break;
 			case GT::G_TK_PR_CLASS: {
 				// if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
@@ -261,7 +262,7 @@ Error FakeGDScript::parse_script() {
 				// }
 			} break;
 			case GT::G_TK_PR_CLASS_NAME: {
-				if (global_name.is_empty() && !is_gdscript20_accessor(i) && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
+				if (global_name.is_empty() && !is_accessor(i) && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 					uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 					ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 					global_name = identifiers[identifier];
@@ -269,7 +270,7 @@ Error FakeGDScript::parse_script() {
 				}
 			} break;
 			case GT::G_TK_PR_EXTENDS: {
-				if (base_type.is_empty() && !is_gdscript20_accessor(i)) {
+				if (base_type.is_empty() && !is_accessor(i)) {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_CONSTANT)) {
 						uint32_t constant = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 						ERR_FAIL_COND_V(constant >= (uint32_t)constants.size(), ERR_INVALID_DATA);
