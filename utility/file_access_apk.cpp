@@ -27,14 +27,16 @@
 /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE     */
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                */
 /*************************************************************************/
+#include "file_access_apk.h"
 
 #ifdef MINIZIP_ENABLED
+#include "thirdparty/minizip/ioapi.h"
 
-#include "file_access_apk.h"
 #include "axml_parser.h"
-#include "core/io/file_access.h"
 #include "file_access_gdre.h"
 #include "gdre_settings.h"
+
+#include "core/io/file_access.h"
 
 APKArchive *APKArchive::instance = nullptr;
 
@@ -44,12 +46,12 @@ struct APKData {
 	Ref<FileAccess> f;
 };
 
-static void *godot_open(voidpf opaque, const char *p_fname, int mode) {
+static void *godot_open(voidpf opaque, const void *p_fname, int mode) {
 	if (mode & ZLIB_FILEFUNC_MODE_WRITE) {
 		return nullptr;
 	}
 
-	Ref<FileAccess> f = FileAccess::open(p_fname, FileAccess::READ);
+	Ref<FileAccess> f = FileAccess::open(String::utf8((const char *)p_fname), FileAccess::READ);
 	ERR_FAIL_COND_V(f.is_null(), nullptr);
 
 	APKData *zd = memnew(APKData);
@@ -67,12 +69,12 @@ static uLong godot_write(voidpf opaque, voidpf stream, const void *buf, uLong si
 	return 0;
 }
 
-static long godot_tell(voidpf opaque, voidpf stream) {
+static ZPOS64_T godot_tell(voidpf opaque, voidpf stream) {
 	APKData *zd = (APKData *)stream;
 	return zd->f->get_position();
 }
 
-static long godot_seek(voidpf opaque, voidpf stream, uLong offset, int origin) {
+static long godot_seek(voidpf opaque, voidpf stream, ZPOS64_T offset, int origin) {
 	APKData *zd = (APKData *)stream;
 
 	uint64_t pos = offset;
@@ -121,23 +123,23 @@ unzFile APKArchive::get_file_handle(String p_file) const {
 	ERR_FAIL_COND_V_MSG(!file_exists(p_file), nullptr, "File '" + p_file + " doesn't exist.");
 	File file = files[p_file];
 
-	zlib_filefunc_def io;
+	zlib_filefunc64_def io;
 	memset(&io, 0, sizeof(io));
 
 	io.opaque = nullptr;
-	io.zopen_file = godot_open;
+	io.zopen64_file = godot_open;
 	io.zread_file = godot_read;
 	io.zwrite_file = godot_write;
 
-	io.ztell_file = godot_tell;
-	io.zseek_file = godot_seek;
+	io.ztell64_file = godot_tell;
+	io.zseek64_file = godot_seek;
 	io.zclose_file = godot_close;
 	io.zerror_file = godot_testerror;
 
 	io.alloc_mem = godot_alloc;
 	io.free_mem = godot_free;
 
-	unzFile pkg = unzOpen2(packages[file.package].filename.utf8().get_data(), &io);
+	unzFile pkg = unzOpen2_64(packages[file.package].filename.utf8().get_data(), &io);
 	ERR_FAIL_COND_V_MSG(!pkg, nullptr, "Cannot open file '" + packages[file.package].filename + "'.");
 	int unz_err = unzGoToFilePos(pkg, &file.file_pos);
 	if (unz_err != UNZ_OK || unzOpenCurrentFile(pkg) != UNZ_OK) {
@@ -175,20 +177,23 @@ bool APKArchive::try_open_pack(const String &p_path, bool p_replace_files, uint6
 		return false;
 	}
 	bool is_apk = ext == "apk";
-	zlib_filefunc_def io;
+	zlib_filefunc64_def io;
 	memset(&io, 0, sizeof(io));
 
 	io.opaque = nullptr;
-	io.zopen_file = godot_open;
+	io.zopen64_file = godot_open;
 	io.zread_file = godot_read;
 	io.zwrite_file = godot_write;
 
-	io.ztell_file = godot_tell;
-	io.zseek_file = godot_seek;
+	io.ztell64_file = godot_tell;
+	io.zseek64_file = godot_seek;
 	io.zclose_file = godot_close;
 	io.zerror_file = godot_testerror;
 
-	unzFile zfile = unzOpen2(pack_path.utf8().get_data(), &io);
+	io.alloc_mem = godot_alloc;
+	io.free_mem = godot_free;
+
+	unzFile zfile = unzOpen2_64(pack_path.utf8().get_data(), &io);
 	ERR_FAIL_COND_V(!zfile, false);
 
 	unz_global_info64 gi;
@@ -254,7 +259,7 @@ bool APKArchive::try_open_pack(const String &p_path, bool p_replace_files, uint6
 		asset_count++;
 		files[fname] = f;
 
-		uint8_t md5[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+		static constexpr const uint8_t md5[16] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 		GDREPackedData::get_singleton()->add_path(pack_path, fname, 1, file_info.uncompressed_size, md5, this, p_replace_files, false);
 
 		if ((i + 1) < gi.number_entry) {
