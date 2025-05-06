@@ -63,6 +63,16 @@ static const ScriptToRevision tests[] = {
 	{ nullptr, 0 },
 };
 
+static const char *test_unique_id_modulo = R"(
+extends AnimationPlayer
+
+func _ready() -> void :
+    %BlinkTimer.timeout.connect(check_for_blink)
+    var thingy = 10 % 3
+    var thingy2 = 10 % thingy
+    var thingy3 = thingy % 20
+)";
+
 inline String remove_comments(const String &script_text) {
 	// gdscripts have comments starting with #, remove them
 	auto lines = script_text.split("\n", true);
@@ -105,7 +115,7 @@ inline String remove_comments(const String &script_text) {
 	return new_text;
 }
 
-inline void test_script_text(const String &script_name, const String &helper_script_text, int revision, bool helper_script, bool no_text_equality_check) {
+inline void test_script_text(const String &script_name, const String &helper_script_text, int revision, bool helper_script, bool no_text_equality_check, bool compare_whitespace = false) {
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(revision);
 	CHECK(decomp.is_valid());
 	auto bytecode = decomp->compile_code_string(helper_script_text);
@@ -146,7 +156,13 @@ inline void test_script_text(const String &script_name, const String &helper_scr
 	}
 #endif
 	if (!no_text_equality_check) {
-		CHECK(gdre::remove_whitespace(decompiled_string_stripped) == gdre::remove_whitespace(helper_script_text_stripped));
+		CHECK_MESSAGE(gdre::remove_whitespace(decompiled_string_stripped) == gdre::remove_whitespace(helper_script_text_stripped), (String("No whitespace text diff failed: \n") + TextDiff::get_diff_with_header(script_name, script_name, decompiled_string_stripped, helper_script_text_stripped)));
+	}
+	if (compare_whitespace) {
+		if (decompiled_string_stripped != helper_script_text_stripped) {
+			TextDiff::print_diff(TextDiff::get_diff_with_header(script_name + "_original", script_name + "_decompiled", helper_script_text_stripped, decompiled_string_stripped));
+		}
+		CHECK(decompiled_string_stripped == helper_script_text_stripped);
 	}
 	auto recompiled_bytecode = decomp->compile_code_string(decompiled_string);
 	CHECK(decomp->get_error_message() == "");
@@ -229,6 +245,10 @@ TEST_CASE("[GDSDecomp][Bytecode][GDScript2.0] Compiling GDScript Tests") {
 			test_script(script_path, 0x77af6ca, false, true);
 		}
 	}
+}
+
+TEST_CASE("[GDSDecomp][Bytecode][GDScript2.0] Test unique_id modulo operator") {
+	test_script_text("test_unique_id_modulo", test_unique_id_modulo, 0x77af6ca, false, false, true);
 }
 
 } //namespace TestBytecode

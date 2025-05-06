@@ -779,7 +779,11 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			} break;
 			case G_TK_OP_MOD: {
 				ensure_space_func();
-				line += "% ";
+				line += "%";
+				// if the previous token was a constant or an identifier, this is a modulo operation, add a space
+				if (prev_token == G_TK_CONSTANT || prev_token == G_TK_IDENTIFIER) {
+					ensure_ending_space_func(i);
+				}
 			} break;
 			case G_TK_OP_SHIFT_LEFT: {
 				ensure_space_func();
@@ -1928,9 +1932,9 @@ Error GDScriptDecomp::test_bytecode_match(const Vector<uint8_t> &p_buffer1, cons
 		decompress_buf(p_buffer1, contents1);
 		decompress_buf(p_buffer2, contents2);
 		discontinuity = continuity_tester(contents1, contents2, "Decompressed Bytecode");
-		if (discontinuity == -1) {
-			return OK;
-		}
+	}
+	if (discontinuity == -1) {
+		return OK;
 	}
 
 	Ref<GDScriptDecomp> decomp = create_decomp_for_commit(get_bytecode_rev());
