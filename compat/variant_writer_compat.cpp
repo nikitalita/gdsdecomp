@@ -4,9 +4,9 @@
 #include "compat/resource_loader_compat.h"
 #include "core/object/script_language.h"
 
-#include "external/grisu2/grisu2.h"
 #include "image_parser_v2.h"
 #include "input_event_parser_v2.h"
+#include "utility/common.h"
 
 Error VariantParserCompat::_parse_array(Array &array, Stream *p_stream, int &line, String &r_err_str, ResourceParser *p_res_parser) {
 	Token token;
@@ -766,26 +766,6 @@ static constexpr _ALWAYS_INLINE_ uint64_t max_integer_str_len() {
 
 template <int ver_major, bool is_pcfg, bool is_script, bool p_compat = false, bool after_4_4 = false>
 struct VarWriter {
-	static String num_scientific(double p_num) {
-		if (Math::is_nan(p_num) || Math::is_inf(p_num)) {
-			return String::num(p_num, 0);
-		}
-		char buffer[256];
-		char *last = grisu2::to_chars(buffer, p_num);
-		*last = 0;
-		return buffer;
-	}
-
-	static String num_scientific(float p_num) {
-		if (Math::is_nan(p_num) || Math::is_inf(p_num)) {
-			return String::num(p_num, 0);
-		}
-		char buffer[256];
-		char *last = grisu2::to_chars(buffer, p_num);
-		*last = 0;
-		return buffer;
-	}
-
 	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && !p_compat && after_4_4));
 
 	static String rtosfix(float p_value) {
@@ -806,7 +786,7 @@ struct VarWriter {
 				return "inf";
 			}
 		}
-		return num_scientific(p_value);
+		return gdre::num_scientific(p_value);
 	}
 
 	static String rtosfix(double p_value) {
@@ -827,7 +807,7 @@ struct VarWriter {
 				return "inf";
 			}
 		}
-		return num_scientific(p_value);
+		return gdre::num_scientific(p_value);
 	}
 
 #define MAKE_WRITE_PACKED_ELEMENT(type, str)                             \
