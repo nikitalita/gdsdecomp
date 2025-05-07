@@ -198,15 +198,40 @@ Ref<Resource> ResourceCompatLoader::gltf_load(const String &p_path, const String
 Ref<Resource> ResourceCompatLoader::real_load(const String &p_path, const String &p_type_hint, Error *r_error, ResourceFormatLoader::CacheMode p_cache_mode) {
 	return ResourceCompatLoader::custom_load(p_path, p_type_hint, ResourceInfo::LoadType::REAL_LOAD, r_error, true, p_cache_mode);
 }
+namespace {
+String _validate_local_path(const String &p_path) {
+	ResourceUID::ID uid = ResourceUID::get_singleton()->text_to_id(p_path);
+	if (uid != ResourceUID::INVALID_ID) {
+		return ResourceUID::get_singleton()->get_id_path(uid);
+	} else if (p_path.is_relative_path()) {
+		return ("res://" + p_path).simplify_path();
+		// } else if (!p_path.begins_with("res://") && GDRESettings::get_singleton()->is_pack_loaded()) {
+		// return GDRESettings::get_singleton()->localize_path(p_path);
+	}
+	return p_path;
+}
+} //namespace
 
 Ref<Resource> ResourceCompatLoader::custom_load(const String &p_path, const String &p_type_hint, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
+	String local_path = _validate_local_path(p_path);
 	String res_path = GDRESettings::get_singleton()->get_mapped_path(p_path);
 	auto loader = get_loader_for_path(res_path, p_type_hint);
-	if (loader.is_null() && (p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD)) {
-		return load_with_real_resource_loader(res_path, p_type_hint, r_error, use_threads, p_cache_mode);
+	bool is_real_load = p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD;
+	if (loader.is_null() && is_real_load) {
+		return load_with_real_resource_loader(local_path, p_type_hint, r_error, use_threads, p_cache_mode);
+	}
+	if (p_cache_mode == ResourceFormatLoader::CACHE_MODE_REUSE) {
+		auto res = ResourceCache::get_ref(local_path);
+		if (res.is_valid()) {
+			return res;
+		}
 	}
 	FAIL_LOADER_NOT_FOUND(loader);
-	return loader->custom_load(res_path, p_path, p_type, r_error, use_threads, p_cache_mode);
+
+	if (!is_real_load) {
+		local_path = "";
+	}
+	return loader->custom_load(res_path, local_path, p_type, r_error, use_threads, p_cache_mode);
 }
 
 Ref<Resource> ResourceCompatLoader::load_with_real_resource_loader(const String &p_path, const String &p_type_hint, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
