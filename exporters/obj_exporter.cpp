@@ -1,11 +1,11 @@
 #include "obj_exporter.h"
 #include "compat/resource_loader_compat.h"
 #include "core/io/file_access.h"
+#include "core/templates/hashfuncs.h"
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 #include "utility/common.h"
 #include "utility/import_info.h"
-
 struct VertexKey {
 	Vector3 vertex;
 	Vector2 uv;
@@ -32,6 +32,17 @@ struct VertexKey {
 	}
 };
 
+struct VertexKeyHasher {
+	static uint32_t hash(const VertexKey &vk) {
+		return HashMapHasherDefault::hash(vk.vertex) ^ HashMapHasherDefault::hash(vk.uv) ^ HashMapHasherDefault::hash(vk.normal);
+	}
+};
+struct FaceVertex {
+	int v_idx = -1;
+	int vt_idx = -1;
+	int vn_idx = -1;
+};
+
 Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
@@ -41,12 +52,16 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 	f->store_line("# Exported from Godot Engine");
 
 	// Global lists and mapping
-	Vector<VertexKey> global_vertex_keys;
-	HashMap<VertexKey, int> vertex_key_to_index;
+	Vector<Vector3> global_vertices;
+	Vector<Vector2> global_uvs;
+	Vector<Vector3> global_normals;
+	HashMap<Vector3, int, HashMapHasherDefault> vertex_to_index;
+	HashMap<Vector2, int, HashMapHasherDefault> uv_to_index;
+	HashMap<Vector3, int, HashMapHasherDefault> normal_to_index;
 	HashMap<String, Ref<Material>> materials;
 
-	// For each surface, store the sequence of global indices for each face
-	Vector<Vector<int>> surface_face_indices;
+	// For each surface, store the sequence of FaceVertex for each face
+	Vector<Vector<FaceVertex>> surface_face_vertices;
 	Vector<String> surface_material_names;
 
 	// Build global lists and face indices
@@ -72,96 +87,107 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		}
 		surface_material_names.push_back(mat_name);
 
-		Vector<int> face_indices;
-		// For each face vertex, build VertexKey and assign global index
+		Vector<FaceVertex> face_vertices;
 		if (!indices.is_empty()) {
 			for (int i = 0; i < indices.size(); i++) {
 				int vi = indices[i];
-				VertexKey key;
-				key.vertex = surface_vertices[vi];
+				FaceVertex fv;
+				// Vertex
+				const Vector3 &v = surface_vertices[vi];
+				if (!vertex_to_index.has(v)) {
+					vertex_to_index[v] = global_vertices.size();
+					global_vertices.push_back(v);
+				}
+				fv.v_idx = vertex_to_index[v];
+				// UV
 				if (has_uv) {
-					key.uv = surface_uvs[vi];
-					key.has_uv = true;
+					const Vector2 &uv = surface_uvs[vi];
+					if (!uv_to_index.has(uv)) {
+						uv_to_index[uv] = global_uvs.size();
+						global_uvs.push_back(uv);
+					}
+					fv.vt_idx = uv_to_index[uv];
 				}
+				// Normal
 				if (has_normal) {
-					key.normal = surface_normals[vi];
-					key.has_normal = true;
+					const Vector3 &n = surface_normals[vi];
+					if (!normal_to_index.has(n)) {
+						normal_to_index[n] = global_normals.size();
+						global_normals.push_back(n);
+					}
+					fv.vn_idx = normal_to_index[n];
 				}
-				if (!vertex_key_to_index.has(key)) {
-					vertex_key_to_index[key] = global_vertex_keys.size();
-					global_vertex_keys.push_back(key);
-				}
-				face_indices.push_back(vertex_key_to_index[key]);
+				face_vertices.push_back(fv);
 			}
 		} else {
-			// No indices, use sequential
 			for (int vi = 0; vi < surface_vertices.size(); vi++) {
-				VertexKey key;
-				key.vertex = surface_vertices[vi];
+				FaceVertex fv;
+				const Vector3 &v = surface_vertices[vi];
+				if (!vertex_to_index.has(v)) {
+					vertex_to_index[v] = global_vertices.size();
+					global_vertices.push_back(v);
+				}
+				fv.v_idx = vertex_to_index[v];
 				if (has_uv) {
-					key.uv = surface_uvs[vi];
-					key.has_uv = true;
+					const Vector2 &uv = surface_uvs[vi];
+					if (!uv_to_index.has(uv)) {
+						uv_to_index[uv] = global_uvs.size();
+						global_uvs.push_back(uv);
+					}
+					fv.vt_idx = uv_to_index[uv];
 				}
 				if (has_normal) {
-					key.normal = surface_normals[vi];
-					key.has_normal = true;
+					const Vector3 &n = surface_normals[vi];
+					if (!normal_to_index.has(n)) {
+						normal_to_index[n] = global_normals.size();
+						global_normals.push_back(n);
+					}
+					fv.vn_idx = normal_to_index[n];
 				}
-				if (!vertex_key_to_index.has(key)) {
-					vertex_key_to_index[key] = global_vertex_keys.size();
-					global_vertex_keys.push_back(key);
-				}
-				face_indices.push_back(vertex_key_to_index[key]);
+				face_vertices.push_back(fv);
 			}
 		}
-		surface_face_indices.push_back(face_indices);
+		surface_face_vertices.push_back(face_vertices);
 	}
 
 	// Write global vertex data
-	for (int i = 0; i < global_vertex_keys.size(); i++) {
-		const VertexKey &key = global_vertex_keys[i];
-		const Vector3 &v = key.vertex;
+	for (int i = 0; i < global_vertices.size(); i++) {
+		const Vector3 &v = global_vertices[i];
 		f->store_line(vformat("v %.6f %.6f %.6f", v.x, v.y, v.z));
 	}
 	// Write global uvs
-	bool any_uv = false;
-	for (int i = 0; i < global_vertex_keys.size(); i++) {
-		if (global_vertex_keys[i].has_uv) {
-			const Vector2 &uv = global_vertex_keys[i].uv;
-			f->store_line(vformat("vt %.6f %.6f", uv.x, 1.0 - uv.y));
-			any_uv = true;
-		}
+	bool any_uv = !global_uvs.is_empty();
+	for (int i = 0; i < global_uvs.size(); i++) {
+		const Vector2 &uv = global_uvs[i];
+		f->store_line(vformat("vt %.6f %.6f", uv.x, 1.0 - uv.y));
 	}
 	// Write global normals
-	bool any_normal = false;
-	for (int i = 0; i < global_vertex_keys.size(); i++) {
-		if (global_vertex_keys[i].has_normal) {
-			const Vector3 &n = global_vertex_keys[i].normal;
-			f->store_line(vformat("vn %.6f %.6f %.6f", n.x, n.y, n.z));
-			any_normal = true;
-		}
+	bool any_normal = !global_normals.is_empty();
+	for (int i = 0; i < global_normals.size(); i++) {
+		const Vector3 &n = global_normals[i];
+		f->store_line(vformat("vn %.6f %.6f %.6f", n.x, n.y, n.z));
 	}
 
 	// Write faces per surface
-	int face_cursor = 0;
-	for (int surf_idx = 0; surf_idx < surface_face_indices.size(); surf_idx++) {
-		const Vector<int> &face_indices = surface_face_indices[surf_idx];
+	for (int surf_idx = 0; surf_idx < surface_face_vertices.size(); surf_idx++) {
+		const Vector<FaceVertex> &face_vertices = surface_face_vertices[surf_idx];
 		const String &mat_name = surface_material_names[surf_idx];
 		if (!mat_name.is_empty()) {
 			f->store_line("usemtl " + mat_name);
 		}
 		// Write faces (assume triangles)
-		for (int i = 0; i < face_indices.size(); i += 3) {
+		for (int i = 0; i < face_vertices.size(); i += 3) {
 			String face_line = "f";
 			for (int k = 0; k < 3; k++) {
-				int idx = face_indices[i + k] + 1; // OBJ indices start at 1
+				const FaceVertex &fv = face_vertices[i + k];
 				face_line += " ";
-				face_line += itos(idx);
+				face_line += itos(fv.v_idx + 1);
 				if (any_uv || any_normal) {
 					face_line += "/";
 					if (any_uv)
-						face_line += itos(idx);
+						face_line += itos(fv.vt_idx + 1);
 					if (any_normal)
-						face_line += "/" + itos(idx);
+						face_line += "/" + itos(fv.vn_idx + 1);
 				}
 			}
 			f->store_line(face_line);
