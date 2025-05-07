@@ -42,6 +42,12 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 	}
 	*r_error = fake_script->load_source_code(p_path);
 	ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + p_path);
+	bool is_real_load = p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD;
+	if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP) {
+		fake_script->set_path(p_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
+	} else {
+		fake_script->set_path_cache(p_original_path);
+	}
 	return fake_script;
 }
 
