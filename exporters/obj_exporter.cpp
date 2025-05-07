@@ -116,10 +116,15 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		// Material
 		Ref<Material> mat = p_mesh->surface_get_material(surf_idx);
 		String mat_name;
+		String surface_name = p_mesh->surface_get_name(surf_idx);
 		if (mat.is_valid()) {
 			mat_name = mat->get_name();
-			if (mat_name.is_empty()) {
-				mat_name = "material_" + itos(surf_idx);
+			if (mat_name.is_empty() || mat_name == "Material" || mat_name.begins_with("Material.")) {
+				if (!surface_name.is_empty() && surface_name != "Material" && !surface_name.begins_with("Material.")) {
+					mat_name = surface_name;
+				} else if (mat_name.is_empty()) {
+					mat_name = vformat("Material.%03d", surf_idx);
+				}
 			}
 			materials[mat_name] = mat;
 		}
