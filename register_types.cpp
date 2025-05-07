@@ -30,6 +30,7 @@
 #include "exporters/gdextension_exporter.h"
 #include "exporters/gdscript_exporter.h"
 #include "exporters/mp3str_exporter.h"
+#include "exporters/obj_exporter.h"
 #include "exporters/oggstr_exporter.h"
 #include "exporters/resource_exporter.h"
 #include "exporters/sample_exporter.h"
@@ -88,6 +89,7 @@ static Ref<SampleExporter> sample_exporter = nullptr;
 static Ref<SceneExporter> scene_exporter = nullptr;
 static Ref<TextureExporter> texture_exporter = nullptr;
 static Ref<TranslationExporter> translation_exporter = nullptr;
+static Ref<ObjExporter> obj_exporter = nullptr;
 
 //plugin manager sources
 static Ref<GitHubSource> github_source = nullptr;
@@ -144,6 +146,7 @@ void init_exporters() {
 	texture_exporter = memnew(TextureExporter);
 	translation_exporter = memnew(TranslationExporter);
 	gdscript_exporter = memnew(GDScriptExporter);
+	obj_exporter = memnew(ObjExporter);
 	Exporter::add_exporter(auto_converted_exporter);
 	Exporter::add_exporter(fontfile_exporter);
 	Exporter::add_exporter(gdextension_exporter);
@@ -154,6 +157,7 @@ void init_exporters() {
 	Exporter::add_exporter(texture_exporter);
 	Exporter::add_exporter(translation_exporter);
 	Exporter::add_exporter(gdscript_exporter);
+	Exporter::add_exporter(obj_exporter);
 }
 
 void init_plugin_manager_sources() {
@@ -213,6 +217,9 @@ void deinit_exporters() {
 	if (gdscript_exporter.is_valid()) {
 		Exporter::remove_exporter(gdscript_exporter);
 	}
+	if (obj_exporter.is_valid()) {
+		Exporter::remove_exporter(obj_exporter);
+	}
 	auto_converted_exporter = nullptr;
 	fontfile_exporter = nullptr;
 	gdextension_exporter = nullptr;
@@ -223,6 +230,7 @@ void deinit_exporters() {
 	texture_exporter = nullptr;
 	translation_exporter = nullptr;
 	gdscript_exporter = nullptr;
+	obj_exporter = nullptr;
 }
 
 void deinit_loaders() {
@@ -315,7 +323,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<TranslationExporter>();
 	ClassDB::register_class<GDScriptExporter>();
 	ClassDB::register_class<GDExtensionExporter>();
-
+	ClassDB::register_class<ObjExporter>();
 	ClassDB::register_class<ResourceCompatLoader>();
 	ClassDB::register_class<CompatFormatLoader>();
 	ClassDB::register_class<ResourceFormatLoaderCompatText>();
