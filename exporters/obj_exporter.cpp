@@ -5,6 +5,7 @@
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 #include "utility/common.h"
+#include "utility/gdre_settings.h"
 #include "utility/import_info.h"
 #include <filesystem>
 
@@ -368,7 +369,7 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 
 Error ObjExporter::export_file(const String &p_out_path, const String &p_source_path) {
 	Error err;
-	Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(p_source_path, "ArrayMesh", ResourceInfo::LoadType::REAL_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+	Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(p_source_path, "ArrayMesh", ResourceInfo::LoadType::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	ERR_FAIL_COND_V_MSG(mesh.is_null(), ERR_FILE_UNRECOGNIZED, "Not a valid mesh resource: " + p_source_path);
 
 	return write_meshes_to_obj({ mesh }, p_out_path, "");
@@ -399,7 +400,7 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 	// deduplicate
 	auto dest_files = gdre::vector_to_hashset(p_import_info->get_dest_files());
 	for (auto &path : dest_files) {
-		Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(path, "ArrayMesh", ResourceInfo::LoadType::REAL_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(path, "ArrayMesh", ResourceInfo::LoadType::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 		if (mesh.is_null()) {
 			report->set_error(ERR_FILE_UNRECOGNIZED);
 			report->set_message("Not a valid mesh resource: " + path);
@@ -440,5 +441,6 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 }
 
 bool ObjExporter::supports_multithread() const {
-	return false;
+	// TODO: For some reason the dummy render server is deadlocking when calling mesh->surface_get_arrays from multiple threads simultaneously.
+	return GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless();
 }
