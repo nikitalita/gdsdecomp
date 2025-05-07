@@ -52,8 +52,10 @@ struct Triplet {
 	Vector3 v;
 	Vector2 vt;
 	Vector3 vn;
+	Color vc;
 	bool has_uv = false;
 	bool has_normal = false;
+	bool has_color = false;
 
 	bool operator==(const Triplet &other) const {
 		return v == other.v && (!has_uv || vt == other.vt) && (!has_normal || vn == other.vn);
@@ -108,10 +110,12 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		Vector<Vector3> surface_vertices = arrays[Mesh::ARRAY_VERTEX];
 		Vector<Vector2> surface_uvs = arrays[Mesh::ARRAY_TEX_UV];
 		Vector<Vector3> surface_normals = arrays[Mesh::ARRAY_NORMAL];
+		Vector<Color> surface_colors = arrays[Mesh::ARRAY_COLOR];
 		Vector<int> indices = arrays[Mesh::ARRAY_INDEX];
 
 		bool has_uv = !surface_uvs.is_empty();
 		bool has_normal = !surface_normals.is_empty();
+		bool has_vertex_colors = !surface_colors.is_empty();
 
 		// Material
 		Ref<Material> mat = p_mesh->surface_get_material(surf_idx);
@@ -162,6 +166,10 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 					t.vn = surface_normals[vi];
 					t.has_normal = true;
 				}
+				if (has_vertex_colors) {
+					t.vc = surface_colors[vi];
+					t.has_color = true;
+				}
 				if (!triplet_to_index.has(t)) {
 					triplet_to_index[t] = global_triplets.size();
 					global_triplets.push_back(t);
@@ -191,7 +199,11 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 	for (int i = 0; i < global_triplets.size(); i++) {
 		const Triplet &t = global_triplets[i];
 		const Vector3 &v = t.v;
-		f->store_line(vformat("v %.6f %.6f %.6f", v.x, v.y, v.z));
+		String v_line = vformat("v %.6f %.6f %.6f", v.x, v.y, v.z);
+		if (t.has_color) {
+			v_line += vformat(" %.6f %.6f %.6f", t.vc.r, t.vc.g, t.vc.b);
+		}
+		f->store_line(v_line);
 		if (t.has_uv) {
 			const Vector2 &uv = t.vt;
 			f->store_line(vformat("vt %.6f %.6f", uv.x, 1.0 - uv.y));
@@ -250,7 +262,8 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			f->store_line("\nnewmtl " + name);
 
 			Color albedo = mat->get_albedo();
-			f->store_line(vformat("Kd %.6f %.6f %.6f", albedo.r, albedo.g, albedo.b));
+			Color srgb = albedo.linear_to_srgb();
+			f->store_line(vformat("Kd %.6f %.6f %.6f", srgb.r, srgb.g, srgb.b));
 
 			float metallic = mat->get_metallic();
 			f->store_line(vformat("Ks %.6f %.6f %.6f", metallic, metallic, metallic));
@@ -259,9 +272,9 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			f->store_line(vformat("Ns %.6f", (1.0 - roughness) * 1000.0));
 
 			float alpha = mat->get_albedo().a;
-			if (alpha < 1.0) {
-				f->store_line(vformat("d %.6f", alpha));
-			}
+			// if (alpha < 1.0) {
+			f->store_line(vformat("d %.6f", alpha));
+			// }
 
 			// Handle textures if present
 			Ref<Texture2D> tex = mat->get_texture(StandardMaterial3D::TEXTURE_ALBEDO);
