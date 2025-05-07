@@ -262,8 +262,10 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			f->store_line("\nnewmtl " + name);
 
 			Color albedo = mat->get_albedo();
-			Color srgb = albedo.linear_to_srgb();
-			f->store_line(vformat("Kd %.6f %.6f %.6f", srgb.r, srgb.g, srgb.b));
+			if (mat->get_flag(StandardMaterial3D::FLAG_SRGB_VERTEX_COLOR)) {
+				albedo = albedo.linear_to_srgb();
+			}
+			f->store_line(vformat("Kd %.6f %.6f %.6f", albedo.r, albedo.g, albedo.b));
 
 			float metallic = mat->get_metallic();
 			f->store_line(vformat("Ks %.6f %.6f %.6f", metallic, metallic, metallic));
