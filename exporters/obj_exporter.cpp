@@ -18,16 +18,21 @@ struct VertexKey {
 	}
 
 	bool operator<(const VertexKey &other) const {
-		if (vertex != other.vertex)
+		if (vertex != other.vertex) {
 			return vertex < other.vertex;
-		if (has_uv != other.has_uv)
+		}
+		if (has_uv != other.has_uv) {
 			return has_uv < other.has_uv;
-		if (has_uv && uv != other.uv)
+		}
+		if (has_uv && uv != other.uv) {
 			return uv < other.uv;
-		if (has_normal != other.has_normal)
+		}
+		if (has_normal != other.has_normal) {
 			return has_normal < other.has_normal;
-		if (has_normal && normal != other.normal)
+		}
+		if (has_normal && normal != other.normal) {
 			return normal < other.normal;
+		}
 		return false;
 	}
 };
@@ -43,6 +48,43 @@ struct FaceVertex {
 	int vn_idx = -1;
 };
 
+struct Triplet {
+	Vector3 v;
+	Vector2 vt;
+	Vector3 vn;
+	bool has_uv = false;
+	bool has_normal = false;
+
+	bool operator==(const Triplet &other) const {
+		return v == other.v && (!has_uv || vt == other.vt) && (!has_normal || vn == other.vn);
+	}
+
+	bool operator<(const Triplet &other) const {
+		if (v != other.v) {
+			return v < other.v;
+		}
+		if (has_uv != other.has_uv) {
+			return has_uv < other.has_uv;
+		}
+		if (has_uv && vt != other.vt) {
+			return vt < other.vt;
+		}
+		if (has_normal != other.has_normal) {
+			return has_normal < other.has_normal;
+		}
+		if (has_normal && vn != other.vn) {
+			return vn < other.vn;
+		}
+		return false;
+	}
+};
+
+struct TripletHasher {
+	static uint32_t hash(const Triplet &t) {
+		return HashMapHasherDefault::hash(t.v) ^ HashMapHasherDefault::hash(t.vt) ^ HashMapHasherDefault::hash(t.vn);
+	}
+};
+
 Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
@@ -51,20 +93,16 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 	// Write header
 	f->store_line("# Exported from Godot Engine");
 
-	// Global lists and mapping
-	Vector<Vector3> global_vertices;
-	Vector<Vector2> global_uvs;
-	Vector<Vector3> global_normals;
-	HashMap<Vector3, int, HashMapHasherDefault> vertex_to_index;
-	HashMap<Vector2, int, HashMapHasherDefault> uv_to_index;
-	HashMap<Vector3, int, HashMapHasherDefault> normal_to_index;
+	// Global list of unique triplets and mapping
+	Vector<Triplet> global_triplets;
+	HashMap<Triplet, int, TripletHasher> triplet_to_index;
 	HashMap<String, Ref<Material>> materials;
 
-	// For each surface, store the sequence of FaceVertex for each face
-	Vector<Vector<FaceVertex>> surface_face_vertices;
+	// For each surface, store the sequence of triplet indices for each face
+	Vector<Vector<int>> surface_face_triplet_indices;
 	Vector<String> surface_material_names;
 
-	// Build global lists and face indices
+	// Build global triplet list and face indices
 	for (int surf_idx = 0; surf_idx < p_mesh->get_surface_count(); surf_idx++) {
 		Array arrays = p_mesh->surface_get_arrays(surf_idx);
 		Vector<Vector3> surface_vertices = arrays[Mesh::ARRAY_VERTEX];
@@ -87,107 +125,89 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		}
 		surface_material_names.push_back(mat_name);
 
-		Vector<FaceVertex> face_vertices;
+		Vector<int> face_triplet_indices;
 		if (!indices.is_empty()) {
 			for (int i = 0; i < indices.size(); i++) {
 				int vi = indices[i];
-				FaceVertex fv;
-				// Vertex
-				const Vector3 &v = surface_vertices[vi];
-				if (!vertex_to_index.has(v)) {
-					vertex_to_index[v] = global_vertices.size();
-					global_vertices.push_back(v);
-				}
-				fv.v_idx = vertex_to_index[v];
-				// UV
+				Triplet t;
+				t.v = surface_vertices[vi];
 				if (has_uv) {
-					const Vector2 &uv = surface_uvs[vi];
-					if (!uv_to_index.has(uv)) {
-						uv_to_index[uv] = global_uvs.size();
-						global_uvs.push_back(uv);
-					}
-					fv.vt_idx = uv_to_index[uv];
+					t.vt = surface_uvs[vi];
+					t.has_uv = true;
 				}
-				// Normal
 				if (has_normal) {
-					const Vector3 &n = surface_normals[vi];
-					if (!normal_to_index.has(n)) {
-						normal_to_index[n] = global_normals.size();
-						global_normals.push_back(n);
-					}
-					fv.vn_idx = normal_to_index[n];
+					t.vn = surface_normals[vi];
+					t.has_normal = true;
 				}
-				face_vertices.push_back(fv);
+				if (!triplet_to_index.has(t)) {
+					triplet_to_index[t] = global_triplets.size();
+					global_triplets.push_back(t);
+				}
+				face_triplet_indices.push_back(triplet_to_index[t]);
 			}
 		} else {
 			for (int vi = 0; vi < surface_vertices.size(); vi++) {
-				FaceVertex fv;
-				const Vector3 &v = surface_vertices[vi];
-				if (!vertex_to_index.has(v)) {
-					vertex_to_index[v] = global_vertices.size();
-					global_vertices.push_back(v);
-				}
-				fv.v_idx = vertex_to_index[v];
+				Triplet t;
+				t.v = surface_vertices[vi];
 				if (has_uv) {
-					const Vector2 &uv = surface_uvs[vi];
-					if (!uv_to_index.has(uv)) {
-						uv_to_index[uv] = global_uvs.size();
-						global_uvs.push_back(uv);
-					}
-					fv.vt_idx = uv_to_index[uv];
+					t.vt = surface_uvs[vi];
+					t.has_uv = true;
 				}
 				if (has_normal) {
-					const Vector3 &n = surface_normals[vi];
-					if (!normal_to_index.has(n)) {
-						normal_to_index[n] = global_normals.size();
-						global_normals.push_back(n);
-					}
-					fv.vn_idx = normal_to_index[n];
+					t.vn = surface_normals[vi];
+					t.has_normal = true;
 				}
-				face_vertices.push_back(fv);
+				if (!triplet_to_index.has(t)) {
+					triplet_to_index[t] = global_triplets.size();
+					global_triplets.push_back(t);
+				}
+				face_triplet_indices.push_back(triplet_to_index[t]);
 			}
 		}
-		surface_face_vertices.push_back(face_vertices);
+		surface_face_triplet_indices.push_back(face_triplet_indices);
 	}
 
-	// Write global vertex data
-	for (int i = 0; i < global_vertices.size(); i++) {
-		const Vector3 &v = global_vertices[i];
+	// Write v, vt, vn in triplet order
+	bool any_uv = false;
+	bool any_normal = false;
+	for (int i = 0; i < global_triplets.size(); i++) {
+		const Triplet &t = global_triplets[i];
+		const Vector3 &v = t.v;
 		f->store_line(vformat("v %.6f %.6f %.6f", v.x, v.y, v.z));
-	}
-	// Write global uvs
-	bool any_uv = !global_uvs.is_empty();
-	for (int i = 0; i < global_uvs.size(); i++) {
-		const Vector2 &uv = global_uvs[i];
-		f->store_line(vformat("vt %.6f %.6f", uv.x, 1.0 - uv.y));
-	}
-	// Write global normals
-	bool any_normal = !global_normals.is_empty();
-	for (int i = 0; i < global_normals.size(); i++) {
-		const Vector3 &n = global_normals[i];
-		f->store_line(vformat("vn %.6f %.6f %.6f", n.x, n.y, n.z));
+		if (t.has_uv) {
+			const Vector2 &uv = t.vt;
+			f->store_line(vformat("vt %.6f %.6f", uv.x, 1.0 - uv.y));
+			any_uv = true;
+		}
+		if (t.has_normal) {
+			const Vector3 &n = t.vn;
+			f->store_line(vformat("vn %.6f %.6f %.6f", n.x, n.y, n.z));
+			any_normal = true;
+		}
 	}
 
 	// Write faces per surface
-	for (int surf_idx = 0; surf_idx < surface_face_vertices.size(); surf_idx++) {
-		const Vector<FaceVertex> &face_vertices = surface_face_vertices[surf_idx];
+	for (int surf_idx = 0; surf_idx < surface_face_triplet_indices.size(); surf_idx++) {
+		const Vector<int> &face_triplet_indices = surface_face_triplet_indices[surf_idx];
 		const String &mat_name = surface_material_names[surf_idx];
 		if (!mat_name.is_empty()) {
 			f->store_line("usemtl " + mat_name);
 		}
 		// Write faces (assume triangles)
-		for (int i = 0; i < face_vertices.size(); i += 3) {
+		for (int i = 0; i < face_triplet_indices.size(); i += 3) {
 			String face_line = "f";
 			for (int k = 0; k < 3; k++) {
-				const FaceVertex &fv = face_vertices[i + k];
+				int idx = face_triplet_indices[i + k] + 1; // OBJ indices start at 1
 				face_line += " ";
-				face_line += itos(fv.v_idx + 1);
+				face_line += itos(idx);
 				if (any_uv || any_normal) {
 					face_line += "/";
-					if (any_uv)
-						face_line += itos(fv.vt_idx + 1);
-					if (any_normal)
-						face_line += "/" + itos(fv.vn_idx + 1);
+					if (any_uv) {
+						face_line += itos(idx);
+					}
+					if (any_normal) {
+						face_line += "/" + itos(idx);
+					}
 				}
 			}
 			f->store_line(face_line);
@@ -267,7 +287,7 @@ void ObjExporter::_bind_methods() {
 
 Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<ImportInfo> p_import_info) {
 	String src_path = p_import_info->get_path();
-	String dst_path = p_output_dir.path_join(p_import_info->get_export_dest().replace("res://", ".assets/")); // TODO: REMOVE THIS
+	String dst_path = p_output_dir.path_join(p_import_info->get_export_dest().replace("res://", ""));
 
 	// Create the export report
 	Ref<ExportReport> report = memnew(ExportReport(p_import_info));
