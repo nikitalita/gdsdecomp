@@ -214,7 +214,7 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		// Write faces (assume triangles)
 		for (int i = 0; i < face_triplet_indices.size(); i += 3) {
 			String face_line = "f";
-			for (int k = 0; k < 3; k++) {
+			for (int k = 2; k >= 0; k--) {
 				int idx = face_triplet_indices[i + k] + 1; // OBJ indices start at 1
 				face_line += " ";
 				face_line += itos(idx);
