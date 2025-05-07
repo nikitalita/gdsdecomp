@@ -172,6 +172,14 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 		surface_face_triplet_indices.push_back(face_triplet_indices);
 	}
 
+	if (!materials.is_empty()) {
+		String mtl_path = p_path.get_basename() + ".mtl";
+		err = _write_materials_to_mtl(materials, mtl_path);
+		if (err == OK) {
+			f->store_line("mtllib " + mtl_path.get_file());
+		}
+	}
+
 	// Write v, vt, vn in triplet order
 	bool any_uv = false;
 	bool any_normal = false;
@@ -216,15 +224,6 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 				}
 			}
 			f->store_line(face_line);
-		}
-	}
-
-	// If we have materials, write the MTL file
-	if (!materials.is_empty()) {
-		String mtl_path = p_path.get_basename() + ".mtl";
-		err = _write_materials_to_mtl(materials, mtl_path);
-		if (err == OK) {
-			f->store_line("mtllib " + mtl_path.get_file());
 		}
 	}
 
