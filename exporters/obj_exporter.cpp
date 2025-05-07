@@ -179,6 +179,11 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 			f->store_line("mtllib " + mtl_path.get_file());
 		}
 	}
+	String mesh_name = p_mesh->get_name();
+	if (mesh_name.is_empty()) {
+		mesh_name = p_path.get_file().get_basename();
+	}
+	f->store_line("o " + mesh_name);
 
 	// Write v, vt, vn in triplet order
 	bool any_uv = false;
