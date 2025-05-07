@@ -8,8 +8,8 @@ class ObjExporter : public ResourceExporter {
 	GDCLASS(ObjExporter, ResourceExporter);
 
 private:
-	Error _write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path);
-	Error _write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path);
+	Error _write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path, const String &p_output_dir);
+	Error _write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir);
 
 protected:
 	static void _bind_methods();

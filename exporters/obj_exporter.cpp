@@ -6,6 +6,8 @@
 #include "scene/resources/mesh.h"
 #include "utility/common.h"
 #include "utility/import_info.h"
+#include <filesystem>
+
 struct VertexKey {
 	Vector3 vertex;
 	Vector2 uv;
@@ -87,7 +89,7 @@ struct TripletHasher {
 	}
 };
 
-Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path) {
+Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String &p_path, const String &p_output_dir) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot open file for writing: " + p_path);
@@ -182,7 +184,7 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 
 	if (!materials.is_empty()) {
 		String mtl_path = p_path.get_basename() + ".mtl";
-		err = _write_materials_to_mtl(materials, mtl_path);
+		err = _write_materials_to_mtl(materials, mtl_path, p_output_dir);
 		if (err == OK) {
 			f->store_line("mtllib " + mtl_path.get_file());
 		}
@@ -247,12 +249,52 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 	return OK;
 }
 
-Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path) {
+static String get_relative_path(const String &p_path, const String &p_base_path) {
+	std::filesystem::path path = p_path.utf8().get_data();
+	std::filesystem::path base_path = p_base_path.utf8().get_data();
+	std::filesystem::path relative_path = std::filesystem::relative(path, base_path);
+	return String::utf8(relative_path.string().c_str()).simplify_path();
+}
+
+Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot open MTL file for writing: " + p_path);
 
 	f->store_line("# Exported from Godot Engine");
+	auto base_dir = p_path.get_base_dir();
+	auto filebasename = p_path.get_file().get_basename();
+
+	auto check_and_save_texture = [&](Ref<Texture2D> tex, const String &suffix) {
+		if (tex.is_valid()) {
+			String path = tex->get_path();
+			bool save_texture = false;
+			// if no output_dir or no path, we need to save it to disk
+			if (p_output_dir.is_empty() || path.is_empty() || !path.begins_with("res://")) {
+				// we need to save it to disk
+				save_texture = true;
+			} else {
+				// if we have an output_dir, check if the path is relative to the output_dir
+				String local_dir = p_output_dir.path_join(path.trim_prefix("res://"));
+				String relative_path = get_relative_path(local_dir, base_dir);
+				if (relative_path.is_empty()) {
+					save_texture = true;
+				} else {
+					path = relative_path;
+				}
+			}
+			if (save_texture) {
+				String name = tex->get_name();
+				if (name.is_empty()) {
+					name = filebasename + "_" + suffix + ".png";
+				}
+				tex->get_image()->save_png(base_dir.path_join(name));
+				path = name;
+			}
+			return path;
+		}
+		return String();
+	};
 
 	for (const KeyValue<String, Ref<Material>> &E : p_materials) {
 		const String &name = E.key;
@@ -270,8 +312,8 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			float metallic = mat->get_metallic();
 			f->store_line(vformat("Ks %.6f %.6f %.6f", metallic, metallic, metallic));
 
-			float roughness = mat->get_roughness();
-			f->store_line(vformat("Ns %.6f", (1.0 - roughness) * 1000.0));
+			// float roughness = mat->get_roughness();
+			// f->store_line(vformat("Ns %.6f", (1.0 - roughness) * 1000.0));
 
 			float alpha = mat->get_albedo().a;
 			// if (alpha < 1.0) {
@@ -280,8 +322,24 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 
 			// Handle textures if present
 			Ref<Texture2D> tex = mat->get_texture(StandardMaterial3D::TEXTURE_ALBEDO);
-			if (tex.is_valid()) {
-				f->store_line("map_Kd " + tex->get_path().get_file());
+			String path = check_and_save_texture(tex, "albedo");
+			if (!path.is_empty()) {
+				f->store_line("map_Kd " + get_relative_path(path, base_dir));
+			}
+			Ref<Texture2D> met_tex = mat->get_texture(StandardMaterial3D::TEXTURE_METALLIC);
+			path = check_and_save_texture(met_tex, "metallic");
+			if (!path.is_empty()) {
+				f->store_line("map_Ks " + get_relative_path(path, base_dir));
+			}
+			Ref<Texture2D> rough_tex = mat->get_texture(StandardMaterial3D::TEXTURE_ROUGHNESS);
+			path = check_and_save_texture(rough_tex, "roughness");
+			if (!path.is_empty()) {
+				f->store_line("map_Ns " + get_relative_path(path, base_dir));
+			}
+			Ref<Texture2D> norm_tex = mat->get_texture(StandardMaterial3D::TEXTURE_NORMAL);
+			path = check_and_save_texture(norm_tex, "normal");
+			if (!path.is_empty()) {
+				f->store_line("map_bump " + get_relative_path(path, base_dir));
 			}
 		}
 	}
@@ -294,7 +352,7 @@ Error ObjExporter::export_file(const String &p_out_path, const String &p_source_
 	Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(p_source_path, "ArrayMesh", ResourceInfo::LoadType::REAL_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 	ERR_FAIL_COND_V_MSG(mesh.is_null(), ERR_FILE_UNRECOGNIZED, "Not a valid mesh resource: " + p_source_path);
 
-	return _write_mesh_to_obj(mesh, p_out_path);
+	return _write_mesh_to_obj(mesh, p_out_path, "");
 }
 
 void ObjExporter::get_handled_types(List<String> *r_types) const {
@@ -334,7 +392,7 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 	}
 
 	// Export the mesh
-	err = _write_mesh_to_obj(mesh, dst_path);
+	err = _write_mesh_to_obj(mesh, dst_path, p_output_dir);
 	// If we generated an MTL file, add it to the report
 	String mtl_path = dst_path.get_basename() + ".mtl";
 	if (FileAccess::exists(mtl_path)) {
