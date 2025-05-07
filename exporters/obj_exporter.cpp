@@ -107,6 +107,7 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 	Vector<String> surface_material_names;
 
 	// Build global triplet list and face indices
+	const Color default_color = Color(1.0, 1.0, 1.0);
 	for (int surf_idx = 0; surf_idx < p_mesh->get_surface_count(); surf_idx++) {
 		Array arrays = p_mesh->surface_get_arrays(surf_idx);
 		Vector<Vector3> surface_vertices = arrays[Mesh::ARRAY_VERTEX];
@@ -168,7 +169,7 @@ Error ObjExporter::_write_mesh_to_obj(const Ref<ArrayMesh> &p_mesh, const String
 					t.vn = surface_normals[vi];
 					t.has_normal = true;
 				}
-				if (has_vertex_colors) {
+				if (has_vertex_colors && surface_colors[vi] != default_color) {
 					t.vc = surface_colors[vi];
 					t.has_color = true;
 				}
@@ -288,6 +289,7 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 				if (name.is_empty()) {
 					name = filebasename + "_" + suffix + ".png";
 				}
+				gdre::ensure_dir(base_dir);
 				tex->get_image()->save_png(base_dir.path_join(name));
 				path = name;
 			}
@@ -304,9 +306,9 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			f->store_line("\nnewmtl " + name);
 
 			Color albedo = mat->get_albedo();
-			if (mat->get_flag(StandardMaterial3D::FLAG_SRGB_VERTEX_COLOR)) {
-				albedo = albedo.linear_to_srgb();
-			}
+			// if (mat->get_flag(StandardMaterial3D::FLAG_SRGB_VERTEX_COLOR)) {
+			// 	albedo = albedo.linear_to_srgb();
+			// }
 			f->store_line(vformat("Kd %.6f %.6f %.6f", albedo.r, albedo.g, albedo.b));
 
 			float metallic = mat->get_metallic();
@@ -316,9 +318,15 @@ Error ObjExporter::_write_materials_to_mtl(const HashMap<String, Ref<Material>> 
 			// f->store_line(vformat("Ns %.6f", (1.0 - roughness) * 1000.0));
 
 			float alpha = mat->get_albedo().a;
-			// if (alpha < 1.0) {
-			f->store_line(vformat("d %.6f", alpha));
-			// }
+			if (alpha < 1.0) {
+				f->store_line(vformat("d %.6f", alpha));
+			}
+
+			//sharpness
+			float sharpness = 1.0 - mat->get_roughness();
+			if (sharpness != 0.0) {
+				f->store_line(vformat("sharpness %d", (int)(sharpness * 1000)));
+			}
 
 			// Handle textures if present
 			Ref<Texture2D> tex = mat->get_texture(StandardMaterial3D::TEXTURE_ALBEDO);
