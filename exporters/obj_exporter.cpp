@@ -90,7 +90,7 @@ struct TripletHasher {
 	}
 };
 
-Error ObjExporter::write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir) {
+Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot open file for writing: " + p_path);
@@ -115,6 +115,7 @@ Error ObjExporter::write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, c
 		Vector<String> surface_material_names;
 		Vector<Vector<int>> surface_face_triplet_indices;
 		Vector<String> groups;
+		r_mesh_info.has_shadow_meshes = r_mesh_info.has_shadow_meshes || p_mesh->get_shadow_mesh().is_valid();
 
 		for (int surf_idx = 0; surf_idx < p_mesh->get_surface_count(); surf_idx++) {
 			Array arrays = p_mesh->surface_get_arrays(surf_idx);
@@ -123,6 +124,14 @@ Error ObjExporter::write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, c
 			Vector<Vector3> surface_normals = arrays[Mesh::ARRAY_NORMAL];
 			Vector<Color> surface_colors = arrays[Mesh::ARRAY_COLOR];
 			Vector<int> indices = arrays[Mesh::ARRAY_INDEX];
+			auto format = p_mesh->surface_get_format(surf_idx);
+			r_mesh_info.has_tangents = r_mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
+			r_mesh_info.has_lods = r_mesh_info.has_lods || !p_mesh->surface_get_lods(surf_idx).is_empty();
+			r_mesh_info.has_lightmap_uv2 = r_mesh_info.has_lightmap_uv2 || ((format & Mesh::ARRAY_FORMAT_TEX_UV2) != 0);
+			r_mesh_info.disable_compression = r_mesh_info.disable_compression || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) == 0);
+
+			// TODO: This?
+			// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
 
 			bool has_uv = !surface_uvs.is_empty();
 			bool has_normal = !surface_normals.is_empty();
@@ -367,12 +376,17 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 	return OK;
 }
 
+Error ObjExporter::write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path) {
+	MeshInfo mesh_info;
+	return _write_meshes_to_obj(p_meshes, p_path, "", mesh_info);
+}
+
 Error ObjExporter::export_file(const String &p_out_path, const String &p_source_path) {
 	Error err;
 	Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(p_source_path, "ArrayMesh", ResourceInfo::LoadType::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	ERR_FAIL_COND_V_MSG(mesh.is_null(), ERR_FILE_UNRECOGNIZED, "Not a valid mesh resource: " + p_source_path);
 
-	return write_meshes_to_obj({ mesh }, p_out_path, "");
+	return write_meshes_to_obj({ mesh }, p_out_path);
 }
 
 void ObjExporter::get_handled_types(List<String> *r_types) const {
@@ -388,6 +402,8 @@ void ObjExporter::_bind_methods() {
 }
 
 Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<ImportInfo> p_import_info) {
+	// TODO: This may fail on Godot 2.x objs due to "blend_shapes" property being named "morph_targets" in 2.x,
+	// but I can't find any to test...
 	String src_path = p_import_info->get_path();
 	String dst_path = p_output_dir.path_join(p_import_info->get_export_dest().replace("res://", ""));
 
@@ -418,7 +434,8 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 	}
 
 	// Export the mesh
-	err = write_meshes_to_obj(meshes, dst_path, p_output_dir);
+	MeshInfo mesh_info;
+	err = _write_meshes_to_obj(meshes, dst_path, p_output_dir, mesh_info);
 	// If we generated an MTL file, add it to the report
 	String mtl_path = dst_path.get_basename() + ".mtl";
 	if (FileAccess::exists(mtl_path)) {
@@ -431,6 +448,26 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 		report->set_error(err);
 		report->set_message("Failed to export mesh: " + src_path);
 		return report;
+	}
+	auto ver_major = p_import_info->get_ver_major();
+	auto ver_minor = p_import_info->get_ver_minor();
+
+	if (ver_major == 4) {
+		p_import_info->set_param("generate_tangents", mesh_info.has_tangents);
+		if (ver_minor >= 4) {
+			p_import_info->set_param("generate_lods", mesh_info.has_lods);
+			p_import_info->set_param("generate_shadow_mesh", mesh_info.has_shadow_meshes);
+			p_import_info->set_param("generate_lightmap_uv2", mesh_info.has_lightmap_uv2);
+			p_import_info->set_param("generate_lightmap_uv2_texel_size", mesh_info.lightmap_uv2_texel_size);
+		}
+		p_import_info->set_param("scale_mesh", mesh_info.scale_mesh);
+		p_import_info->set_param("offset_mesh", mesh_info.offset_mesh);
+		if (ver_minor >= 2) {
+			p_import_info->set_param("force_disable_mesh_compression", mesh_info.disable_compression);
+		}
+		if (ver_minor < 4) {
+			p_import_info->set_param("optimize_meshes", true);
+		}
 	}
 
 	// Set success information

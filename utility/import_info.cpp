@@ -395,6 +395,10 @@ Variant ImportInfoModern::get_param(const String &p_key) const {
 }
 
 void ImportInfoModern::set_param(const String &p_key, const Variant &p_val) {
+	// erase the dummy value if it exists, it's no longer needed
+	if (cf->has_section("params") && cf->has_section_key("params", "dummy_value_ignore_me")) {
+		cf->erase_section_key("params", "dummy_value_ignore_me");
+	}
 	cf->set_value("params", p_key, p_val);
 	dirty = true;
 }
