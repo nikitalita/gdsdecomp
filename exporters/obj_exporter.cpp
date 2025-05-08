@@ -5,51 +5,8 @@
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 #include "utility/common.h"
-#include "utility/gdre_settings.h"
 #include "utility/import_info.h"
 #include <filesystem>
-
-struct VertexKey {
-	Vector3 vertex;
-	Vector2 uv;
-	Vector3 normal;
-	bool has_uv = false;
-	bool has_normal = false;
-
-	bool operator==(const VertexKey &other) const {
-		return vertex == other.vertex && (!has_uv || uv == other.uv) && (!has_normal || normal == other.normal);
-	}
-
-	bool operator<(const VertexKey &other) const {
-		if (vertex != other.vertex) {
-			return vertex < other.vertex;
-		}
-		if (has_uv != other.has_uv) {
-			return has_uv < other.has_uv;
-		}
-		if (has_uv && uv != other.uv) {
-			return uv < other.uv;
-		}
-		if (has_normal != other.has_normal) {
-			return has_normal < other.has_normal;
-		}
-		if (has_normal && normal != other.normal) {
-			return normal < other.normal;
-		}
-		return false;
-	}
-};
-
-struct VertexKeyHasher {
-	static uint32_t hash(const VertexKey &vk) {
-		return HashMapHasherDefault::hash(vk.vertex) ^ HashMapHasherDefault::hash(vk.uv) ^ HashMapHasherDefault::hash(vk.normal);
-	}
-};
-struct FaceVertex {
-	int v_idx = -1;
-	int vt_idx = -1;
-	int vn_idx = -1;
-};
 
 struct Triplet {
 	Vector3 v;
@@ -128,7 +85,7 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, 
 			r_mesh_info.has_tangents = r_mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
 			r_mesh_info.has_lods = r_mesh_info.has_lods || !p_mesh->surface_get_lods(surf_idx).is_empty();
 			r_mesh_info.has_lightmap_uv2 = r_mesh_info.has_lightmap_uv2 || ((format & Mesh::ARRAY_FORMAT_TEX_UV2) != 0);
-			r_mesh_info.disable_compression = r_mesh_info.disable_compression || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) == 0);
+			r_mesh_info.compression_enabled = r_mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
 
 			// TODO: This?
 			// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
@@ -391,10 +348,12 @@ Error ObjExporter::export_file(const String &p_out_path, const String &p_source_
 
 void ObjExporter::get_handled_types(List<String> *r_types) const {
 	r_types->push_back("ArrayMesh");
+	r_types->push_back("Mesh");
 }
 
 void ObjExporter::get_handled_importers(List<String> *r_importers) const {
 	r_importers->push_back("wavefront_obj");
+	r_importers->push_back("mesh");
 }
 
 void ObjExporter::_bind_methods() {
@@ -443,6 +402,7 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 		extra_info["mtl_path"] = mtl_path;
 		report->set_extra_info(extra_info);
 	}
+	meshes.clear();
 
 	if (err != OK) {
 		report->set_error(err);
@@ -463,10 +423,11 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 		p_import_info->set_param("scale_mesh", mesh_info.scale_mesh);
 		p_import_info->set_param("offset_mesh", mesh_info.offset_mesh);
 		if (ver_minor >= 2) {
-			p_import_info->set_param("force_disable_mesh_compression", mesh_info.disable_compression);
+			p_import_info->set_param("force_disable_mesh_compression", !mesh_info.compression_enabled);
 		}
 		if (ver_minor < 4) {
-			p_import_info->set_param("optimize_meshes", true);
+			// Does literally nothing (which is why it was removed), but it's true by default
+			p_import_info->set_param("optimize_mesh", true);
 		}
 	}
 
@@ -479,5 +440,6 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 
 bool ObjExporter::supports_multithread() const {
 	// TODO: For some reason the dummy render server is deadlocking when calling mesh->surface_get_arrays from multiple threads simultaneously.
-	return GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_headless();
+	// Also getting crashes on forward_plus.
+	return false;
 }

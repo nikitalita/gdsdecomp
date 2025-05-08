@@ -16,17 +16,17 @@ private:
 		float lightmap_uv2_texel_size = 0.2;
 		Vector3 scale_mesh = Vector3(1, 1, 1);
 		Vector3 offset_mesh = Vector3(0, 0, 0);
-		bool disable_compression = false;
+		bool compression_enabled = false;
 	};
-	Error _write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info);
+	static Error _write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info);
 
-	Error write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir);
+	static Error write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir);
 
 protected:
 	static void _bind_methods();
 
 public:
-	Error write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path);
+	static Error write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path);
 	virtual Error export_file(const String &p_out_path, const String &p_source_path) override;
 	virtual void get_handled_types(List<String> *r_types) const override;
 	virtual void get_handled_importers(List<String> *r_importers) const override;
