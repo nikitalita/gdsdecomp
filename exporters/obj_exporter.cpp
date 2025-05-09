@@ -360,6 +360,39 @@ void ObjExporter::_bind_methods() {
 	// No methods to bind in this implementation
 }
 
+void ObjExporter::rewrite_import_params(Ref<ImportInfo> p_import_info, const MeshInfo &p_mesh_info) {
+	auto ver_major = p_import_info->get_ver_major();
+	auto ver_minor = p_import_info->get_ver_minor();
+	if (ver_major == 4) {
+		// 4.x removes the import params, so we need to rewrite all of them
+		p_import_info->set_param("generate_tangents", p_mesh_info.has_tangents);
+		if (ver_minor >= 4) {
+			p_import_info->set_param("generate_lods", p_mesh_info.has_lods);
+			p_import_info->set_param("generate_shadow_mesh", p_mesh_info.has_shadow_meshes);
+			p_import_info->set_param("generate_lightmap_uv2", p_mesh_info.has_lightmap_uv2);
+			p_import_info->set_param("generate_lightmap_uv2_texel_size", p_mesh_info.lightmap_uv2_texel_size);
+		}
+		p_import_info->set_param("scale_mesh", p_mesh_info.scale_mesh);
+		p_import_info->set_param("offset_mesh", p_mesh_info.offset_mesh);
+		if (ver_minor >= 2) {
+			p_import_info->set_param("force_disable_mesh_compression", !p_mesh_info.compression_enabled);
+		}
+		if (ver_minor < 4) {
+			// Does literally nothing (which is why it was removed), but it's true by default
+			p_import_info->set_param("optimize_mesh", true);
+		}
+	} else if (ver_major == 3) {
+		// reset the params for scale_mesh and offset_mesh to the defaults to prevent this from getting scaled and offset again upon re-import
+		if (ver_minor >= 1) {
+			p_import_info->set_param("scale_mesh", p_mesh_info.scale_mesh);
+		}
+		if (ver_minor >= 2) {
+			p_import_info->set_param("offset_mesh", p_mesh_info.offset_mesh);
+		}
+	}
+	// 2.x doesn't require this
+}
+
 Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<ImportInfo> p_import_info) {
 	// TODO: This may fail on Godot 2.x objs due to "blend_shapes" property being named "morph_targets" in 2.x,
 	// but I can't find any to test...
@@ -409,27 +442,8 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 		report->set_message("Failed to export mesh: " + src_path);
 		return report;
 	}
-	auto ver_major = p_import_info->get_ver_major();
-	auto ver_minor = p_import_info->get_ver_minor();
 
-	if (ver_major == 4) {
-		p_import_info->set_param("generate_tangents", mesh_info.has_tangents);
-		if (ver_minor >= 4) {
-			p_import_info->set_param("generate_lods", mesh_info.has_lods);
-			p_import_info->set_param("generate_shadow_mesh", mesh_info.has_shadow_meshes);
-			p_import_info->set_param("generate_lightmap_uv2", mesh_info.has_lightmap_uv2);
-			p_import_info->set_param("generate_lightmap_uv2_texel_size", mesh_info.lightmap_uv2_texel_size);
-		}
-		p_import_info->set_param("scale_mesh", mesh_info.scale_mesh);
-		p_import_info->set_param("offset_mesh", mesh_info.offset_mesh);
-		if (ver_minor >= 2) {
-			p_import_info->set_param("force_disable_mesh_compression", !mesh_info.compression_enabled);
-		}
-		if (ver_minor < 4) {
-			// Does literally nothing (which is why it was removed), but it's true by default
-			p_import_info->set_param("optimize_mesh", true);
-		}
-	}
+	rewrite_import_params(p_import_info, mesh_info);
 
 	// Set success information
 	report->set_saved_path(dst_path);

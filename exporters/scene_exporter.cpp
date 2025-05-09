@@ -4,6 +4,7 @@
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
 #include "exporters/export_report.h"
+#include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
 #include "modules/gltf/gltf_document.h"
 #include "utility/common.h"
@@ -86,7 +87,8 @@ Error load_model(const String &p_filename, tinygltf::Model &model, String &r_err
 	std::string filename = p_filename.utf8().get_data();
 	std::string error;
 	std::string warning;
-	bool state = loader.LoadBinaryFromFile(&model, &error, &warning, filename);
+	bool is_binary = p_filename.get_extension().to_lower() == "glb";
+	bool state = is_binary ? loader.LoadBinaryFromFile(&model, &error, &warning, filename) : loader.LoadASCIIFromFile(&model, &error, &warning, filename);
 	ERR_FAIL_COND_V_MSG(!state, ERR_FILE_CANT_READ, vformat("Failed to load GLTF file: %s", error.c_str()));
 	if (error.size() > 0) { // validation errors, ignore for right now
 		r_error.append_utf8(error.c_str());
@@ -97,15 +99,114 @@ Error load_model(const String &p_filename, tinygltf::Model &model, String &r_err
 Error save_model(const String &p_filename, const tinygltf::Model &model) {
 	tinygltf::TinyGLTF loader;
 	std::string filename = p_filename.utf8().get_data();
-	bool state = loader.WriteGltfSceneToFile(&model, filename, true, true, false, true);
+	gdre::ensure_dir(p_filename.get_base_dir());
+	bool is_binary = p_filename.get_extension().to_lower() == "glb";
+	bool state = loader.WriteGltfSceneToFile(&model, filename, true, true, !is_binary, is_binary);
 	ERR_FAIL_COND_V_MSG(!state, ERR_FILE_CANT_WRITE, vformat("Failed to save GLTF file!"));
 	return OK;
+}
+
+inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<Resource>> &p_resources) {
+	for (const auto &E : p_resources) {
+		merged.insert(E);
+	}
+}
+
+HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, int ver_major) {
+	HashSet<Ref<Resource>> resources;
+	switch (p_variant.get_type()) {
+		case Variant::OBJECT: {
+			Ref<Resource> res = p_variant;
+
+			if (res.is_null() || !CompatFormatLoader::resource_is_resource(res, ver_major) || resources.has(res)) {
+				return resources;
+			}
+
+			if (!p_main) {
+				resources.insert(res);
+			}
+
+			List<PropertyInfo> property_list;
+
+			res->get_property_list(&property_list);
+			property_list.sort();
+
+			List<PropertyInfo>::Element *I = property_list.front();
+
+			while (I) {
+				PropertyInfo pi = I->get();
+
+				if (pi.usage & PROPERTY_USAGE_STORAGE) {
+					Variant v = res->get(I->get().name);
+
+					if (pi.usage & PROPERTY_USAGE_RESOURCE_NOT_PERSISTENT) {
+						Ref<Resource> sres = v;
+						if (sres.is_valid() && !resources.has(sres)) {
+							resources.insert(sres);
+							_merge_resources(resources, _find_resources(sres, false, ver_major));
+						}
+					} else {
+						_merge_resources(resources, _find_resources(v, false, ver_major));
+					}
+				}
+
+				I = I->next();
+			}
+
+			// COMPAT: get the missing resources too
+			Dictionary missing_resources = res->get_meta(META_MISSING_RESOURCES, Dictionary());
+			if (missing_resources.size()) {
+				LocalVector<Variant> keys = missing_resources.get_key_list();
+				for (const Variant &E : keys) {
+					_merge_resources(resources, _find_resources(missing_resources[E], false, ver_major));
+				}
+			}
+
+			resources.insert(res); // Saved after, so the children it needs are available when loaded
+		} break;
+		case Variant::ARRAY: {
+			Array varray = p_variant;
+			_merge_resources(resources, _find_resources(varray.get_typed_script(), false, ver_major));
+			for (const Variant &var : varray) {
+				_merge_resources(resources, _find_resources(var, false, ver_major));
+			}
+
+		} break;
+		case Variant::DICTIONARY: {
+			Dictionary d = p_variant;
+			_merge_resources(resources, _find_resources(d.get_typed_key_script(), false, ver_major));
+			_merge_resources(resources, _find_resources(d.get_typed_value_script(), false, ver_major));
+			LocalVector<Variant> keys = d.get_key_list();
+			for (const Variant &E : keys) {
+				// Of course keys should also be cached, after all we can't prevent users from using resources as keys, right?
+				// See also ResourceFormatSaverBinaryInstance::_find_resources (when p_variant is of type Variant::DICTIONARY)
+				_merge_resources(resources, _find_resources(E, false, ver_major));
+				Variant v = d[E];
+				_merge_resources(resources, _find_resources(v, false, ver_major));
+			}
+		} break;
+		default: {
+		}
+	}
+	return resources;
 }
 
 Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	if (dest_ext == "escn" || dest_ext == "tscn") {
 		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
+	} else if (dest_ext == "obj") {
+		ObjExporter::MeshInfo mesh_info;
+		Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
+		int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
+		Error err = export_file_to_obj(p_dest_path, p_src_path, ver_major, mesh_info);
+		if (err != OK) {
+			return err;
+		}
+		if (iinfo.is_valid()) {
+			ObjExporter::rewrite_import_params(iinfo, mesh_info);
+		}
+		return OK;
 	} else if (dest_ext != "glb") {
 		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, and .glb formats are supported for export.");
 	}
@@ -312,6 +413,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				Ref<GLTFState> state;
 				state.instantiate();
 				int32_t flags = 0;
+				auto exts = doc->get_supported_gltf_extensions();
 				flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 				root = scene->instantiate();
 				p_err = doc->append_from_scene(root, state, flags);
@@ -319,6 +421,10 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					memdelete(root);
 					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 				}
+#if DEBUG_ENABLED
+				gdre::ensure_dir(p_dest_path.get_base_dir() + "/GLTF_orig/");
+				doc->write_to_filesystem(state, p_dest_path.get_base_dir() + "/GLTF_orig/" + p_dest_path.get_file().get_basename() + ".gltf");
+#endif
 				p_err = doc->write_to_filesystem(state, p_dest_path);
 
 				// Need to get the names and paths for the external resources that are used in the scene
@@ -452,6 +558,10 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 
 			// save the model
+#if DEBUG_ENABLED
+			// save a GLTF copy for comparison
+			save_model(p_dest_path.get_base_dir() + "/GLTF/" + p_dest_path.get_file().get_basename() + ".gltf", model);
+#endif
 			return save_model(p_dest_path, model);
 		};
 		err = _export_scene();
@@ -577,6 +687,37 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 	return _export_file(p_dest_path, p_src_path, nullptr);
 }
 
+Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info) {
+	Error err;
+	Ref<PackedScene> scene;
+	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
+	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
+		scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+	} else {
+		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
+	Vector<Ref<ArrayMesh>> meshes;
+	Vector<Ref<ArrayMesh>> meshes_to_remove;
+
+	auto resources = _find_resources(scene, true, ver_major);
+	for (auto &E : resources) {
+		Ref<ArrayMesh> mesh = E;
+		if (mesh.is_valid()) {
+			meshes.push_back(mesh);
+			auto shadow_mesh = mesh->get_shadow_mesh();
+			if (shadow_mesh.is_valid()) {
+				meshes_to_remove.push_back(shadow_mesh);
+			}
+		}
+	}
+	for (auto &mesh : meshes_to_remove) {
+		meshes.erase(mesh);
+	}
+
+	return ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
+}
+
 Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
 
@@ -586,9 +727,10 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	String new_path = orignal_export_dest;
 	String ext = new_path.get_extension().to_lower();
 	bool to_text = ext == "escn" || ext == "tscn";
+	bool to_obj = ext == "obj";
 	// GLTF export can result in inaccurate models
 	// save it under .assets, which won't be picked up for import by the godot editor
-	if (!to_text) {
+	if (!to_text && !to_obj) {
 		new_path = new_path.replace("res://", "res://.assets/");
 		// we only export glbs
 		if (ext != "glb") {
@@ -607,7 +749,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	}
 	if (err == ERR_PRINTER_ON_FIRE) {
 		report->set_saved_path(dest_path);
-	} else if (err == OK && !to_text) {
+	} else if (err == OK && !to_text && !to_obj) {
 		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
 		// TODO: do real GLTF validation
 		// TODO: fix errors where some models aren't being textured?

@@ -8,6 +8,12 @@ class ObjExporter : public ResourceExporter {
 	GDCLASS(ObjExporter, ResourceExporter);
 
 private:
+	static Error write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir);
+
+protected:
+	static void _bind_methods();
+
+public:
 	struct MeshInfo {
 		bool has_tangents = false;
 		bool has_lods = false;
@@ -19,14 +25,8 @@ private:
 		bool compression_enabled = false;
 	};
 	static Error _write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info);
-
-	static Error write_materials_to_mtl(const HashMap<String, Ref<Material>> &p_materials, const String &p_path, const String &p_output_dir);
-
-protected:
-	static void _bind_methods();
-
-public:
 	static Error write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path);
+	static void rewrite_import_params(Ref<ImportInfo> p_import_info, const MeshInfo &p_mesh_info);
 	virtual Error export_file(const String &p_out_path, const String &p_source_path) override;
 	virtual void get_handled_types(List<String> *r_types) const override;
 	virtual void get_handled_importers(List<String> *r_importers) const override;
