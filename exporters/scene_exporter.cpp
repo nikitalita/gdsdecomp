@@ -84,6 +84,7 @@ bool SceneExporter::using_threaded_load() const {
 
 Error load_model(const String &p_filename, tinygltf::Model &model, String &r_error) {
 	tinygltf::TinyGLTF loader;
+	loader.SetImagesAsIs(true);
 	std::string filename = p_filename.utf8().get_data();
 	std::string error;
 	std::string warning;
@@ -98,10 +99,11 @@ Error load_model(const String &p_filename, tinygltf::Model &model, String &r_err
 
 Error save_model(const String &p_filename, const tinygltf::Model &model) {
 	tinygltf::TinyGLTF loader;
+	loader.SetImagesAsIs(true);
 	std::string filename = p_filename.utf8().get_data();
 	gdre::ensure_dir(p_filename.get_base_dir());
 	bool is_binary = p_filename.get_extension().to_lower() == "glb";
-	bool state = loader.WriteGltfSceneToFile(&model, filename, true, true, !is_binary, is_binary);
+	bool state = loader.WriteGltfSceneToFile(&model, filename, is_binary, is_binary, !is_binary, is_binary);
 	ERR_FAIL_COND_V_MSG(!state, ERR_FILE_CANT_WRITE, vformat("Failed to save GLTF file!"));
 	return OK;
 }
@@ -193,12 +195,12 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 
 Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
+	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
+	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 	if (dest_ext == "escn" || dest_ext == "tscn") {
 		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
 	} else if (dest_ext == "obj") {
 		ObjExporter::MeshInfo mesh_info;
-		Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
-		int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 		Error err = export_file_to_obj(p_dest_path, p_src_path, ver_major, mesh_info);
 		if (err != OK) {
 			return err;
@@ -207,8 +209,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			ObjExporter::rewrite_import_params(iinfo, mesh_info);
 		}
 		return OK;
-	} else if (dest_ext != "glb") {
-		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, and .glb formats are supported for export.");
+	} else if (dest_ext != "glb" && dest_ext != "gltf") {
+		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, .obj, .glb, and .gltf formats are supported for export.");
 	}
 	Vector<uint64_t> texture_uids;
 	Error err = OK;
@@ -379,6 +381,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		Vector<String> id_to_texture_path;
 		Vector<Pair<String, String>> id_to_material_path;
 		Vector<Pair<String, String>> id_to_meshes_path;
+		Vector<Pair<String, String>> id_to_animations_path;
+		HashMap<String, String> animation_map;
 
 		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
 		auto _export_scene = [&]() {
@@ -393,6 +397,32 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
 			p_err = gdre::ensure_dir(p_dest_path.get_base_dir());
+			auto deps = _find_resources(scene, true, ver_major);
+			Vector<Ref<AnimationLibrary>> animation_libraries;
+			if (has_external_animation) {
+				for (auto &E : deps) {
+					Ref<AnimationLibrary> anim_lib = E;
+					if (anim_lib.is_valid()) {
+						animation_libraries.push_back(anim_lib);
+						List<StringName> anim_names;
+						anim_lib->get_animation_list(&anim_names);
+						for (auto &anim_name : anim_names) {
+							Ref<Animation> anim = anim_lib->get_animation(anim_name);
+							auto path = anim->get_path();
+							if (path.is_empty()) {
+								Dictionary compat = anim->get_meta("compat", Dictionary());
+								if (compat.size() > 0) {
+									path = compat["original_path"];
+								}
+							}
+							if (path.is_empty() || path.get_file().contains("::")) {
+								continue;
+							}
+							animation_map[anim_name] = path;
+						}
+					}
+				}
+			}
 			Node *root;
 			auto pop_res_path_vec = [](Array arr, Vector<String> &paths) {
 				paths.clear();
@@ -422,8 +452,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 				}
 #if DEBUG_ENABLED
-				gdre::ensure_dir(p_dest_path.get_base_dir() + "/GLTF_orig/");
-				doc->write_to_filesystem(state, p_dest_path.get_base_dir() + "/GLTF_orig/" + p_dest_path.get_file().get_basename() + ".gltf");
+				// gdre::ensure_dir(p_dest_path.get_base_dir() + "/GLTF_orig/");
+				// doc->write_to_filesystem(state, p_dest_path.get_base_dir() + "/GLTF_orig/" + p_dest_path.get_file().get_basename() + ".gltf");
 #endif
 				p_err = doc->write_to_filesystem(state, p_dest_path);
 
@@ -433,6 +463,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				pop_res_path_vec(state->get_images(), id_to_texture_path);
 				auto meshes = state->get_meshes();
 				auto materials = state->get_materials();
+				auto animations = state->get_animations();
 				for (int i = 0; i < materials.size(); i++) {
 					Ref<Material> mat = materials[i];
 					if (mat.is_null()) {
@@ -553,14 +584,15 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				if (img_name.is_empty() || id_to_meshes_path[i].second.is_empty()) {
 					continue;
 				}
+				String new_name = img_name.trim_prefix(scene_name + "_");
 				auto &gltf_image = model.meshes[i];
-				gltf_image.name = img_name.utf8().get_data();
+				gltf_image.name = new_name.utf8().get_data();
 			}
 
 			// save the model
 #if DEBUG_ENABLED
 			// save a GLTF copy for comparison
-			save_model(p_dest_path.get_base_dir() + "/GLTF/" + p_dest_path.get_file().get_basename() + ".gltf", model);
+			// save_model(p_dest_path.get_base_dir() + "/GLTF/" + p_dest_path.get_file().get_basename() + ".gltf", model);
 #endif
 			return save_model(p_dest_path, model);
 		};
@@ -583,26 +615,16 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					_subresources_dict["animations"] = Dictionary();
 				}
 				Dictionary animations_dict = _subresources_dict["animations"];
-				for (auto &E : get_deps_map) {
-					dep_info &info = E.value;
-					if (info.type.contains("Animation")) {
-						Error res_load_err;
-						auto res = ResourceCompatLoader::fake_load(info.remap, "", &res_load_err);
-						if (res.is_null() || res_load_err) {
-							set_all_externals = false;
-							ERR_CONTINUE(true);
-						}
-						auto name = res->get_name();
-						animations_dict[name] = Dictionary();
-						// "save_to_file/enabled": true,
-						// "save_to_file/keep_custom_tracks": true,
-						// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
-						Dictionary subres = animations_dict[name];
-						subres["save_to_file/enabled"] = true;
-						subres["save_to_file/keep_custom_tracks"] = true;
-						subres["save_to_file/path"] = info.dep;
-						external_deps_updated.insert(info.dep);
-					}
+				for (auto &E : animation_map) {
+					// "save_to_file/enabled": true,
+					// "save_to_file/keep_custom_tracks": true,
+					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
+					animations_dict[E.key] = Dictionary();
+					Dictionary subres = animations_dict[E.key];
+					subres["save_to_file/enabled"] = true;
+					subres["save_to_file/keep_custom_tracks"] = true;
+					subres["save_to_file/path"] = E.value;
+					external_deps_updated.insert(E.value);
 				}
 			}
 			if (has_external_meshes) {
@@ -733,7 +755,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	if (!to_text && !to_obj) {
 		new_path = new_path.replace("res://", "res://.assets/");
 		// we only export glbs
-		if (ext != "glb") {
+		if (ext != "glb" && ext != "gltf") {
 			new_path = new_path.get_basename() + ".glb";
 		}
 	}
@@ -764,11 +786,12 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	}
 
 #if DEBUG_ENABLED
-	if (err && err != ERR_UNAVAILABLE) {
-		// save it as a text scene so we can see what went wrong
-		auto new_dest = dest_path.get_basename() + ".tscn";
-		ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
-	}
+	// if (err && err != ERR_UNAVAILABLE) {
+	// save it as a text scene so we can see what went wrong
+	auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
+	auto new_dest = output_dir.path_join(new_new_path);
+	ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
+	// }
 #endif
 	report->set_error(err);
 	return report; // We always save to an unoriginal path
