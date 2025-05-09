@@ -15,6 +15,7 @@ Error ensure_dir(const String &dst_dir);
 Error save_image_as_tga(const String &p_path, const Ref<Image> &p_img);
 Error save_image_as_webp(const String &p_path, const Ref<Image> &p_img, bool lossy = false);
 Error save_image_as_jpeg(const String &p_path, const Ref<Image> &p_img);
+Error save_image_as_svg(const String &p_path, const Ref<Image> &p_img);
 void get_strings_from_variant(const Variant &p_var, Vector<String> &r_strings, const String &engine_version = "");
 Error decompress_image(const Ref<Image> &img);
 String get_md5(const String &dir, bool ignore_code_signature = false);
