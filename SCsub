@@ -1,12 +1,22 @@
 #!/usr/bin/env python
 
 import re
+from typing import Any, Literal
 import gdre_icon_builder
 import shutil
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, check_output
+import os
+import glob
 
 Import("env")
 Import("env_modules")
+
+
+MODULE_DIR: str = os.path.realpath(".")
+EXTERNAL_STEM: str = "external_install"
+EXTERNAL_DIR: str = os.path.join(MODULE_DIR, EXTERNAL_STEM)
+EXTERNAL_INCLUDE_DIR: str = os.path.join(EXTERNAL_DIR, "include")
+EXTERNAL_LIB_DIR: str = os.path.join(EXTERNAL_DIR, "lib")
 
 
 etcpak_dir = "#thirdparty/etcpak/"
@@ -34,9 +44,11 @@ env_gdsdecomp = env_modules.Clone()
 # and the headers that our tests pull in are relative to the current directory.
 # TODO: Figure out a way to not have to do this
 if env["tests"]:
+    env.Append(CPPPATH=["#modules/gdsdecomp" + EXTERNAL_STEM + "/include"])
     env.Append(CPPPATH=["#modules/gdsdecomp/"])
     env.Append(CPPPATH=[liboggthirdparty_dir])
     env.Append(CPPPATH=[libvorbisthirdparty_dir])
+env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp" + EXTERNAL_STEM + "/include"])
 env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp/"])
 env_gdsdecomp.Append(CPPPATH=["#thirdparty/thorsvg/"])
 
@@ -155,15 +167,181 @@ if env["builtin_libwebp"]:
     env_gdsdecomp.Prepend(CPPPATH=[webpthirdparty_dir, webpthirdparty_dir + "src/"])
 
 
-env_gdsdecomp.add_source_files(env.modules_sources, "*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "bytecode/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "compat/*.cpp")
-if env["target"] == "editor":
-    env_gdsdecomp.add_source_files(env.modules_sources, "editor/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "exporters/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "utility/*.cpp")
+env.Append(LIBPATH=[EXTERNAL_LIB_DIR])
 
-env_gdsdecomp.add_source_files(env.modules_sources, "external/tga/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "external/etcpak-decompress/*.cpp")
-env_gdsdecomp.add_source_files(env.modules_sources, "external/tinygltf/tiny_gltf.cc")
-env_gdsdecomp.add_source_files(env.modules_sources, "module_etc_decompress/*.cpp")
+
+def get_sources(rel_path, filters=["*.h", "*.hpp", "*.cpp"]):
+    abs_path = os.path.join(MODULE_DIR, rel_path)
+    # check if abs_path exists
+    if not os.path.exists(abs_path):
+        raise Exception(
+            f"Path {abs_path} does not exist, please run `git submodule update --init --recursive` in the patchwork_editor directory"
+        )
+    sources = []
+    for suffix in filters:
+        globstr = os.path.join(abs_path, "**", suffix)
+        sources += glob.glob(globstr, recursive=True)
+    return [os.path.relpath(source, MODULE_DIR) for source in sources]
+
+
+def cmake_builder(external_dir, source_dir, build_dir, libs, config_options=None):
+    output = bytes()
+    # get dev_build from env
+    dev_build = env["dev_build"] if "dev_build" in env else False
+    build_variant = "Debug" if dev_build else "Release"
+    print("BUILD VARIANT", build_variant)
+
+    Config_cmd = ["cmake", "-S", source_dir, "-B", build_dir, "-DCMAKE_BUILD_TYPE=" + build_variant]
+    if config_options:
+        Config_cmd += config_options
+    try:
+        # if os.path.exists(build_dir):
+        #     shutil.rmtree(build_dir, ignore_errors=True)
+        output += check_output(["cmake", "-E", "make_directory", external_dir]) + b"\n"
+        output += check_output(["cmake", "-E", "make_directory", build_dir]) + b"\n"
+        output += check_output(Config_cmd) + b"\n"
+        output += check_output(["cmake", "--build", build_dir]) + b"\n"
+        # remove the old libs
+        for lib in libs:
+            lib_path = os.path.join(external_dir, lib)
+            if os.path.exists(lib_path):
+                os.remove(lib_path)
+        output += check_output(["cmake", "--install", build_dir, "--prefix", external_dir]) + b"\n"
+    except Exception as e:
+        # convert output to string
+        output = output.decode("utf-8")
+        print(f"Failed to build automerge-c: {e}")
+        print(f"Output: {output}")
+        exit(1)
+    # output = output.decode("utf-8")
+    # print(output)
+
+
+def get_rustc_target():
+    rustc_cmd = shutil.which("rustc")
+    if not rustc_cmd:
+        raise Exception("rustc not found")
+    output = check_output([rustc_cmd, "-vV"])
+    match = re.search(r"host: ([^ \n]*)", output.decode("utf-8"))
+    if not match:
+        raise Exception("Could not determine rustc host target")
+    return match.group(1)
+
+
+def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list[str], build_env):
+    output = bytes()
+    # get dev_build from env
+    if build_env is None:
+        raise Exception("build_env is required")
+    dev_build = build_env["dev_build"] if "dev_build" in build_env else False
+    build_variant = "Debug" if dev_build else "Release"
+    print("BUILD VARIANT", build_variant)
+
+    # rustc_target = get_rustc_target()
+
+    arch_part: str = "x86_64" if build_env["arch"] == "x86_64" else "aarch64"
+    cargo_target: str = ""
+    if build_env["platform"] == "macos":
+        cargo_target = str(f"{arch_part}-apple-darwin")
+    elif build_env["platform"] == "linux":
+        cargo_target = str(f"{arch_part}-unknown-linux-gnu")
+    elif build_env["platform"] == "windows":
+        cargo_target = str(f"{arch_part}-pc-windows-msvc")
+    elif build_env["platform"] == "web":  # use emscripten
+        cargo_target = str(f"wasm32-unknown-emscripten")
+    elif build_env["platform"] == "ios":
+        cargo_target = str(f"{arch_part}-apple-ios")
+    elif build_env["platform"] == "android":
+        cargo_target = str(f"{arch_part}-linux-android")
+    else:
+        raise Exception(f"Unsupported platform: {build_env['platform']}")
+
+    arch_flag = str(f"--target={cargo_target}")
+    cargo_cmd = ["cargo", "build", arch_flag]
+    if not dev_build:
+        cargo_cmd.append("--release")
+    cargo_env = os.environ.copy()
+    cargo_env["CARGO_TARGET_DIR"] = build_dir
+    cargo_env["CARGO_INSTALL_ROOT"] = external_dir
+    cargo_env["CBINDGEN_TARGET_DIR"] = os.path.join(external_dir, "include")
+    output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
+    print(output.decode("utf-8"))
+    # copy the lib to the external dir
+    print("COPYING LIBRARY")
+
+    # get all the file names from the libs
+    lib_file_names = [os.path.basename(lib) for lib in libs]
+
+    variant_dir = "debug" if dev_build else "release"
+
+    built_lib_dir = os.path.join(build_dir, cargo_target, variant_dir)
+    print("LIBRARY PATH", built_lib_dir)
+    lib_paths: list[str] = []
+    lib_install_dir = os.path.join(external_dir, "lib")
+    if not os.path.exists(lib_install_dir):
+        os.makedirs(lib_install_dir)
+    for lib_file_name in lib_file_names:
+        lib_path = os.path.join(built_lib_dir, lib_file_name)
+        # ensure external_dir, "lib" exists
+        shutil.copy(lib_path, os.path.join(lib_install_dir, lib_file_name))
+
+    for lib in libs:
+        expected_lib_path = os.path.join(MODULE_DIR, lib)
+        if not os.path.exists(expected_lib_path):
+            raise Exception(f"Library {lib} not found at {expected_lib_path}")
+
+
+def add_libs_to_env(module_obj, libs, sources):
+    for lib in libs:
+        env_gdsdecomp.Depends(lib, sources)
+        # get the basename of the library minus the extension
+        lib_name = os.path.basename(lib).split(".")[0]
+        full_lib_path = os.path.join(MODULE_DIR, lib)
+        env.Append(LIBS=[lib_name])
+    env.Depends(module_obj, libs)
+
+
+VTRACER_PREFIX = "external/vtracer"
+VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
+VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "build")
+VTRACER_LIBS = ["external_install/lib/libvtracer.a"]
+
+
+def vtracer_builder(target, source, env):
+    cargo_builder(EXTERNAL_DIR, VTRACER_DIR, VTRACER_BUILD_DIR, VTRACER_LIBS, env)
+
+
+def build_vtracer(module_obj):
+    SRC_SUFFIXES = ["*.h", "*.cpp", "*.rs", "*.txt"]
+    env_gdsdecomp["BUILDERS"]["vtracerBuilder"] = Builder(
+        action=vtracer_builder,
+        suffix=".a",
+        src_suffix=["*.h", "*.cpp", "*.rs", "*.txt"],
+    )
+
+    vtracer_sources = get_sources(VTRACER_PREFIX, SRC_SUFFIXES)
+    env_gdsdecomp.Alias(
+        "vtracerlib",
+        [env_gdsdecomp.vtracerBuilder(VTRACER_LIBS, vtracer_sources)],
+    )
+    add_libs_to_env(module_obj, VTRACER_LIBS, vtracer_sources)
+
+
+# link against external/libvtracer.a
+
+module_obj = []
+env_gdsdecomp.add_source_files(module_obj, "*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "bytecode/*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "compat/*.cpp")
+if env["target"] == "editor":
+    env_gdsdecomp.add_source_files(module_obj, "editor/*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "exporters/*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "utility/*.cpp")
+
+env_gdsdecomp.add_source_files(module_obj, "external/tga/*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "external/etcpak-decompress/*.cpp")
+env_gdsdecomp.add_source_files(module_obj, "external/tinygltf/tiny_gltf.cc")
+env_gdsdecomp.add_source_files(module_obj, "module_etc_decompress/*.cpp")
+
+build_vtracer(module_obj)
+env.modules_sources += module_obj

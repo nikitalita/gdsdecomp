@@ -323,3 +323,4 @@ platform/windows/godot_res.res
 standalone/spriteTest.*
 standalone/character*
 .tmpcache/
+external_install/

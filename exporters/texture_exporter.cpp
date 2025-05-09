@@ -97,6 +97,8 @@ Error TextureExporter::save_image(const String &dest_path, const Ref<Image> &img
 		err = img->save_png(dest_path);
 	} else if (dest_ext == "tga") {
 		err = gdre::save_image_as_tga(dest_path, img);
+	} else if (dest_ext == "svg") {
+		err = gdre::save_image_as_svg(dest_path, img);
 	} else {
 		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
 	}
@@ -272,6 +274,9 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 				report->set_loss_type(ImportInfo::STORED_LOSSY);
 			} else if (source_ext == "tga") {
 				lossy = false;
+			} else if (source_ext == "svg") {
+				lossy = true;
+				report->set_loss_type(ImportInfo::STORED_LOSSY);
 			} else {
 				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
 				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name

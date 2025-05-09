@@ -12,6 +12,7 @@
 #include "core/io/http_client_tcp.h"
 #include "core/io/image.h"
 #include "core/io/missing_resource.h"
+#include "external_install/include/vtracer.h"
 #include "modules/zip/zip_reader.h"
 
 Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, const bool absolute, const String &rel) {
@@ -189,6 +190,41 @@ Error gdre::save_image_as_tga(const String &p_path, const Ref<Image> &p_img) {
 	encoder.writeHeader(header);
 	encoder.writeImage(header, tga_image);
 	encoder.writeFooter();
+	return OK;
+}
+
+Error gdre::save_image_as_svg(const String &p_path, const Ref<Image> &p_img) {
+	VTracerConfig config;
+	config.color_mode = COLOR_MODE_COLOR;
+	config.hierarchical = HIERARCHICAL_STACKED;
+	config.mode = V_TRACER_SIMPLIFY_MODE_NONE;
+	config.filter_speckle = 0;
+	config.color_precision = 8;
+	config.layer_difference = 0;
+	config.corner_threshold = 60;
+	config.length_threshold = 4.0;
+	config.splice_threshold = 45;
+	config.max_iterations = 10;
+	config.path_precision = 2;
+
+	Ref<Image> img = p_img->duplicate();
+	GDRE_ERR_DECOMPRESS_OR_FAIL(img);
+	// check if the image is RGBA; if not, convert it to RGBA
+	if (img->get_format() != Image::FORMAT_RGBA8) {
+		img->convert(Image::FORMAT_RGBA8);
+	}
+	VTracerColorImage svg_data{
+		img->get_data().ptrw(),
+		(size_t)img->get_width(),
+		(size_t)img->get_height(),
+	};
+	const char *err_str = vtracer_convert_image_memory_to_svg(&svg_data, p_path.utf8().get_data(), &config);
+	String err_msg;
+	if (err_str) {
+		err_msg = vformat("Failed to convert image to SVG: %s", err_str);
+		vtracer_free_string(err_str);
+	}
+	ERR_FAIL_COND_V_MSG(!err_msg.is_empty(), ERR_CANT_CREATE, err_msg);
 	return OK;
 }
 
