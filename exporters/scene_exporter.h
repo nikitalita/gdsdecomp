@@ -1,6 +1,6 @@
 #pragma once
+#include "exporters/obj_exporter.h"
 #include "exporters/resource_exporter.h"
-
 struct dep_info;
 
 class SceneExporter : public ResourceExporter {
@@ -8,6 +8,8 @@ class SceneExporter : public ResourceExporter {
 
 	virtual Error _export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 	bool using_threaded_load() const;
+
+	Error export_file_to_obj(const String &out_path, const String &res_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info);
 
 public:
 	virtual Error export_file(const String &out_path, const String &res_path) override;
