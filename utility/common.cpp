@@ -213,8 +213,9 @@ Error gdre::save_image_as_svg(const String &p_path, const Ref<Image> &p_img) {
 	if (img->get_format() != Image::FORMAT_RGBA8) {
 		img->convert(Image::FORMAT_RGBA8);
 	}
+	auto data = img->get_data();
 	VTracerColorImage svg_data{
-		img->get_data().ptrw(),
+		data.ptrw(),
 		(size_t)img->get_width(),
 		(size_t)img->get_height(),
 	};
