@@ -83,10 +83,19 @@ pub struct VTracerColorImage {
 }
 
 fn u8_ptr_to_vec(ptr: *mut u8, pixels_len: usize) -> Vec<u8> {
-	// we need to COPY the data from the pointer to a new vector
-	let mut vec = Vec::with_capacity(pixels_len);
-	vec.extend_from_slice(unsafe { std::slice::from_raw_parts(ptr, pixels_len) });
-	vec
+    // Create a new vector with the required capacity
+    let mut vec = Vec::with_capacity(pixels_len);
+    // Set the length to match the capacity
+    unsafe {
+        vec.set_len(pixels_len);
+    }
+    // Copy the data byte by byte to avoid any potential overlap
+    for i in 0..pixels_len {
+        unsafe {
+            vec[i] = *ptr.add(i);
+        }
+    }
+    vec
 }
 
 impl From<VTracerColorImage> for ColorImage {

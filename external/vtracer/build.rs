@@ -1,7 +1,6 @@
 extern crate cbindgen;
 
 use std::{env, path::PathBuf};
-// sdgadgsdsgasgdsgdag
 fn main() {
     let crate_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR env var is not defined"),
@@ -13,15 +12,11 @@ fn main() {
         PathBuf::from(build_dir)
     } else {
         // get the PWD
-        let pwd = if let Ok(pwd) = env::var("PWD") {
-            PathBuf::from(pwd)
-        } else {
-            crate_dir.clone()
-        };
-        // println!("cargo:warning=pwd: {}", pwd.display());
+        let pwd = crate_dir.clone();
+        println!("cargo:warning=pwd: {}", pwd.display());
         pwd.join("target")
     };
-    println!("cargo:warning=build_dir: {}", build_dir.display());
+    // println!("cargo:warning=build_dir: {}", build_dir.display());
 
     // let build_dir = PathBuf::from(
     //     env::var("CARGO_TARGET_DIR").expect("CARGO_TARGET_DIR env var is not defined"),
@@ -48,7 +43,7 @@ fn main() {
         } else {
             build_dir.clone().join("include").join(package_name.clone())
         };
-        println!("cargo:warning=target_dir: {}", target_dir.display());
+        // println!("cargo:warning=target_dir: {}", target_dir.display());
 
         // ensure target_dir exists
         std::fs::create_dir_all(target_dir.clone()).expect("Failed to create target directory");
