@@ -169,7 +169,7 @@ int decompress_buf(const Vector<uint8_t> &p_buffer, Vector<uint8_t> &contents) {
 #define GDSC_HEADER "GDSC"
 #define CHECK_GDSC_HEADER(p_buffer) _GDRE_CHECK_HEADER(p_buffer, GDSC_HEADER)
 
-Error GDScriptDecomp::get_ids_consts_tokens_v2(const Vector<uint8_t> &p_buffer, Vector<StringName> &identifiers, Vector<Variant> &constants, Vector<uint32_t> &tokens, VMap<uint32_t, uint32_t> &lines, VMap<uint32_t, uint32_t> &end_lines, VMap<uint32_t, uint32_t> &columns) {
+Error GDScriptDecomp::get_ids_consts_tokens_v2(const Vector<uint8_t> &p_buffer, Vector<StringName> &identifiers, Vector<Variant> &constants, Vector<uint32_t> &tokens, HashMap<uint32_t, uint32_t> &lines, HashMap<uint32_t, uint32_t> &end_lines, HashMap<uint32_t, uint32_t> &columns) {
 	const uint8_t *buf = p_buffer.ptr();
 	GDSDECOMP_FAIL_COND_V_MSG(p_buffer.size() < 12 || !CHECK_GDSC_HEADER(p_buffer), ERR_INVALID_DATA, "Invalid GDScript tokenizer buffer.");
 
@@ -289,7 +289,7 @@ Error GDScriptDecomp::get_script_state(const Vector<uint8_t> &p_buffer, ScriptSt
 	return OK;
 }
 
-Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vector<StringName> &identifiers, Vector<Variant> &constants, Vector<uint32_t> &tokens, VMap<uint32_t, uint32_t> &lines, VMap<uint32_t, uint32_t> &columns) {
+Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vector<StringName> &identifiers, Vector<Variant> &constants, Vector<uint32_t> &tokens, HashMap<uint32_t, uint32_t> &lines, HashMap<uint32_t, uint32_t> &columns) {
 	const uint8_t *buf = p_buffer.ptr();
 	uint64_t total_len = p_buffer.size();
 	GDSDECOMP_FAIL_COND_V_MSG(p_buffer.size() < 24 || !CHECK_GDSC_HEADER(p_buffer), ERR_INVALID_DATA, "Invalid GDScript token buffer.");
@@ -337,7 +337,7 @@ Error GDScriptDecomp::get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vec
 		constants.write[i] = v;
 	}
 
-	GDSDECOMP_FAIL_COND_V_MSG(line_count * sizeof(VMap<uint32_t, uint32_t>::Pair) > total_len, ERR_INVALID_DATA, "Invalid line count.");
+	GDSDECOMP_FAIL_COND_V_MSG(line_count * /*sizeof(HashMap<uint32_t, uint32_t>::Pair)*/ 8 > total_len, ERR_INVALID_DATA, "Invalid line count.");
 
 	for (uint32_t i = 0; i < line_count; i++) {
 		uint32_t token = decode_uint32(b);
@@ -527,8 +527,8 @@ Error GDScriptDecomp::debug_print(Vector<uint8_t> p_buffer) {
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
-	VMap<uint32_t, uint32_t> &lines = script_state.lines;
-	VMap<uint32_t, uint32_t> &columns = script_state.columns;
+	HashMap<uint32_t, uint32_t> &lines = script_state.lines;
+	HashMap<uint32_t, uint32_t> &columns = script_state.columns;
 	int version = script_state.bytecode_version;
 	int bytecode_version = get_bytecode_version();
 	int variant_ver_major = get_variant_ver_major();
@@ -598,8 +598,8 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 	Vector<StringName> &identifiers = state.identifiers;
 	Vector<Variant> &constants = state.constants;
 	Vector<uint32_t> &tokens = state.tokens;
-	VMap<uint32_t, uint32_t> &lines = state.lines;
-	VMap<uint32_t, uint32_t> &columns = state.columns;
+	HashMap<uint32_t, uint32_t> &lines = state.lines;
+	HashMap<uint32_t, uint32_t> &columns = state.columns;
 	int version = state.bytecode_version;
 
 	int bytecode_version = get_bytecode_version();
@@ -1253,7 +1253,7 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 		return BytecodeTestResult::BYTECODE_TEST_CORRUPT;
 	}
 	Vector<uint32_t> &tokens = script_state.tokens;
-	VMap<uint32_t, uint32_t> &lines = script_state.lines;
+	HashMap<uint32_t, uint32_t> &lines = script_state.lines;
 	int version = script_state.bytecode_version;
 	int bytecode_version = get_bytecode_version();
 	int FUNC_MAX = get_function_count();
@@ -1523,7 +1523,7 @@ Vector<String> GDScriptDecomp::get_compile_errors(const Vector<uint8_t> &p_buffe
 	ScriptState state;
 	Error err = get_script_state(p_buffer, state);
 	Vector<Variant> &constants = state.constants;
-	VMap<uint32_t, uint32_t> &lines = state.lines;
+	HashMap<uint32_t, uint32_t> &lines = state.lines;
 	Vector<uint32_t> &tokens = state.tokens;
 
 	ERR_FAIL_COND_V_MSG(err != OK, Vector<String>(), "Error parsing bytecode");
@@ -1850,7 +1850,7 @@ static int64_t continuity_tester(const Vector<T> &p_vector, const Vector<T> &p_o
 }
 
 template <typename K, typename V>
-static int64_t continuity_tester(const VMap<K, V> &p_vector, const VMap<K, V> &p_other, String name, int pos = 0) {
+static int64_t continuity_tester(const HashMap<K, V> &p_vector, const HashMap<K, V> &p_other, String name, int pos = 0) {
 	if (p_vector.is_empty() && p_other.is_empty()) {
 		return -1;
 	}
@@ -1871,18 +1871,27 @@ static int64_t continuity_tester(const VMap<K, V> &p_vector, const VMap<K, V> &p
 		// WARN_PRINT(name + " pos out of range");
 		return MIN(p_vector.size(), p_other.size());
 	}
-	auto p_vector_arr = p_vector.get_array();
-	auto p_other_arr = p_other.get_array();
+
+	Vector<Pair<K, V>> p_vector_arr;
+	Vector<Pair<K, V>> p_other_arr;
+
+	for (auto &it : p_vector) {
+		p_vector_arr.push_back(Pair<K, V>(it.key, it.value));
+	}
+	for (auto &it : p_other) {
+		p_other_arr.push_back(Pair<K, V>(it.key, it.value));
+	}
+
 	for (int i = pos; i < p_vector.size(); i++) {
 		if (i >= p_other.size()) {
 			// WARN_PRINT(name + " discontinuity at index " + itos(i));
 			return i;
 		}
-		if (p_vector_arr[i].key != p_other_arr[i].key) {
+		if (p_vector_arr[i].first != p_other_arr[i].first) {
 			// WARN_PRINT(name + " bytecode discontinuity at index " + itos(i));
 			return i;
 		}
-		if (p_vector_arr[i].value != p_other_arr[i].value) {
+		if (p_vector_arr[i].second != p_other_arr[i].second) {
 			// WARN_PRINT(name + " bytecode discontinuity at index " + itos(i));
 			return i;
 		}
@@ -2007,7 +2016,7 @@ Error GDScriptDecomp::test_bytecode_match(const Vector<uint8_t> &p_buffer1, cons
 		}
 	}
 
-	auto do_vmap_thing = [&](const String &name, const VMap<uint32_t, uint32_t> &map1, const VMap<uint32_t, uint32_t> &map2) {
+	auto do_vmap_thing = [&](const String &name, const HashMap<uint32_t, uint32_t> &map1, const HashMap<uint32_t, uint32_t> &map2) {
 		auto lines_Size = map1.size();
 		auto new_lines_Size = map2.size();
 		discontinuity = continuity_tester(map1, map2, name);
@@ -2017,16 +2026,26 @@ Error GDScriptDecomp::test_bytecode_match(const Vector<uint8_t> &p_buffer1, cons
 		while (discontinuity != -1) {
 			REPORT_DIFF(vformat("Discontinuity in %s at index %d", name, discontinuity));
 			if (discontinuity < lines_Size && discontinuity < new_lines_Size) {
-				auto pair1 = map1.get_array()[discontinuity];
-				auto pair2 = map2.get_array()[discontinuity];
+				Vector<Pair<uint32_t, uint32_t>> p_vector_arr;
+				Vector<Pair<uint32_t, uint32_t>> p_other_arr;
 
-				auto token_at_key1 = state1.tokens.size() > pair1.key ? get_global_token(state1.tokens[pair1.key]) : G_TK_MAX;
-				auto token_at_key2 = state2.tokens.size() > pair2.key ? get_global_token(state2.tokens[pair2.key]) : G_TK_MAX;
+				for (auto &it : map1) {
+					p_vector_arr.push_back(Pair<uint32_t, uint32_t>(it.key, it.value));
+				}
+				for (auto &it : map2) {
+					p_other_arr.push_back(Pair<uint32_t, uint32_t>(it.key, it.value));
+				}
+
+				auto pair1 = p_vector_arr[discontinuity];
+				auto pair2 = p_other_arr[discontinuity];
+
+				auto token_at_key1 = state1.tokens.size() > pair1.first ? get_global_token(state1.tokens[pair1.first]) : G_TK_MAX;
+				auto token_at_key2 = state2.tokens.size() > pair2.first ? get_global_token(state2.tokens[pair2.first]) : G_TK_MAX;
 				auto token_name1 = token_at_key1 <= G_TK_MAX ? g_token_str[token_at_key1] : "INVALID";
 				auto token_name2 = token_at_key2 <= G_TK_MAX ? g_token_str[token_at_key2] : "INVALID";
-				auto token1_line = state1.get_token_line(pair1.key);
-				auto token2_line = state2.get_token_line(pair2.key);
-				REPORT_DIFF(vformat("Different %s @ idx %d: Token %s (line %d): %d != Token %s (line %d) :%d", name, discontinuity, token_name1, token1_line, pair1.value, token_name2, token2_line, pair2.value));
+				auto token1_line = state1.get_token_line(pair1.first);
+				auto token2_line = state2.get_token_line(pair2.first);
+				REPORT_DIFF(vformat("Different %s @ idx %d: Token %s (line %d): %d != Token %s (line %d) :%d", name, discontinuity, token_name1, token1_line, pair1.second, token_name2, token2_line, pair2.second));
 			} else if (lines_Size != new_lines_Size) {
 				REPORT_DIFF("Different Column sizes: " + itos(lines_Size) + " != " + itos(new_lines_Size));
 				break;

@@ -10,6 +10,7 @@
 
 #include "bytecode/bytecode_versions.h"
 #include "gdre_dec_dlg.h"
+#include "scene/gui/option_button.h"
 
 ScriptDecompDialog::ScriptDecompDialog() {
 	set_title(RTR("Decompile GDScript"));

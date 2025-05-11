@@ -11,6 +11,7 @@
 #include "gdre_cmp_dlg.h"
 
 #include "bytecode/bytecode_versions.h"
+#include "scene/gui/option_button.h"
 
 ScriptCompDialog::ScriptCompDialog() {
 	set_title(RTR("Compile GDScript"));

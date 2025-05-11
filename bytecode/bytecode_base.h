@@ -7,7 +7,7 @@
 
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
-#include "core/templates/vmap.h"
+#include "core/templates/hash_map.h"
 
 class FakeGDScript;
 
@@ -169,9 +169,9 @@ public:
 		Vector<StringName> identifiers;
 		Vector<Variant> constants;
 		Vector<uint32_t> tokens;
-		VMap<uint32_t, uint32_t> lines;
-		VMap<uint32_t, uint32_t> end_lines;
-		VMap<uint32_t, uint32_t> columns;
+		HashMap<uint32_t, uint32_t> lines;
+		HashMap<uint32_t, uint32_t> end_lines;
+		HashMap<uint32_t, uint32_t> columns;
 		HashSet<String> dependencies;
 		uint32_t get_token_line(uint32_t i) const {
 			if (lines.has(i)) {
@@ -204,9 +204,9 @@ protected:
 	bool check_prev_token(int p_pos, const Vector<uint32_t> &p_tokens, GlobalToken p_token);
 	bool is_token_func_call(int p_pos, const Vector<uint32_t> &p_tokens);
 	bool is_token_builtin_func(int p_pos, const Vector<uint32_t> &p_tokens);
-	Error get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vector<StringName> &r_identifiers, Vector<Variant> &r_constants, Vector<uint32_t> &r_tokens, VMap<uint32_t, uint32_t> &lines, VMap<uint32_t, uint32_t> &columns);
+	Error get_ids_consts_tokens(const Vector<uint8_t> &p_buffer, Vector<StringName> &r_identifiers, Vector<Variant> &r_constants, Vector<uint32_t> &r_tokens, HashMap<uint32_t, uint32_t> &lines, HashMap<uint32_t, uint32_t> &columns);
 	// GDScript version 2.0
-	Error get_ids_consts_tokens_v2(const Vector<uint8_t> &p_buffer, Vector<StringName> &r_identifiers, Vector<Variant> &r_constants, Vector<uint32_t> &r_tokens, VMap<uint32_t, uint32_t> &lines, VMap<uint32_t, uint32_t> &end_lines, VMap<uint32_t, uint32_t> &columns);
+	Error get_ids_consts_tokens_v2(const Vector<uint8_t> &p_buffer, Vector<StringName> &r_identifiers, Vector<Variant> &r_constants, Vector<uint32_t> &r_tokens, HashMap<uint32_t, uint32_t> &lines, HashMap<uint32_t, uint32_t> &end_lines, HashMap<uint32_t, uint32_t> &columns);
 
 public:
 	static Vector<String> get_bytecode_versions();

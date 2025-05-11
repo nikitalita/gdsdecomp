@@ -105,16 +105,12 @@ int ImportInfo::get_import_loss_type() const {
 Ref<ConfigFile> copy_config_file(Ref<ConfigFile> p_cf) {
 	Ref<ConfigFile> r_cf;
 	r_cf.instantiate();
-	List<String> sections;
-	//	String sections_string;
-	p_cf->get_sections(&sections);
-	// from bottom to top, because set_value() inserts new sections at top
-	for (auto E = sections.back(); E; E = E->prev()) {
-		String section = E->get();
-		List<String> section_keys;
-		p_cf->get_section_keys(section, &section_keys);
-		for (auto F = section_keys.front(); F; F = F->next()) {
-			String key = F->get();
+	Vector<String> sections = p_cf->get_sections();
+	for (int i = sections.size() - 1; i >= 0; i--) {
+		String section = sections[i];
+		Vector<String> section_keys = p_cf->get_section_keys(section);
+		for (int j = 0; j < section_keys.size(); j++) {
+			String key = section_keys[j];
 			r_cf->set_value(section, key, p_cf->get_value(section, key));
 		}
 	}
@@ -326,13 +322,12 @@ Vector<String> ImportInfoModern::get_dest_files() const {
 namespace {
 Vector<String> get_remap_paths(const Ref<ConfigFile> &cf) {
 	Vector<String> remap_paths;
-	List<String> remap_keys;
-	cf->get_section_keys("remap", &remap_keys);
+	Vector<String> remap_keys = cf->get_section_keys("remap");
 	// iterate over keys in remap section
-	for (auto E = remap_keys.front(); E; E = E->next()) {
+	for (int i = 0; i < remap_keys.size(); i++) {
 		// if we find a path key, we have a match
-		if (E->get().begins_with("path.") || E->get() == "path") {
-			auto try_path = cf->get_value("remap", E->get(), "");
+		if (remap_keys[i].begins_with("path.") || remap_keys[i] == "path") {
+			String try_path = cf->get_value("remap", remap_keys[i], "");
 			remap_paths.push_back(try_path);
 		}
 	}
@@ -354,8 +349,7 @@ void ImportInfoModern::set_dest_files(const Vector<String> p_dest_files) {
 		return;
 	}
 	if (!cf->has_section_key("remap", "path")) {
-		List<String> remap_keys;
-		cf->get_section_keys("remap", &remap_keys);
+		Vector<String> remap_keys = cf->get_section_keys("remap");
 		// if set, we likely have multiple paths
 		if (get_metadata_prop().has("imported_formats")) {
 			for (int i = 0; i < p_dest_files.size(); i++) {
@@ -363,9 +357,9 @@ void ImportInfoModern::set_dest_files(const Vector<String> p_dest_files) {
 				// second to last split
 				ERR_FAIL_COND_MSG(spl.size() < 4, "Expected to see format in path " + p_dest_files[i]);
 				String ext = spl[spl.size() - 2];
-				List<String>::Element *E = remap_keys.find("path." + ext);
+				int idx = remap_keys.find("path." + ext);
 
-				if (!E) {
+				if (idx == -1) {
 					WARN_PRINT("Did not find key path." + ext + " in remap metadata, setting anwyway...");
 				}
 				cf->set_value("remap", "path." + ext, p_dest_files[i]);
@@ -419,11 +413,10 @@ void ImportInfoModern::set_iinfo_val(const String &p_section, const String &p_pr
 Dictionary ImportInfoModern::get_params() const {
 	Dictionary params;
 	if (cf->has_section("params")) {
-		List<String> param_keys;
-		cf->get_section_keys("params", &param_keys);
+		Vector<String> param_keys = cf->get_section_keys("params");
 		params = Dictionary();
-		for (auto E = param_keys.front(); E; E = E->next()) {
-			params[E->get()] = cf->get_value("params", E->get(), "");
+		for (int i = 0; i < param_keys.size(); i++) {
+			params[param_keys[i]] = cf->get_value("params", param_keys[i], "");
 		}
 	}
 	return params;
@@ -555,8 +548,7 @@ Error ImportInfoRemap::_load(const String &p_path) {
 		cf = Ref<ConfigFile>();
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + path);
-	List<String> remap_keys;
-	cf->get_section_keys("remap", &remap_keys);
+	Vector<String> remap_keys = cf->get_section_keys("remap");
 	if (remap_keys.size() == 0) {
 		ERR_FAIL_V_MSG(ERR_BUG, "Failed to load import data from " + path);
 	}
@@ -1048,10 +1040,9 @@ Vector<String> normalize_tags(const Vector<String> &tags) {
 Vector<SharedObject> ImportInfoGDExt::get_dependencies(bool fix_rel_paths) const {
 	Vector<SharedObject> deps;
 	if (cf->has_section("dependencies")) {
-		List<String> dep_keys;
-		cf->get_section_keys("dependencies", &dep_keys);
-		for (auto E = dep_keys.front(); E; E = E->next()) {
-			String key = E->get();
+		Vector<String> dep_keys = cf->get_section_keys("dependencies");
+		for (int i = 0; i < dep_keys.size(); i++) {
+			String key = dep_keys[i];
 			auto var = cf->get_value("dependencies", key, Vector<String>{});
 			Vector<String> deps_list;
 			Vector<String> target_list;
@@ -1149,10 +1140,9 @@ HashMap<String, String> ImportInfoGDExt::get_libaries_section() const {
 	}
 
 	if (cf->has_section(section_name)) {
-		List<String> dep_keys;
-		cf->get_section_keys(section_name, &dep_keys);
-		for (auto E = dep_keys.front(); E; E = E->next()) {
-			deps[E->get()] = cf->get_value(section_name, E->get(), String{});
+		Vector<String> dep_keys = cf->get_section_keys(section_name);
+		for (int i = 0; i < dep_keys.size(); i++) {
+			deps[dep_keys[i]] = cf->get_value(section_name, dep_keys[i], String{});
 		}
 	}
 	return deps;
