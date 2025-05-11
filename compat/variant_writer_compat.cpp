@@ -734,28 +734,32 @@ static constexpr _ALWAYS_INLINE_ uint64_t max_integer_str_len() {
 							!std::is_same_v<T, char32_t> &&
 							!std::is_same_v<T, wchar_t>),
 			"Unsupported max_integer_str_len type");
-	if constexpr (sizeof(T) == 1) {
-		// 127, 255 = 3 chars
+	if constexpr (sizeof(T) == 1 && std::is_unsigned_v<T>) {
+		// 0, 255 = 3 chars
 		return 3;
-	} else if constexpr (sizeof(T) == 2) {
+	} else if constexpr (sizeof(T) == 1 && std::is_signed_v<T>) {
+		// -127, 127 = 4 chars
+		return 4;
+	} else if constexpr (sizeof(T) == 2 && std::is_unsigned_v<T>) {
+		// 0, 65535 = 5 chars
 		return 5;
-	} else if constexpr (sizeof(T) == 4) { // int
-		// 2147483647, 4294967295 = 10 chars
+	} else if constexpr (sizeof(T) == 2 && std::is_signed_v<T>) {
+		// -32767, 32767 = 6 chars
+		return 6;
+	} else if constexpr (sizeof(T) == 4 && std::is_unsigned_v<T>) {
+		// 0, 4294967295 = 10 chars
 		return 10;
-	} else if constexpr (sizeof(T) == 8 && std::is_signed_v<T>) { // int64
-		// 9223372036854775807 = 19 chars
-		return 19;
-	} else if constexpr (sizeof(T) == 8 && std::is_unsigned_v<T>) {
-		// uint64
+	} else if constexpr (sizeof(T) == 4 && std::is_signed_v<T>) { // int
+		// -2147483647, 2147483647 = 11 chars
+		return 11;
+	} else if constexpr (sizeof(T) == 8) { // int64
+		// -9223372036854775807, 9223372036854775807 = 20 chars
 		// 18446744073709551615 = 20 chars
 		return 20;
-	} else if constexpr (sizeof(T) == 16 && std::is_signed_v<T>) {
+	} else if constexpr (sizeof(T) == 16) {
 		// int128
-		// 170141183460469231731687303715884105727 = 39 chars
-		return 39;
-	} else if constexpr (sizeof(T) == 16 && std::is_unsigned_v<T>) {
-		// uint128
-		// 340282366920938463463374607431768211455 = 40 chars
+		//  = 39 chars
+		// 340282366920938463463374607431768211455 =170141183460469231731687303715884105727 40 chars
 		return 40;
 	} else {
 		static_assert(true, "Unsupported max_scalar_str_len type");
