@@ -243,10 +243,14 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
     cargo_target: str = ""
     if build_env["platform"] == "macos":
         cargo_target = str(f"{arch_part}-apple-darwin")
-    elif build_env["platform"] == "linux":
+    elif build_env["platform"] == "linuxbsd":
         cargo_target = str(f"{arch_part}-unknown-linux-gnu")
     elif build_env["platform"] == "windows":
-        cargo_target = str(f"{arch_part}-pc-windows-msvc")
+        cargo_target = str(f"{arch_part}-pc-windows-")
+        if build_env.msvc:
+            cargo_target += "msvc"
+        else:
+            cargo_target += "gnu"
     elif build_env["platform"] == "web":  # use emscripten
         cargo_target = str(f"wasm32-unknown-emscripten")
     elif build_env["platform"] == "ios":
@@ -304,27 +308,38 @@ def add_libs_to_env(module_obj, libs, sources):
 VTRACER_PREFIX = "external/vtracer"
 VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
 VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "target")
-VTRACER_LIBS = ["external_install/lib/libvtracer.a"]
+VTRACER_LIBS = ["external_install/lib/libvtracer"]
+
+
+def get_vtracer_libs():
+    lib_suffix: Literal[".a", ".lib"] = ".a" if not env.msvc else ".lib"
+    return [lib + lib_suffix for lib in VTRACER_LIBS]
 
 
 def vtracer_builder(target, source, env):
-    cargo_builder(EXTERNAL_DIR, VTRACER_DIR, VTRACER_BUILD_DIR, VTRACER_LIBS, env)
+    print("VTRACER BUILD")
+    print(str(target[0]))
+    print(source)
+    # print(env)
+    cargo_builder(EXTERNAL_DIR, VTRACER_DIR, VTRACER_BUILD_DIR, get_vtracer_libs(), env)
 
 
 def build_vtracer(module_obj):
     SRC_SUFFIXES = ["*.h", "*.cpp", "*.rs", "*.txt"]
+    lib_suffix: Literal[".a", ".lib"] = ".a" if not env.msvc else ".lib"
     env_gdsdecomp["BUILDERS"]["vtracerBuilder"] = Builder(
         action=vtracer_builder,
-        suffix=".a",
+        suffix=lib_suffix,
         src_suffix=["*.h", "*.cpp", "*.rs", "*.txt"],
     )
+    libs = get_vtracer_libs()
 
     vtracer_sources = get_sources(VTRACER_PREFIX, SRC_SUFFIXES)
     env_gdsdecomp.Alias(
         "vtracerlib",
-        [env_gdsdecomp.vtracerBuilder(VTRACER_LIBS, vtracer_sources)],
+        [env_gdsdecomp.vtracerBuilder(libs, vtracer_sources)],
     )
-    add_libs_to_env(module_obj, VTRACER_LIBS, vtracer_sources)
+    add_libs_to_env(module_obj, libs, vtracer_sources)
 
 
 # link against external/libvtracer.a
