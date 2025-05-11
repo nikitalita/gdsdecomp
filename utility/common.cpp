@@ -195,9 +195,10 @@ Error gdre::save_image_as_tga(const String &p_path, const Ref<Image> &p_img) {
 
 Error gdre::save_image_as_svg(const String &p_path, const Ref<Image> &p_img) {
 	VTracerConfig config;
-	config.color_mode = COLOR_MODE_COLOR;
-	config.hierarchical = HIERARCHICAL_STACKED;
-	config.mode = V_TRACER_SIMPLIFY_MODE_NONE;
+	vtracer_set_default_config(&config);
+	config.color_mode = V_TRACER_COLOR_MODE_COLOR;
+	config.hierarchical = V_TRACER_HIERARCHICAL_STACKED;
+	config.mode = V_TRACER_PATH_SIMPLIFY_MODE_NONE;
 	config.filter_speckle = 0;
 	config.color_precision = 8;
 	config.layer_difference = 0;
@@ -206,6 +207,7 @@ Error gdre::save_image_as_svg(const String &p_path, const Ref<Image> &p_img) {
 	config.splice_threshold = 45;
 	config.max_iterations = 10;
 	config.path_precision = 2;
+	config.keying_threshold = 0.0;
 
 	Ref<Image> img = p_img->duplicate();
 	GDRE_ERR_DECOMPRESS_OR_FAIL(img);

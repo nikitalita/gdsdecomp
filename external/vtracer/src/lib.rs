@@ -9,6 +9,7 @@
 // except according to those terms.
 
 mod config;
+mod runner;
 mod converter;
 #[cfg(feature = "python-binding")]
 mod python;
@@ -16,6 +17,7 @@ mod svg;
 mod capi;
 
 pub use config::*;
+pub use runner::*;
 pub use converter::*;
 #[cfg(feature = "python-binding")]
 pub use python::*;

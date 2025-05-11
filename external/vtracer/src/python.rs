@@ -21,6 +21,7 @@ fn convert_image_to_svg_py(
     max_iterations: Option<usize>, // default: 10
     splice_threshold: Option<i32>, // default: 45
     path_precision: Option<u32>,   // default: 8
+    keying_threshold: Option<f32>, // default: 0.2
 ) -> PyResult<()> {
     let input_path = PathBuf::from(image_path);
     let output_path = PathBuf::from(out_path);
@@ -37,6 +38,7 @@ fn convert_image_to_svg_py(
         max_iterations,
         splice_threshold,
         path_precision,
+        keying_threshold,
     );
 
     convert_image_to_svg(&input_path, &output_path, config).unwrap();
@@ -58,6 +60,7 @@ fn convert_raw_image_to_svg(
     max_iterations: Option<usize>, // default: 10
     splice_threshold: Option<i32>, // default: 45
     path_precision: Option<u32>, // default: 8
+    keying_threshold: Option<f32>, // default: 0.2
 ) -> PyResult<String> {
     let config = construct_config(
         colormode,
@@ -71,6 +74,7 @@ fn convert_raw_image_to_svg(
         max_iterations,
         splice_threshold,
         path_precision,
+        keying_threshold,
     );
     let mut img_reader = Reader::new(BufReader::new(Cursor::new(img_bytes)));
     let img_format = img_format.and_then(|ext_name| ImageFormat::from_extension(ext_name));
@@ -114,6 +118,7 @@ fn convert_pixels_to_svg(
     max_iterations: Option<usize>, // default: 10
     splice_threshold: Option<i32>, // default: 45
     path_precision: Option<u32>,   // default: 8
+    keying_threshold: Option<f32>, // default: 0.2
 ) -> PyResult<String> {
     let expected_pixel_count = size.0 * size.1;
     if rgba_pixels.len() != expected_pixel_count {
@@ -137,6 +142,7 @@ fn convert_pixels_to_svg(
         max_iterations,
         splice_threshold,
         path_precision,
+        keying_threshold,
     );
     let mut flat_pixels: Vec<u8> = vec![];
     for (r, g, b, a) in rgba_pixels {
@@ -166,6 +172,7 @@ fn construct_config(
     max_iterations: Option<usize>,
     splice_threshold: Option<i32>,
     path_precision: Option<u32>,
+    keying_threshold: Option<f32>,
 ) -> Config {
     // TODO: enforce color mode with an enum so that we only
     // accept the strings 'color' or 'binary'
@@ -195,7 +202,7 @@ fn construct_config(
     let length_threshold = length_threshold.unwrap_or(4.0);
     let splice_threshold = splice_threshold.unwrap_or(45);
     let max_iterations = max_iterations.unwrap_or(10);
-
+    let keying_threshold = keying_threshold.unwrap_or(0.2);
     Config {
         color_mode,
         hierarchical,
@@ -208,6 +215,7 @@ fn construct_config(
         max_iterations,
         splice_threshold,
         path_precision,
+        keying_threshold,
         ..Default::default()
     }
 }
