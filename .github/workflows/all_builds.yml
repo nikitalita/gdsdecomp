@@ -26,7 +26,7 @@ on:
 env:
   GODOT_BASE_BRANCH: master
   # Change the README too
-  GODOT_MAIN_SYNC_REF: a8598cd8e261716fa3addb6f10bb57c03a061be9
+  GODOT_MAIN_SYNC_REF: 19bb18716ef08b811fec330cba4d35fbdb027bcc
   SCONSFLAGS: verbose=yes warnings=all werror=no module_text_server_fb_enabled=yes minizip=yes deprecated=yes
   SCONSFLAGS_TEMPLATE: no_editor_splash=yes module_camera_enabled=no module_mobile_vr_enabled=no module_upnp_enabled=no module_websocket_enabled=no module_csg_enabled=yes module_gridmap_enabled=yes use_static_cpp=yes builtin_freetype=yes builtin_libpng=yes builtin_zlib=yes builtin_libwebp=yes builtin_libvorbis=yes builtin_libogg=yes disable_3d=no
   SCONS_CACHE_MSVC_CONFIG: true
@@ -96,7 +96,7 @@ jobs:
             platform: macos
             target: editor
             rust-arch: x86_64-apple-darwin
-            sconsflags: debug_symbols=no tests=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
+            sconsflags: debug_symbols=no tests=yes use_volk=no vulkan=yes
             bin: ./bin/godot.macos.editor.arm64
 
           - name: "🍎 macOS Template Release"
@@ -105,7 +105,7 @@ jobs:
             platform: macos
             target: template_release
             rust-arch: x86_64-apple-darwin
-            sconsflags: debug_symbols=no optimize=size use_lto=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
+            sconsflags: debug_symbols=no optimize=size use_lto=yes use_volk=no vulkan=yes
             bin: ./bin/godot.macos.editor.arm64
 
     steps:
