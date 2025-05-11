@@ -50,6 +50,7 @@ jobs:
             platform: windows
             target: editor
             sconsflags: debug_symbols=no tests=yes
+            rust-arch: x86_64-pc-windows-msvc
             bin: ./bin/godot.windows.editor.x86_64.exe
 
           - name: "Windows Template Release"
@@ -58,6 +59,7 @@ jobs:
             platform: windows
             target: template_release
             sconsflags: debug_symbols=no
+            rust-arch: x86_64-pc-windows-msvc
             bin: ./bin/godot.windows.editor.x86_64.exe
 
           - name: "🐧 Linux Editor"
@@ -66,6 +68,7 @@ jobs:
             platform: linux
             target: editor
             sconsflags: debug_symbols=no tests=yes
+            rust-arch: x86_64-unknown-linux-gnu
             sconsflags-template: debug_symbols=no optimize=size use_lto=yes
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
@@ -83,6 +86,7 @@ jobs:
             id: linux-template
             platform: linux
             target: template_release
+            rust-arch: x86_64-unknown-linux-gnu
             sconsflags: debug_symbols=no optimize=size use_lto=yes
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
@@ -91,6 +95,7 @@ jobs:
             id: macos-editor
             platform: macos
             target: editor
+            rust-arch: x86_64-apple-darwin
             sconsflags: debug_symbols=no tests=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
             bin: ./bin/godot.macos.editor.arm64
 
@@ -99,6 +104,7 @@ jobs:
             id: macos-template
             platform: macos
             target: template_release
+            rust-arch: x86_64-apple-darwin
             sconsflags: debug_symbols=no optimize=size use_lto=yes use_volk=no vulkan_sdk_path=$VULKAN_SDK_PATH
             bin: ./bin/godot.macos.editor.arm64
 
@@ -143,6 +149,22 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           sh misc/scripts/install_vulkan_sdk_macos.sh
+
+      - name: Show targets
+        shell: sh
+        run: |
+          rustc --print=target-list
+
+      - name: Rust Add target
+        shell: sh
+        run: |
+          rustup target add ${{ matrix.rust-arch }}
+
+      - name: Rust Add aarch64 macos target
+        if: matrix.platform == 'macos'
+        shell: sh
+        run: |
+          rustup target add aarch64-apple-darwin
 
       - name: Compile Editor
         if: matrix.target == 'editor'
