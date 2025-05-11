@@ -271,6 +271,20 @@ Error ImportExporter::_reexport_translations(Vector<ImportExporter::ExportToken>
 	return err;
 }
 
+void ImportExporter::recreate_uid_file(const String &output_dir, const String &src_path, bool is_import, const HashSet<String> &files_to_export_set) {
+	auto uid = GDRESettings::get_singleton()->get_uid_for_path(src_path);
+	if (uid != ResourceUID::INVALID_ID) {
+		String output_file = output_dir.path_join(src_path.trim_prefix("res://"));
+		String uid_path = output_file + ".uid";
+		if ((is_import || files_to_export_set.has(src_path)) && FileAccess::exists(output_file)) {
+			Ref<FileAccess> f = FileAccess::open(uid_path, FileAccess::WRITE);
+			if (f.is_valid()) {
+				f->store_string(ResourceUID::get_singleton()->id_to_text(uid));
+			}
+		}
+	}
+}
+
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	reset_log();
@@ -480,6 +494,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			report->translation_export_message += ret->get_message();
 		} else if (iinfo->get_importer() == "script_bytecode") {
 			report->decompiled_scripts.push_back(iinfo->get_path());
+			// 4.4 and higher have uid files for scripts that we have to recreate
+			if ((get_ver_major() == 4 && get_ver_minor() >= 4) || get_ver_major() > 4) {
+				recreate_uid_file(output_dir, iinfo->get_source_file(), true, files_to_export_set);
+			}
 		}
 		// ***** Record export result *****
 		auto metadata_status = ret->get_rewrote_metadata();
@@ -522,6 +540,15 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		// remove remaps
 		if (!err && get_settings()->has_any_remaps()) {
 			remove_remap_and_autoconverted(iinfo->get_export_dest(), iinfo->get_path(), output_dir);
+		}
+	}
+
+	// Need to recreate the uid files for the exported resources
+	// check if we're at version 4.4 or higher
+	if ((get_ver_major() == 4 && get_ver_minor() >= 4) || get_ver_major() > 4) {
+		auto non_custom_uid_files = get_settings()->get_file_list({ "*.gd", "*.gdshader", "*.shader" });
+		for (int i = 0; i < non_custom_uid_files.size(); i++) {
+			recreate_uid_file(output_dir, non_custom_uid_files[i], false, files_to_export_set);
 		}
 	}
 

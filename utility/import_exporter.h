@@ -121,6 +121,7 @@ class ImportExporter : public RefCounted {
 	void rewrite_metadata(ExportToken &token);
 	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, const String &output_dir);
 	Error _reexport_translations(Vector<ExportToken> &non_multithreaded_tokens, size_t token_size, Ref<EditorProgressGDDC> pr);
+	void recreate_uid_file(const String &output_dir, const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
 
 protected:
 	static void _bind_methods();
