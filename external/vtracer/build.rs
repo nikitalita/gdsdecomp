@@ -1,22 +1,13 @@
 extern crate cbindgen;
 
 use std::{env, path::PathBuf};
+
 fn main() {
     let crate_dir = PathBuf::from(
         env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR env var is not defined"),
     );
 
     let package_name = env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME env var is not defined");
-
-    let build_dir = if let Ok(build_dir) = env::var("CBINDGEN_TARGET_DIR") {
-        PathBuf::from(build_dir)
-    } else {
-        // get the PWD
-        let pwd = crate_dir.clone();
-        println!("cargo:warning=pwd: {}", pwd.display());
-        pwd.join("target")
-    };
-    // println!("cargo:warning=build_dir: {}", build_dir.display());
 
     // let build_dir = PathBuf::from(
     //     env::var("CARGO_TARGET_DIR").expect("CARGO_TARGET_DIR env var is not defined"),
@@ -38,15 +29,16 @@ fn main() {
         //       that it can direct the generated header file into its
         //       out-of-source build directory for post-processing.
 
-        let target_dir = if let Ok(target_dir) = env::var("CBINDGEN_TARGET_DIR") {
-            PathBuf::from(target_dir)
+        let header_file = format!("{}.h", package_name);
+        let header_path = if let Ok(target_dir) = env::var("CBINDGEN_TARGET_DIR") {
+            std::fs::create_dir_all(target_dir.clone()).expect("Failed to create target directory");
+            PathBuf::from(target_dir).join(header_file.clone())
         } else {
-            build_dir.clone().join("include").join(package_name.clone())
+            PathBuf::from("include").join("vtracer").join(header_file.clone())
         };
-        // println!("cargo:warning=target_dir: {}", target_dir.display());
+        println!("cargo:warning=header_path: {}", header_path.display());
 
         // ensure target_dir exists
-        std::fs::create_dir_all(target_dir.clone()).expect("Failed to create target directory");
-        writer.write_to_file(target_dir.join(format!("{}.h", package_name)));
+        writer.write_to_file(header_path);
     }
 }

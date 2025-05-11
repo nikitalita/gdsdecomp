@@ -63,13 +63,25 @@ impl SvgPath {
         let (string, offset) = self
             .path
             .to_svg_string(true, PointF64::default(), precision);
-        writeln!(
-            f,
-            "<path d=\"{}\" fill=\"{}\" transform=\"translate({},{})\"/>",
-            string,
-            self.color.to_hex_string(),
-            offset.x,
-            offset.y
-        )
+        if self.color.a < 255 {
+            writeln!(
+                f,
+                "<path d=\"{}\" fill=\"{}\" opacity=\"{}\" transform=\"translate({},{})\"/>",
+                string,
+                self.color.to_hex_string(),
+                self.color.a as f32 / 255.0,
+                offset.x,
+                offset.y
+            )
+        } else {
+            writeln!(
+                f,
+                "<path d=\"{}\" fill=\"{}\" transform=\"translate({},{})\"/>",
+                string,
+                self.color.to_hex_string(),
+                offset.x,
+                offset.y
+            )
+        }
     }
 }

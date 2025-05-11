@@ -1,16 +1,15 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::{fs::File, io::Write};
 
 use super::config::{ColorMode, Config, ConverterConfig, Hierarchical};
 use super::svg::SvgFile;
 use fastrand::Rng;
-use visioncortex::color_clusters::{KeyingAction, Runner, RunnerConfig, HIERARCHICAL_MAX};
-use visioncortex::{Color, ColorImage, ColorName};
+use visioncortex::color_clusters::{Cluster, ClusterIndex, Clusters, KeyingAction, HIERARCHICAL_MAX};
+use visioncortex::{Color, ColorImage, ColorName, PathSimplifyMode};
 
+use crate::runner::{Runner, RunnerConfig};
 const NUM_UNUSED_COLOR_ITERATIONS: usize = 6;
-/// The fraction of pixels in the top/bottom rows of the image that need to be transparent before
-/// the entire image will be keyed.
-const KEYING_THRESHOLD: f32 = /*0.2;*/ 0.0; // HACK - This forces the keying to be applied to all images so transparency is always preserved.
 
 /// Convert an in-memory image into an in-memory SVG
 pub fn convert(img: ColorImage, config: Config) -> Result<SvgFile, String> {
@@ -74,13 +73,13 @@ fn find_unused_color_in_image(img: &ColorImage) -> Result<Color, String> {
     ))
 }
 
-fn should_key_image(img: &ColorImage) -> bool {
+fn should_key_image(img: &ColorImage, config: &ConverterConfig) -> bool {
     if img.width == 0 || img.height == 0 {
         return false;
     }
 
     // Check for transparency at several scanlines
-    let threshold = ((img.width * 2) as f32 * KEYING_THRESHOLD) as usize;
+    let threshold = ((img.width * 2) as f32 * config.keying_threshold) as usize;
     let mut num_transparent_pixels = 0;
     let y_positions = [
         0,
@@ -103,11 +102,43 @@ fn should_key_image(img: &ColorImage) -> bool {
     false
 }
 
+
+fn remove_pixels_from_lower_layers(clusters: &Clusters) -> Vec<Cluster>{
+    let view = clusters.view();
+    let mut pixel_alpha_map = HashMap::new();
+    let mut clusters = Vec::new();
+    let clusters_output = view.clusters_output.to_vec();
+    for &i in clusters_output.iter() {
+        let mut cluster = view.get_cluster(i).clone();
+        let indices = cluster.indices.clone();
+        let indices_size = indices.len();
+        if cluster.residue_sum.average().a == 254 {
+            cluster.residue_sum.a = 255 * cluster.residue_sum.counter; 
+        }
+        let color = cluster.residue_color();
+        for (i, index) in indices.iter().rev().enumerate() {
+            let pix_idx = *index;
+            let real_i = indices_size - i - 1;
+            if !pixel_alpha_map.contains_key(&pix_idx) {
+                pixel_alpha_map.insert(pix_idx, color.a);
+            } else {
+                // Unless the pixel above this one is completely opaque, remove it
+                // (This check prevents tiny cracks in the svg between pixels)
+                if pixel_alpha_map.get(&pix_idx).unwrap() != &255 {
+                    cluster.indices.remove(real_i);
+                }
+            }
+        }
+        clusters.push(cluster);
+    }
+    clusters
+}
+
 fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<SvgFile, String> {
     let width = img.width;
     let height = img.height;
 
-    let key_color = if should_key_image(&img) {
+    let key_color = if should_key_image(&img, &config) {
         let key_color = find_unused_color_in_image(&img)?;
         for y in 0..height {
             for x in 0..width {
@@ -121,6 +152,7 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
         // The default color is all zeroes, which is treated by visioncortex as a special value meaning no keying will be applied.
         Color::default()
     };
+    let same_color_b = if matches!(config.mode, PathSimplifyMode::None) { 0 } else { 1 };
 
     let runner = Runner::new(
         RunnerConfig {
@@ -130,7 +162,7 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
             good_min_area: config.filter_speckle_area,
             good_max_area: (width * height),
             is_same_color_a: config.color_precision_loss,
-            is_same_color_b: 1,
+            is_same_color_b: same_color_b,
             deepen_diff: config.layer_difference,
             hollow_neighbours: 1,
             key_color,
@@ -143,10 +175,32 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
         img,
     );
 
-    let mut clusters = runner.run();
+    let mut clusters: Clusters = runner.run();
+    // tell it to ignore the warning about not being used
 
-    match config.hierarchical {
-        Hierarchical::Stacked => {}
+    let mut new_cluster_vec = Vec::new();
+    let _ = &new_cluster_vec;
+    let mut new_cluster_output = Vec::new();
+    let mut new_cluster_indices = Vec::new();
+    
+    let view = match config.hierarchical {
+        Hierarchical::Stacked => {
+            if matches!(config.mode, PathSimplifyMode::None) {
+                let mut view = clusters.view();
+                new_cluster_vec = remove_pixels_from_lower_layers(&clusters);
+                for i in 0..new_cluster_vec.len() {
+                    let idx = ClusterIndex(i as u32);
+                    new_cluster_output.push(idx);
+                    new_cluster_indices.push(idx);
+                }
+                view.clusters_output = &new_cluster_output;
+                view.cluster_indices = &new_cluster_indices;
+                view.clusters = &new_cluster_vec;
+                view
+            } else {
+                clusters.view()
+            }
+        }
         Hierarchical::Cutout => {
             let view = clusters.view();
             let image = view.to_color_image();
@@ -158,7 +212,7 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
                     good_min_area: 0,
                     good_max_area: (image.width * image.height) as usize,
                     is_same_color_a: 0,
-                    is_same_color_b: 1,
+                    is_same_color_b: same_color_b,
                     deepen_diff: 0,
                     hollow_neighbours: 0,
                     key_color,
@@ -167,10 +221,9 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
                 image,
             );
             clusters = runner.run();
+            clusters.view()
         }
-    }
-
-    let view = clusters.view();
+    };
 
     let mut svg = SvgFile::new(width, height, config.path_precision);
     for &cluster_index in view.clusters_output.iter().rev() {
@@ -184,7 +237,11 @@ fn color_image_to_svg(mut img: ColorImage, config: ConverterConfig) -> Result<Sv
             config.max_iterations,
             config.splice_threshold,
         );
-        svg.add_path(paths, cluster.residue_color());
+        let mut residue_color = cluster.residue_color();
+        if !(matches!(config.mode, PathSimplifyMode::None)) {
+            residue_color.a = 255;
+        }
+        svg.add_path(paths, residue_color);
     }
 
     Ok(svg)

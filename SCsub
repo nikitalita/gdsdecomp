@@ -303,7 +303,7 @@ def add_libs_to_env(module_obj, libs, sources):
 
 VTRACER_PREFIX = "external/vtracer"
 VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
-VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "build")
+VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "target")
 VTRACER_LIBS = ["external_install/lib/libvtracer.a"]
 
 
