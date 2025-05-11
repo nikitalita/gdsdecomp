@@ -12,8 +12,8 @@
 #include "core/io/http_client_tcp.h"
 #include "core/io/image.h"
 #include "core/io/missing_resource.h"
-#include "external_install/include/vtracer.h"
 #include "modules/zip/zip_reader.h"
+#include "vtracer/vtracer.h"
 
 Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, const bool absolute, const String &rel) {
 	Vector<String> ret;
