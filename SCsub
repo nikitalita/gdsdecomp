@@ -285,13 +285,13 @@ def add_libs_to_env(module_obj, libs, sources):
 VTRACER_PREFIX = "external/vtracer"
 VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
 VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "target")
-VTRACER_LIBS = ["libvtracer"]
+VTRACER_LIBS = ["vtracer"]
 
 
 def get_vtracer_libs():
+    lib_prefix: str = "lib" if not env.msvc else ""
     lib_suffix: Literal[".a", ".lib"] = ".a" if not env.msvc else ".lib"
-    return [lib + lib_suffix for lib in VTRACER_LIBS]
-
+    return [lib_prefix + lib + lib_suffix for lib in VTRACER_LIBS]
 
 def get_vtracer_lib_dir():
     rust_target = get_cargo_target(build_env=env)
