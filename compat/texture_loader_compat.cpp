@@ -44,6 +44,7 @@ void set_res_path(Ref<Resource> res, const String &path, ResourceInfo::LoadType 
 						RenderingServer::get_singleton()->texture_set_path(rid, path);
 					}
 				}
+				res->set_path_cache(path);
 			}
 		} else if (p_type == ResourceInfo::LoadType::GLTF_LOAD) {
 			// set_path() on textures calls RenderingServer::texture_set_path(),
