@@ -15,8 +15,6 @@ Import("env_modules")
 MODULE_DIR: str = os.path.realpath(".")
 EXTERNAL_STEM: str = "external_install"
 EXTERNAL_DIR: str = os.path.join(MODULE_DIR, EXTERNAL_STEM)
-EXTERNAL_INCLUDE_DIR: str = os.path.join(EXTERNAL_DIR, "include")
-EXTERNAL_LIB_DIR: str = os.path.join(EXTERNAL_DIR, "lib")
 
 
 etcpak_dir = "#thirdparty/etcpak/"
@@ -24,6 +22,7 @@ mmp3thirdparty_dir = "#thirdparty/minimp3/"
 liboggthirdparty_dir = "#thirdparty/libogg/"
 libvorbisthirdparty_dir = "#thirdparty/libvorbis/"
 webpthirdparty_dir = "#thirdparty/libwebp/"
+vtracer_dir_include_dir = "#modules/gdsdecomp/external/vtracer/include"
 
 # hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13 in the macos/detect.py script
 # TODO: remove this hack once the minimum macOS version is updated to 10.15
@@ -44,11 +43,11 @@ env_gdsdecomp = env_modules.Clone()
 # and the headers that our tests pull in are relative to the current directory.
 # TODO: Figure out a way to not have to do this
 if env["tests"]:
-    env.Append(CPPPATH=["#modules/gdsdecomp" + EXTERNAL_STEM + "/include"])
+    env.Append(CPPPATH=[vtracer_dir_include_dir])
     env.Append(CPPPATH=["#modules/gdsdecomp/"])
     env.Append(CPPPATH=[liboggthirdparty_dir])
     env.Append(CPPPATH=[libvorbisthirdparty_dir])
-env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp" + EXTERNAL_STEM + "/include"])
+env_gdsdecomp.Append(CPPPATH=[vtracer_dir_include_dir])
 env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp/"])
 env_gdsdecomp.Append(CPPPATH=["#thirdparty/thorsvg/"])
 
@@ -167,9 +166,6 @@ if env["builtin_libwebp"]:
     env_gdsdecomp.Prepend(CPPPATH=[webpthirdparty_dir, webpthirdparty_dir + "src/"])
 
 
-env.Append(LIBPATH=[EXTERNAL_LIB_DIR])
-
-
 def get_sources(rel_path, filters=["*.h", "*.hpp", "*.cpp"]):
     abs_path = os.path.join(MODULE_DIR, rel_path)
     # check if abs_path exists
@@ -228,17 +224,7 @@ def get_rustc_target():
     return match.group(1)
 
 
-def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list[str], build_env):
-    output = bytes()
-    # get dev_build from env
-    if build_env is None:
-        raise Exception("build_env is required")
-    dev_build = build_env["dev_build"] if "dev_build" in build_env else False
-    build_variant = "Debug" if dev_build else "Release"
-    print("BUILD VARIANT", build_variant)
-
-    # rustc_target = get_rustc_target()
-
+def get_cargo_target(build_env):
     arch_part: str = "x86_64" if build_env["arch"] == "x86_64" else "aarch64"
     cargo_target: str = ""
     if build_env["platform"] == "macos":
@@ -259,6 +245,20 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
         cargo_target = str(f"{arch_part}-linux-android")
     else:
         raise Exception(f"Unsupported platform: {build_env['platform']}")
+    return cargo_target
+
+
+def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list[str], build_env):
+    output = bytes()
+    # get dev_build from env
+    if build_env is None:
+        raise Exception("build_env is required")
+    dev_build = build_env["dev_build"] if "dev_build" in build_env else False
+    build_variant = "Debug" if dev_build else "Release"
+    print("BUILD VARIANT", build_variant)
+    cargo_target = get_cargo_target(build_env)
+    cbindgen_dir = os.path.join(source_dir, "include", "vtracer")
+    # rustc_target = get_rustc_target()
 
     arch_flag = str(f"--target={cargo_target}")
     cargo_cmd = ["cargo", "build", arch_flag]
@@ -266,33 +266,10 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
         cargo_cmd.append("--release")
     cargo_env = os.environ.copy()
     cargo_env["CARGO_TARGET_DIR"] = build_dir
-    cargo_env["CARGO_INSTALL_ROOT"] = external_dir
-    cargo_env["CBINDGEN_TARGET_DIR"] = os.path.join(external_dir, "include")
+    # cargo_env["CARGO_INSTALL_ROOT"] = external_dir
+    cargo_env["CBINDGEN_TARGET_DIR"] = cbindgen_dir
     output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
     print(output.decode("utf-8"))
-    # copy the lib to the external dir
-    print("COPYING LIBRARY")
-
-    # get all the file names from the libs
-    lib_file_names = [os.path.basename(lib) for lib in libs]
-
-    variant_dir = "debug" if dev_build else "release"
-
-    built_lib_dir = os.path.join(build_dir, cargo_target, variant_dir)
-    print("LIBRARY PATH", built_lib_dir)
-    lib_paths: list[str] = []
-    lib_install_dir = os.path.join(external_dir, "lib")
-    if not os.path.exists(lib_install_dir):
-        os.makedirs(lib_install_dir)
-    for lib_file_name in lib_file_names:
-        lib_path = os.path.join(built_lib_dir, lib_file_name)
-        # ensure external_dir, "lib" exists
-        shutil.copy(lib_path, os.path.join(lib_install_dir, lib_file_name))
-
-    for lib in libs:
-        expected_lib_path = os.path.join(MODULE_DIR, lib)
-        if not os.path.exists(expected_lib_path):
-            raise Exception(f"Library {lib} not found at {expected_lib_path}")
 
 
 def add_libs_to_env(module_obj, libs, sources):
@@ -308,7 +285,7 @@ def add_libs_to_env(module_obj, libs, sources):
 VTRACER_PREFIX = "external/vtracer"
 VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
 VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "target")
-VTRACER_LIBS = ["external_install/lib/libvtracer"]
+VTRACER_LIBS = ["libvtracer"]
 
 
 def get_vtracer_libs():
@@ -316,12 +293,33 @@ def get_vtracer_libs():
     return [lib + lib_suffix for lib in VTRACER_LIBS]
 
 
+def get_vtracer_lib_dir():
+    rust_target = get_cargo_target(build_env=env)
+    debug_build = env["dev_build"]
+    variant_dir = "debug" if debug_build else "release"
+    return os.path.join(VTRACER_BUILD_DIR, rust_target, variant_dir)
+
+
+def get_vtracer_lib_paths() -> list[Any]:
+    libs = get_vtracer_libs()
+    lib_paths = []
+    build_dir = get_vtracer_lib_dir()
+    for lib in libs:
+        lib_path = os.path.join(build_dir, lib)
+        lib_paths.append(lib_path)
+    print("LIB PATHS", lib_paths)
+    return lib_paths
+
+
+env.Append(LIBPATH=[get_vtracer_lib_dir()])
+
+
 def vtracer_builder(target, source, env):
     print("VTRACER BUILD")
     print(str(target[0]))
     print(source)
     # print(env)
-    cargo_builder(EXTERNAL_DIR, VTRACER_DIR, VTRACER_BUILD_DIR, get_vtracer_libs(), env)
+    cargo_builder(EXTERNAL_DIR, VTRACER_DIR, VTRACER_BUILD_DIR, get_vtracer_lib_paths(), env)
 
 
 def build_vtracer(module_obj):
@@ -332,7 +330,7 @@ def build_vtracer(module_obj):
         suffix=lib_suffix,
         src_suffix=["*.h", "*.cpp", "*.rs", "*.txt"],
     )
-    libs = get_vtracer_libs()
+    libs = get_vtracer_lib_paths()
 
     vtracer_sources = get_sources(VTRACER_PREFIX, SRC_SUFFIXES)
     env_gdsdecomp.Alias(
