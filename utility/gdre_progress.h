@@ -113,6 +113,7 @@ class GDREProgressDialog : public PopupPanel {
 
 	void _update_ui();
 	std::atomic<bool> canceled = false;
+	bool is_updating = false;
 
 protected:
 	void _notification(int p_what);
