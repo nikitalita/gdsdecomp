@@ -270,6 +270,13 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
     cargo_env["CBINDGEN_TARGET_DIR"] = cbindgen_dir
     output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
     print(output.decode("utf-8"))
+    if env.msvc:
+        dar = get_vtracer_lib_dir()
+        for lib in libs:
+            lib_path = os.path.join(dar, os.path.basename(lib).split(".")[0] + env["LIBSUFFIX"])
+            if os.path.exists(lib):
+                # copy lib to lib_path
+                shutil.copy(lib, lib_path)
 
 
 def add_libs_to_env(module_obj, libs, sources):
@@ -277,7 +284,9 @@ def add_libs_to_env(module_obj, libs, sources):
         env_gdsdecomp.Depends(lib, sources)
         # get the basename of the library minus the extension
         lib_name = os.path.basename(lib).split(".")[0]
-        full_lib_path = os.path.join(MODULE_DIR, lib)
+        # if env.msvc:
+        # lib_name = lib + env["LIBSUFFIX"]
+        print("LIB NAME", lib_name)
         env.Append(LIBS=[lib_name])
     env.Depends(module_obj, libs)
 
@@ -338,6 +347,9 @@ def build_vtracer(module_obj):
         [env_gdsdecomp.vtracerBuilder(libs, vtracer_sources)],
     )
     add_libs_to_env(module_obj, libs, vtracer_sources)
+    if env.msvc:
+        env.Append(LINKFLAGS=["userenv.lib"])
+        pass
 
 
 # link against external/libvtracer.a
