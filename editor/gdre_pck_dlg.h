@@ -18,6 +18,7 @@
 #include "scene/gui/line_edit.h"
 #include "scene/gui/spin_box.h"
 #include "scene/gui/text_edit.h"
+#include "scene/gui/tree.h"
 
 class PackDialog : public AcceptDialog {
 	GDCLASS(PackDialog, AcceptDialog)
