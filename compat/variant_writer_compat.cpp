@@ -768,35 +768,16 @@ template <int ver_major, bool is_pcfg, bool is_script, bool p_compat = false, bo
 struct VarWriter {
 	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && !p_compat && after_4_4));
 
-	static String rtosfix(float p_value) {
+	template <typename T>
+	static String rtosfix(T p_value) {
+		static_assert(std::is_floating_point_v<T>, "rtosfix only supports floating point types");
 		if (p_value == 0.0) {
 			return "0"; // Avoid negative zero (-0) being written, which may annoy git, svn, etc. for changes when they don't exist.
 		}
-		if (isnan(p_value)) {
+		if (std::isnan(p_value)) {
 			return "nan";
 		}
-		if (isinf(p_value)) {
-			if (p_value < 0) {
-				if constexpr (use_inf_neg) {
-					return "inf_neg";
-				} else {
-					return "-inf";
-				}
-			} else {
-				return "inf";
-			}
-		}
-		return gdre::num_scientific(p_value);
-	}
-
-	static String rtosfix(double p_value) {
-		if (p_value == 0.0) {
-			return "0"; //avoid negative zero (-0) being written, which may annoy git, svn, etc. for changes when they don't exist.
-		}
-		if (isnan(p_value)) {
-			return "nan";
-		}
-		if (isinf(p_value)) {
+		if (std::isinf(p_value)) {
 			if (p_value < 0) {
 				if constexpr (use_inf_neg) {
 					return "inf_neg";
