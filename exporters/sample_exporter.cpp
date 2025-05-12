@@ -219,31 +219,32 @@ bool SampleExporter::handles_import(const String &importer, const String &resour
 	return importer == "sample" || importer == "wav" || (resource_type == "AudioStreamWAV" || resource_type == "AudioStreamSample");
 }
 
-Error SampleExporter::_export_file(const String &out_path, const String &res_path, int ver_major) {
+Error SampleExporter::_export_file(const String &out_path, const String &res_path, Ref<AudioStreamWAV> &r_sample, int ver_major) {
 	// Implement the export logic here
 	Error err;
-	Ref<AudioStreamWAV> sample = ResourceCompatLoader::non_global_load(res_path, "", &err);
+	r_sample = ResourceCompatLoader::non_global_load(res_path, "", &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load sample file " + res_path);
-	ERR_FAIL_COND_V_MSG(sample.is_null(), ERR_FILE_UNRECOGNIZED, "Sample not loaded: " + res_path);
+	ERR_FAIL_COND_V_MSG(r_sample.is_null(), ERR_FILE_UNRECOGNIZED, "Sample not loaded: " + res_path);
 	bool converted = false;
-	if (sample->get_format() == AudioStreamWAV::FORMAT_IMA_ADPCM) {
+	if (r_sample->get_format() == AudioStreamWAV::FORMAT_IMA_ADPCM) {
 		// convert to 16-bit
-		sample = convert_adpcm_to_16bit(sample);
+		r_sample = convert_adpcm_to_16bit(r_sample);
 		converted = true;
-	} else if (sample->get_format() == AudioStreamWAV::FORMAT_QOA) {
-		sample = convert_qoa_to_16bit(sample);
+	} else if (r_sample->get_format() == AudioStreamWAV::FORMAT_QOA) {
+		r_sample = convert_qoa_to_16bit(r_sample);
 		converted = true;
 	}
 	err = gdre::ensure_dir(out_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + out_path);
-	err = sample->save_to_wav(out_path);
+	err = r_sample->save_to_wav(out_path);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not save " + out_path);
 
 	return converted ? ERR_PRINTER_ON_FIRE : OK;
 }
 
 Error SampleExporter::export_file(const String &out_path, const String &res_path) {
-	Error err = _export_file(out_path, res_path, 0);
+	Ref<AudioStreamWAV> sample;
+	Error err = _export_file(out_path, res_path, sample, 0);
 	if (err == ERR_PRINTER_ON_FIRE) {
 		return OK;
 	}
@@ -255,15 +256,42 @@ Ref<ExportReport> SampleExporter::export_resource(const String &output_dir, Ref<
 	Ref<ExportReport> report = memnew(ExportReport(import_infos));
 	String src_path = import_infos->get_path();
 	String dst_path = output_dir.path_join(import_infos->get_export_dest().replace("res://", ""));
-	Error err = _export_file(dst_path, src_path, import_infos->get_ver_major());
+	Ref<AudioStreamWAV> sample;
+	Error err = _export_file(dst_path, src_path, sample, import_infos->get_ver_major());
 
 	if (err == ERR_PRINTER_ON_FIRE) {
 		report->set_loss_type(ImportInfo::STORED_LOSSY);
 	} else if (err != OK) {
 		report->set_error(err);
 		report->set_message("Failed to export sample: " + src_path);
+	} else {
+		report->set_saved_path(dst_path);
+		if (import_infos->get_ver_major() >= 4) {
+			// 			r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "force/8_bit"), false));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "force/mono"), false));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "force/max_rate", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), false));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::FLOAT, "force/max_rate_hz", PROPERTY_HINT_RANGE, "11025,192000,1,exp"), 44100));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "edit/trim"), false));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "edit/normalize"), false));
+			// // Keep the `edit/loop_mode` enum in sync with AudioStreamWAV::LoopMode (note: +1 offset due to "Detect From WAV").
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "edit/loop_mode", PROPERTY_HINT_ENUM, "Detect From WAV,Disabled,Forward,Ping-Pong,Backward", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 0));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "edit/loop_begin"), 0));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "edit/loop_end"), -1));
+			// // Quite OK Audio is lightweight enough and supports virtually every significant AudioStreamWAV feature.
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "compress/mode", PROPERTY_HINT_ENUM, "PCM (Uncompressed),IMA ADPCM,Quite OK Audio"), 2));
+			import_infos->set_param("force/8_bit", false);
+			import_infos->set_param("force/mono", false);
+			import_infos->set_param("force/max_rate", false);
+			import_infos->set_param("force/max_rate_hz", 44100);
+			import_infos->set_param("edit/trim", false);
+			import_infos->set_param("edit/normalize", false);
+			import_infos->set_param("edit/loop_mode", sample->get_loop_mode());
+			import_infos->set_param("edit/loop_begin", sample->get_loop_begin());
+			import_infos->set_param("edit/loop_end", sample->get_loop_end());
+			// quote ok was added in 4.3
+			import_infos->set_param("compress/mode", 0); // force uncompressed to prevent generational loss
+		}
 	}
-	report->set_saved_path(dst_path);
 	return report;
 }
 

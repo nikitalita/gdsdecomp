@@ -1,8 +1,10 @@
 #pragma once
 #include "exporters/resource_exporter.h"
 
+class AudioStreamMP3;
 class Mp3StrExporter : public ResourceExporter {
 	GDCLASS(Mp3StrExporter, ResourceExporter);
+	virtual Error _export_resource(Ref<AudioStreamMP3> sample, const String &out_path, const String &res_path);
 
 public:
 	virtual Error export_file(const String &out_path, const String &res_path) override;

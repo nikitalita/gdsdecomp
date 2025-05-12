@@ -101,7 +101,7 @@ Vector<uint8_t> OggStrExporter::get_ogg_stream_data(const Ref<AudioStreamOggVorb
 	return data;
 }
 
-Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, int ver_major, Error *r_err) {
+Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major, Error *r_err) {
 	Error _err = OK;
 	if (!r_err) {
 		r_err = &_err;
@@ -111,9 +111,9 @@ Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, int v
 		ver_major = get_ver_major(p_path);
 	}
 	if (ver_major == 4) {
-		Ref<AudioStreamOggVorbis> sample = ResourceCompatLoader::non_global_load(p_path, "", r_err);
+		r_sample = ResourceCompatLoader::non_global_load(p_path, "", r_err);
 		ERR_FAIL_COND_V_MSG(*r_err != OK, Vector<uint8_t>(), "Cannot open resource '" + p_path + "'.");
-		*r_err = get_data_from_ogg_stream(sample, data);
+		*r_err = get_data_from_ogg_stream(r_sample, data);
 		if (*r_err == ERR_PRINTER_ON_FIRE) {
 			WARN_PRINT("Ogg stream had warnings: " + p_path);
 			*r_err = OK;
@@ -128,12 +128,12 @@ Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, int v
 	return data;
 }
 
-Error OggStrExporter::_export_file(const String &dst_path, const String &res_path, int ver_major) {
+Error OggStrExporter::_export_file(const String &dst_path, const String &res_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major) {
 	Error err = OK;
 	if (ver_major == 0) {
 		ver_major = get_ver_major(res_path);
 	}
-	Vector<uint8_t> data = load_ogg_stream_data(res_path, ver_major, &err);
+	Vector<uint8_t> data = load_ogg_stream_data(res_path, r_sample, ver_major, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load Ogg stream data from " + res_path);
 	err = gdre::ensure_dir(dst_path.get_base_dir());
 	Ref<FileAccess> f = FileAccess::open(dst_path, FileAccess::WRITE);
@@ -143,7 +143,8 @@ Error OggStrExporter::_export_file(const String &dst_path, const String &res_pat
 }
 
 Error OggStrExporter::export_file(const String &dst_path, const String &res_path) {
-	return _export_file(dst_path, res_path, get_ver_major(res_path));
+	Ref<AudioStreamOggVorbis> sample;
+	return _export_file(dst_path, res_path, sample, get_ver_major(res_path));
 }
 
 Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_info) {
@@ -151,7 +152,8 @@ Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<
 	String dst_path = output_dir.path_join(import_info->get_export_dest().replace("res://", ""));
 	// Implement the logic to export the Ogg Vorbis stream to the specified path
 	Ref<ExportReport> report = memnew(ExportReport(import_info));
-	Error err = _export_file(dst_path, src_path, import_info->get_ver_major());
+	Ref<AudioStreamOggVorbis> sample;
+	Error err = _export_file(dst_path, src_path, sample, import_info->get_ver_major());
 	if (err != OK) {
 		report->set_error(err);
 		if (err == ERR_FILE_CORRUPT) {
@@ -163,6 +165,13 @@ Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<
 	} else {
 		print_verbose("Converted " + src_path + " to " + dst_path);
 		report->set_saved_path(dst_path);
+		if (sample.is_valid()) { // sample only gets set if ver_major is 4
+			import_info->set_param("loop", sample->has_loop());
+			import_info->set_param("loop_offset", sample->get_loop_offset());
+			import_info->set_param("bpm", sample->get_bpm());
+			import_info->set_param("beat_count", sample->get_beat_count());
+			import_info->set_param("bar_beats", sample->get_bar_beats());
+		}
 	}
 	return report;
 }
