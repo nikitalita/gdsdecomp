@@ -13,13 +13,13 @@
 const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 bool PckDumper::_pck_file_check_md5(Ref<PackedFileInfo> &file) {
-	// Loading an encrypted file automatically checks the md5
-	if (file->is_encrypted()) {
-		return true;
-	}
 	auto hash = FileAccess::get_md5(file->get_path());
 	auto p_md5 = String::md5(file->get_md5().ptr());
-	return hash == p_md5;
+	bool ret = hash == p_md5;
+	if (!ret && file->is_encrypted()) {
+		encryption_error = true;
+	}
+	return ret;
 }
 
 Error PckDumper::check_md5_all_files() {
@@ -89,6 +89,9 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 				"PckDumper::_check_md5_all_files",
 				task_desc, true);
 	}
+	if (encryption_error) {
+		GDRESettings::get_singleton()->_set_error_encryption(encryption_error);
+	}
 	checked_files = completed_cnt - skipped_cnt;
 	skipped_files = skipped_cnt;
 	if (broken_cnt > 0) {
@@ -105,6 +108,9 @@ Error PckDumper::_check_md5_all_files(Vector<String> &broken_files, int &checked
 		print_error("Verification cancelled!\n");
 	} else if (err) {
 		print_error("At least one error was detected while verifying files in pack!\n");
+		if (encryption_error) {
+			print_error("Encryption error detected, please check your encryption key and try again.\n");
+		}
 		//show_warning(failed_files, RTR("Read PCK"), RTR("At least one error was detected!"));
 	} else if (skipped_files > 0) {
 		print_line("Verified " + itos(checked_files) + " files, " + itos(skipped_files) + " files skipped (MD5 hash entry was empty)");
