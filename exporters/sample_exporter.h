@@ -3,7 +3,7 @@
 class AudioStreamWAV;
 class SampleExporter : public ResourceExporter {
 	GDCLASS(SampleExporter, ResourceExporter);
-	Error _export_file(const String &out_path, const String &res_path, int ver_major = 0);
+	Error _export_file(const String &out_path, const String &res_path, Ref<AudioStreamWAV> &r_sample, int ver_major = 0);
 
 public:
 	static Ref<AudioStreamWAV> convert_adpcm_to_16bit(const Ref<AudioStreamWAV> &p_sample);
