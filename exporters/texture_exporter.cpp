@@ -83,8 +83,10 @@ Error TextureExporter::_convert_bitmap(const String &p_path, const String &dest_
 }
 
 Error TextureExporter::save_image(const String &dest_path, const Ref<Image> &img, bool lossy) {
+	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
+	Error err = gdre::ensure_dir(dest_path.get_base_dir());
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
 	String dest_ext = dest_path.get_extension().to_lower();
-	Error err = OK;
 	if (img->is_compressed() && img->has_mipmaps()) {
 		img->clear_mipmaps();
 	}
@@ -99,6 +101,10 @@ Error TextureExporter::save_image(const String &dest_path, const Ref<Image> &img
 		err = gdre::save_image_as_tga(dest_path, img);
 	} else if (dest_ext == "svg") {
 		err = gdre::save_image_as_svg(dest_path, img);
+	} else if (dest_ext == "dds") {
+		err = img->save_dds(dest_path);
+	} else if (dest_ext == "exr") {
+		err = img->save_exr(dest_path);
 	} else {
 		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
 	}
@@ -123,9 +129,6 @@ Error TextureExporter::_convert_tex(const String &p_path, const String &dest_pat
 	Ref<Image> img = tex->get_image();
 
 	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to load image for texture " + p_path);
-	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + p_path + ", not saving");
-	err = gdre::ensure_dir(dst_dir);
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
 	image_format = Image::get_format_name(img->get_format());
 	err = save_image(dest_path, img, lossy);
 	if (err == ERR_UNAVAILABLE) {
@@ -174,9 +177,6 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 	// now we have to add the margin padding
 	Ref<Image> new_img = Image::create_empty(atex->get_width(), atex->get_height(), false, img->get_format());
 	new_img->blit_rect(img, region, Point2i(margin.position.x, margin.position.y));
-
-	err = gdre::ensure_dir(dst_dir);
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
 	err = save_image(dest_path, new_img, lossy);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
@@ -201,6 +201,262 @@ Error TextureExporter::export_file(const String &out_path, const String &res_pat
 		return _convert_atex(res_path, out_path, false, fmt_name);
 	}
 	return _convert_tex(res_path, out_path, false, fmt_name);
+}
+
+Error TextureExporter::_convert_3d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
+	Error err;
+	String dst_dir = dest_path.get_base_dir();
+	Ref<Texture3D> tex;
+	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
+	Ref<ImportInfo> iinfo;
+	if (report.is_valid()) {
+		iinfo = report->get_import_info();
+	}
+
+	// deprecated format
+	if (err == ERR_UNAVAILABLE) {
+		image_format = "Unknown deprecated image format";
+		print_line("Did not convert deprecated Texture resource " + p_path);
+		return err;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + p_path);
+
+	auto layer_count = tex->get_depth();
+	int width = tex->get_width();
+	int height = tex->get_height();
+	Vector<Ref<Image>> images = tex->get_data();
+	Vector<Vector<uint8_t>> images_data;
+	for (int64_t i = 0; i < layer_count; i++) {
+		Ref<Image> img = images[i];
+		ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to load image index " + itos(i) + " for texture " + p_path);
+		if (img->is_compressed() && img->has_mipmaps()) {
+			img->clear_mipmaps();
+		}
+		GDRE_ERR_DECOMPRESS_OR_FAIL(img);
+		if (img->get_format() != Image::FORMAT_RGBA8) {
+			img->convert(Image::FORMAT_RGBA8);
+		}
+		images.push_back(img);
+		images_data.push_back(img->get_data());
+	}
+	int64_t num_images_w = -1;
+	int64_t num_images_h = -1;
+	size_t new_width;
+	size_t new_height;
+	Dictionary params;
+	if (iinfo.is_valid()) {
+		params = iinfo->get_params();
+	}
+	bool had_valid_params = false;
+	if (iinfo.is_valid()) {
+		num_images_w = params.get("slices/horizontal", -1);
+		num_images_h = params.get("slices/vertical", -1);
+		had_valid_params = num_images_w != -1 && num_images_h != -1;
+	}
+	if (!had_valid_params) {
+		if (layer_count == 64) {
+			num_images_w = 8;
+			num_images_h = 8;
+		} else if (layer_count == 16) {
+			num_images_w = 4;
+			num_images_h = 4;
+		} else if (layer_count == 4) {
+			num_images_w = 2;
+			num_images_h = 2;
+		} else {
+			num_images_w = layer_count;
+			num_images_h = 1;
+		}
+	}
+
+	new_width = width * num_images_w;
+	new_height = height * num_images_h;
+
+	Vector<uint8_t> new_image_data;
+
+	for (int i = 0; i < new_height; i++) {
+		for (int img_idx = 0; img_idx < layer_count; img_idx++) {
+			// We're concatenating the images horizontally; so we have to take a width-sized slice of the image
+			// and copy it into the new image data
+			size_t start_idx = i * width * 4;
+			size_t end_idx = start_idx + (width * 4);
+			ERR_FAIL_COND_V(images_data[img_idx].size() < end_idx, ERR_PARSE_ERROR);
+			new_image_data.append_array(images_data[img_idx].slice(start_idx, end_idx));
+		}
+	}
+	Ref<Image> img = Image::create_from_data(new_width, new_height, false, Image::FORMAT_RGBA8, new_image_data);
+	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to create image for texture " + p_path);
+	image_format = Image::get_format_name(img->get_format());
+	err = save_image(dest_path, img, lossy);
+	if (err == ERR_UNAVAILABLE) {
+		return err;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + dest_path + " from texture " + p_path);
+
+	if (!had_valid_params && iinfo.is_valid()) {
+		iinfo->set_param("slices/horizontal", num_images_w);
+		iinfo->set_param("slices/vertical", num_images_h);
+	}
+	print_verbose("Converted " + p_path + " to " + dest_path);
+	return OK;
+}
+
+Error TextureExporter::_convert_layered_2d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
+	Error err;
+	String dst_dir = dest_path.get_base_dir();
+	Ref<TextureLayered> tex;
+	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
+	Ref<ImportInfo> iinfo;
+	if (report.is_valid()) {
+		iinfo = report->get_import_info();
+	}
+
+	if (err == ERR_UNAVAILABLE) {
+		image_format = "Unknown deprecated image format";
+		print_line("Did not convert deprecated Texture resource " + p_path);
+		return err;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + p_path);
+
+	auto layer_count = tex->get_layers();
+	int width = tex->get_width();
+	int height = tex->get_height();
+	Vector<Ref<Image>> images;
+	Vector<Vector<uint8_t>> images_data;
+	for (int64_t i = 0; i < layer_count; i++) {
+		Ref<Image> img = tex->get_layer_data(i);
+		if (img.is_null()) {
+			if (report.is_valid()) {
+				report->set_error(ERR_PARSE_ERROR);
+				report->set_message("Failed to load image for texture " + p_path);
+			}
+			return err;
+		}
+		if (img->is_compressed() && img->has_mipmaps()) {
+			img->clear_mipmaps();
+		}
+		GDRE_ERR_DECOMPRESS_OR_FAIL(img);
+		if (img->get_format() != Image::FORMAT_RGBA8) {
+			img->convert(Image::FORMAT_RGBA8);
+		}
+		images.push_back(img);
+		images_data.push_back(img->get_data());
+	}
+	int64_t num_images_w = -1;
+	int64_t num_images_h = -1;
+	int64_t arrangement = -1;
+	int64_t layout = -1;
+	int64_t amount = -1;
+	size_t new_width;
+	size_t new_height;
+	auto mode = tex->get_layered_type();
+	Dictionary params;
+	if (iinfo.is_valid()) {
+		params = iinfo->get_params();
+	}
+	bool had_valid_params = false;
+	if (mode == TextureLayered::LAYERED_TYPE_2D_ARRAY) {
+		// get the square root of the number of layers; if it's a whole number, then we have a square
+		if (iinfo.is_valid()) {
+			num_images_w = params.get("slices/horizontal", -1);
+			num_images_h = params.get("slices/vertical", -1);
+			had_valid_params = num_images_w != -1 && num_images_h != -1;
+		}
+		if (!had_valid_params) {
+			if (layer_count == 64) {
+				num_images_w = 8;
+				num_images_h = 8;
+			} else if (layer_count == 16) {
+				num_images_w = 4;
+				num_images_h = 4;
+			} else if (layer_count == 4) {
+				num_images_w = 2;
+				num_images_h = 2;
+			} else {
+				num_images_w = tex->get_layers();
+				num_images_h = 1;
+			}
+		}
+	} else if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP || mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
+		if (iinfo.is_valid()) {
+			arrangement = params.get("slices/arrangement", -1);
+			if (arrangement != -1 && mode == TextureLayered::LAYERED_TYPE_CUBEMAP) {
+				had_valid_params = true;
+			}
+			if (arrangement == 0) {
+				num_images_w = 1;
+				num_images_h = 6;
+			} else if (arrangement == 1) {
+				num_images_w = 2;
+				num_images_h = 3;
+			} else if (arrangement == 2) {
+				num_images_w = 3;
+				num_images_h = 2;
+			} else if (arrangement == 3) {
+				num_images_w = 6;
+				num_images_h = 1;
+			}
+			if (arrangement != -1 && mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
+				layout = params.get("slices/layout", -1);
+				amount = params.get("slices/amount", -1);
+				if (layout != -1 && amount != -1) {
+					if (layout == 0) {
+						num_images_w *= amount;
+					} else if (layout == 1) {
+						num_images_h *= amount;
+					}
+					had_valid_params = true;
+				}
+			}
+		}
+		if (!had_valid_params) {
+			arrangement = 0;
+			layout = 0;
+			amount = layer_count / 6;
+			num_images_w = layer_count;
+			num_images_h = 1;
+		}
+	}
+	new_width = width * num_images_w;
+	new_height = height * num_images_h;
+
+	Vector<uint8_t> new_image_data;
+
+	for (int i = 0; i < new_height; i++) {
+		for (int img_idx = 0; img_idx < layer_count; img_idx++) {
+			// We're concatenating the images horizontally; so we have to take a width-sized slice of the image
+			// and copy it into the new image data
+			size_t start_idx = i * width * 4;
+			size_t end_idx = start_idx + (width * 4);
+			ERR_FAIL_COND_V(images_data[img_idx].size() < end_idx, ERR_PARSE_ERROR);
+			new_image_data.append_array(images_data[img_idx].slice(start_idx, end_idx));
+		}
+	}
+	Ref<Image> img = Image::create_from_data(new_width, new_height, false, Image::FORMAT_RGBA8, new_image_data);
+	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to create image for texture " + p_path);
+	image_format = Image::get_format_name(img->get_format());
+	err = save_image(dest_path, img, lossy);
+	if (err == ERR_UNAVAILABLE) {
+		return err;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + dest_path + " from texture " + p_path);
+
+	if (!had_valid_params && iinfo.is_valid()) {
+		if (mode == TextureLayered::LAYERED_TYPE_2D_ARRAY) {
+			iinfo->set_param("slices/horizontal", num_images_w);
+			iinfo->set_param("slices/vertical", num_images_h);
+		} else if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP) {
+			// 1x6
+			iinfo->set_param("slices/arrangement", 0);
+		} else if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
+			// 1x6
+			iinfo->set_param("slices/arrangement", 0);
+			iinfo->set_param("slices/layout", 0);
+			iinfo->set_param("slices/amount", layer_count / 6);
+		}
+	}
+	print_verbose("Converted " + p_path + " to " + dest_path);
+	return OK;
 }
 
 Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
@@ -277,6 +533,10 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 			} else if (source_ext == "svg") {
 				lossy = true;
 				report->set_loss_type(ImportInfo::STORED_LOSSY);
+			} else if (source_ext == "dds") {
+				lossy = false;
+			} else if (source_ext == "exr") {
+				lossy = false;
 			} else {
 				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
 				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
@@ -302,20 +562,33 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 
 	Error err;
 	String img_format = "bitmap";
+	String importer = iinfo->get_importer();
 	String dest_path = output_dir.path_join(iinfo->get_export_dest().replace("res://", ""));
-	if (iinfo->get_importer() == "image") {
+	if (importer == "image") {
 		ResourceFormatLoaderImage rli;
 		Ref<Image> img = rli.load(path, "", &err, false, nullptr, ResourceFormatLoader::CACHE_MODE_IGNORE);
 		if (!err && !img.is_null()) {
 			img_format = Image::get_format_name(img->get_format());
 			err = save_image(dest_path, img, lossy);
 		}
-	} else if (iinfo->get_importer() == "texture_atlas") {
+	} else if (importer == "texture_atlas") {
 		err = _convert_atex(path, dest_path, lossy, img_format);
-	} else if (iinfo->get_importer() == "bitmap") {
+	} else if (importer == "bitmap") {
 		err = _convert_bitmap(path, dest_path, lossy);
-	} else {
+		// } else if (importer == "cubemap_texture") {
+		// 	err = _convert_cubemap(path, dest_path, lossy, img_format);
+	} else if (importer == "2d_array_texture" || importer == "cubemap_array_texture" || importer == "cubemap_texture" || importer == "texture_array") {
+		err = _convert_layered_2d(path, dest_path, lossy, img_format, report);
+		// } else if (importer == "cubemap_array_texture") {
+		// 	err = _convert_cubemap_array(path, dest_path, lossy, img_format);
+	} else if (importer == "3d_texture" || importer == "texture_3d") {
+		err = _convert_3d(path, dest_path, lossy, img_format, report);
+	} else if (importer == "texture") {
 		err = _convert_tex(path, dest_path, lossy, img_format);
+	} else {
+		report->set_error(ERR_UNAVAILABLE);
+		report->set_message("Unsupported texture importer: " + importer);
+		return report;
 	}
 	report->set_error(err);
 	if (err == ERR_UNAVAILABLE) {
@@ -328,7 +601,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 	}
 	report->set_saved_path(dest_path);
 	// If lossy, also convert it as a png
-	if (lossy) {
+	if (lossy && importer == "texture") {
 		String dest = iinfo->get_export_dest().get_basename() + ".png";
 		if (!dest.replace("res://", "").begins_with(".assets")) {
 			String prefix = ".assets";
@@ -354,6 +627,16 @@ void TextureExporter::get_handled_types(List<String> *out) const {
 	out->push_back("CompressedTexture2D");
 	out->push_back("BitMap");
 	out->push_back("AtlasTexture");
+	out->push_back("StreamTexture");
+	out->push_back("StreamTexture3D");
+	out->push_back("StreamTextureArray");
+	out->push_back("CompressedTexture2D");
+	out->push_back("CompressedTexture3D");
+	out->push_back("CompressedTextureLayered");
+	out->push_back("CompressedTexture2DArray");
+	out->push_back("CompressedCubemap");
+	out->push_back("CompressedCubemapArray");
+	out->push_back("TextureArray");
 }
 
 void TextureExporter::get_handled_importers(List<String> *out) const {
@@ -361,4 +644,10 @@ void TextureExporter::get_handled_importers(List<String> *out) const {
 	out->push_back("bitmap");
 	out->push_back("image");
 	out->push_back("texture_atlas");
+	out->push_back("texture_array");
+	out->push_back("cubemap_texture");
+	out->push_back("2d_array_texture");
+	out->push_back("cubemap_array_texture");
+	out->push_back("texture_3d");
+	out->push_back("3d_texture");
 }
