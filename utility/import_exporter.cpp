@@ -295,9 +295,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
 	const String output_dir = !p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path();
 	Error err = OK;
-	if (opt_lossy) {
-		WARN_PRINT_ONCE("Converting lossy imports, you may lose fidelity for indicated assets when re-importing upon loading the project");
-	}
 	// TODO: make this use "copy"
 	Array _files = get_settings()->get_import_files();
 	if (_files.size() == 0) {

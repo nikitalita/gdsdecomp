@@ -8,7 +8,12 @@ class TextureExporter : public ResourceExporter {
 	Error _convert_tex(const String &p_path, const String &p_dst, bool lossy, String &image_format);
 	Error _convert_atex(const String &p_path, const String &p_dst, bool lossy, String &image_format);
 	Error _convert_bitmap(const String &p_path, const String &p_dst, bool lossy);
+
 	static Ref<Image> load_image_from_bitmap(const String p_path, Error *r_err);
+	Error _convert_3d(const String &p_path, const String &p_dst, bool lossy, String &image_format, Ref<ExportReport> report = nullptr);
+	Error _convert_layered_2d(const String &p_path, const String &p_dst, bool lossy, String &image_format, Ref<ExportReport> report = nullptr);
+	// Error _convert_cubemap(const String &p_path, const String &p_dst, bool lossy, String &image_format);
+	// Error _convert_cubemap_array(const String &p_path, const String &p_dst, bool lossy, String &image_format);
 
 public:
 	static Error save_image(const String &dest_path, const Ref<Image> &img, bool lossy);
