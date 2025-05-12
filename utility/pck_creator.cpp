@@ -24,39 +24,135 @@ void PckCreator::reset() {
 	data_read = 0;
 }
 
-Vector<String> PckCreator::get_files_to_pack(const String &p_dir, const Vector<String> &include_filters, const Vector<String> &p_exclude_filters) {
-	Vector<String> excludes = p_exclude_filters;
-	excludes.append("*/thumbs.db");
-	excludes.append("thumbs.db");
+static const Vector<String> banned_files = { "thumbs.db", ".DS_Store" };
 
-	excludes.append(".DS_Store");
-	excludes.append("*/.DS_Store");
+struct PckCreateListDirTaskData {
+	const String dir;
+	const Vector<String> wildcards;
+	const bool absolute;
+	const String start_rel;
+	const Vector<String> excludes;
 
-	auto file_paths_to_pack = gdre::get_recursive_dir_list(p_dir, include_filters, false);
-	// auto exclude_filters = p_exclude_filters;
-	static Vector<String> banned_files = { "thumbs.db", ".DS_Store" };
+	struct Token {
+		String subdir;
+		Vector<String> ret;
+	};
 
-	for (int64_t i = file_paths_to_pack.size() - 1; i >= 0; i--) {
-		bool banned = false;
+	bool should_filter_file(const String &file) {
 		for (int64_t j = 0; j < banned_files.size(); j++) {
-			if (file_paths_to_pack[i].ends_with(banned_files[j])) {
-				file_paths_to_pack.remove_at(i);
-				banned = true;
-				break;
+			if (file.ends_with(banned_files[j])) {
+				return true;
 			}
-		}
-		if (banned) {
-			continue;
 		}
 		// we have to check the exclude filters now
-		for (int64_t j = 0; j < p_exclude_filters.size(); j++) {
-			if (file_paths_to_pack[i].matchn(p_exclude_filters[j])) {
-				file_paths_to_pack.remove_at(i);
-				break;
+		for (int64_t j = 0; j < excludes.size(); j++) {
+			if (file.matchn(excludes[j])) {
+				return true;
 			}
 		}
+		if (wildcards.size() > 0) {
+			for (int64_t j = 0; j < wildcards.size(); j++) {
+				if (file.matchn(wildcards[j])) {
+					return true;
+				}
+			}
+			return false;
+		}
+		return false;
 	}
-	return file_paths_to_pack;
+
+	void do_subdir_task(int i, Token *p_subdir) {
+		Token &token = p_subdir[i];
+		token.ret = list_dir(token.subdir, false);
+	}
+
+	String get_step_description(int i, Token *p_subdir) {
+		return "Reading folder " + p_subdir[i].subdir + "...";
+	}
+
+	Vector<String> run() {
+		return list_dir(start_rel, true);
+	}
+
+	Vector<String> list_dir(const String &rel, bool is_main = false) {
+		Vector<String> ret;
+		Error err;
+		Ref<DirAccess> da = DirAccess::open(dir.path_join(rel), &err);
+		ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + dir);
+
+		if (da.is_null()) {
+			return ret;
+		}
+		Vector<String> dirs;
+		Vector<String> files;
+
+		String base = absolute ? dir : "";
+		da->list_dir_begin();
+		String f = da->get_next();
+		while (!f.is_empty()) {
+			if (f == "." || f == "..") {
+				f = da->get_next();
+				continue;
+			} else if (da->current_is_dir()) {
+				dirs.push_back(f);
+			} else {
+				files.push_back(f);
+			}
+			f = da->get_next();
+		}
+		da->list_dir_end();
+
+		dirs.sort_custom<FileNoCaseComparator>();
+		if (is_main) {
+			Vector<PckCreateListDirTaskData::Token> tokens;
+			for (auto &d : dirs) {
+				tokens.push_back(PckCreateListDirTaskData::Token{ rel.path_join(d), {} });
+			}
+			String desc = "Reading folder " + dir + " structure...";
+			String task = "ListDirTaskData(" + dir + +")_" + String::num_int64(OS::get_singleton()->get_ticks_usec());
+
+			Ref<EditorProgressGDDC> ep;
+			TaskManager::GroupTaskID group_id;
+			ep = EditorProgressGDDC::create(nullptr, task, desc, -1, true);
+			group_id = TaskManager::get_singleton()->add_group_task(
+					this, &PckCreateListDirTaskData::do_subdir_task,
+					tokens.ptrw(), tokens.size(),
+					&PckCreateListDirTaskData::get_step_description,
+					task, desc,
+					true, -1, true, ep, 0);
+			// while we wait for the subdirs to be read, we can filter the files
+			files.sort_custom<FileNoCaseComparator>();
+			for (int64_t i = files.size() - 1; i >= 0; i--) {
+				TaskManager::get_singleton()->update_progress_bg();
+				files.write[i] = base.path_join(rel).path_join(files[i]);
+				if (should_filter_file(files[i])) {
+					files.remove_at(i);
+					continue;
+				}
+			}
+			TaskManager::get_singleton()->wait_for_group_task_completion(group_id);
+			for (auto &t : tokens) {
+				ret.append_array(std::move(t.ret));
+			}
+			ret.append_array(std::move(files));
+		} else {
+			for (auto &d : dirs) {
+				ret.append_array(list_dir(rel.path_join(d), false));
+			}
+			for (auto &file : files) {
+				String full_path = base.path_join(rel).path_join(file);
+				if (!should_filter_file(full_path)) {
+					ret.append(full_path);
+				}
+			}
+		}
+
+		return ret;
+	}
+};
+
+Vector<String> PckCreator::get_files_to_pack(const String &p_dir, const Vector<String> &include_filters, const Vector<String> &p_exclude_filters) {
+	return PckCreateListDirTaskData{ p_dir, include_filters, false, "", p_exclude_filters }.run();
 }
 
 #ifdef DEBUG_ENABLED
@@ -69,8 +165,6 @@ Error PckCreator::pck_create(const String &p_pck_path, const String &p_dir, cons
 	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
 	Vector<String> file_paths_to_pack;
 	{
-		EditorProgressGDDC pr{ GodotREEditorStandalone::get_singleton(), "re_read_folder", "Reading folder structure...", -1, true };
-
 		file_paths_to_pack = get_files_to_pack(p_dir, include_filters, exclude_filters);
 		bl_print("PCK get_files_to_pack took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");
 	}
@@ -278,6 +372,9 @@ String PckCreator::get_file_description(int64_t i, File *userdata) {
 }
 
 void PckCreator::_do_write_file(uint32_t i, File *files_to_pck) {
+	if (unlikely(cancelled)) {
+		return;
+	}
 	if (encryption_error != OK) {
 		return;
 	}
@@ -287,16 +384,31 @@ void PckCreator::_do_write_file(uint32_t i, File *files_to_pck) {
 	if (encrypt) {
 		fae.instantiate();
 
-		Error err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-		if (err != OK) {
-			encryption_error = err;
+		files_to_pck[i].err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
+		if (files_to_pck[i].err != OK) {
+			encryption_error = files_to_pck[i].err;
+			broken_cnt++;
+			cancelled = true;
 			return;
 		}
 		ftmp = fae;
 	}
-	if (read_and_write_file(i, ftmp) != OK) {
-		error_string += files_to_pck[i].path + " (FileAccess error)\n";
+	files_to_pck[i].err = read_and_write_file(i, ftmp);
+	if (files_to_pck[i].err != OK) {
+		switch (files_to_pck[i].err) {
+			case ERR_FILE_CANT_OPEN:
+				error_string += files_to_pck[i].path + " (File read error)\n";
+				break;
+			case ERR_FILE_CANT_WRITE:
+				error_string += files_to_pck[i].path + " (File write error)\n";
+				break;
+			default:
+				error_string += files_to_pck[i].path + " (Unknown error)\n";
+				break;
+		}
 		broken_cnt++;
+		cancelled = true;
+		return;
 	}
 
 	if (fae.is_valid()) {
@@ -513,6 +625,11 @@ Error PckCreator::_create_after_process() {
 		error_string = "Encryption error: Could not encrypt file!";
 		f = nullptr;
 		return encryption_error;
+	}
+	if (broken_cnt > 0) {
+		error_string = "Error writing files: " + error_string;
+		f = nullptr;
+		return ERR_FILE_CANT_WRITE;
 	}
 	if (watermark != "") {
 		f->store_32(0);
