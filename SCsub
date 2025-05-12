@@ -261,7 +261,7 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
     # rustc_target = get_rustc_target()
 
     arch_flag = str(f"--target={cargo_target}")
-    cargo_cmd = ["cargo", "build", arch_flag]
+    cargo_cmd = ["cargo", "build", "--lib", arch_flag]
     if not dev_build:
         cargo_cmd.append("--release")
     cargo_env = os.environ.copy()
