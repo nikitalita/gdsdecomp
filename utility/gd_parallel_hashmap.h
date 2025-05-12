@@ -2,6 +2,7 @@
 #ifndef GD_PARALLEL_HASHMAP_H
 #define GD_PARALLEL_HASHMAP_H
 
+#include "core/os/mutex.h"
 #include "external/parallel_hashmap/phmap.h"
 #include "std_allocator.h"
 #include "std_hash.h"

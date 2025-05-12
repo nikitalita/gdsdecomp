@@ -786,12 +786,12 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	}
 
 #if DEBUG_ENABLED
-	// if (err && err != ERR_UNAVAILABLE) {
-	// save it as a text scene so we can see what went wrong
-	auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
-	auto new_dest = output_dir.path_join(new_new_path);
-	ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
-	// }
+	if (err && err != ERR_UNAVAILABLE) {
+		// save it as a text scene so we can see what went wrong
+		auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
+		auto new_dest = output_dir.path_join(new_new_path);
+		ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
+	}
 #endif
 	report->set_error(err);
 	return report; // We always save to an unoriginal path
