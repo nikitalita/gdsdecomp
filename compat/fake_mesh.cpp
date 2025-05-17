@@ -39,6 +39,22 @@
 #include "scene/resources/3d/convex_polygon_shape_3d.h"
 #endif // PHYSICS_3D_DISABLED
 
+#include "compat/resource_loader_compat.h"
+#include "core/io/missing_resource.h"
+#include "utility/resource_info.h"
+
+namespace {
+Ref<Material> get_material(Variant d, ResourceInfo::LoadType load_type) {
+	Ref<MissingResource> mr = d;
+	if (mr.is_valid()) {
+		return ResourceCompatConverter::get_real_from_missing_resource(mr, load_type);
+	} else {
+		return d;
+	}
+}
+
+} //namespace
+
 enum OldArrayType {
 	OLD_ARRAY_VERTEX,
 	OLD_ARRAY_NORMAL,
@@ -107,7 +123,7 @@ static Mesh::PrimitiveType _old_primitives[7] = {
 	Mesh::PRIMITIVE_TRIANGLE_STRIP
 };
 #endif // DISABLE_DEPRECATED
-
+namespace {
 void _fix_array_compatibility(const Vector<uint8_t> &p_src, uint64_t p_old_format, uint64_t p_new_format, uint32_t p_elements, Vector<uint8_t> &vertex_data, Vector<uint8_t> &attribute_data, Vector<uint8_t> &skin_data) {
 	uint32_t dst_vertex_stride;
 	uint32_t dst_normal_tangent_stride;
@@ -399,6 +415,7 @@ void _fix_array_compatibility(const Vector<uint8_t> &p_src, uint64_t p_old_forma
 		}
 	}
 }
+} //namespace
 
 bool FakeMesh::_set(const StringName &p_name, const Variant &p_value) {
 	String sname = p_name;
@@ -412,9 +429,9 @@ bool FakeMesh::_set(const StringName &p_name, const Variant &p_value) {
 
 		String what = sname.get_slicec('/', 1);
 		if (what == "material") {
-			surface_set_material(idx, p_value);
+			surfaces.write[idx].material = get_material(p_value, load_type);
 		} else if (what == "name") {
-			surface_set_name(idx, p_value);
+			surfaces.write[idx].name = p_value;
 		}
 		return true;
 	}
@@ -547,10 +564,10 @@ bool FakeMesh::_set(const StringName &p_name, const Variant &p_value) {
 		}
 
 		if (d.has("material")) {
-			surface_set_material(idx, d["material"]);
+			surfaces.write[idx].material = get_material(d["material"], load_type);
 		}
 		if (d.has("name")) {
-			surface_set_name(idx, d["name"]);
+			surfaces.write[idx].name = d["name"];
 		}
 
 		return true;
@@ -568,9 +585,9 @@ void FakeMesh::_set_blend_shape_names(const PackedStringArray &p_names) {
 		blend_shapes.write[i] = p_names[i];
 	}
 
-	if (mesh.is_valid()) {
-		RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
-	}
+	// if (mesh.is_valid()) {
+	// 	RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
+	// }
 }
 
 PackedStringArray FakeMesh::_get_blend_shape_names() const {
@@ -589,7 +606,8 @@ Array FakeMesh::_get_surfaces() const {
 
 	Array ret;
 	for (int i = 0; i < surfaces.size(); i++) {
-		RenderingServer::SurfaceData surface = RS::get_singleton()->mesh_get_surface(mesh, i);
+		// RenderingServer::SurfaceData surface = RS::get_singleton()->mesh_get_surface(mesh, i);
+		const RenderingServer::SurfaceData &surface = surface_data[i];
 		Dictionary data;
 		data["format"] = surface.format;
 		data["primitive"] = surface.primitive;
@@ -649,16 +667,18 @@ Array FakeMesh::_get_surfaces() const {
 }
 
 void FakeMesh::_create_if_empty() const {
-	if (!mesh.is_valid()) {
-		mesh = RS::get_singleton()->mesh_create();
-		RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)blend_shape_mode);
-		RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
-		RS::get_singleton()->mesh_set_path(mesh, get_path());
-	}
+	// if (!mesh.is_valid()) {
+	// 	mesh = RS::get_singleton()->mesh_create();
+	// 	RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)blend_shape_mode);
+	// 	RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
+	// 	RS::get_singleton()->mesh_set_path(mesh, get_path());
+	// }
 }
 
 void FakeMesh::_set_surfaces(const Array &p_surfaces) {
-	Vector<RS::SurfaceData> surface_data;
+	// Vector<RS::SurfaceData> surface_data;
+	surface_data.clear();
+
 	Vector<Ref<Material>> surface_materials;
 	Vector<String> surface_names;
 	Vector<bool> surface_2d;
@@ -717,7 +737,8 @@ void FakeMesh::_set_surfaces(const Array &p_surfaces) {
 
 		Ref<Material> material;
 		if (d.has("material")) {
-			material = d["material"];
+			// material = d["material"];
+			material = get_material(d["material"], load_type);
 			if (material.is_valid()) {
 				surface.material = material->get_rid();
 			}
@@ -751,18 +772,22 @@ void FakeMesh::_set_surfaces(const Array &p_surfaces) {
 		surface_2d.push_back(_2d);
 	}
 
-	if (mesh.is_valid()) {
-		//if mesh exists, it needs to be updated
-		RS::get_singleton()->mesh_clear(mesh);
-		for (int i = 0; i < surface_data.size(); i++) {
-			RS::get_singleton()->mesh_add_surface(mesh, surface_data[i]);
-		}
-	} else {
-		// if mesh does not exist (first time this is loaded, most likely),
-		// we can create it with a single call, which is a lot more efficient and thread friendly
-		mesh = RS::get_singleton()->mesh_create_from_surfaces(surface_data, blend_shapes.size());
-		RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)blend_shape_mode);
-		RS::get_singleton()->mesh_set_path(mesh, get_path());
+	// if (mesh.is_valid()) {
+	// 	//if mesh exists, it needs to be updated
+	// 	RS::get_singleton()->mesh_clear(mesh);
+	// 	for (int i = 0; i < surface_data.size(); i++) {
+	// 		RS::get_singleton()->mesh_add_surface(mesh, surface_data[i]);
+	// 	}
+	// } else {
+	// 	// if mesh does not exist (first time this is loaded, most likely),
+	// 	// we can create it with a single call, which is a lot more efficient and thread friendly
+	// 	mesh = RS::get_singleton()->mesh_create_from_surfaces(surface_data, blend_shapes.size());
+	// 	RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)blend_shape_mode);
+	// 	RS::get_singleton()->mesh_set_path(mesh, get_path());
+	// }
+
+	for (int i = 0; i < surface_data.size(); i++) {
+		surface_arrays.push_back(RenderingServer::get_singleton()->mesh_create_arrays_from_surface_data(surface_data[i]));
 	}
 
 	surfaces.clear();
@@ -882,7 +907,9 @@ void FakeMesh::add_surface(BitField<ArrayFormat> p_format, PrimitiveType p_primi
 	sd.lods = p_lods;
 	sd.uv_scale = p_uv_scale;
 
-	RenderingServer::get_singleton()->mesh_add_surface(mesh, sd);
+	surface_data.push_back(sd);
+	Array arr = RenderingServer::get_singleton()->mesh_create_arrays_from_surface_data(sd);
+	surface_arrays.push_back(arr);
 
 	clear_cache();
 	notify_property_list_changed();
@@ -913,17 +940,76 @@ void FakeMesh::add_surface_from_arrays(PrimitiveType p_primitive, const Array &p
 
 Array FakeMesh::surface_get_arrays(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Array());
-	return RenderingServer::get_singleton()->mesh_surface_get_arrays(mesh, p_surface);
+	// return RenderingServer::get_singleton()->mesh_surface_get_arrays(mesh, p_surface);
+	return surface_arrays[p_surface];
 }
 
 TypedArray<Array> FakeMesh::surface_get_blend_shape_arrays(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), TypedArray<Array>());
-	return RenderingServer::get_singleton()->mesh_surface_get_blend_shape_arrays(mesh, p_surface);
+	const RenderingServer::SurfaceData &sd = surface_data[p_surface];
+	ERR_FAIL_COND_V(sd.vertex_count == 0, Array());
+	Vector<uint8_t> blend_shape_data = sd.blend_shape_data;
+	if (blend_shape_data.size() > 0) {
+		uint32_t bs_offsets[RS::ARRAY_MAX];
+		uint32_t bs_format = (sd.format & RS::ARRAY_FORMAT_BLEND_SHAPE_MASK);
+		uint32_t vertex_elem_size;
+		uint32_t normal_elem_size;
+		uint32_t attrib_elem_size;
+		uint32_t skin_elem_size;
+		RenderingServer::get_singleton()->mesh_surface_make_offsets_from_format(bs_format, sd.vertex_count, 0, bs_offsets, vertex_elem_size, normal_elem_size, attrib_elem_size, skin_elem_size);
+		int divisor = (vertex_elem_size + normal_elem_size) * sd.vertex_count;
+		ERR_FAIL_COND_V((blend_shape_data.size() % divisor) != 0, Array());
+		uint32_t blend_shape_count = blend_shape_data.size() / divisor;
+		ERR_FAIL_COND_V(blend_shape_count != blend_shapes.size(), Array());
+		TypedArray<Array> blend_shape_array;
+		blend_shape_array.resize(blend_shapes.size());
+		for (uint32_t i = 0; i < blend_shape_count; i++) {
+			Vector<uint8_t> unused;
+			RS::SurfaceData fake_sd;
+			fake_sd.format = bs_format;
+			fake_sd.vertex_data = blend_shape_data.slice(i * divisor, (i + 1) * divisor);
+			fake_sd.uv_scale = sd.uv_scale;
+			fake_sd.vertex_count = sd.vertex_count;
+			fake_sd.aabb = sd.aabb;
+			fake_sd.uv_scale = sd.uv_scale;
+			fake_sd.index_count = 0;
+			blend_shape_array.set(i, RenderingServer::get_singleton()->mesh_create_arrays_from_surface_data(sd));
+		}
+		return blend_shape_array;
+	} else {
+		return TypedArray<Array>();
+	}
 }
 
 Dictionary FakeMesh::surface_get_lods(int p_surface) const {
 	ERR_FAIL_INDEX_V(p_surface, surfaces.size(), Dictionary());
-	return RenderingServer::get_singleton()->mesh_surface_get_lods(mesh, p_surface);
+	// return RenderingServer::get_singleton()->mesh_surface_get_lods(mesh, p_surface);
+	Dictionary ret;
+	auto &sd = surface_data[p_surface];
+	for (int i = 0; i < sd.lods.size(); i++) {
+		Vector<int> lods;
+		if (sd.vertex_count <= 65536) {
+			uint32_t lc = sd.lods[i].index_data.size() / 2;
+			lods.resize(lc);
+			const uint8_t *r = sd.lods[i].index_data.ptr();
+			const uint16_t *rptr = (const uint16_t *)r;
+			int *w = lods.ptrw();
+			for (uint32_t j = 0; j < lc; j++) {
+				w[j] = rptr[i];
+			}
+		} else {
+			uint32_t lc = sd.lods[i].index_data.size() / 4;
+			lods.resize(lc);
+			const uint8_t *r = sd.lods[i].index_data.ptr();
+			const uint32_t *rptr = (const uint32_t *)r;
+			int *w = lods.ptrw();
+			for (uint32_t j = 0; j < lc; j++) {
+				w[j] = rptr[i];
+			}
+		}
+		ret[sd.lods[i].edge_length] = lods;
+	}
+	return ret;
 }
 
 int FakeMesh::get_surface_count() const {
@@ -945,9 +1031,9 @@ void FakeMesh::add_blend_shape(const StringName &p_name) {
 
 	blend_shapes.push_back(shape_name);
 
-	if (mesh.is_valid()) {
-		RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
-	}
+	// if (mesh.is_valid()) {
+	// 	RS::get_singleton()->mesh_set_blend_shape_count(mesh, blend_shapes.size());
+	// }
 }
 
 int FakeMesh::get_blend_shape_count() const {
@@ -980,16 +1066,16 @@ void FakeMesh::clear_blend_shapes() {
 
 	blend_shapes.clear();
 
-	if (mesh.is_valid()) {
-		RS::get_singleton()->mesh_set_blend_shape_count(mesh, 0);
-	}
+	// if (mesh.is_valid()) {
+	// 	RS::get_singleton()->mesh_set_blend_shape_count(mesh, 0);
+	// }
 }
 
 void FakeMesh::set_blend_shape_mode(BlendShapeMode p_mode) {
 	blend_shape_mode = p_mode;
-	if (mesh.is_valid()) {
-		RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)p_mode);
-	}
+	// if (mesh.is_valid()) {
+	// 	RS::get_singleton()->mesh_set_blend_shape_mode(mesh, (RS::BlendShapeMode)p_mode);
+	// }
 }
 
 FakeMesh::BlendShapeMode FakeMesh::get_blend_shape_mode() const {
@@ -1022,9 +1108,9 @@ void FakeMesh::surface_set_material(int p_idx, const Ref<Material> &p_material) 
 		return;
 	}
 	surfaces.write[p_idx].material = p_material;
-	RenderingServer::get_singleton()->mesh_surface_set_material(mesh, p_idx, p_material.is_null() ? RID() : p_material->get_rid());
+	// RenderingServer::get_singleton()->mesh_surface_set_material(mesh, p_idx, p_material.is_null() ? RID() : p_material->get_rid());
 
-	emit_changed();
+	// emit_changed();
 }
 
 int FakeMesh::surface_find_by_name(const String &p_name) const {
@@ -1040,7 +1126,7 @@ void FakeMesh::surface_set_name(int p_idx, const String &p_name) {
 	ERR_FAIL_INDEX(p_idx, surfaces.size());
 
 	surfaces.write[p_idx].name = p_name;
-	emit_changed();
+	// emit_changed();
 }
 
 String FakeMesh::surface_get_name(int p_idx) const {
@@ -1049,28 +1135,28 @@ String FakeMesh::surface_get_name(int p_idx) const {
 }
 
 void FakeMesh::surface_update_vertex_region(int p_surface, int p_offset, const Vector<uint8_t> &p_data) {
-	ERR_FAIL_INDEX(p_surface, surfaces.size());
-	RS::get_singleton()->mesh_surface_update_vertex_region(mesh, p_surface, p_offset, p_data);
-	emit_changed();
+	// ERR_FAIL_INDEX(p_surface, surfaces.size());
+	// RS::get_singleton()->mesh_surface_update_vertex_region(mesh, p_surface, p_offset, p_data);
+	// emit_changed();
 }
 
 void FakeMesh::surface_update_attribute_region(int p_surface, int p_offset, const Vector<uint8_t> &p_data) {
-	ERR_FAIL_INDEX(p_surface, surfaces.size());
-	RS::get_singleton()->mesh_surface_update_attribute_region(mesh, p_surface, p_offset, p_data);
-	emit_changed();
+	// ERR_FAIL_INDEX(p_surface, surfaces.size());
+	// RS::get_singleton()->mesh_surface_update_attribute_region(mesh, p_surface, p_offset, p_data);
+	// emit_changed();
 }
 
 void FakeMesh::surface_update_skin_region(int p_surface, int p_offset, const Vector<uint8_t> &p_data) {
-	ERR_FAIL_INDEX(p_surface, surfaces.size());
-	RS::get_singleton()->mesh_surface_update_skin_region(mesh, p_surface, p_offset, p_data);
-	emit_changed();
+	// ERR_FAIL_INDEX(p_surface, surfaces.size());
+	// RS::get_singleton()->mesh_surface_update_skin_region(mesh, p_surface, p_offset, p_data);
+	// emit_changed();
 }
 
 void FakeMesh::surface_set_custom_aabb(int p_idx, const AABB &p_aabb) {
 	ERR_FAIL_INDEX(p_idx, surfaces.size());
 	surfaces.write[p_idx].aabb = p_aabb;
 	// set custom aabb too?
-	emit_changed();
+	// emit_changed();
 }
 
 Ref<Material> FakeMesh::surface_get_material(int p_idx) const {
@@ -1088,30 +1174,32 @@ AABB FakeMesh::get_aabb() const {
 }
 
 void FakeMesh::clear_surfaces() {
-	if (!mesh.is_valid()) {
-		return;
-	}
-	RS::get_singleton()->mesh_clear(mesh);
+	// if (!mesh.is_valid()) {
+	// 	return;
+	// }
+	// RS::get_singleton()->mesh_clear(mesh);
 	surfaces.clear();
 	aabb = AABB();
 }
 
 void FakeMesh::surface_remove(int p_surface) {
 	ERR_FAIL_INDEX(p_surface, surfaces.size());
-	RS::get_singleton()->mesh_surface_remove(mesh, p_surface);
+	// RS::get_singleton()->mesh_surface_remove(mesh, p_surface);
 	surfaces.remove_at(p_surface);
+	surface_data.remove_at(p_surface);
+	surface_arrays.remove_at(p_surface);
 
 	clear_cache();
 	_recompute_aabb();
-	notify_property_list_changed();
-	emit_changed();
+	// notify_property_list_changed();
+	// emit_changed();
 }
 
 void FakeMesh::set_custom_aabb(const AABB &p_custom) {
 	_create_if_empty();
 	custom_aabb = p_custom;
-	RS::get_singleton()->mesh_set_custom_aabb(mesh, custom_aabb);
-	emit_changed();
+	// RS::get_singleton()->mesh_set_custom_aabb(mesh, custom_aabb);
+	// emit_changed();
 }
 
 AABB FakeMesh::get_custom_aabb() const {
@@ -1140,14 +1228,16 @@ void FakeMesh::regen_normal_maps() {
 }
 
 //dirty hack
-bool (*array_mesh_lightmap_unwrap_callback)(float p_texel_size, const float *p_vertices, const float *p_normals, int p_vertex_count, const int *p_indices, int p_index_count, const uint8_t *p_cache_data, bool *r_use_cache, uint8_t **r_mesh_cache, int *r_mesh_cache_size, float **r_uv, int **r_vertex, int *r_vertex_count, int **r_index, int *r_index_count, int *r_size_hint_x, int *r_size_hint_y) = nullptr;
+extern bool (*array_mesh_lightmap_unwrap_callback)(float p_texel_size, const float *p_vertices, const float *p_normals, int p_vertex_count, const int *p_indices, int p_index_count, const uint8_t *p_cache_data, bool *r_use_cache, uint8_t **r_mesh_cache, int *r_mesh_cache_size, float **r_uv, int **r_vertex, int *r_vertex_count, int **r_index, int *r_index_count, int *r_size_hint_x, int *r_size_hint_y);
 
+namespace {
 struct ArrayMeshLightmapSurface {
 	Ref<Material> material;
 	LocalVector<SurfaceTool::Vertex> vertices;
 	Mesh::PrimitiveType primitive = Mesh::PrimitiveType::PRIMITIVE_MAX;
 	uint64_t format = 0;
 };
+} //namespace
 
 Error FakeMesh::lightmap_unwrap(const Transform3D &p_base_transform, float p_texel_size) {
 	Vector<uint8_t> null_cache;
@@ -1350,14 +1440,29 @@ Error FakeMesh::lightmap_unwrap_cached(const Transform3D &p_base_transform, floa
 	return OK;
 }
 
-void FakeMesh::set_shadow_mesh(const Ref<FakeMesh> &p_mesh) {
+void FakeMesh::set_shadow_mesh(const Ref<Resource> &p_mesh) {
 	ERR_FAIL_COND_MSG(p_mesh == this, "Cannot set a mesh as its own shadow mesh.");
-	shadow_mesh = p_mesh;
-	if (shadow_mesh.is_valid()) {
-		RS::get_singleton()->mesh_set_shadow_mesh(mesh, shadow_mesh->get_rid());
+	Ref<MissingResource> mr = p_mesh;
+	if (mr.is_valid()) {
+		Ref<MissingResource> m_res = mr;
+		if (ResourceCompatConverter::is_external_resource(mr)) {
+			Error err;
+			m_res = ResourceCompatLoader::fake_load(mr->get_path(), "", &err);
+			ERR_FAIL_COND_MSG(err != OK || !m_res.is_valid(), "Failed to load material: " + mr->get_path());
+		}
+		Ref<FakeMesh> fake_mesh;
+		fake_mesh.instantiate();
+		fake_mesh->load_type = load_type;
+
+		shadow_mesh = ResourceCompatConverter::set_real_from_missing_resource(m_res, fake_mesh, load_type);
 	} else {
-		RS::get_singleton()->mesh_set_shadow_mesh(mesh, RID());
+		shadow_mesh = p_mesh;
 	}
+	// if (shadow_mesh.is_valid()) {
+	// 	RS::get_singleton()->mesh_set_shadow_mesh(mesh, shadow_mesh->get_rid());
+	// } else {
+	// 	RS::get_singleton()->mesh_set_shadow_mesh(mesh, RID());
+	// }
 }
 
 Ref<FakeMesh> FakeMesh::get_shadow_mesh() const {
@@ -1386,16 +1491,16 @@ void FakeMesh::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("surface_find_by_name", "name"), &FakeMesh::surface_find_by_name);
 	ClassDB::bind_method(D_METHOD("surface_set_name", "surf_idx", "name"), &FakeMesh::surface_set_name);
 	ClassDB::bind_method(D_METHOD("surface_get_name", "surf_idx"), &FakeMesh::surface_get_name);
-#ifndef PHYSICS_3D_DISABLED
-	ClassDB::bind_method(D_METHOD("create_trimesh_shape"), &FakeMesh::create_trimesh_shape);
-	ClassDB::bind_method(D_METHOD("create_convex_shape", "clean", "simplify"), &FakeMesh::create_convex_shape, DEFVAL(true), DEFVAL(false));
-#endif // PHYSICS_3D_DISABLED
-	ClassDB::bind_method(D_METHOD("create_outline", "margin"), &FakeMesh::create_outline);
+	// #ifndef PHYSICS_3D_DISABLED
+	// 	ClassDB::bind_method(D_METHOD("create_trimesh_shape"), &FakeMesh::create_trimesh_shape);
+	// 	ClassDB::bind_method(D_METHOD("create_convex_shape", "clean", "simplify"), &FakeMesh::create_convex_shape, DEFVAL(true), DEFVAL(false));
+	// #endif // PHYSICS_3D_DISABLED
+	// 	ClassDB::bind_method(D_METHOD("create_outline", "margin"), &FakeMesh::create_outline);
 	ClassDB::bind_method(D_METHOD("regen_normal_maps"), &FakeMesh::regen_normal_maps);
 	ClassDB::set_method_flags(get_class_static(), StringName("regen_normal_maps"), METHOD_FLAGS_DEFAULT | METHOD_FLAG_EDITOR);
 	ClassDB::bind_method(D_METHOD("lightmap_unwrap", "transform", "texel_size"), &FakeMesh::lightmap_unwrap);
 	ClassDB::set_method_flags(get_class_static(), StringName("lightmap_unwrap"), METHOD_FLAGS_DEFAULT | METHOD_FLAG_EDITOR);
-	ClassDB::bind_method(D_METHOD("generate_triangle_mesh"), &FakeMesh::generate_triangle_mesh);
+	// ClassDB::bind_method(D_METHOD("generate_triangle_mesh"), &FakeMesh::generate_triangle_mesh);
 
 	ClassDB::bind_method(D_METHOD("set_custom_aabb", "aabb"), &FakeMesh::set_custom_aabb);
 	ClassDB::bind_method(D_METHOD("get_custom_aabb"), &FakeMesh::get_custom_aabb);
@@ -1413,11 +1518,11 @@ void FakeMesh::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "_surfaces", PROPERTY_HINT_NO_NODEPATH, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL), "_set_surfaces", "_get_surfaces");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "blend_shape_mode", PROPERTY_HINT_ENUM, "Normalized,Relative"), "set_blend_shape_mode", "get_blend_shape_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::AABB, "custom_aabb", PROPERTY_HINT_NO_NODEPATH, "suffix:m"), "set_custom_aabb", "get_custom_aabb");
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "shadow_mesh", PROPERTY_HINT_RESOURCE_TYPE, "FakeMesh"), "set_shadow_mesh", "get_shadow_mesh");
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "shadow_mesh", PROPERTY_HINT_RESOURCE_TYPE, "Resource"), "set_shadow_mesh", "get_shadow_mesh");
 }
 
 void FakeMesh::reload_from_file() {
-	RenderingServer::get_singleton()->mesh_clear(mesh);
+	// RenderingServer::get_singleton()->mesh_clear(mesh);
 	surfaces.clear();
 	clear_blend_shapes();
 	clear_cache();
