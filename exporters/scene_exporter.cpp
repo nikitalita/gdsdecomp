@@ -16,6 +16,7 @@
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/json.h"
+#include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
@@ -404,8 +405,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	bool has_shader = false;
 	bool has_external_animation = false;
 	bool has_external_materials = false;
-	// bool has_external_textures = false;
+	bool has_external_images = false;
 	bool has_external_meshes = false;
+	Vector<CompressedTexture2D::DataFormat> image_formats;
 
 	bool set_all_externals = false;
 	List<String> get_deps;
@@ -503,7 +505,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					has_external_materials = true;
 					need_to_be_updated.insert(info.dep);
 				} else if (info.type.contains("Texture")) {
-					// has_external_textures = true;
+					has_external_images = true;
 					need_to_be_updated.insert(info.dep);
 				} else if (info.type.contains("Mesh")) {
 					has_external_meshes = true;
@@ -572,6 +574,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		HashMap<String, String> animation_map;
 		HashMap<String, ObjExporter::MeshInfo> mesh_info_map;
 		HashMap<String, Dictionary> animation_options;
+		String root_type;
+		String root_name;
 
 		auto get_resource_path = [&](const Ref<Resource> &res) {
 			String path = res->get_path();
@@ -668,6 +672,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				auto exts = doc->get_supported_gltf_extensions();
 				flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 				root = scene->instantiate();
+				root_type = root->get_class();
+				root_name = root->get_name();
 				p_err = doc->append_from_scene(root, state, flags);
 				if (p_err) {
 					memdelete(root);
@@ -710,6 +716,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					auto json = state->get_json();
 					Array images = state->get_images();
 					Array json_images = json["images"];
+					HashMap<String, Vector<int>> image_map;
+					bool has_duped_images = false;
 					for (int i = 0; i < json_images.size(); i++) {
 						Dictionary image_dict = json_images[i];
 						Ref<Texture2D> image = images[i];
@@ -718,14 +726,69 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 						bool is_internal = path.is_empty() || path.get_file().contains("::");
 						if (is_internal) {
 							name = get_name_res(image_dict, image);
+							if (!image_map.has(name)) {
+								image_map[name] = Vector<int>();
+							} else {
+								has_duped_images = true;
+							}
+							image_map[name].push_back(i);
 						} else {
 							name = path.get_file().get_basename();
 							external_deps_updated.insert(path);
+							if (!image_map.has(name)) {
+								image_map[name] = Vector<int>();
+							} else {
+								has_duped_images = true;
+							}
+							image_map[name].push_back(i);
 						}
 						if (!name.is_empty()) {
 							image_dict["name"] = demangle_name(name);
 						}
+						auto compat_dict = ResourceInfo::get_info_dict_from_resource(image);
+						Dictionary extras = compat_dict.get("extras", Dictionary());
+						if (extras.has("data_format")) {
+							image_formats.push_back(CompressedTexture2D::DataFormat(int(compat_dict["data_format"])));
+						}
 					}
+					HashMap<int, int> removal_to_replacement;
+					Vector<int> to_remove;
+					if (has_duped_images) {
+						for (auto &E : image_map) {
+							auto &name = E.key;
+							auto &indices = E.value;
+							if (indices.size() <= 1) {
+								continue;
+							}
+							int replacement = indices[0];
+							for (int i = 1; i < indices.size(); i++) {
+								Dictionary image_dict = json_images[indices[i]];
+								Ref<Texture2D> image = images[indices[i]];
+								String name = image_dict.get("name", String());
+								to_remove.push_back(indices[i]);
+								removal_to_replacement[indices[i]] = replacement;
+							}
+						}
+						Array json_textures = json["textures"];
+						for (Dictionary texture_dict : json_textures) {
+							if (texture_dict.has("source")) {
+								// image idx
+								int image_idx = texture_dict["source"];
+								if (removal_to_replacement.has(image_idx)) {
+									texture_dict["source"] = removal_to_replacement[image_idx];
+								}
+							}
+						}
+						to_remove.sort();
+						to_remove.reverse();
+						for (int i = 0; i < to_remove.size(); i++) {
+							json_images.remove_at(to_remove[i]);
+							// don't touch the images
+						}
+						json["textures"] = json_textures;
+					}
+					json["images"] = json_images;
+
 					{
 						auto default_light_map_size = Vector2i(0, 0);
 						TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
@@ -822,59 +885,94 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			err = ERR_PRINTER_ON_FIRE;
 		}
 		auto iinfo = p_report.is_valid() ? p_report->get_import_info() : Ref<ImportInfo>();
-
-		ObjExporter::MeshInfo global_mesh_info;
-		Vector<bool> global_has_tangents;
-		Vector<bool> global_has_lods;
-		Vector<bool> global_has_shadow_meshes;
-		Vector<bool> global_has_lightmap_uv2;
-		Vector<float> global_lightmap_uv2_texel_size;
-		Vector<int> global_bake_mode;
-		Vector<bool> global_compression_enabled;
-		// push them back
-		for (auto &E : id_to_mesh_info) {
-			global_has_tangents.push_back(E.has_tangents);
-			global_has_lods.push_back(E.has_lods);
-			global_has_shadow_meshes.push_back(E.has_shadow_meshes);
-			global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
-			global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
-			global_bake_mode.push_back(E.bake_mode);
-			global_compression_enabled.push_back(E.compression_enabled);
-		}
-		global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
-		global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
-		global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
-		global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
-		global_mesh_info.lightmap_uv2_texel_size = get_most_popular_value(global_lightmap_uv2_texel_size);
-		global_mesh_info.bake_mode = get_most_popular_value(global_bake_mode);
-		global_mesh_info.compression_enabled = global_compression_enabled.count(true) > global_compression_enabled.size() / 2;
-
-		iinfo->set_param("nodes/apply_root_scale", true);
-		iinfo->set_param("nodes/root_scale", 1.0);
-		iinfo->set_param("nodes/import_as_skeleton_bones", false);
-		iinfo->set_param("nodes/use_name_suffixes", true);
-		iinfo->set_param("nodes/use_node_type_suffixes", true);
-		iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
-		iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
-		iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
-		iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
-		iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
-		iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
-		iinfo->set_param("skins/use_named_skins", true);
-		iinfo->set_param("animation/import", true);
-		iinfo->set_param("animation/fps", 30);
-		iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
-		iinfo->set_param("animation/remove_immutable_tracks", true);
-		iinfo->set_param("animation/import_rest_as_RESET", false);
-		iinfo->set_param("import_script/path", "");
-
-		// Godot 4.2 and above blow out the import params, so we need to update them to point to the external resources.
-		Dictionary _subresources_dict = Dictionary();
-		if (iinfo.is_valid() && iinfo->has_param("_subresources")) {
-			_subresources_dict = iinfo->get_param("_subresources");
-		}
-
 		if (iinfo.is_valid()) {
+			ObjExporter::MeshInfo global_mesh_info;
+			Vector<bool> global_has_tangents;
+			Vector<bool> global_has_lods;
+			Vector<bool> global_has_shadow_meshes;
+			Vector<bool> global_has_lightmap_uv2;
+			Vector<float> global_lightmap_uv2_texel_size;
+			Vector<int> global_bake_mode;
+			Vector<bool> global_compression_enabled;
+			// push them back
+			for (auto &E : id_to_mesh_info) {
+				global_has_tangents.push_back(E.has_tangents);
+				global_has_lods.push_back(E.has_lods);
+				global_has_shadow_meshes.push_back(E.has_shadow_meshes);
+				global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
+				global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
+				global_bake_mode.push_back(E.bake_mode);
+				global_compression_enabled.push_back(E.compression_enabled);
+			}
+			global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
+			global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
+			global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
+			global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
+			global_mesh_info.lightmap_uv2_texel_size = get_most_popular_value(global_lightmap_uv2_texel_size);
+			global_mesh_info.bake_mode = get_most_popular_value(global_bake_mode);
+			global_mesh_info.compression_enabled = global_compression_enabled.count(true) > global_compression_enabled.size() / 2;
+
+			bool after_4_1 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1);
+			bool after_4_3 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3);
+			bool after_4_4 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 4);
+			bool has_any_image = image_formats.size() > 0;
+			int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
+			if (has_any_image) {
+				if (has_external_images) {
+					image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
+				} else {
+					auto most_common_format = get_most_popular_value(image_formats);
+					if (most_common_format == CompressedTexture2D::DATA_FORMAT_BASIS_UNIVERSAL) {
+						image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_BASISU;
+					} else {
+						image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_UNCOMPRESSED;
+					}
+				}
+			}
+
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_type", PROPERTY_HINT_TYPE_STRING, "Node"), ""));
+			// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_name"), ""));
+			iinfo->set_param("nodes/root_type", root_type);
+			iinfo->set_param("nodes/root_name", root_name);
+
+			iinfo->set_param("nodes/apply_root_scale", true);
+			iinfo->set_param("nodes/root_scale", 1.0);
+			iinfo->set_param("nodes/import_as_skeleton_bones", false);
+			if (after_4_4) {
+				iinfo->set_param("nodes/use_name_suffixes", true);
+			}
+			if (after_4_3) {
+				iinfo->set_param("nodes/use_node_type_suffixes", true);
+			}
+			iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
+			iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
+			iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
+			iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
+			iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
+			iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
+			iinfo->set_param("skins/use_named_skins", true);
+			iinfo->set_param("animation/import", true);
+			iinfo->set_param("animation/fps", 30);
+			iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
+			iinfo->set_param("animation/remove_immutable_tracks", true);
+			iinfo->set_param("animation/import_rest_as_RESET", false);
+			iinfo->set_param("import_script/path", "");
+			// 		r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/naming_version", PROPERTY_HINT_ENUM, "Godot 4.1 or 4.0,Godot 4.2 or later"), 1));
+			// r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/embedded_image_handling", PROPERTY_HINT_ENUM, "Discard All Textures,Extract Textures,Embed as Basis Universal,Embed as Uncompressed", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES));
+			// Godot 4.2 and above blow out the import params, so we need to update them to point to the external resources.
+			Dictionary _subresources_dict = Dictionary();
+			if (iinfo->has_param("_subresources")) {
+				_subresources_dict = iinfo->get_param("_subresources");
+			} else {
+				iinfo->set_param("_subresources", _subresources_dict);
+			}
+
+			if (after_4_1) {
+				iinfo->set_param("gltf/naming_version", after_4_1 ? 1 : 0);
+			}
+
+			iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
+
 			if (animation_options.size() > 0) {
 				if (!_subresources_dict.has("animations")) {
 					_subresources_dict["animations"] = Dictionary();
@@ -901,7 +999,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					auto name = E.name;
 					auto path = E.path;
 					if (name.is_empty() || mesh_Dict.has(name)) {
-						continue;
+						ERR_CONTINUE(name.is_empty() || mesh_Dict.has(name));
+						// continue;
 					}
 					// "save_to_file/enabled": true,
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
@@ -1054,13 +1153,13 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		// TODO: do real GLTF validation
 		// TODO: fix errors where some models aren't being textured?
 		// move the file to the correct location
-		// auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
-		// auto da = DirAccess::create_for_path(new_dest.get_base_dir());
-		// if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
-		// 	iinfo->set_export_dest(orignal_export_dest);
-		// 	report->set_new_source_path("");
-		// 	report->set_saved_path(new_dest);
-		// }
+		auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
+		auto da = DirAccess::create_for_path(new_dest.get_base_dir());
+		if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
+			iinfo->set_export_dest(orignal_export_dest);
+			report->set_new_source_path("");
+			report->set_saved_path(new_dest);
+		}
 	}
 
 #if DEBUG_ENABLED
