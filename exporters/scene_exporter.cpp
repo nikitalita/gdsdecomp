@@ -409,6 +409,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	bool has_external_images = false;
 	bool has_external_meshes = false;
 	Vector<CompressedTexture2D::DataFormat> image_formats;
+	const bool after_4_1 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1)));
+	const bool after_4_3 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3)));
+	const bool after_4_4 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 4)));
 
 	bool set_all_externals = false;
 	List<String> get_deps;
@@ -486,6 +489,27 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	if (unlikely(cond)) {                            \
 		GDRE_SCN_EXP_FAIL_V_MSG(err, msg);           \
 	}
+
+	const auto set_path_options = [after_4_4](Dictionary &options, const String &path, const String &prefix = "save_to_file") {
+		if (after_4_4) {
+			ResourceUID::ID uid = path.is_empty() ? ResourceUID::INVALID_ID : GDRESettings::get_singleton()->get_uid_for_path(path);
+			if (uid != ResourceUID::INVALID_ID) {
+				options[prefix + "/path"] = ResourceUID::get_singleton()->id_to_text(uid);
+			} else {
+				options[prefix + "/path"] = path;
+			}
+			options[prefix + "/fallback_path"] = path;
+		} else {
+			options[prefix + "/path"] = path;
+		}
+	};
+
+	const auto get_path_options = [after_4_4](const Dictionary &options) -> String {
+		if (after_4_4) {
+			return options.get("save_to_file/fallback_path", options.get("save_to_file/path", ""));
+		}
+		return options.get("save_to_file/path", "");
+	};
 
 	{
 		get_deps_recursive(p_src_path, get_deps_map);
@@ -624,16 +648,17 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							}
 							animation_options[name] = Dictionary();
 							auto &options = animation_options[name];
+							options["settings/loop_mode"] = (int)anim->get_loop_mode();
 							if (!(path.is_empty() || path.get_file().contains("::"))) {
 								options["save_to_file/enabled"] = true;
+								set_path_options(options, path);
 								options["save_to_file/keep_custom_tracks"] = true;
-								options["save_to_file/path"] = path;
+								// TODO: slices??
 							} else {
 								options["save_to_file/enabled"] = false;
+								set_path_options(options, "");
 								options["save_to_file/keep_custom_tracks"] = false;
-								options["save_to_file/path"] = "";
 							}
-							options["settings/loop_mode"] = (int)anim->get_loop_mode();
 							options["slices/amount"] = 0;
 						}
 					}
@@ -901,7 +926,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			Vector<bool> global_has_lightmap_uv2;
 			Vector<float> global_lightmap_uv2_texel_size;
 			Vector<int> global_bake_mode;
-			Vector<bool> global_compression_enabled;
 			// push them back
 			for (auto &E : id_to_mesh_info) {
 				global_has_tangents.push_back(E.has_tangents);
@@ -910,7 +934,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
 				global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
 				global_bake_mode.push_back(E.bake_mode);
-				global_compression_enabled.push_back(E.compression_enabled);
+				// compression enabled is used for forcing disabling, so if ANY of them have it on, we need to set it on
+				global_mesh_info.compression_enabled = global_mesh_info.compression_enabled || E.compression_enabled;
 			}
 			global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
 			global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
@@ -918,11 +943,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
 			global_mesh_info.lightmap_uv2_texel_size = get_most_popular_value(global_lightmap_uv2_texel_size);
 			global_mesh_info.bake_mode = get_most_popular_value(global_bake_mode);
-			global_mesh_info.compression_enabled = global_compression_enabled.count(true) > global_compression_enabled.size() / 2;
 
-			bool after_4_1 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1);
-			bool after_4_3 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3);
-			bool after_4_4 = iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 4);
 			bool has_any_image = image_formats.size() > 0;
 			int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
 			if (has_any_image) {
@@ -991,12 +1012,21 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					// "save_to_file/keep_custom_tracks": true,
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
 					animations_dict[E.key] = E.value;
-					String path = animations_dict[E.key].operator Dictionary().get("save_to_file/path", String());
+					String path = get_path_options(E.value);
 					if (!(path.is_empty() || path.get_file().contains("::"))) {
 						external_deps_updated.insert(path);
 					}
 				}
 			}
+			auto get_default_mesh_opt = [](bool global_opt, bool local_opt) {
+				if (global_opt == local_opt) {
+					return 0;
+				}
+				if (local_opt) {
+					return 1;
+				}
+				return 2;
+			};
 			if (id_to_mesh_info.size() > 0) {
 				if (!_subresources_dict.has("meshes")) {
 					_subresources_dict["meshes"] = Dictionary();
@@ -1016,21 +1046,24 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					Dictionary subres = mesh_Dict[name];
 					if (path.is_empty() || path.get_file().contains("::")) {
 						subres["save_to_file/enabled"] = false;
-						subres["save_to_file/path"] = "";
+						set_path_options(subres, "");
 					} else {
 						subres["save_to_file/enabled"] = true;
-						subres["save_to_file/path"] = path;
+						set_path_options(subres, path);
 						external_deps_updated.insert(path);
 					}
-					subres["generate/shadow_meshes"] = E.has_shadow_meshes ? 1 : 0;
-					subres["generate/lightmap_uv"] = E.has_lightmap_uv2 ? 1 : 0;
-					subres["generate/lods"] = E.has_lods ? 1 : 0;
+					subres["generate/shadow_meshes"] = get_default_mesh_opt(global_mesh_info.has_shadow_meshes, E.has_shadow_meshes);
+					subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.has_lightmap_uv2, E.has_lightmap_uv2);
+					subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
 					// TODO: get these somehow??
-					subres["lods/normal_split_angle"] = 25.0f;
-					subres["lods/normal_merge_angle"] = 60.0f;
-					if (after_4_3) {
-						subres["lods/raycast_normals"] = false;
+					if (!after_4_3) {
+						subres["lods/normal_split_angle"] = 25.0f;
 					}
+					subres["lods/normal_merge_angle"] = 60.0f;
+					// Doesn't look like this ever made it in?
+					// if (!after_4_3) {
+					// 	subres["lods/raycast_normals"] = false;
+					// }
 				}
 			}
 			if (id_to_material_path.size() > 0) {
@@ -1049,10 +1082,10 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					Dictionary subres = mat_Dict[name];
 					if (path.is_empty() || path.get_file().contains("::")) {
 						subres["use_external/enabled"] = false;
-						subres["use_external/path"] = "";
+						set_path_options(subres, "", "use_external");
 					} else {
 						subres["use_external/enabled"] = true;
-						subres["use_external/path"] = path;
+						set_path_options(subres, path, "use_external");
 						external_deps_updated.insert(path);
 					}
 				}
