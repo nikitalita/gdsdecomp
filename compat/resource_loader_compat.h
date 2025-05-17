@@ -6,9 +6,6 @@
 
 #include "utility/resource_info.h"
 
-#define META_PROPERTY_COMPAT_DATA "metadata/compat"
-#define META_COMPAT "compat"
-
 class CompatFormatLoader;
 class CompatFormatSaver;
 class ResourceCompatConverter;
@@ -119,7 +116,7 @@ public:
 		compat.type = type;
 		compat.cached_id = scene_id;
 		compat.topology_type = ResourceInfo::UNLOADED_EXTERNAL_RESOURCE;
-		res->set_meta("compat", compat.to_dict());
+		compat.set_on_resource(res);
 		return res;
 	}
 
@@ -129,7 +126,7 @@ public:
 		compat.uid = uid;
 		compat.type = type;
 		compat.topology_type = ResourceInfo::MAIN_RESOURCE;
-		res->set_meta("compat", compat.to_dict());
+		compat.set_on_resource(res);
 		return res;
 	}
 
@@ -139,7 +136,7 @@ public:
 		compat.uid = ResourceUID::INVALID_ID;
 		compat.type = type;
 		compat.topology_type = ResourceInfo::INTERNAL_RESOURCE;
-		res->set_meta("compat", compat.to_dict());
+		compat.set_on_resource(res);
 		return res;
 	}
 

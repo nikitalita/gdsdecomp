@@ -2,6 +2,8 @@
 #include "compat/resource_import_metadatav2.h"
 
 #include "core/variant/dictionary.h"
+#define META_PROPERTY_COMPAT_DATA "metadata/compat"
+#define META_COMPAT "compat"
 
 struct ResourceInfo {
 	enum LoadType {
@@ -92,6 +94,21 @@ struct ResourceInfo {
 		dict["is_compressed"] = is_compressed;
 		dict["extra"] = extra;
 		return dict;
+	}
+	void set_on_resource(Ref<Resource> res) const {
+		res->set_meta(META_COMPAT, to_dict());
+	}
+	static void set_info_dict_on_resource(const Dictionary &dict, Ref<Resource> res) {
+		res->set_meta(META_COMPAT, dict);
+	}
+	static ResourceInfo get_info_from_resource(Ref<Resource> res) {
+		return from_dict(res->get_meta(META_COMPAT, Dictionary()));
+	}
+	static Dictionary get_info_dict_from_resource(Ref<Resource> res) {
+		return res->get_meta(META_COMPAT, Dictionary());
+	}
+	static bool resource_has_info(Ref<Resource> res) {
+		return res->has_meta(META_COMPAT);
 	}
 };
 

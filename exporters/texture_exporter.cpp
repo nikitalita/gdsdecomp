@@ -218,7 +218,7 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 
 	String ext = p_import_info->get_source_file().get_extension().to_lower();
 	Dictionary params;
-	Dictionary compat = p_tex->get_meta("compat", Dictionary());
+	Dictionary compat = ResourceInfo::get_info_dict_from_resource(p_tex);
 	// Get the image from the texture
 	Ref<Image> img;
 

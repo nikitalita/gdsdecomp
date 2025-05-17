@@ -953,9 +953,9 @@ Error ResourceLoaderCompatBinary::load() {
 					// WARN_PRINT("PackedScene found in non-main resource?!!??!?!?!");
 					// set it anyway; get the compat metadata from the res and set the packed_scene_version
 					if (_bundled.has("version")) {
-						ResourceInfo compat = ResourceInfo::from_dict(res->get_meta(META_COMPAT, Dictionary()));
+						ResourceInfo compat = ResourceInfo::get_info_from_resource(res);
 						compat.packed_scene_version = (int)_bundled.get("version", -1);
-						res->set_meta(META_COMPAT, compat.to_dict());
+						compat.set_on_resource(res);
 					}
 				} else if (_bundled.has("version")) {
 					packed_scene_version = _bundled.get("version", -1);
@@ -970,11 +970,15 @@ Error ResourceLoaderCompatBinary::load() {
 		if (missing_resource) {
 			missing_resource->set_recording_properties(false);
 			if (converter.is_valid()) {
-				Dictionary compat_dict = missing_resource->get_meta(META_COMPAT, Dictionary());
+				Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(missing_resource);
 				auto new_res = converter->convert(missing_resource, load_type, ver_major, &error);
 				if (error == OK) {
 					res = new_res;
-					res->set_meta(META_COMPAT, compat_dict);
+					// converters *SHOULD* already set this
+					if (!ResourceInfo::resource_has_info(res)) {
+						WARN_PRINT("Converter " + converter->get_class() + " did not set info on resource!!");
+						ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+					}
 					if (!path.is_empty()) {
 						if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && is_real_load()) {
 							res->set_path(path, cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE); // If got here because the resource with same path has different type, replace it.
@@ -2387,7 +2391,7 @@ static String _resource_get_class(Ref<Resource> p_resource) {
 Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
 	// Resource::seed_scene_unique_id(p_path.hash());
 	// get metadata from the resource
-	Dictionary compat_dict = p_resource->get_meta(META_COMPAT, Dictionary());
+	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(p_resource);
 	if (compat_dict.is_empty()) {
 		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
 		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
@@ -2635,7 +2639,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 		save_unicode_string(f, res_path);
 		// ResourceUID::ID ruid = ResourceSaver::get_resource_id_for_path(save_order[i]->get_path(), false);
 		if (using_uids) {
-			Dictionary dict = save_order[i]->get_meta(META_COMPAT, Dictionary());
+			Dictionary dict = ResourceInfo::get_info_dict_from_resource(save_order[i]);
 			ResourceUID::ID ruid = dict.get("uid", ResourceUID::INVALID_ID);
 			if (ruid == ResourceUID::INVALID_ID) {
 				ruid = GDRESettings::get_singleton()->get_uid_for_path(res_path);
@@ -2709,7 +2713,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 				if (rd.type == "PackedScene" && saved_resources.get(i)->get_class() == "PackedScene") {
 					Dictionary bundled = p.value;
 					int packed_scene_version = bundled.get("version", -1);
-					ResourceInfo ri = ResourceInfo::from_dict(saved_resources.get(i)->get_meta(META_COMPAT, Dictionary()));
+					ResourceInfo ri = ResourceInfo::get_info_from_resource(saved_resources.get(i));
 					int original_scene_version = ri.packed_scene_version;
 					if (original_scene_version < 0 || original_scene_version != packed_scene_version) {
 						value = fix_scene_bundle(saved_resources.get(i), original_scene_version);
@@ -3057,7 +3061,7 @@ void ResourceLoaderCompatBinary::set_compat_meta(Ref<Resource> &r_res) {
 	if (packed_scene_version >= 0) {
 		compat.packed_scene_version = packed_scene_version;
 	}
-	r_res->set_meta(META_COMPAT, compat.to_dict());
+	compat.set_on_resource(r_res);
 }
 
 ResourceInfo ResourceLoaderCompatBinary::get_resource_info() {
@@ -3196,9 +3200,9 @@ Error ResourceFormatLoaderCompatBinary::rewrite_v2_import_metadata(const String 
 		if (requires_whole_resave) {
 			loader.load();
 			auto res = loader.get_resource();
-			Dictionary compat_dict = res->get_meta(META_COMPAT, Dictionary());
+			Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
 			compat_dict["v2metadata"] = imd;
-			res->set_meta(META_COMPAT, compat_dict);
+			ResourceInfo::set_info_dict_on_resource(compat_dict, res);
 			ResourceFormatSaverCompatBinaryInstance saver;
 			int flags = 0;
 			err = saver.save(dest, res, flags);

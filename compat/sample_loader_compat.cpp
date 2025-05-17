@@ -53,6 +53,7 @@ Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, Re
 	sample->set_loop_begin(loop_begin);
 	sample->set_loop_end(loop_end);
 	sample->set_mix_rate(mix_rate);
+	ResourceInfo::set_info_dict_on_resource(ResourceInfo::get_info_dict_from_resource(res), sample);
 	return sample;
 }
 
