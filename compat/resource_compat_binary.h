@@ -91,6 +91,7 @@ class ResourceLoaderCompatBinary {
 
 	ResourceInfo::LoadType load_type = ResourceInfo::FAKE_LOAD;
 
+	size_t md_at = 0;
 	struct IntResource {
 		String path;
 		uint64_t offset;
@@ -141,6 +142,7 @@ public:
 
 class ResourceFormatLoaderCompatBinary : public CompatFormatLoader {
 	GDCLASS(ResourceFormatLoaderCompatBinary, CompatFormatLoader);
+	static Error write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, uint64_t &r_imd_offset, HashMap<Ref<Resource>, int> &p_resource_map, HashMap<Ref<Resource>, int> &p_external_resources, HashMap<StringName, int> &p_string_map, size_t p_md_at);
 
 public:
 	static Error get_ver_major_minor(const String &p_path, uint32_t &r_ver_major, uint32_t &r_ver_minor, bool &r_suspicious);
@@ -164,6 +166,8 @@ public:
 };
 
 class ResourceFormatSaverCompatBinaryInstance {
+	friend class ResourceFormatSaverCompatBinary;
+	friend class ResourceFormatLoaderCompatBinary;
 	String local_path;
 	String path;
 
@@ -186,6 +190,7 @@ class ResourceFormatSaverCompatBinaryInstance {
 	bool using_real_t_double = false;
 	bool stored_use_real64 = false;
 	String script_class;
+	size_t md_at = 0;
 
 	struct NonPersistentKey { //for resource properties generated on the fly
 		Ref<Resource> base;
@@ -227,6 +232,7 @@ public:
 		// Amount of reserved 32-bit fields in resource header
 		RESERVED_FIELDS = 11
 	};
+	Error write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, HashMap<Ref<Resource>, int> &p_resource_map);
 	Error save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags = 0);
 	Error set_uid(const String &p_path, ResourceUID::ID p_uid);
 	void write_variant(Ref<FileAccess> f, const Variant &p_property, HashMap<Ref<Resource>, int> &resource_map, HashMap<Ref<Resource>, int> &external_resources, HashMap<StringName, int> &string_map, const PropertyInfo &p_hint = PropertyInfo());
