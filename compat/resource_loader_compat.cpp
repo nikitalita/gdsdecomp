@@ -235,10 +235,11 @@ Ref<Resource> ResourceCompatLoader::custom_load(const String &p_path, const Stri
 }
 
 Ref<Resource> ResourceCompatLoader::load_with_real_resource_loader(const String &p_path, const String &p_type_hint, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
+	String local_path = _validate_local_path(p_path);
 	if (use_threads) {
-		return ResourceLoader::load(p_path, p_type_hint, p_cache_mode, r_error);
+		return ResourceLoader::load(local_path, p_type_hint, p_cache_mode, r_error);
 	}
-	auto load_token = ResourceLoader::_load_start(p_path, p_type_hint, ResourceLoader::LoadThreadMode::LOAD_THREAD_FROM_CURRENT, p_cache_mode);
+	auto load_token = ResourceLoader::_load_start(local_path, p_type_hint, ResourceLoader::LoadThreadMode::LOAD_THREAD_FROM_CURRENT, p_cache_mode);
 	if (!load_token.is_valid()) {
 		if (r_error) {
 			*r_error = FAILED;
@@ -548,4 +549,67 @@ Ref<ResourceInfo> CompatFormatLoader::get_resource_info(const String &p_path, Er
 }
 bool CompatFormatLoader::handles_fake_load() const {
 	return false;
+}
+
+Ref<Resource> ResourceCompatConverter::set_real_from_missing_resource(Ref<MissingResource> mr, Ref<Resource> res, ResourceInfo::LoadType load_type) {
+	if (res.is_null()) {
+		ERR_FAIL_V_MSG(Ref<Resource>(), "Failed to cast material to object: " + mr->get_path());
+	}
+	List<PropertyInfo> property_info;
+	mr->get_property_list(&property_info);
+	for (auto &property : property_info) {
+		bool is_storage = property.usage & PROPERTY_USAGE_STORAGE;
+		// if (property.usage & PROPERTY_USAGE_STORAGE) {
+		if (property.name == "resource_path") {
+			res->set_path_cache(mr->get(property.name));
+		} else if (is_storage) {
+			Ref<MissingResource> m_res = mr->get(property.name);
+			if (m_res.is_valid()) {
+				res->set(property.name, get_real_from_missing_resource(m_res, load_type));
+			} else {
+				res->set(property.name, mr->get(property.name));
+			}
+		} else {
+			// WARN_PRINT("Property " + property.name + " is not storage");
+		}
+		// }
+	}
+	res->set_path_cache(mr->get_path());
+	return res;
+}
+
+bool ResourceCompatConverter::is_external_resource(Ref<MissingResource> mr) {
+	if (mr.is_null()) {
+		return false;
+	}
+	auto resource_info = ResourceInfo::get_info_from_resource(mr);
+	bool is_external = false;
+	if (resource_info.is_valid()) {
+		is_external = resource_info->topology_type == ResourceInfo::UNLOADED_EXTERNAL_RESOURCE;
+	}
+	return is_external;
+}
+
+Ref<Resource> ResourceCompatConverter::get_real_from_missing_resource(Ref<MissingResource> mr, ResourceInfo::LoadType load_type) {
+	auto resource_info = ResourceInfo::get_info_from_resource(mr);
+	if (is_external_resource(mr)) {
+		if (load_type == ResourceInfo::LoadType::ERR) {
+			load_type = resource_info.is_valid() ? resource_info->load_type : ResourceCompatLoader::get_default_load_type();
+		}
+		Error err;
+		auto mat = ResourceCompatLoader::custom_load(mr->get_path(), "", load_type, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
+		ERR_FAIL_COND_V_MSG(err != OK, Ref<Material>(), "Failed to load material: " + mr->get_path());
+		return mat;
+	}
+	auto materialType = ClassDB::get_compatibility_remapped_class(mr->get_original_class());
+	Ref<Resource> res;
+	Object *obj = ClassDB::instantiate(materialType);
+	if (!obj) {
+		ERR_FAIL_V_MSG(Ref<Material>(), "Failed to cast material to object: " + mr->get_path());
+	}
+	res = obj;
+	if (res.is_null()) {
+		ERR_FAIL_V_MSG(Ref<Material>(), "Failed to cast material to object: " + mr->get_path());
+	}
+	return set_real_from_missing_resource(mr, res, load_type);
 }
