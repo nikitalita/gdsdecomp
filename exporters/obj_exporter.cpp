@@ -374,12 +374,12 @@ void ObjExporter::rewrite_import_params(Ref<ImportInfo> p_import_info, const Mes
 		}
 		p_import_info->set_param("scale_mesh", p_mesh_info.scale_mesh);
 		p_import_info->set_param("offset_mesh", p_mesh_info.offset_mesh);
-		if (ver_minor >= 2) {
-			p_import_info->set_param("force_disable_mesh_compression", !p_mesh_info.compression_enabled);
-		}
 		if (ver_minor < 4) {
 			// Does literally nothing (which is why it was removed), but it's true by default
 			p_import_info->set_param("optimize_mesh", true);
+		}
+		if (ver_minor >= 2) {
+			p_import_info->set_param("force_disable_mesh_compression", !p_mesh_info.compression_enabled);
 		}
 	} else if (ver_major == 3) {
 		// reset the params for scale_mesh and offset_mesh to the defaults to prevent this from getting scaled and offset again upon re-import
