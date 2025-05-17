@@ -686,7 +686,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
 		for (auto &msg : error_messages) {
 			auto message = msg.strip_edges();
-			if (message.to_lower().contains("animated track") || message.begins_with("at:") || message.begins_with("WARNING:")) {
+			if (message.to_lower().contains("animated track") || message.begins_with("at:") || message.begins_with("GDScript backtrace") || message.begins_with("WARNING:")) {
 				continue;
 			}
 			err = ERR_PRINTER_ON_FIRE;

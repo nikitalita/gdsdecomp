@@ -49,9 +49,11 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 		va_end(list_copy);
 		if (p_err) {
 			String str = String::utf8(buf);
+			String lstripped = str.strip_edges(true, false);
 			// If it's the follow-up stacktrace line of an error, don't count it.
-			if (!previous_was_error || !str.strip_edges(true, false).begins_with("at:")) {
-				if (len >= 8 && str.begins_with("WARNING:")) {
+			bool is_stacktrace = lstripped.begins_with("at:") || lstripped.begins_with("GDScript backtrace");
+			if (!is_stacktrace) {
+				if (len >= 8 && lstripped.begins_with("WARNING:")) {
 					warning_count++;
 					thread_warning_count++;
 				} else {
@@ -59,7 +61,7 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 					thread_error_count++;
 				}
 				previous_was_error = true;
-			} else {
+			} else if (is_stacktrace) {
 				previous_was_error = false;
 			}
 			error_queue.try_push(str); // Ignore if the queue is full
