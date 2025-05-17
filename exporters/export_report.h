@@ -36,6 +36,13 @@ protected:
 	static void _bind_methods();
 
 public:
+	String actual_type;
+	String script_class;
+	Vector<String> dependencies;
+	int64_t modified_time = -1;
+	int64_t import_modified_time = -1;
+	String import_md5;
+
 	// setters and getters
 	void set_message(const String &p_message) { message = p_message; }
 	String get_message() const { return message; }
