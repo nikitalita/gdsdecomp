@@ -952,17 +952,14 @@ Error ResourceLoaderCompatBinary::load() {
 					// ??????
 					// WARN_PRINT("PackedScene found in non-main resource?!!??!?!?!");
 					// set it anyway; get the compat metadata from the res and set the packed_scene_version
-					if (_bundled.has("version")) {
-						Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
-						ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_BUG, "PackedScene has no compat metadata??????????? This should have been set by us!!!!!!!!");
-						compat->packed_scene_version = (int)_bundled.get("version", -1);
-						compat->set_on_resource(res);
-					}
-				} else if (_bundled.has("version")) {
 					Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
-					ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_BUG, "PackedScene has no compat metadata??????????? This should have been set by us!!!!!!!!");
+					if (!compat.is_valid()) {
+						compat.instantiate();
+					}
 					compat->packed_scene_version = (int)_bundled.get("version", -1);
 					compat->set_on_resource(res);
+				} else if (_bundled.has("version")) {
+					packed_scene_version = (int)_bundled.get("version", -1);
 				}
 			}
 
@@ -1032,34 +1029,11 @@ Error ResourceLoaderCompatBinary::load() {
 			if (is_real_load()) {
 				resource->set_as_translation_remapped(translation_remapped);
 			}
-			set_compat_meta(res, true);
+			set_compat_meta(res);
 			error = OK;
 			return OK;
-		} else if (!ResourceInfo::resource_has_info(res)) {
-			Ref<ResourceInfo> info;
-			info.instantiate();
-			info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
-			info->type = t;
-			info->resource_name = res->get_name();
-			info->original_path = path;
-			info->cached_id = id;
-			info->set_on_resource(res);
 		} else {
-			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
-			info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
-			if (info->type.is_empty()) {
-				info->type = t;
-			}
-			if (info->resource_name.is_empty()) {
-				info->resource_name = res->get_name();
-			}
-			if (info->original_path.is_empty()) {
-				info->original_path = path;
-			}
-			if (info->cached_id.is_empty()) {
-				info->cached_id = id;
-			}
-			info->set_on_resource(res);
+			set_internal_resource_compat_meta(path, id, t, res);
 		}
 	}
 
@@ -3083,38 +3057,80 @@ Ref<Resource> ResourceLoaderCompatBinary::finish_ext_load(Ref<ResourceLoader::Lo
 	ERR_FAIL_V_MSG(Ref<Resource>(), "Invalid load token.");
 }
 
-void ResourceLoaderCompatBinary::set_compat_meta(Ref<Resource> &r_res, bool is_main_resource) {
-	//
-	Ref<ResourceInfo> compat = get_resource_info();
-	compat->topology_type = is_main_resource ? ResourceInfo::MAIN_RESOURCE : ResourceInfo::INTERNAL_RESOURCE;
+void ResourceLoaderCompatBinary::_set_main_resource_info(Ref<ResourceInfo> &r_info) {
+	r_info->uid = uid;
+	r_info->topology_type = ResourceInfo::MAIN_RESOURCE;
+	r_info->type = type;
+	r_info->original_path = local_path;
+	r_info->resource_name = resource.is_valid() ? resource->get_name() : "";
+	r_info->ver_major = ver_major;
+	r_info->ver_minor = ver_minor;
+	r_info->ver_format = ver_format;
+	r_info->suspect_version = suspect_version;
+	r_info->resource_format = "binary";
+	// TODO: fix this
+	r_info->load_type = load_type;
+	r_info->using_real_t_double = using_real_t_double;
+	r_info->stored_use_real64 = stored_use_real64;
+	r_info->stored_big_endian = stored_big_endian;
+	r_info->using_named_scene_ids = using_named_scene_ids;
+	r_info->using_uids = using_uids;
+	r_info->script_class = script_class;
+	r_info->v2metadata = imd;
+	r_info->is_compressed = is_compressed;
 	if (packed_scene_version >= 0) {
-		compat->packed_scene_version = packed_scene_version;
+		r_info->packed_scene_version = packed_scene_version;
 	}
+}
+
+void ResourceLoaderCompatBinary::set_internal_resource_compat_meta(const String &p_path, const String &p_scene_id, const String &p_type, Ref<Resource> &r_res) {
+	Ref<ResourceInfo> r_info = ResourceInfo::get_info_from_resource(r_res);
+	if (!r_info.is_valid()) {
+		r_info.instantiate();
+		// TODO: Should we always set the type??
+		r_info->type = p_type;
+	}
+	r_info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
+	r_info->original_path = p_path;
+	r_info->cached_id = p_scene_id;
+	r_info->resource_name = r_res->get_name();
+	// Ref<Script> script = r_res->get_script();
+	if (r_info->type.is_empty()) {
+		r_info->type = p_type;
+	} else if (r_info->type != p_type) {
+		r_info->type = r_info->type;
+	}
+	// if (script.is_valid()) {
+	// 	r_info->script_class = script->get_global_name();
+	// }
+	r_info->ver_major = ver_major;
+	r_info->ver_minor = ver_minor;
+	r_info->ver_format = ver_format;
+	r_info->suspect_version = suspect_version;
+	r_info->resource_format = "binary";
+	r_info->using_real_t_double = using_real_t_double;
+	r_info->stored_use_real64 = stored_use_real64;
+	r_info->stored_big_endian = stored_big_endian;
+	r_info->using_named_scene_ids = using_named_scene_ids;
+	r_info->using_uids = using_uids;
+	r_info->is_compressed = is_compressed;
+	r_info->set_on_resource(r_res);
+}
+
+void ResourceLoaderCompatBinary::set_compat_meta(Ref<Resource> &r_res) {
+	//
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(r_res);
+	if (compat.is_null()) {
+		compat.instantiate();
+	}
+	_set_main_resource_info(compat);
 	compat->set_on_resource(r_res);
 }
 
 Ref<ResourceInfo> ResourceLoaderCompatBinary::get_resource_info() {
 	Ref<ResourceInfo> d;
 	d.instantiate();
-	d->uid = uid;
-	d->type = type;
-	d->original_path = local_path;
-	d->resource_name = resource.is_valid() ? resource->get_name() : "";
-	d->ver_major = ver_major;
-	d->ver_minor = ver_minor;
-	d->ver_format = ver_format;
-	d->suspect_version = suspect_version;
-	d->resource_format = "binary";
-	// TODO: fix this
-	d->load_type = load_type;
-	d->using_real_t_double = using_real_t_double;
-	d->stored_use_real64 = stored_use_real64;
-	d->stored_big_endian = stored_big_endian;
-	d->using_named_scene_ids = using_named_scene_ids;
-	d->using_uids = using_uids;
-	d->script_class = script_class;
-	d->v2metadata = imd;
-	d->is_compressed = is_compressed;
+	_set_main_resource_info(d);
 	return d;
 }
 // virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;

@@ -110,6 +110,7 @@ private:
 	Error _parse_sub_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str);
 	Error _parse_ext_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str);
 
+	void set_internal_resource_compat_meta(const String &p_path, const String &p_scene_id, const String &p_type, Ref<Resource> &r_res);
 	void set_compat_meta(Ref<Resource> &r_res);
 
 	// for converter
@@ -147,6 +148,8 @@ private:
 
 	Ref<ResourceLoader::LoadToken> start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID uid, const String id);
 	Ref<Resource> finish_ext_load(Ref<ResourceLoader::LoadToken> &load_token, Error *r_err);
+
+	void _set_main_resource_info(Ref<ResourceInfo> &info);
 
 public:
 	bool should_threaded_load() const;
