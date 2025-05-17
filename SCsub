@@ -281,6 +281,10 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
 
 def add_libs_to_env(module_obj, libs, sources):
     for lib in libs:
+        if env.msvc:
+            env.Append(LINKFLAGS=[lib])
+            continue
+        env_gdsdecomp.Depends(lib, sources)
         env_gdsdecomp.Depends(lib, sources)
         # get the basename of the library minus the extension
         lib_name = os.path.basename(lib).split(".")[0]
