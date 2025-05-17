@@ -50,14 +50,14 @@ Ref<ImportExporterReport> ImportExporter::get_report() {
 /**
 Sort the scenes so that they are exported last
  */
-struct IInfoComparator {
-	int is_glb_scene(const Ref<ImportInfo> &a) const {
-		return a->get_importer() == "scene" && !a->is_auto_converted() ? 1 : 0;
-	}
-	bool operator()(const Ref<ImportInfo> &a, const Ref<ImportInfo> &b) const {
-		return is_glb_scene(a) < is_glb_scene(b);
+namespace {
+static FileNoCaseComparator file_no_case_comparator;
+struct ReportComparator {
+	bool operator()(const Ref<ExportReport> &a, const Ref<ExportReport> &b) const {
+		return file_no_case_comparator(a->get_import_info()->get_source_file(), b->get_import_info()->get_source_file());
 	}
 };
+} //namespace
 
 // Error remove_remap(const String &src, const String &dst, const String &output_dir);
 Error ImportExporter::handle_auto_converted_file(const String &autoconverted_file, const String &output_dir) {
@@ -87,6 +87,71 @@ Error ImportExporter::remove_remap_and_autoconverted(const String &source_file, 
 	return OK;
 }
 
+void _save_filesystem_cache(const Vector<Ref<ExportReport>> &reports, Ref<FileAccess> p_file) {
+	String current_dir = "";
+	auto curr_time = OS::get_singleton()->get_unix_time();
+	bool is_v4_4_or_newer = get_ver_major() > 4 || (get_ver_major() == 4 && get_ver_minor() >= 4);
+	for (auto &report : reports) {
+		String source_file = report->get_import_info()->get_source_file();
+		String base_dir = source_file.get_base_dir();
+		if (base_dir != "res://") {
+			base_dir += "/";
+		}
+		if (base_dir != current_dir) {
+			current_dir = base_dir;
+			p_file->store_line("::" + base_dir + "::" + String::num_int64(curr_time));
+		}
+
+		// const EditorFileSystemDirectory::FileInfo *file_info = p_dir->files[i];
+		// if (!file_info->import_group_file.is_empty()) {
+		// 	group_file_cache.insert(file_info->import_group_file);
+		// }
+
+		String type = report->actual_type;
+		if (!report->script_class.is_empty()) {
+			type += "/" + String(report->script_class);
+		}
+
+		PackedStringArray cache_string;
+		cache_string.append(source_file.get_file());
+		cache_string.append(type);
+		cache_string.append(itos(ResourceUID::get_singleton()->text_to_id(report->get_import_info()->get_uid())));
+		cache_string.append(itos(report->modified_time));
+		cache_string.append(itos(report->import_modified_time));
+		cache_string.append(itos(1)); // TODO?
+		cache_string.append("");
+		Vector<String> parts = {
+			"",
+			"",
+			"",
+		};
+		if (is_v4_4_or_newer) {
+			parts = { "", "", "", itos(0), itos(0), report->import_md5, String("<*>").join(report->get_import_info()->get_dest_files()) };
+		}
+		cache_string.append(String("<>").join(parts));
+		cache_string.append(String("<>").join(report->dependencies));
+
+		p_file->store_line(String("::").join(cache_string));
+	}
+}
+
+void save_filesystem_cache(const Vector<Ref<ExportReport>> &reports, String output_dir, bool is_partial_export) {
+	if (get_ver_major() <= 3) {
+		return;
+	}
+	String cache_path = get_ver_minor() < 4 ? "filesystem_cache8" : "filesystem_cache10";
+	String editor_dir = output_dir.path_join(".godot").path_join("editor");
+	gdre::ensure_dir(editor_dir);
+	String cache_file = editor_dir.path_join(cache_path);
+	if (is_partial_export && FileAccess::exists(cache_file)) {
+		return;
+	}
+	Ref<FileAccess> f = FileAccess::open(cache_file, FileAccess::WRITE);
+	//write an md5 hash of all 0s
+	f->store_line(String("00000000000000000000000000000000"));
+	_save_filesystem_cache(reports, f);
+}
+
 void ImportExporter::rewrite_metadata(ExportToken &token) {
 	auto &report = token.report;
 	const auto &output_dir = token.output_dir;
@@ -100,9 +165,11 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			report->set_rewrote_metadata(ExportReport::REWRITTEN);
 		}
 	};
+	String new_md_path = output_dir.path_join(iinfo->get_import_md_path().replace("res://", ""));
+
 	if (err != OK) {
 		if ((err == ERR_UNAVAILABLE || err == ERR_PRINTER_ON_FIRE) && iinfo->get_ver_major() >= 4 && iinfo->is_dirty()) {
-			iinfo->save_to(output_dir.path_join(iinfo->get_import_md_path().replace("res://", "")));
+			iinfo->save_to(new_md_path);
 			if_err_func();
 		}
 		return;
@@ -121,7 +188,7 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			err = rewrite_import_source(report->get_new_source_path(), output_dir, iinfo);
 			if_err_func();
 		} else if (iinfo->is_dirty()) {
-			err = iinfo->save_to(output_dir.path_join(iinfo->get_import_md_path().replace("res://", "")));
+			err = iinfo->save_to(new_md_path);
 			if (err != OK) {
 				report->set_rewrote_metadata(ExportReport::FAILED);
 			} else if (!export_matches_source) {
@@ -130,7 +197,7 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 		}
 	} else if (iinfo->is_dirty()) {
 		if (err == OK) {
-			err = iinfo->save_to(output_dir.path_join(iinfo->get_import_md_path().replace("res://", "")));
+			err = iinfo->save_to(new_md_path);
 			if_err_func();
 		} else {
 			report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
@@ -151,6 +218,21 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 		if (err) {
 			report->set_rewrote_metadata(ExportReport::MD5_FAILED);
 		}
+	}
+	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && iinfo->is_import() && report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
+		String resource_script_class;
+		List<String> deps;
+		auto path = iinfo->get_path();
+		auto res_info = ResourceCompatLoader::get_resource_info(path);
+		report->actual_type = res_info.type;
+		report->script_class = res_info.script_class;
+		ResourceCompatLoader::get_dependencies(path, &deps, false);
+		for (auto &dep : deps) {
+			report->dependencies.push_back(dep);
+		}
+		report->import_md5 = FileAccess::get_md5(new_md_path);
+		report->import_modified_time = FileAccess::get_modified_time(new_md_path);
+		report->modified_time = FileAccess::get_modified_time(report->get_saved_path());
 	}
 }
 
@@ -564,6 +646,17 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	// check if the .tmp directory is empty
 	if (gdre::dir_is_empty(output_dir.path_join(".tmp"))) {
 		dir->remove(output_dir.path_join(".tmp"));
+	}
+	// 4.1 and higher have a filesystem cache
+	if (get_ver_major() >= 4 && !(get_ver_minor() < 1 && get_ver_major() == 4)) {
+		Vector<Ref<ExportReport>> reports;
+		for (auto &token : tokens) {
+			if (token.report->modified_time > 0) {
+				reports.push_back(token.report);
+			}
+		}
+		reports.sort_custom<ReportComparator>();
+		save_filesystem_cache(reports, output_dir, partial_export);
 	}
 	return OK;
 }
