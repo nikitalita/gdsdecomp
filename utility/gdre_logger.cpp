@@ -71,7 +71,7 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 		}
 
 		if (inGuiMode()) {
-			GDRESettings::get_singleton()->call_deferred(SNAME("emit_signal"), "write_log_message", String(buf));
+			GDRESettings::get_singleton()->call_deferred(SNAME("emit_signal"), "write_log_message", String::utf8(buf));
 		}
 		if (file.is_valid()) {
 			file->store_buffer((uint8_t *)buf, len);
@@ -85,7 +85,7 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 		if (is_prebuffering) {
 			MutexLock lock(buffer_mutex);
 			if (is_prebuffering) {
-				buffer.push_back(String(buf));
+				buffer.push_back(String::utf8(buf));
 			}
 		}
 		if (len >= static_buf_size) {
