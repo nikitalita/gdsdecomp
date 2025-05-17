@@ -13,6 +13,7 @@
 #include "core/variant/dictionary.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/texture.h"
+#include "thirdparty/basis_universal/transcoder/basisu_file_headers.h"
 
 enum FormatBits {
 	FORMAT_MASK_IMAGE_FORMAT = (1 << 20) - 1,
@@ -55,12 +56,25 @@ void set_res_path(Ref<Resource> res, const String &path, ResourceInfo::LoadType 
 	}
 }
 
-ResourceInfo TextureLoaderCompat::_get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t) {
-	ResourceInfo info;
+void merge_resource_info(Dictionary &new_dict, Dictionary &texture_dict, Ref<Resource> texture) {
+	new_dict.set("ver_major", texture_dict.get("ver_major", new_dict.get("ver_major", 0)));
+	new_dict.set("type", texture_dict.get("type", new_dict.get("type", "")));
+	new_dict.set("resource_format", texture_dict.get("resource_format", new_dict.get("resource_format", "")));
+	new_dict.set("texture_flags", texture_dict.get("texture_flags", new_dict.get("texture_flags", 0)));
+	new_dict.set("data_format", texture_dict.get("data_format", new_dict.get("data_format", 0)));
+	texture->set_meta("compat", new_dict);
+}
+
+void _set_resource_info(ResourceInfo &info, const String &original_path, TextureLoaderCompat::TextureVersionType t) {
 	info.ver_major = TextureLoaderCompat::get_ver_major_from_textype(t);
 	info.type = TextureLoaderCompat::get_type_name_from_textype(t);
 	info.resource_format = "Texture";
 	info.original_path = original_path;
+}
+
+ResourceInfo TextureLoaderCompat::_get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t) {
+	ResourceInfo info;
+	_set_resource_info(info, original_path, t);
 	return info;
 }
 
@@ -448,7 +462,30 @@ Error TextureLoaderCompat::_load_data_stex2d_v3(const String &p_path, int &tw, i
 	return OK;
 }
 
-Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, Ref<Image> &image, int p_size_limit) {
+void get_img_info_v4(Ref<FileAccess> f, int &r_data_format, basist::basis_file_header &header) {
+	int64_t pos = f->get_position();
+	r_data_format = f->get_32();
+	/*int img_w = */ f->get_16();
+	/*int img_h = */ f->get_16();
+	/*int img_mipmaps_count = */ f->get_32();
+	/*Image::Format img_format = Image::Format*/ (f->get_32());
+	if (r_data_format == CompressedTexture2D::DATA_FORMAT_BASIS_UNIVERSAL) {
+		// TODO: implement this
+		uint32_t size = f->get_32();
+		if (size >= sizeof(basist::basis_file_header)) {
+			Vector<uint8_t> pv;
+			pv.resize(size);
+			{
+				uint8_t *wr = pv.ptrw();
+				f->get_buffer(wr, size);
+			}
+			header = *reinterpret_cast<const basist::basis_file_header *>(pv.ptr());
+		}
+	}
+	f->seek(pos);
+}
+
+Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, Ref<Image> &image, int &r_data_format, int &r_texture_flags, int p_size_limit) {
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ);
 	uint8_t header[4];
 	// already checked header
@@ -461,7 +498,7 @@ Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, i
 	}
 	tw_custom = f->get_32();
 	th_custom = f->get_32();
-	uint32_t df = f->get_32(); //data format
+	r_texture_flags = f->get_32(); //texture flags
 
 	//skip reserved
 	f->get_32(); // mipmap_limit, unused
@@ -470,9 +507,13 @@ Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, i
 	f->get_32();
 	f->get_32();
 
-	if (!(df & FORMAT_BIT_STREAM)) {
+	if (!(r_texture_flags & FORMAT_BIT_STREAM)) {
 		p_size_limit = 0;
 	}
+	basist::basis_file_header bu_header;
+	get_img_info_v4(f, r_data_format, bu_header);
+	// TODO: do something with this
+
 	image = CompressedTexture2D::load_image_from_file(f, p_size_limit);
 
 	if (image.is_null() || image->is_empty()) {
@@ -578,7 +619,7 @@ Error TextureLoaderCompat::_load_layered_texture_v3(const String &p_path, Vector
 	return OK;
 }
 
-Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vector<Ref<Image>> &r_data, Image::Format &r_format, int &r_width, int &r_height, int &r_depth, int &r_type, bool &r_mipmaps) {
+Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vector<Ref<Image>> &r_data, Image::Format &r_format, int &r_width, int &r_height, int &r_depth, int &r_type, bool &r_mipmaps, int &r_data_format) {
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ);
 	ERR_FAIL_COND_V_MSG(f.is_null(), ERR_CANT_OPEN, vformat("Unable to open file: %s.", p_path));
 
@@ -595,8 +636,8 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 
 	r_depth = f->get_32(); //depth or layer count (CompressedTextureLayered)
 	r_type = f->get_32(); //type
-	f->get_32(); //data format
-	f->get_32(); // mipmap limit, pretty sure it's ignored?
+	f->get_32(); // Nothing
+	f->get_32(); // Nothing
 	int mipmaps = f->get_32();
 	f->get_32(); // ignored
 	f->get_32(); // ignored
@@ -613,6 +654,11 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 
 	int limit = is_layered ? r_depth : r_depth + mipmaps;
 	for (int i = 0; i < limit; i++) {
+		if (i == 0) {
+			size_t pos = f->get_position();
+			r_data_format = f->get_32();
+			f->seek(pos);
+		}
 		Ref<Image> image = CompressedTexture2D::load_image_from_file(f, 0);
 		ERR_FAIL_COND_V(image.is_null() || image->is_empty(), ERR_CANT_OPEN);
 		if (i == 0) {
@@ -728,7 +774,6 @@ bool ResourceConverterTexture2D::handles_type(const String &p_type, int ver_majo
 
 Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
 	String name;
-	Vector2 size;
 	Ref<Resource> texture;
 
 	if (p_type == ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
@@ -736,7 +781,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	}
 	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
 	String type = res->get_original_class();
-	// int flags = res->get("flags");
+	int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
 		return Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
@@ -746,7 +791,11 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	}
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
 	if (compat_dict.size() > 0) {
-		texture->set_meta("compat", compat_dict);
+		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
+		if (!existing_dict.has("texture_flags") && !compat_dict.has("texture_flags")) {
+			existing_dict.set("texture_flags", flags);
+		}
+		merge_resource_info(compat_dict, existing_dict, texture);
 	}
 	return texture;
 }
@@ -838,12 +887,14 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 		return Ref<Resource>();
 	}
 	int lw, lh, lwc, lhc, lflags;
+	int data_format;
+	int texture_flags;
 	Ref<Resource> texture;
 	Ref<Image> image;
 	if (t == TextureLoaderCompat::FORMAT_V3_STREAM_TEXTURE2D) {
 		err = TextureLoaderCompat::_load_data_stex2d_v3(p_path, lw, lh, lwc, lhc, lflags, image);
 	} else if (t == TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURE2D) {
-		err = TextureLoaderCompat::_load_data_ctex2d_v4(p_path, lw, lh, lwc, lhc, image);
+		err = TextureLoaderCompat::_load_data_ctex2d_v4(p_path, lw, lh, lwc, lhc, image, data_format, texture_flags);
 	} else {
 		err = ERR_INVALID_PARAMETER;
 	}
@@ -854,6 +905,9 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 	texture = _set_tex(p_path, p_type, lw, lh, lwc, lhc, lflags, image);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
+	info.cached_id = p_path;
+	info.data_format = data_format;
+	info.texture_flags = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -916,10 +970,12 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	Ref<Resource> texture;
 	Vector<Ref<Image>> images;
 	Image::Format fmt;
+	int data_format = 0;
+	int texture_flags = 0;
 	if (t == TextureLoaderCompat::FORMAT_V3_STREAM_TEXTURE3D) {
 		err = TextureLoaderCompat::_load_layered_texture_v3(p_path, images, fmt, lw, lh, ld, mipmaps);
 	} else if (t == TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURE3D) {
-		err = TextureLoaderCompat::_load_data_ctexlayered_v4(p_path, images, fmt, lw, lh, ld, ltype, mipmaps);
+		err = TextureLoaderCompat::_load_data_ctexlayered_v4(p_path, images, fmt, lw, lh, ld, ltype, mipmaps, data_format);
 	} else {
 		err = ERR_INVALID_PARAMETER;
 	}
@@ -930,6 +986,8 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	texture = _set_tex(p_path, p_type, lw, lh, ld, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
+	info.data_format = data_format;
+	info.texture_flags = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -946,7 +1004,7 @@ void ResourceFormatLoaderCompatTextureLayered::get_recognized_extensions(List<St
 }
 
 bool ResourceFormatLoaderCompatTextureLayered::handles_type(const String &p_type) const {
-	return p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray" || p_type == "Texture";
+	return p_type == "StreamTextureArray" || p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray" || p_type == "Texture";
 }
 
 String ResourceFormatLoaderCompatTextureLayered::get_resource_type(const String &p_path) const {
@@ -1009,6 +1067,8 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 		return Ref<Resource>();
 	}
 
+	int data_format;
+	int texture_flags = 0;
 	int lw, lh, ld, ltype;
 	bool mipmaps;
 	Ref<Resource> texture;
@@ -1018,7 +1078,7 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 		err = TextureLoaderCompat::_load_layered_texture_v3(p_path, images, fmt, lw, lh, ld, mipmaps);
 		ltype = RS::TEXTURE_LAYERED_2D_ARRAY;
 	} else if (t == TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURELAYERED) {
-		err = TextureLoaderCompat::_load_data_ctexlayered_v4(p_path, images, fmt, lw, lh, ld, ltype, mipmaps);
+		err = TextureLoaderCompat::_load_data_ctexlayered_v4(p_path, images, fmt, lw, lh, ld, ltype, mipmaps, data_format);
 	} else {
 		err = ERR_INVALID_PARAMETER;
 	}
@@ -1029,6 +1089,8 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 	texture = _set_tex(p_path, p_type, lw, lh, ld, ltype, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
+	info.data_format = data_format;
+	info.texture_flags = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -1080,7 +1142,8 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
 	if (compat_dict.size() > 0) {
-		texture->set_meta("compat", compat_dict);
+		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
+		merge_resource_info(compat_dict, existing_dict, texture);
 	}
 	return texture;
 }
