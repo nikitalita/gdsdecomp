@@ -745,6 +745,27 @@ Error ResourceLoaderCompatText::load() {
 		if (!missing_resource_properties.is_empty()) {
 			res->set_meta(META_MISSING_RESOURCES, missing_resource_properties);
 		}
+		if (!ResourceInfo::resource_has_info(res)) {
+			ResourceInfo info;
+			info.topology_type = ResourceInfo::INTERNAL_RESOURCE;
+			info.type = type;
+			info.resource_name = res->get_name();
+			info.cached_id = id;
+			info.original_path = path;
+			info.set_on_resource(res);
+		} else {
+			Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
+			if (compat.get("resource_name", String()).operator String().is_empty()) {
+				compat["resource_name"] = res->get_name();
+			}
+			if (compat.get("original_path", String()).operator String().is_empty()) {
+				compat["original_path"] = path;
+			}
+			if (compat.get("cached_id", String()).operator String().is_empty()) {
+				compat["cached_id"] = id;
+			}
+			ResourceInfo::set_info_dict_on_resource(compat, res);
+		}
 	}
 
 	// main resource parsing (if it is a resource)
