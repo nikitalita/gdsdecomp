@@ -33,7 +33,6 @@ protected:
 	static Vector<String> _get_dependencies(const String &p_path, bool p_add_types);
 
 	static void _bind_methods();
-	static Ref<Resource> load_with_real_resource_loader(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE);
 
 public:
 	static ResourceInfo::LoadType get_default_load_type();
@@ -43,6 +42,7 @@ public:
 	static Ref<Resource> gltf_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
 	static Ref<Resource> real_load(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr, ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE);
 	static Ref<Resource> custom_load(const String &p_path, const String &p_type_hint = "", ResourceInfo::LoadType p_type = ResourceInfo::LoadType::REAL_LOAD, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE);
+	static Ref<Resource> load_with_real_resource_loader(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE);
 	static void add_resource_format_loader(Ref<CompatFormatLoader> p_format_loader, bool p_at_front = false);
 	static void remove_resource_format_loader(Ref<CompatFormatLoader> p_format_loader);
 	static void add_resource_object_converter(Ref<ResourceCompatConverter> p_converter, bool p_at_front = false);
@@ -178,4 +178,7 @@ public:
 	static String get_resource_name(const Ref<Resource> &res, int ver_major);
 	virtual Ref<Resource> convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error = nullptr) = 0;
 	virtual bool handles_type(const String &p_type, int ver_major) const = 0;
+	static Ref<Resource> get_real_from_missing_resource(Ref<MissingResource> mr, ResourceInfo::LoadType load_type);
+	static Ref<Resource> set_real_from_missing_resource(Ref<MissingResource> mr, Ref<Resource> res, ResourceInfo::LoadType load_type);
+	static bool is_external_resource(Ref<MissingResource> mr);
 };
