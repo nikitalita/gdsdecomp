@@ -758,7 +758,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	if (p_type == ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
 		return res;
 	}
-	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
+	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
 	String type = res->get_original_class();
 	int flags = res->get("flags");
 	String load_path = res->get("load_path");
@@ -770,9 +770,9 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	}
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
 	if (compat_dict.size() > 0) {
-		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
+		Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
 		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
-		texture->set_meta("compat", compat_dict);
+		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
 	}
 	return texture;
 }
@@ -885,7 +885,7 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 	info.cached_id = p_path;
 	info.extra["data_format"] = data_format;
 	info.extra["texture_flags"] = texture_flags;
-	texture->set_meta("compat", info.to_dict());
+	info.set_on_resource(texture);
 	return texture;
 }
 
@@ -965,7 +965,7 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
 	info.extra["data_format"] = data_format;
 	info.extra["texture_flags"] = texture_flags;
-	texture->set_meta("compat", info.to_dict());
+	info.set_on_resource(texture);
 	return texture;
 }
 
@@ -1068,7 +1068,7 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
 	info.extra["data_format"] = data_format;
 	info.extra["texture_flags"] = texture_flags;
-	texture->set_meta("compat", info.to_dict());
+	info.set_on_resource(texture);
 	return texture;
 }
 
@@ -1086,7 +1086,7 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	int flags = 0;
 	Ref<Image> image;
 	Ref<Resource> texture;
-	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
+	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
 	String type = res->get_original_class();
 
 	auto convert_image = [&](const Ref<Resource> &image_res) -> Ref<Image> {
@@ -1119,9 +1119,9 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
 	if (compat_dict.size() > 0) {
-		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
+		Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
 		merge_resource_info(compat_dict, existing_dict, flags);
-		texture->set_meta("compat", compat_dict);
+		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
 	}
 	return texture;
 }
@@ -1132,9 +1132,8 @@ bool ImageConverterCompat::handles_type(const String &p_type, int ver_major) con
 
 Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
 	String name;
-	Vector2 size;
 	Ref<Image> image;
-	Dictionary compat_dict = (res->get_meta("compat", Dictionary()));
+	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
 	String type = res->get_original_class();
 	if (type != "Image") {
 		WARN_PRINT("ImageConverterCompat: Unsupported type: " + type);
@@ -1155,7 +1154,7 @@ Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, Res
 	image = Image::create_from_data(tw, th, mipmaps, fmt_enum, img_data);
 	image->set_name(name);
 	if (compat_dict.size() > 0) {
-		image->set_meta("compat", compat_dict);
+		ResourceInfo::set_info_dict_on_resource(compat_dict, image);
 	}
 	return image;
 }

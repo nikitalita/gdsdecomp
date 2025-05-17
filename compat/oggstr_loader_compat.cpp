@@ -14,6 +14,7 @@ Ref<Resource> OggStreamConverterCompat::convert(const Ref<MissingResource> &res,
 	}
 	sample->set_loop(loop);
 	sample->set_loop_offset(loop_offset);
+	ResourceInfo::set_info_dict_on_resource(ResourceInfo::get_info_dict_from_resource(res), sample);
 	return sample;
 }
 

@@ -718,11 +718,15 @@ Error ResourceLoaderCompatText::load() {
 		if (missing_resource) {
 			missing_resource->set_recording_properties(false);
 			if (converter.is_valid()) {
-				Dictionary compat_dict = missing_resource->get_meta(META_COMPAT, Dictionary());
+				Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(missing_resource);
 				auto new_res = converter->convert(missing_resource, load_type, ver_major, &error);
 				if (error == OK) {
 					res = new_res;
-					res->set_meta(META_COMPAT, compat_dict);
+					// converters *SHOULD* already set this
+					if (!ResourceInfo::resource_has_info(res)) {
+						WARN_PRINT("Converter " + converter->get_class() + " did not set info on resource!!");
+						ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+					}
 					if (!path.is_empty()) {
 						if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && is_real_load()) {
 							res->set_path(path, cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE); // If got here because the resource with same path has different type, replace it.
@@ -908,11 +912,15 @@ Error ResourceLoaderCompatText::load() {
 		if (missing_resource) {
 			missing_resource->set_recording_properties(false);
 			if (converter.is_valid()) {
-				Dictionary compat_dict = missing_resource->get_meta(META_COMPAT, Dictionary());
+				Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(missing_resource);
 				auto new_res = converter->convert(missing_resource, load_type, ver_major, &error);
 				if (error == OK) {
 					resource = new_res;
-					resource->set_meta(META_COMPAT, compat_dict);
+					// converters *SHOULD* already set this
+					if (!ResourceInfo::resource_has_info(resource)) {
+						WARN_PRINT("Converter " + converter->get_class() + " did not set info on resource " + res_path);
+						ResourceInfo::set_info_dict_on_resource(compat_dict, resource);
+					}
 					if (!res_path.is_empty()) {
 						if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && is_real_load()) {
 							resource->set_path(res_path, cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE); // If got here because the resource with same path has different type, replace it.
@@ -1808,7 +1816,7 @@ String ResourceFormatSaverCompatTextInstance::_write_resource(const Ref<Resource
 
 // TODO: this could potentially break things if we start messing with resources (renaming dependencies, replacing them, etc.) more than we are currently.
 String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resource> res, int ext_resources_size) {
-	Dictionary dict = res->get_meta(META_COMPAT, Dictionary());
+	Dictionary dict = ResourceInfo::get_info_dict_from_resource(res);
 	String id = dict.get("cached_id", String());
 	if (id.is_empty() || dict.get("resource_format", "binary") != "text") {
 		if (format_version >= 3) {
@@ -1951,7 +1959,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		packed_scene = p_resource;
 	}
 #endif
-	Dictionary compat_dict = p_resource->get_meta("compat");
+	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(p_resource);
 	if (compat_dict.is_empty()) {
 		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
 		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
@@ -2096,7 +2104,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 	// clang-format off
 	if (format_version >= 3){
 	for (KeyValue<Ref<Resource>, String> &E : external_resources) {
-		Dictionary compat = E.key->get_meta("compat", Dictionary());
+		Dictionary compat = ResourceInfo::get_info_dict_from_resource(E.key);
 		String sc_id = compat.get("cached_id", String());
 		if (!sc_id.is_empty()) {
 			E.value = sc_id;
@@ -2169,7 +2177,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		String s = "[ext_resource";
 		String type_string = " type=\"" + _resource_get_class(sorted_er[i].resource) + "\"";
 		String path_string = " path=\"" + p + "\"";
-		Dictionary ext_compat = sorted_er[i].resource->get_meta("compat", Dictionary());
+		Dictionary ext_compat = ResourceInfo::get_info_dict_from_resource(sorted_er[i].resource);
 		ResourceUID::ID uid = ext_compat.get("uid", ResourceUID::INVALID_ID);
 		if (format_version >= 3) {
 			s += type_string;
@@ -2547,7 +2555,7 @@ void ResourceLoaderCompatText::set_compat_meta(Ref<Resource> &r_res) {
 	if (is_scene) {
 		compat.packed_scene_version = packed_scene_version;
 	}
-	r_res->set_meta(META_COMPAT, compat.to_dict());
+	compat.set_on_resource(r_res);
 }
 
 bool ResourceLoaderCompatText::should_threaded_load() const {
