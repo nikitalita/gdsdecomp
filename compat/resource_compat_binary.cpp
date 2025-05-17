@@ -3393,4 +3393,5 @@ Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<File
 	f->seek(md_at);
 	f->store_64(md_pos);
 	f->seek_end();
+	return OK;
 }
