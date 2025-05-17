@@ -13,7 +13,6 @@
 #include "core/variant/dictionary.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/texture.h"
-#include "thirdparty/basis_universal/transcoder/basisu_file_headers.h"
 
 enum FormatBits {
 	FORMAT_MASK_IMAGE_FORMAT = (1 << 20) - 1,
@@ -465,29 +464,6 @@ Error TextureLoaderCompat::_load_data_stex2d_v3(const String &p_path, int &tw, i
 	return OK;
 }
 
-void get_img_info_v4(Ref<FileAccess> f, int &r_data_format, basist::basis_file_header &header) {
-	int64_t pos = f->get_position();
-	r_data_format = f->get_32();
-	/*int img_w = */ f->get_16();
-	/*int img_h = */ f->get_16();
-	/*int img_mipmaps_count = */ f->get_32();
-	/*Image::Format img_format = Image::Format*/ (f->get_32());
-	if (r_data_format == CompressedTexture2D::DATA_FORMAT_BASIS_UNIVERSAL) {
-		// TODO: implement this
-		uint32_t size = f->get_32();
-		if (size >= sizeof(basist::basis_file_header)) {
-			Vector<uint8_t> pv;
-			pv.resize(size);
-			{
-				uint8_t *wr = pv.ptrw();
-				f->get_buffer(wr, size);
-			}
-			header = *reinterpret_cast<const basist::basis_file_header *>(pv.ptr());
-		}
-	}
-	f->seek(pos);
-}
-
 Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, Ref<Image> &image, int &r_data_format, int &r_texture_flags, int p_size_limit) {
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ);
 	uint8_t header[4];
@@ -513,9 +489,9 @@ Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, i
 	if (!(r_texture_flags & FORMAT_BIT_STREAM)) {
 		p_size_limit = 0;
 	}
-	basist::basis_file_header bu_header;
-	get_img_info_v4(f, r_data_format, bu_header);
-	// TODO: do something with this
+	int64_t pos = f->get_position();
+	r_data_format = f->get_32();
+	f->seek(pos);
 
 	image = CompressedTexture2D::load_image_from_file(f, p_size_limit);
 
