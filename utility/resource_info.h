@@ -53,6 +53,7 @@ struct ResourceInfo {
 		ri.ver_major = dict.get("ver_major", 0);
 		ri.ver_minor = dict.get("ver_minor", 0);
 		ri.packed_scene_version = dict.get("packed_scene_version", 0);
+		ri.load_type = static_cast<LoadType>(int(dict.get("load_type", FAKE_LOAD)));
 		ri.type = dict.get("type", "");
 		ri.resource_format = dict.get("format_type", "");
 		ri.script_class = dict.get("script_class", "");
@@ -79,6 +80,7 @@ struct ResourceInfo {
 		dict["ver_major"] = ver_major;
 		dict["ver_minor"] = ver_minor;
 		dict["packed_scene_version"] = packed_scene_version;
+		dict["load_type"] = load_type;
 		dict["type"] = type;
 		dict["format_type"] = resource_format;
 		dict["script_class"] = script_class;

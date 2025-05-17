@@ -7,7 +7,9 @@
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
 #include "modules/gltf/gltf_document.h"
+#include "modules/gltf/structures/gltf_node.h"
 #include "scene/3d/mesh_instance_3d.h"
+#include "scene/resources/image_texture.h"
 #include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_logger.h"
@@ -726,6 +728,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
 							if (compat.size() > 0) {
 								name = compat["resource_name"];
+							} else {
+								name = res->get_class() + "_" + String::num_int64(rand());
 							}
 						}
 					}
@@ -745,15 +749,54 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 
 				{
 					auto json = state->get_json();
+					auto materials = state->get_materials();
 					Array images = state->get_images();
 					Array json_images = json["images"];
 					HashMap<String, Vector<int>> image_map;
 					bool has_duped_images = false;
+					static const HashMap<String, int64_t> generated_tex_suffixes = {
+						{ "emission", BaseMaterial3D::TEXTURE_EMISSION },
+						{ "normal", BaseMaterial3D::TEXTURE_NORMAL },
+						{ "orm", BaseMaterial3D::TEXTURE_METALLIC | BaseMaterial3D::TEXTURE_ROUGHNESS | BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION },
+						{ "albedo", BaseMaterial3D::TEXTURE_ALBEDO }
+					};
 					for (int i = 0; i < json_images.size(); i++) {
 						Dictionary image_dict = json_images[i];
 						Ref<Texture2D> image = images[i];
 						auto path = get_path_res(image);
 						String name;
+						if (path.is_empty()) {
+							name = get_name_res(image_dict, image);
+							auto parts = name.rsplit("_", false, 1);
+							String material_name = parts.size() > 0 ? parts[0] : String();
+							String suffix;
+							BaseMaterial3D::TextureParam param = (BaseMaterial3D::TextureParam)-1;
+							if (parts.size() > 1 && generated_tex_suffixes.has(parts[1])) {
+								suffix = parts[1];
+								param = BaseMaterial3D::TextureParam(generated_tex_suffixes[suffix]);
+							}
+							if (!suffix.is_empty()) {
+								for (auto E : materials) {
+									Ref<Material> material = E;
+									if (!material.is_valid()) {
+										continue;
+									}
+
+									String mat_name = material->get_name();
+									if (material_name != mat_name && material_name != mat_name.replace(".", "_")) {
+										continue;
+									}
+									Ref<BaseMaterial3D> base_material = material;
+									if (base_material.is_valid()) {
+										auto tex = base_material->get_texture(param);
+										if (tex.is_valid()) {
+											path = tex->get_path();
+											break;
+										}
+									}
+								}
+							}
+						}
 						bool is_internal = path.is_empty() || path.get_file().contains("::");
 						if (is_internal) {
 							name = get_name_res(image_dict, image);
@@ -859,6 +902,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							}
 							if (!name.is_empty()) {
 								mesh_dict["name"] = demangle_name(name);
+							} else {
+								mesh_dict["name"] = original_name;
 							}
 							mesh_info.path = path;
 							mesh_info.name = name;
@@ -879,7 +924,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					{
 						TypedArray<Node> nodes = root->find_children("*", "MeshInstance3D");
 						Array json_materials = json["materials"];
-						auto materials = state->get_materials();
 						for (int i = 0; i < materials.size(); i++) {
 							Dictionary material_dict = json_materials[i];
 							Ref<Material> material = materials[i];
@@ -896,6 +940,43 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							}
 							id_to_material_path.push_back({ name, path });
 						}
+					}
+					auto gltf_nodes = state->get_nodes();
+					// rename animation player nodes to avoid name clashes when reimporting
+					if (gltf_nodes.size() > 0) {
+						Array json_nodes = json["nodes"];
+						Vector<GLTFNodeIndex> nodes_to_remove;
+						for (int i = 0; i < gltf_nodes.size(); i++) {
+							Ref<GLTFNode> node = gltf_nodes[i];
+							Dictionary json_node = json_nodes[i];
+							if (node.is_valid()) {
+								auto original_name = node->get_original_name();
+								if (!original_name.is_empty() && original_name.contains("AnimationPlayer")) {
+									if (json_node.size() == 0 || (json_node.size() == 1 && json_node.has("name"))) {
+										// useless node, remove it
+										auto parent = node->get_parent();
+										if (parent != -1) {
+											Dictionary parent_node = json_nodes[parent];
+											Array children = parent_node.get("children", Array());
+											if (children.has(i)) {
+												children.erase(i);
+												parent_node["children"] = children;
+											}
+										}
+										nodes_to_remove.push_back(i);
+										continue;
+									} else {
+										json_node["name"] = original_name + "_ORIG_" + String::num_int64(i);
+									}
+								}
+							}
+						}
+						nodes_to_remove.sort();
+						nodes_to_remove.reverse();
+						for (int i = nodes_to_remove.size() - 1; i >= 0; i--) {
+							json_nodes.remove_at(nodes_to_remove[i]);
+						}
+						json["nodes"] = json_nodes;
 					}
 				}
 #if DEBUG_ENABLED
@@ -1123,6 +1204,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			break;
 		}
 	}
+	if (!set_all_externals) {
+		error_messages.append("Failed to set all externals in import info. Some resources may not be exported.");
+	}
 	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	if (!set_all_externals || has_script || has_shader) {
 		err = ERR_PRINTER_ON_FIRE;
@@ -1180,12 +1264,13 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	String ext = new_path.get_extension().to_lower();
 	bool to_text = ext == "escn" || ext == "tscn";
 	bool to_obj = ext == "obj";
+	bool non_gltf = ext != "glb" && ext != "gltf";
 	// GLTF export can result in inaccurate models
 	// save it under .assets, which won't be picked up for import by the godot editor
 	if (!to_text && !to_obj) {
 		new_path = new_path.replace("res://", "res://.assets/");
 		// we only export glbs
-		if (ext != "glb" && ext != "gltf") {
+		if (non_gltf) {
 			new_path = new_path.get_basename() + ".glb";
 		}
 	}
@@ -1201,7 +1286,11 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	}
 	if (err == ERR_PRINTER_ON_FIRE) {
 		report->set_saved_path(dest_path);
-	} else if (err == OK && !to_text && !to_obj) {
+		// save the import info anyway
+		auto import_dest = output_dir.path_join(iinfo->get_import_md_path().trim_prefix("res://"));
+		iinfo->save_to(import_dest);
+		report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+	} else if (err == OK && !to_text && !to_obj && !non_gltf) {
 		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
 		// TODO: do real GLTF validation
 		// TODO: fix errors where some models aren't being textured?
@@ -1210,7 +1299,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		auto da = DirAccess::create_for_path(new_dest.get_base_dir());
 		if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
 			iinfo->set_export_dest(orignal_export_dest);
-			report->set_new_source_path("");
+			report->set_new_source_path(orignal_export_dest);
 			report->set_saved_path(new_dest);
 		}
 	}
