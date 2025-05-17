@@ -360,6 +360,24 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path) {
 	return err;
 }
 
+template <typename T>
+T get_most_popular_value(const Vector<T> &p_values) {
+	HashMap<T, int64_t> dict;
+	for (int i = 0; i < p_values.size(); i++) {
+		size_t current_count = dict.has(p_values[i]) ? dict.get(p_values[i]) : 0;
+		dict[p_values[i]] = current_count + 1;
+	}
+	int64_t max_count = 0;
+	T most_popular_value;
+	for (auto &E : dict) {
+		if (E.value > max_count) {
+			max_count = E.value;
+			most_popular_value = E.key;
+		}
+	}
+	return most_popular_value;
+}
+
 Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
@@ -548,7 +566,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		}
 		Vector<String> id_to_texture_path;
 		Vector<Pair<String, String>> id_to_material_path;
-		Vector<Pair<String, String>> id_to_meshes_path;
+		// Vector<Pair<String, String>> id_to_meshes_path;
 		Vector<ObjExporter::MeshInfo> id_to_mesh_info;
 		Vector<Pair<String, String>> id_to_animations_path;
 		HashMap<String, String> animation_map;
@@ -610,6 +628,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 								options["save_to_file/path"] = "";
 							}
 							options["settings/loop_mode"] = (int)anim->get_loop_mode();
+							options["slices/amount"] = 0;
 						}
 					}
 				}
@@ -723,11 +742,11 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 								original_name = mesh->get_name();
 							}
 							Dictionary mesh_dict = json_meshes[i];
+							ObjExporter::MeshInfo mesh_info;
 							if (mesh.is_null()) {
-								id_to_meshes_path.push_back({ "", "" });
+								id_to_mesh_info.push_back(mesh_info);
 								continue;
 							}
-							ObjExporter::MeshInfo mesh_info;
 							Dictionary compat = ResourceInfo::get_info_dict_from_resource(mesh);
 							String path = get_path_res(mesh);
 							String name;
@@ -740,6 +759,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							if (!name.is_empty()) {
 								mesh_dict["name"] = demangle_name(name);
 							}
+							mesh_info.path = path;
+							mesh_info.name = name;
 
 							mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
 							mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
@@ -751,7 +772,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 								// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
 							}
 
-							id_to_meshes_path.push_back({ name, path });
 							id_to_mesh_info.push_back(mesh_info);
 						}
 					}
@@ -803,14 +823,59 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		}
 		auto iinfo = p_report.is_valid() ? p_report->get_import_info() : Ref<ImportInfo>();
 
+		ObjExporter::MeshInfo global_mesh_info;
+		Vector<bool> global_has_tangents;
+		Vector<bool> global_has_lods;
+		Vector<bool> global_has_shadow_meshes;
+		Vector<bool> global_has_lightmap_uv2;
+		Vector<float> global_lightmap_uv2_texel_size;
+		Vector<int> global_bake_mode;
+		Vector<bool> global_compression_enabled;
+		// push them back
+		for (auto &E : id_to_mesh_info) {
+			global_has_tangents.push_back(E.has_tangents);
+			global_has_lods.push_back(E.has_lods);
+			global_has_shadow_meshes.push_back(E.has_shadow_meshes);
+			global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
+			global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
+			global_bake_mode.push_back(E.bake_mode);
+			global_compression_enabled.push_back(E.compression_enabled);
+		}
+		global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
+		global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
+		global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
+		global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
+		global_mesh_info.lightmap_uv2_texel_size = get_most_popular_value(global_lightmap_uv2_texel_size);
+		global_mesh_info.bake_mode = get_most_popular_value(global_bake_mode);
+		global_mesh_info.compression_enabled = global_compression_enabled.count(true) > global_compression_enabled.size() / 2;
+
+		iinfo->set_param("nodes/apply_root_scale", true);
+		iinfo->set_param("nodes/root_scale", 1.0);
+		iinfo->set_param("nodes/import_as_skeleton_bones", false);
+		iinfo->set_param("nodes/use_name_suffixes", true);
+		iinfo->set_param("nodes/use_node_type_suffixes", true);
+		iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
+		iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
+		iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
+		iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
+		iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
+		iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
+		iinfo->set_param("skins/use_named_skins", true);
+		iinfo->set_param("animation/import", true);
+		iinfo->set_param("animation/fps", 30);
+		iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
+		iinfo->set_param("animation/remove_immutable_tracks", true);
+		iinfo->set_param("animation/import_rest_as_RESET", false);
+		iinfo->set_param("import_script/path", "");
+
 		// Godot 4.2 and above blow out the import params, so we need to update them to point to the external resources.
 		Dictionary _subresources_dict = Dictionary();
 		if (iinfo.is_valid() && iinfo->has_param("_subresources")) {
 			_subresources_dict = iinfo->get_param("_subresources");
 		}
 
-		if ((has_external_animation || has_external_meshes || has_external_materials) && iinfo.is_valid() && _subresources_dict.is_empty()) {
-			if (has_external_animation) {
+		if (iinfo.is_valid()) {
+			if (animation_options.size() > 0) {
 				if (!_subresources_dict.has("animations")) {
 					_subresources_dict["animations"] = Dictionary();
 				}
@@ -821,33 +886,42 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
 					animations_dict[E.key] = E.value;
 					String path = animations_dict[E.key].operator Dictionary().get("save_to_file/path", String());
-					if (!path.is_empty()) {
+					if (!(path.is_empty() || path.get_file().contains("::"))) {
 						external_deps_updated.insert(path);
 					}
 				}
 			}
-			if (has_external_meshes) {
+			if (id_to_mesh_info.size() > 0) {
 				if (!_subresources_dict.has("meshes")) {
 					_subresources_dict["meshes"] = Dictionary();
 				}
 
 				Dictionary mesh_Dict = _subresources_dict["meshes"];
-				for (auto &E : id_to_meshes_path) {
-					auto name = E.first;
-					auto path = E.second;
-					if (name.is_empty() || path.is_empty() || path.get_file().contains("::") || mesh_Dict.has(name)) {
+				for (auto &E : id_to_mesh_info) {
+					auto name = E.name;
+					auto path = E.path;
+					if (name.is_empty() || mesh_Dict.has(name)) {
 						continue;
 					}
 					// "save_to_file/enabled": true,
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
 					mesh_Dict[name] = Dictionary();
 					Dictionary subres = mesh_Dict[name];
-					subres["save_to_file/enabled"] = true;
-					subres["save_to_file/path"] = path;
-					external_deps_updated.insert(path);
+					if (path.is_empty() || path.get_file().contains("::")) {
+						subres["save_to_file/enabled"] = false;
+						subres["save_to_file/path"] = "";
+					} else {
+						subres["save_to_file/enabled"] = true;
+						subres["save_to_file/path"] = path;
+						external_deps_updated.insert(path);
+					}
+					subres["generate/shadow_meshes"] = E.has_shadow_meshes ? 1 : 0;
+					subres["generate/lightmap_uv"] = E.has_lightmap_uv2 ? 1 : 0;
+					subres["generate/lods"] = E.has_lods ? 1 : 0;
+					subres["lods/normal_merge_angle"] = 60.0f; // TODO: get this somehow??
 				}
 			}
-			if (has_external_materials) {
+			if (id_to_material_path.size() > 0) {
 				if (!_subresources_dict.has("materials")) {
 					_subresources_dict["materials"] = Dictionary();
 				}
@@ -856,14 +930,19 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				for (auto &E : id_to_material_path) {
 					auto name = E.first;
 					auto path = E.second;
-					if (name.is_empty() || path.is_empty() || path.get_file().contains("::") || mat_Dict.has(name)) {
+					if (name.is_empty() || mat_Dict.has(name)) {
 						continue;
 					}
 					mat_Dict[name] = Dictionary();
 					Dictionary subres = mat_Dict[name];
-					subres["use_external/enabled"] = true;
-					subres["use_external/path"] = path;
-					external_deps_updated.insert(path);
+					if (path.is_empty() || path.get_file().contains("::")) {
+						subres["use_external/enabled"] = false;
+						subres["use_external/path"] = "";
+					} else {
+						subres["use_external/enabled"] = true;
+						subres["use_external/path"] = path;
+						external_deps_updated.insert(path);
+					}
 				}
 			}
 
