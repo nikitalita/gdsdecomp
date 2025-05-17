@@ -423,6 +423,9 @@ Dictionary ImportInfoModern::get_params() const {
 }
 
 void ImportInfoModern::set_params(Dictionary params) {
+	if (params.size() > 0 && cf->has_section_key("params", "dummy_value_ignore_me")) {
+		cf->erase_section_key("params", "dummy_value_ignore_me");
+	}
 	auto param_keys = params.get_key_list();
 	for (int i = 0; i < param_keys.size(); i++) {
 		const Variant &key = param_keys[i];
@@ -480,6 +483,12 @@ Error ImportInfoModern::_load(const String &p_path) {
 					set_dest_files(dest_files);
 				}
 			}
+			auto deduped = gdre::vector_to_hashset(dest_files);
+			Array arr;
+			for (auto &E : deduped) {
+				arr.push_back(E);
+			}
+			cf->set_value("deps", "files", arr);
 		}
 	}
 
