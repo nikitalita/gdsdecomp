@@ -763,16 +763,20 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
-		return Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
+		auto res = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
+		ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+		return res;
 	}
 	if (p_type == ResourceInfo::GLTF_LOAD || p_type == ResourceInfo::REAL_LOAD) {
 		texture = ResourceCompatLoader::custom_load(load_path, type, p_type, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 	}
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
+	Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
 	if (compat_dict.size() > 0) {
-		Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
 		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
 		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
+	} else {
+		ResourceInfo::set_info_dict_on_resource(existing_dict, texture);
 	}
 	return texture;
 }
@@ -1118,11 +1122,14 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 		th_custom = size.height;
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
+	Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
 	if (compat_dict.size() > 0) {
-		Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
-		merge_resource_info(compat_dict, existing_dict, flags);
+		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
 		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
+	} else {
+		ResourceInfo::set_info_dict_on_resource(existing_dict, texture);
 	}
+
 	return texture;
 }
 

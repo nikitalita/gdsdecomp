@@ -364,6 +364,9 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path) {
 
 template <typename T>
 T get_most_popular_value(const Vector<T> &p_values) {
+	if (p_values.is_empty()) {
+		return T();
+	}
 	HashMap<T, int64_t> dict;
 	for (int i = 0; i < p_values.size(); i++) {
 		size_t current_count = dict.has(p_values[i]) ? dict.get(p_values[i]) : 0;
@@ -408,6 +411,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	bool has_external_materials = false;
 	bool has_external_images = false;
 	bool has_external_meshes = false;
+	bool had_images = false;
 	Vector<CompressedTexture2D::DataFormat> image_formats;
 	const bool after_4_1 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1)));
 	const bool after_4_3 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3)));
@@ -779,7 +783,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							image_dict["name"] = demangle_name(name);
 						}
 						auto compat_dict = ResourceInfo::get_info_dict_from_resource(image);
-						Dictionary extras = compat_dict.get("extras", Dictionary());
+						Dictionary extras = compat_dict.get("extra", Dictionary());
+						had_images = true;
 						if (extras.has("data_format")) {
 							image_formats.push_back(CompressedTexture2D::DataFormat(int(compat_dict["data_format"])));
 						}
@@ -944,9 +949,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			global_mesh_info.lightmap_uv2_texel_size = get_most_popular_value(global_lightmap_uv2_texel_size);
 			global_mesh_info.bake_mode = get_most_popular_value(global_bake_mode);
 
-			bool has_any_image = image_formats.size() > 0;
 			int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
-			if (has_any_image) {
+			if (had_images) {
 				if (has_external_images) {
 					image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
 				} else {
