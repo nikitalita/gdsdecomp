@@ -114,8 +114,8 @@ class ResourceLoaderCompatBinary {
 	Error parse_variant(Variant &r_v);
 
 	HashMap<String, Ref<Resource>> dependency_cache;
-	void set_compat_meta(Ref<Resource> &r_res);
-	ResourceInfo get_resource_info();
+	void set_compat_meta(Ref<Resource> &r_res, bool is_main_resource);
+	Ref<ResourceInfo> get_resource_info();
 	uint64_t get_metadata_size();
 	Error load_import_metadata(bool p_return_to_pos = false);
 	bool is_real_load() const { return load_type == ResourceInfo::REAL_LOAD || load_type == ResourceInfo::GLTF_LOAD; }
@@ -147,7 +147,7 @@ class ResourceFormatLoaderCompatBinary : public CompatFormatLoader {
 public:
 	static Error get_ver_major_minor(const String &p_path, uint32_t &r_ver_major, uint32_t &r_ver_minor, bool &r_suspicious);
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return true; }
 
 	virtual Ref<Resource> load(const String &p_path, const String &p_original_path = "", Error *r_error = nullptr, bool p_use_sub_threads = false, float *r_progress = nullptr, CacheMode p_cache_mode = CACHE_MODE_REUSE) override;

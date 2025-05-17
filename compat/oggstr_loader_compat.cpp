@@ -14,10 +14,14 @@ Ref<Resource> OggStreamConverterCompat::convert(const Ref<MissingResource> &res,
 	}
 	sample->set_loop(loop);
 	sample->set_loop_offset(loop_offset);
-	ResourceInfo::set_info_dict_on_resource(ResourceInfo::get_info_dict_from_resource(res), sample);
+	auto info = ResourceInfo::get_info_from_resource(res);
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
+	if (info.is_valid()) {
+		info->set_on_resource(sample);
+	}
 	return sample;
 }
 
 bool OggStreamConverterCompat::handles_type(const String &p_type, int ver_major) const {
-	return (p_type == "AudioStreamOGGVorbis" && ver_major <= 3);
+	return ((p_type == "AudioStreamOGGVorbis" || p_type == "AudioStreamOggVorbis") && ver_major <= 3);
 }

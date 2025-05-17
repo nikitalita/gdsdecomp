@@ -224,8 +224,8 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 		List<String> deps;
 		auto path = iinfo->get_path();
 		auto res_info = ResourceCompatLoader::get_resource_info(path);
-		report->actual_type = res_info.type;
-		report->script_class = res_info.script_class;
+		report->actual_type = res_info.is_valid() ? res_info->type : iinfo->get_type();
+		report->script_class = res_info.is_valid() ? res_info->script_class : "";
 		ResourceCompatLoader::get_dependencies(path, &deps, false);
 		for (auto &dep : deps) {
 			report->dependencies.push_back(dep);

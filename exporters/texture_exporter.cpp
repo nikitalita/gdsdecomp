@@ -218,7 +218,8 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 
 	String ext = p_import_info->get_source_file().get_extension().to_lower();
 	Dictionary params;
-	Dictionary compat = ResourceInfo::get_info_dict_from_resource(p_tex);
+	Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(p_tex);
+	ERR_FAIL_COND_MSG(!info.is_valid(), "TEXTURE LOADERS SHOULD HAVE SET THE RESOURCE INFO FOR THIS TEXTURE!!!!!!!!");
 	// Get the image from the texture
 	Ref<Image> img;
 
@@ -238,8 +239,8 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 	}
 	int compress_mode = -1;
 	CompressedTexture2D::DataFormat data_format = CompressedTexture2D::DATA_FORMAT_IMAGE;
-	ERR_FAIL_COND(compat.is_empty());
-	Dictionary extra = compat.get("extra", Dictionary());
+	ERR_FAIL_COND(info->extra.is_empty());
+	Dictionary extra = info->extra;
 	int df = extra.get("data_format", -1);
 	int tf = extra.get("texture_flags", -1);
 	ERR_FAIL_COND(df == -1 || tf == -1);
@@ -465,14 +466,14 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 Error TextureExporter::export_file(const String &out_path, const String &res_path) {
 	Error err;
 	auto res_info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
-	if (!handles_import("", res_info.type)) {
+	if (res_info.is_null() || !handles_import("", res_info->type)) {
 		return ERR_FILE_UNRECOGNIZED;
 	}
-	if (res_info.type == "BitMap") {
+	if (res_info->type == "BitMap") {
 		return _convert_bitmap(res_path, out_path, false, nullptr);
 	}
 	String fmt_name;
-	if (res_info.type == "AtlasTexture") {
+	if (res_info->type == "AtlasTexture") {
 		return _convert_atex(res_path, out_path, false, fmt_name);
 	}
 	return _convert_tex(res_path, out_path, false, fmt_name);

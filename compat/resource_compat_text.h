@@ -150,7 +150,7 @@ private:
 
 public:
 	bool should_threaded_load() const;
-	ResourceInfo get_resource_info();
+	Ref<ResourceInfo> get_resource_info();
 	Ref<Resource> get_resource();
 	Error load();
 	Error set_uid(Ref<FileAccess> p_f, ResourceUID::ID p_uid);
@@ -189,7 +189,7 @@ public:
 	virtual Error rename_dependencies(const String &p_path, const HashMap<String, String> &p_map) override;
 
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return true; }
 
 	ResourceFormatLoaderCompatText() { singleton = this; }

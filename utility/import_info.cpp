@@ -214,7 +214,7 @@ ImportInfoGDExt::ImportInfoGDExt() {
 	iitype = IInfoType::GDEXT;
 }
 
-Error ImportInfo::get_resource_info(const String &p_path, ResourceInfo &res_info) {
+Error ImportInfo::get_resource_info(const String &p_path, Ref<ResourceInfo> &res_info) {
 	Error err = OK;
 	if (!FileAccess::exists(p_path)) {
 		return ERR_FILE_NOT_FOUND;
@@ -223,7 +223,7 @@ Error ImportInfo::get_resource_info(const String &p_path, ResourceInfo &res_info
 		return ERR_UNAVAILABLE;
 	}
 	res_info = ResourceCompatLoader::get_resource_info(p_path, "", &err);
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource info from " + p_path);
+	ERR_FAIL_COND_V_MSG(err != OK || !res_info.is_valid(), err, "Could not load resource info from " + p_path);
 	return OK;
 }
 
@@ -234,18 +234,18 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 		iinfo = Ref<ImportInfo>(memnew(ImportInfoModern));
 		err = iinfo->_load(p_path);
 		if (ver_major == 0 && err == OK) {
-			ResourceInfo res_info;
+			Ref<ResourceInfo> res_info;
 			err = ImportInfo::get_resource_info(p_path, res_info);
 			if (err) {
 				WARN_PRINT("ImportInfo: Version major not specified and could not load binary resource file!");
 				err = OK;
 			} else {
-				iinfo->ver_major = res_info.ver_major;
-				iinfo->ver_minor = res_info.ver_minor;
-				if (res_info.type != iinfo->get_type()) {
-					WARN_PRINT(p_path + ": binary resource type " + res_info.type + " does not equal import type " + iinfo->get_type() + "???");
+				iinfo->ver_major = res_info->ver_major;
+				iinfo->ver_minor = res_info->ver_minor;
+				if (res_info->type != iinfo->get_type()) {
+					WARN_PRINT(p_path + ": binary resource type " + res_info->type + " does not equal import type " + iinfo->get_type() + "???");
 				}
-				if (res_info.resource_format == "text") {
+				if (res_info->resource_format == "text") {
 					WARN_PRINT_ONCE("ImportInfo: Attempted to load a text resource file, cannot determine minor version!");
 				}
 			}
@@ -533,15 +533,15 @@ Error ImportInfoModern::_load(const String &p_path) {
 
 Error ImportInfoDummy::_load(const String &p_path) {
 	Error err;
-	ResourceInfo res_info;
+	Ref<ResourceInfo> res_info;
 	err = ImportInfo::get_resource_info(p_path, res_info);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_path);
 	preferred_import_path = p_path;
 	source_file = "";
 	not_an_import = true;
-	ver_major = res_info.ver_major;
-	ver_minor = res_info.ver_minor;
-	type = res_info.type;
+	ver_major = res_info->ver_major;
+	ver_minor = res_info->ver_minor;
+	type = res_info->type;
 	dest_files = Vector<String>({ p_path });
 	import_md_path = "";
 	return OK;
@@ -566,7 +566,7 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	}
 	preferred_import_path = cf->get_value("remap", "path", "");
 	const String src_ext = source_file.get_extension().to_lower();
-	ResourceInfo res_info;
+	Ref<ResourceInfo> res_info;
 	err = ImportInfo::get_resource_info(preferred_import_path, res_info);
 	if (err == ERR_UNAVAILABLE) {
 		print_line("WARNING: Can't load resource info from remap path " + preferred_import_path + "...");
@@ -575,9 +575,9 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	} else {
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource info from remap path " + preferred_import_path);
 	}
-	type = res_info.type;
-	ver_major = res_info.ver_major;
-	ver_minor = res_info.ver_minor;
+	type = res_info->type;
+	ver_major = res_info->ver_major;
+	ver_minor = res_info->ver_minor;
 	dest_files = Vector<String>({ preferred_import_path });
 	not_an_import = true;
 	import_md_path = p_path;
@@ -594,7 +594,7 @@ Error ImportInfoRemap::_load(const String &p_path) {
 
 Error ImportInfov2::_load(const String &p_path) {
 	Error err;
-	ResourceInfo res_info;
+	Ref<ResourceInfo> res_info;
 	preferred_import_path = p_path;
 	err = ImportInfo::get_resource_info(preferred_import_path, res_info);
 	if (err) {
@@ -604,13 +604,13 @@ Error ImportInfov2::_load(const String &p_path) {
 	String source_file;
 	String importer;
 	// This is an import file, possibly has import metadata
-	type = res_info.type;
+	type = res_info->type;
 	import_md_path = p_path;
 	dest_files.push_back(p_path);
-	ver_major = res_info.ver_major;
-	ver_minor = res_info.ver_minor;
-	if (res_info.v2metadata.is_valid()) {
-		v2metadata = res_info.v2metadata;
+	ver_major = res_info->ver_major;
+	ver_minor = res_info->ver_minor;
+	if (res_info->v2metadata.is_valid()) {
+		v2metadata = res_info->v2metadata;
 		return OK;
 	}
 	Vector<String> spl = p_path.get_file().split(".");

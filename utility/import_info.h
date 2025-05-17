@@ -171,7 +171,7 @@ public:
 	virtual int get_import_loss_type() const;
 
 	virtual Error save_to(const String &p_path) = 0;
-	static Error get_resource_info(const String &p_path, ResourceInfo &i_info);
+	static Error get_resource_info(const String &p_path, Ref<ResourceInfo> &i_info);
 	static Ref<ImportInfo> copy(const Ref<ImportInfo> &p_iinfo);
 	static Ref<ImportInfo> load_from_file(const String &p_path, int ver_major = 0, int ver_minor = 0);
 	ImportInfo();

@@ -51,10 +51,11 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 	return fake_script;
 }
 
-ResourceInfo ResourceFormatGDScriptLoader::get_resource_info(const String &p_path, Error *r_error) const {
-	ResourceInfo info;
-	info.type = get_resource_type(p_path);
-	if (info.type == "") {
+Ref<ResourceInfo> ResourceFormatGDScriptLoader::get_resource_info(const String &p_path, Error *r_error) const {
+	Ref<ResourceInfo> info;
+	info.instantiate();
+	info->type = get_resource_type(p_path);
+	if (info->type == "") {
 		if (r_error) {
 			*r_error = ERR_FILE_UNRECOGNIZED;
 		}
@@ -67,17 +68,17 @@ ResourceInfo ResourceFormatGDScriptLoader::get_resource_info(const String &p_pat
 		if (decomp.is_valid()) {
 			Ref<GodotVer> ver = decomp->get_godot_ver();
 			if (ver.is_valid() && ver->is_valid_semver()) {
-				info.ver_major = ver->get_major();
-				info.ver_minor = ver->get_minor();
+				info->ver_major = ver->get_major();
+				info->ver_minor = ver->get_minor();
 			}
-			info.ver_format = decomp->get_bytecode_version();
+			info->ver_format = decomp->get_bytecode_version();
 		}
 	}
 	if (extension == "gd") {
-		info.resource_format = "GDScriptText";
+		info->resource_format = "GDScriptText";
 	} else if (extension == "gdc" || extension == "gde") {
-		info.resource_format = "GDScriptBytecode";
+		info->resource_format = "GDScriptBytecode";
 	}
-	info.original_path = p_path;
+	info->original_path = p_path;
 	return info;
 }
