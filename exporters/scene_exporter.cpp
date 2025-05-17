@@ -692,7 +692,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 
 			// TODO: handle Godot version <= 4.2 image naming scheme?
 			auto demangle_name = [scene_name](const String &path) {
-				return path.get_file().get_basename().trim_prefix(scene_name + "_");
+				return path.trim_prefix(scene_name + "_");
 			};
 
 			{
@@ -754,11 +754,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					Array json_images = json["images"];
 					HashMap<String, Vector<int>> image_map;
 					bool has_duped_images = false;
-					static const HashMap<String, int64_t> generated_tex_suffixes = {
-						{ "emission", BaseMaterial3D::TEXTURE_EMISSION },
-						{ "normal", BaseMaterial3D::TEXTURE_NORMAL },
-						{ "orm", BaseMaterial3D::TEXTURE_METALLIC | BaseMaterial3D::TEXTURE_ROUGHNESS | BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION },
-						{ "albedo", BaseMaterial3D::TEXTURE_ALBEDO }
+					static const HashMap<String, Vector<BaseMaterial3D::TextureParam>> generated_tex_suffixes = {
+						{ "emission", { BaseMaterial3D::TEXTURE_EMISSION } },
+						{ "normal", { BaseMaterial3D::TEXTURE_NORMAL } },
+						// These are imported into the same texture, and the materials use that same texture for each of these params.
+						{ "orm", { BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D::TEXTURE_ROUGHNESS, BaseMaterial3D::TEXTURE_METALLIC } },
+						{ "albedo", { BaseMaterial3D::TEXTURE_ALBEDO } }
 					};
 					for (int i = 0; i < json_images.size(); i++) {
 						Dictionary image_dict = json_images[i];
@@ -770,10 +771,10 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							auto parts = name.rsplit("_", false, 1);
 							String material_name = parts.size() > 0 ? parts[0] : String();
 							String suffix;
-							BaseMaterial3D::TextureParam param = (BaseMaterial3D::TextureParam)-1;
+							Vector<BaseMaterial3D::TextureParam> params;
 							if (parts.size() > 1 && generated_tex_suffixes.has(parts[1])) {
 								suffix = parts[1];
-								param = BaseMaterial3D::TextureParam(generated_tex_suffixes[suffix]);
+								params = generated_tex_suffixes[suffix];
 							}
 							if (!suffix.is_empty()) {
 								for (auto E : materials) {
@@ -788,10 +789,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 									}
 									Ref<BaseMaterial3D> base_material = material;
 									if (base_material.is_valid()) {
-										auto tex = base_material->get_texture(param);
-										if (tex.is_valid()) {
-											path = tex->get_path();
-											break;
+										for (auto param : params) {
+											auto tex = base_material->get_texture(param);
+											if (tex.is_valid()) {
+												path = tex->get_path();
+												break;
+											}
 										}
 									}
 								}
@@ -836,7 +839,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					Vector<int> to_remove;
 					if (has_duped_images) {
 						for (auto &E : image_map) {
-							auto &name = E.key;
 							auto &indices = E.value;
 							if (indices.size() <= 1) {
 								continue;
@@ -845,7 +847,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							for (int i = 1; i < indices.size(); i++) {
 								Dictionary image_dict = json_images[indices[i]];
 								Ref<Texture2D> image = images[indices[i]];
-								String name = image_dict.get("name", String());
 								to_remove.push_back(indices[i]);
 								removal_to_replacement[indices[i]] = replacement;
 							}
@@ -864,7 +865,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 						to_remove.reverse();
 						for (int i = 0; i < to_remove.size(); i++) {
 							json_images.remove_at(to_remove[i]);
-							// don't touch the images
 						}
 						json["textures"] = json_textures;
 					}
@@ -1121,8 +1121,8 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					auto name = E.name;
 					auto path = E.path;
 					if (name.is_empty() || mesh_Dict.has(name)) {
-						ERR_CONTINUE(name.is_empty() || mesh_Dict.has(name));
-						// continue;
+						ERR_CONTINUE(name.is_empty());
+						continue;
 					}
 					// "save_to_file/enabled": true,
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
@@ -1196,7 +1196,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
 		for (auto &msg : error_messages) {
 			auto message = msg.strip_edges();
-			if (message.to_lower().contains("animated track") || message.begins_with("at:") || message.begins_with("GDScript backtrace") || message.begins_with("WARNING:")) {
+
+			if (message.contains("Cannot export empty property. No property was specified in the NodePath: AnimationPlayer") ||
+					message.to_lower().contains("animated track") ||
+					message.begins_with("at:") ||
+					message.begins_with("GDScript backtrace") ||
+					message.begins_with("WARNING:")) {
 				continue;
 			}
 			err = ERR_PRINTER_ON_FIRE;
@@ -1232,8 +1237,8 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
 	}
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
-	Vector<Ref<ArrayMesh>> meshes;
-	Vector<Ref<ArrayMesh>> meshes_to_remove;
+	Vector<Ref<Mesh>> meshes;
+	Vector<Ref<Mesh>> meshes_to_remove;
 
 	auto resources = _find_resources(scene, true, ver_major);
 	for (auto &E : resources) {
