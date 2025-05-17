@@ -38,6 +38,8 @@ struct ResourceInfo {
 	bool using_uids = false;
 	bool stored_big_endian = false;
 	bool is_compressed = false;
+	int data_format = 0;
+	int texture_flags = 0;
 	bool using_script_class() {
 		return !script_class.is_empty();
 	}
@@ -63,6 +65,8 @@ struct ResourceInfo {
 		ri.stored_big_endian = dict.get("stored_big_endian", false);
 		ri.using_uids = dict.get("using_uids", false);
 		ri.is_compressed = dict.get("is_compressed", false);
+		ri.data_format = dict.get("data_format", 0);
+		ri.texture_flags = dict.get("texture_flags", 0);
 		return ri;
 	}
 
@@ -88,6 +92,8 @@ struct ResourceInfo {
 		dict["stored_big_endian"] = stored_big_endian;
 		dict["using_uids"] = using_uids;
 		dict["is_compressed"] = is_compressed;
+		dict["data_format"] = data_format;
+		dict["texture_flags"] = texture_flags;
 		return dict;
 	}
 };
