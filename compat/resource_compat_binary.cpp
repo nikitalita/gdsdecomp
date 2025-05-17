@@ -1199,7 +1199,7 @@ void ResourceLoaderCompatBinary::open(Ref<FileAccess> p_f, bool p_no_resources, 
 	type = get_unicode_string();
 
 	print_bl("type: " + type);
-
+	md_at = f->get_position();
 	importmd_ofs = f->get_64();
 	uint32_t flags = f->get_32();
 	if (flags & ResourceFormatSaverBinaryInstance::FORMAT_FLAG_NAMED_SCENE_IDS) {
@@ -2494,7 +2494,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	}
 
 	save_unicode_string(f, _resource_get_class(p_resource));
-	uint64_t md_at = f->get_position();
+	md_at = f->get_position();
 
 	f->store_64(0); //offset to import metadata
 
@@ -2730,24 +2730,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	f->seek_end();
 	// V2 metadata
 	if (imd.is_valid()) {
-		uint64_t md_pos = f->get_position();
-		save_unicode_string(f, imd->get_editor());
-		f->store_32(imd->get_source_count());
-		for (int i = 0; i < imd->get_source_count(); i++) {
-			save_unicode_string(f, imd->get_source_path(i));
-			save_unicode_string(f, imd->get_source_md5(i));
-		}
-		List<String> options;
-		imd->get_options(&options);
-		f->store_32(options.size());
-		for (List<String>::Element *E = options.front(); E; E = E->next()) {
-			save_unicode_string(f, E->get());
-			write_variant(f, imd->get_option(E->get()), resource_map, external_resources, string_map);
-		}
-
-		f->seek(md_at);
-		f->store_64(md_pos);
-		f->seek_end();
+		write_v2_import_metadata(f, imd, resource_map);
 	}
 	f->store_buffer((const uint8_t *)"RSRC", 4); //magic at end
 
@@ -3169,6 +3152,35 @@ Error ResourceFormatLoaderCompatBinary::rewrite_v2_import_metadata(const String 
 
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, ERR_CANT_OPEN, "Cannot open file '" + p_path + "'.");
+
+	bool requires_whole_resave = false;
+	List<String> options;
+	imd->get_options(&options);
+	// we need to check if any of the options are nodepaths (requires rewriting string map) or resources (requires rewriting internal/external resources)
+	for (auto &key : options) {
+		auto var = imd->get_option(key);
+		// if it's a nodepath or a resource, we need to resave the whole file
+		if (var.get_type() == Variant::NODE_PATH || var.get_type() == Variant::OBJECT) {
+			requires_whole_resave = true;
+			break;
+		} else if (var.get_type() == Variant::DICTIONARY) {
+			for (auto &kv : var.operator Dictionary()) {
+				if (kv.key.get_type() == Variant::NODE_PATH || kv.key.get_type() == Variant::OBJECT ||
+						kv.value.get_type() == Variant::NODE_PATH || kv.value.get_type() == Variant::OBJECT) {
+					requires_whole_resave = true;
+					break;
+				}
+			}
+		} else if (var.get_type() == Variant::ARRAY) {
+			for (auto &v : var.operator Array()) {
+				if (v.get_type() == Variant::NODE_PATH || v.get_type() == Variant::OBJECT) {
+					requires_whole_resave = true;
+					break;
+				}
+			}
+		}
+	}
+
 	String dest = p_dst + ".tmp";
 	{
 		ResourceLoaderCompatBinary loader;
@@ -3181,16 +3193,69 @@ Error ResourceFormatLoaderCompatBinary::rewrite_v2_import_metadata(const String 
 		loader.open(f, false, true);
 		ERR_FAIL_COND_V_MSG(loader.error != OK, loader.error, "Cannot load resource.");
 		ERR_FAIL_COND_V_MSG(loader.ver_format > 2, ERR_UNAVAILABLE, "Resource is not version 2.");
-		loader.load();
-		auto res = loader.get_resource();
-		Dictionary compat_dict = res->get_meta(META_COMPAT, Dictionary());
-		compat_dict["v2metadata"] = imd;
-		res->set_meta(META_COMPAT, compat_dict);
-		// TODO: Refactor ResourceFormatSaverCompatBinaryInstance so we don't have to rewrite the whole file
-		ResourceFormatSaverCompatBinaryInstance saver;
-		int flags = 0;
-		err = saver.save(dest, res, flags);
-		ERR_FAIL_COND_V_MSG(err, err, "Cannot save resource.");
+		if (requires_whole_resave) {
+			loader.load();
+			auto res = loader.get_resource();
+			Dictionary compat_dict = res->get_meta(META_COMPAT, Dictionary());
+			compat_dict["v2metadata"] = imd;
+			res->set_meta(META_COMPAT, compat_dict);
+			ResourceFormatSaverCompatBinaryInstance saver;
+			int flags = 0;
+			err = saver.save(dest, res, flags);
+			ERR_FAIL_COND_V_MSG(err, err, "Cannot save resource.");
+		} else {
+			// replace the current f with the one from loader, since this may be compressed
+			Ref<FileAccess> old_f = f;
+			f = loader.f;
+			ResourceFormatSaverCompatBinaryInstance saver;
+			saver.ver_format = loader.ver_format;
+			saver.ver_major = loader.ver_major;
+			saver.ver_minor = loader.ver_minor;
+			saver.big_endian = loader.stored_big_endian;
+			saver.using_real_t_double = loader.using_real_t_double;
+			saver.stored_use_real64 = loader.stored_use_real64;
+			saver.using_named_scene_ids = loader.using_named_scene_ids;
+			saver.using_uids = loader.using_uids;
+			saver.script_class = loader.script_class;
+			saver.md_at = loader.md_at;
+			// Don't bother with copying string_map and external_resources, we already checked that we don't need them
+
+			Ref<FileAccess> f_dst;
+
+			if (loader.is_compressed) {
+				Ref<FileAccessCompressed> fac;
+				fac.instantiate();
+				Compression::Mode mode = Compression::MODE_ZSTD;
+				if (loader.ver_major < 3 || (loader.ver_major < 3)) {
+					mode = Compression::MODE_FASTLZ;
+				}
+				fac->configure("RSCC", mode);
+				f_dst = fac;
+				err = fac->open_internal(dest, FileAccess::WRITE);
+			} else {
+				f_dst = FileAccess::open(dest, FileAccess::WRITE, &err);
+			}
+			ERR_FAIL_COND_V_MSG(err || f_dst.is_null(), err, "Cannot open file '" + dest + "'.");
+			f->seek(0);
+			if (saver.big_endian) {
+				f_dst->set_big_endian(true);
+				// open() already set this for f
+			}
+			if (saver.using_real_t_double) {
+				f_dst->real_is_double = true;
+				// open() already set this for f
+			}
+			auto ofs = loader.importmd_ofs;
+			// save everything before the import metadata
+			auto buf = f->get_buffer(ofs - f->get_position());
+			f_dst->store_buffer(buf);
+			HashMap<Ref<Resource>, int> resource_map;
+			saver.write_v2_import_metadata(f_dst, imd, resource_map);
+			f_dst->store_buffer((const uint8_t *)"RSRC", 4); //magic at end
+			if (f_dst->get_error() != OK && f_dst->get_error() != ERR_FILE_EOF) {
+				return ERR_CANT_CREATE;
+			}
+		}
 	}
 	Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 	// if it exists, remove it
@@ -3258,24 +3323,24 @@ Dictionary ResourceFormatSaverCompatBinaryInstance::fix_scene_bundle(const Ref<P
 int ResourceLoaderCompatBinary::get_current_format_version() {
 	return FORMAT_VERSION;
 }
+//
+Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, HashMap<Ref<Resource>, int> &p_resource_map) {
+	uint64_t md_pos = f->get_position();
+	save_unicode_string(f, imd->get_editor());
+	f->store_32(imd->get_source_count());
+	for (int i = 0; i < imd->get_source_count(); i++) {
+		save_unicode_string(f, imd->get_source_path(i));
+		save_unicode_string(f, imd->get_source_md5(i));
+	}
+	List<String> options;
+	imd->get_options(&options);
+	f->store_32(options.size());
+	for (List<String>::Element *E = options.front(); E; E = E->next()) {
+		save_unicode_string(f, E->get());
+		write_variant(f, imd->get_option(E->get()), p_resource_map, external_resources, string_map);
+	}
 
-// Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, uint64_t &r_imd_offset) {
-// 	uint64_t md_pos = f->get_position();
-// 	save_unicode_string(f, imd->get_editor());
-// 	f->store_32(imd->get_source_count());
-// 	for (int i = 0; i < imd->get_source_count(); i++) {
-// 		save_unicode_string(f, imd->get_source_path(i));
-// 		save_unicode_string(f, imd->get_source_md5(i));
-// 	}
-// 	List<String> options;
-// 	imd->get_options(&options);
-// 	f->store_32(options.size());
-// 	for (List<String>::Element *E = options.front(); E; E = E->next()) {
-// 		save_unicode_string(f, E->get());
-// 		write_variant(f, imd->get_option(E->get()), resource_map, external_resources, string_map);
-// 	}
-
-// 	f->seek(md_at);
-// 	f->store_64(md_pos);
-// 	f->seek_end();
-// }
+	f->seek(md_at);
+	f->store_64(md_pos);
+	f->seek_end();
+}
