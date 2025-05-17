@@ -371,7 +371,7 @@ void ImportExporter::recreate_uid_file(const String &output_dir, const String &s
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	reset_log();
 	ResourceCompatLoader::make_globally_available();
-	ResourceCompatLoader::set_default_gltf_load(true);
+	ResourceCompatLoader::set_default_gltf_load(false);
 	report = Ref<ImportExporterReport>(memnew(ImportExporterReport(get_settings()->get_version_string())));
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
@@ -948,6 +948,19 @@ Dictionary ImportExporterReport::get_unsupported_types() {
 
 Dictionary ImportExporterReport::get_session_notes() {
 	Dictionary notes;
+	List<String> base_exts;
+	HashSet<String> base_ext_set;
+	ResourceCompatLoader::get_base_extensions(&base_exts, get_ver_major());
+	for (auto &type : base_exts) {
+		base_ext_set.insert(type);
+	}
+	base_ext_set.insert("tscn");
+	base_ext_set.insert("tres");
+	base_ext_set.insert("png");
+	base_ext_set.insert("jpg");
+	base_ext_set.insert("wav");
+	base_ext_set.insert("ogg");
+	base_ext_set.insert("mp3");
 	String unsup = get_detected_unsupported_resource_string();
 	if (!unsup.is_empty()) {
 		Dictionary unsupported;
@@ -959,7 +972,11 @@ Dictionary ImportExporterReport::get_session_notes() {
 		PackedStringArray list;
 		for (int i = 0; i < unsupported_types.size(); i++) {
 			auto split = unsupported_types[i].split("%");
-			list.push_back("Resource Type: " + split[0] + ", Format: " + split[1]);
+			auto str = "Resource Type: " + split[0] + ", Format: " + split[1];
+			if ((split[0] == "Resource" || split[1].size() == 3) && !base_ext_set.has(split[1])) {
+				str += " (non-standard resource)";
+			}
+			list.push_back(str);
 		}
 		unsupported["details"] = list;
 		notes["unsupported_types"] = unsupported;
