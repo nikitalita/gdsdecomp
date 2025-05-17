@@ -98,6 +98,9 @@ struct ResourceInfo {
 	void set_on_resource(Ref<Resource> res) const {
 		res->set_meta(META_COMPAT, to_dict());
 	}
+	void _set_on_resource(Resource *res) const {
+		res->set_meta(META_COMPAT, to_dict());
+	}
 	static void set_info_dict_on_resource(const Dictionary &dict, Ref<Resource> res) {
 		res->set_meta(META_COMPAT, dict);
 	}
