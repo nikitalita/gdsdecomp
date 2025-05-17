@@ -643,6 +643,7 @@ Error ResourceLoaderCompatText::load() {
 			do_assign = true;
 		} else if (converter.is_valid() && not_cached) {
 			do_assign = true;
+			// will have path and scene unique id set after conversion
 		}
 
 		Dictionary missing_resource_properties;
@@ -746,27 +747,7 @@ Error ResourceLoaderCompatText::load() {
 		if (!missing_resource_properties.is_empty()) {
 			res->set_meta(META_MISSING_RESOURCES, missing_resource_properties);
 		}
-		if (!ResourceInfo::resource_has_info(res)) {
-			ResourceInfo info;
-			info.topology_type = ResourceInfo::INTERNAL_RESOURCE;
-			info.type = type;
-			info.resource_name = res->get_name();
-			info.cached_id = id;
-			info.original_path = path;
-			info.set_on_resource(res);
-		} else {
-			Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
-			if (compat->resource_name.is_empty()) {
-				compat->resource_name = res->get_name();
-			}
-			if (compat->original_path.is_empty()) {
-				compat->original_path = path;
-			}
-			if (compat->cached_id.is_empty()) {
-				compat->cached_id = id;
-			}
-			compat->set_on_resource(res);
-		}
+		set_internal_resource_compat_meta(path, id, type, res);
 	}
 
 	// main resource parsing (if it is a resource)
@@ -820,10 +801,12 @@ Error ResourceLoaderCompatText::load() {
 				Object *obj = ClassDB::instantiate(res_type);
 				if (!obj) {
 					if (ResourceLoader::is_creating_missing_resources_if_class_unavailable_enabled()) {
-						missing_resource = memnew(MissingResource);
-						missing_resource->set_original_class(res_type);
-						missing_resource->set_recording_properties(true);
-						obj = missing_resource;
+						obj = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid);
+						if (obj->get_class() == "MissingResource") {
+							missing_resource = Object::cast_to<MissingResource>(obj);
+							missing_resource->set_original_class(res_type);
+							missing_resource->set_recording_properties(true);
+						}
 					} else {
 						error_text += "Can't create sub resource of type: " + res_type;
 						_printerr();
@@ -2571,11 +2554,41 @@ ResourceFormatSaverCompatText::ResourceFormatSaverCompatText() {
 	// singleton = this;
 }
 
+void ResourceLoaderCompatText::set_internal_resource_compat_meta(const String &p_path, const String &p_scene_id, const String &p_type, Ref<Resource> &r_res) {
+	Ref<ResourceInfo> r_info = ResourceInfo::get_info_from_resource(r_res);
+	if (!r_info.is_valid()) {
+		r_info.instantiate();
+		// TODO: Should we always set the type??
+		r_info->type = p_type;
+	}
+	r_info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
+	r_info->original_path = p_path;
+	r_info->cached_id = p_scene_id;
+	r_info->resource_name = r_res->get_name();
+	// Ref<Script> script = r_res->get_script();
+	if (r_info->type.is_empty()) {
+		r_info->type = p_type;
+	} else if (r_info->type != p_type) {
+		r_info->type = r_info->type;
+	}
+	// if (script.is_valid()) {
+	// 	r_info->script_class = script->get_global_name();
+	// }
+	r_info->ver_major = ver_major;
+	r_info->ver_minor = ver_minor;
+	r_info->ver_format = format_version;
+	r_info->resource_format = "text";
+	r_info->load_type = load_type;
+	r_info->is_compressed = false;
+	r_info->set_on_resource(r_res);
+}
+
 void ResourceLoaderCompatText::set_compat_meta(Ref<Resource> &r_res) {
-	Ref<ResourceInfo> compat = get_resource_info();
-	compat->topology_type = ResourceInfo::MAIN_RESOURCE;
-	if (is_scene) {
-		compat->packed_scene_version = packed_scene_version;
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(r_res);
+	if (!compat.is_valid()) {
+		compat = get_resource_info();
+	} else {
+		_set_main_resource_info(compat);
 	}
 	compat->set_on_resource(r_res);
 }
@@ -2623,9 +2636,7 @@ Ref<Resource> ResourceLoaderCompatText::finish_ext_load(Ref<ResourceLoader::Load
 	ERR_FAIL_V_MSG(Ref<Resource>(), "Invalid load token.");
 }
 
-Ref<ResourceInfo> ResourceLoaderCompatText::get_resource_info() {
-	Ref<ResourceInfo> info;
-	info.instantiate();
+void ResourceLoaderCompatText::_set_main_resource_info(Ref<ResourceInfo> &info) {
 	info->uid = res_uid;
 	info->original_path = local_path;
 	info->resource_name = resource.is_valid() ? resource->get_name() : "";
@@ -2642,7 +2653,16 @@ Ref<ResourceInfo> ResourceLoaderCompatText::get_resource_info() {
 	info->using_named_scene_ids = format_version >= 3;
 	info->using_uids = format_version >= 3;
 	info->script_class = script_class;
+	if (is_scene) {
+		info->packed_scene_version = packed_scene_version;
+	}
 	// info.import_metadata = imd;
+}
+
+Ref<ResourceInfo> ResourceLoaderCompatText::get_resource_info() {
+	Ref<ResourceInfo> info;
+	info.instantiate();
+	_set_main_resource_info(info);
 	return info;
 }
 

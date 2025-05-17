@@ -114,7 +114,9 @@ class ResourceLoaderCompatBinary {
 	Error parse_variant(Variant &r_v);
 
 	HashMap<String, Ref<Resource>> dependency_cache;
-	void set_compat_meta(Ref<Resource> &r_res, bool is_main_resource);
+	void _set_main_resource_info(Ref<ResourceInfo> &r_info);
+	void set_internal_resource_compat_meta(const String &p_path, const String &p_scene_id, const String &p_type, Ref<Resource> &r_res);
+	void set_compat_meta(Ref<Resource> &r_res);
 	Ref<ResourceInfo> get_resource_info();
 	uint64_t get_metadata_size();
 	Error load_import_metadata(bool p_return_to_pos = false);
