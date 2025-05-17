@@ -584,6 +584,17 @@ bool gdre::dir_is_empty(const String &dir) {
 	return true;
 }
 
+Error gdre::touch_file(const String &path) {
+	Ref<FileAccess> fa = FileAccess::open(path, FileAccess::READ_WRITE);
+	if (fa.is_null()) {
+		return ERR_FILE_CANT_OPEN;
+	}
+	size_t size = fa->get_length();
+	fa->resize(size);
+	fa->close();
+	return OK;
+}
+
 //void get_chars_in_set(const String &s, const HashSet<char32_t> &chars, HashSet<char32_t> &ret);
 
 void gdre::get_chars_in_set(const String &s, const HashSet<char32_t> &chars, HashSet<char32_t> &ret) {
