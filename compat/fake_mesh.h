@@ -35,6 +35,8 @@
 #include "scene/resources/material.h"
 #include "servers/rendering_server.h"
 
+#include "utility/resource_info.h"
+
 #ifndef PHYSICS_3D_DISABLED
 #include "scene/resources/3d/shape_3d.h"
 
@@ -55,7 +57,7 @@ class FakeMesh : public Mesh {
 
 	Array _get_surfaces() const;
 	void _set_surfaces(const Array &p_data);
-	Ref<FakeMesh> shadow_mesh;
+	Ref<Mesh> shadow_mesh;
 
 private:
 	struct Surface {
@@ -75,6 +77,12 @@ private:
 	BlendShapeMode blend_shape_mode = BLEND_SHAPE_MODE_RELATIVE;
 	Vector<StringName> blend_shapes;
 	AABB custom_aabb;
+
+	// fake members
+public:
+	Vector<RS::SurfaceData> surface_data;
+	Vector<Array> surface_arrays;
+	ResourceInfo::LoadType load_type = ResourceInfo::LoadType::ERR;
 
 	_FORCE_INLINE_ void _create_if_empty() const;
 	void _recompute_aabb();
@@ -145,7 +153,7 @@ public:
 
 	virtual void reload_from_file() override;
 
-	void set_shadow_mesh(const Ref<FakeMesh> &p_mesh);
+	void set_shadow_mesh(const Ref<Resource> &p_mesh);
 	Ref<FakeMesh> get_shadow_mesh() const;
 
 	FakeMesh();
