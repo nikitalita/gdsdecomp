@@ -205,8 +205,8 @@ String _validate_local_path(const String &p_path) {
 		return ResourceUID::get_singleton()->get_id_path(uid);
 	} else if (p_path.is_relative_path()) {
 		return ("res://" + p_path).simplify_path();
-		// } else if (!p_path.begins_with("res://") && GDRESettings::get_singleton()->is_pack_loaded()) {
-		// return GDRESettings::get_singleton()->localize_path(p_path);
+	} else if (GDRESettings::get_singleton()->is_pack_loaded() && p_path.is_absolute_path() && !p_path.begins_with("res://") && !p_path.begins_with("user://")) {
+		return GDRESettings::get_singleton()->localize_path(p_path);
 	}
 	return p_path;
 }
