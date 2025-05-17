@@ -1045,9 +1045,32 @@ TypedArray<GDRESettings::PackInfo> GDRESettings::get_pack_info_list() const {
 	}
 	return ret;
 }
-// TODO: Overhaul all these pathing functions
+
 String GDRESettings::localize_path(const String &p_path, const String &resource_dir) const {
 	String res_path = resource_dir != "" ? resource_dir : project_path;
+
+	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
+		return p_path.simplify_path();
+	}
+	if ((p_path.is_absolute_path()) && (res_path == "" || !p_path.begins_with(res_path))) {
+		if (is_pack_loaded() && get_pack_type() != PackInfo::DIR) {
+			// it's a file system path... we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
+			String dir_path = p_path.get_base_dir().simplify_path();
+			// LEFT hand side, not right
+			while (!dir_path.is_empty() && !DirAccess::dir_exists_absolute("res://" + dir_path)) {
+				auto parts = dir_path.split("/", false, 1);
+				if (parts.size() < 2) {
+					dir_path = "";
+					break;
+				}
+				dir_path = parts[1];
+			}
+			if (!dir_path.is_empty()) {
+				return "res://" + dir_path.path_join(p_path.get_file());
+			}
+		}
+		return p_path.simplify_path();
+	}
 
 	if (res_path == "") {
 		//not initialized yet
@@ -1056,11 +1079,6 @@ String GDRESettings::localize_path(const String &p_path, const String &resource_
 			return "res://" + p_path;
 		}
 		return p_path;
-	}
-
-	if (p_path.begins_with("res://") || p_path.begins_with("user://") ||
-			(p_path.is_absolute_path() && !p_path.begins_with(res_path))) {
-		return p_path.simplify_path();
 	}
 
 	Ref<DirAccess> dir = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
@@ -1274,23 +1292,6 @@ String GDRESettings::get_mapped_path(const String &p_src) const {
 		}
 	}
 	if (is_pack_loaded()) {
-		if (src.is_absolute_path() && !src.begins_with("res://") && !src.begins_with("user://")) {
-			// it's a file system path... we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
-			String dir_path = src.get_base_dir().simplify_path();
-			// LEFT hand side, not right
-			while (!dir_path.is_empty() && !DirAccess::dir_exists_absolute("res://" + dir_path)) {
-				auto parts = dir_path.split("/", false, 1);
-				if (parts.size() < 2) {
-					dir_path = "";
-					break;
-				}
-				dir_path = parts[1];
-			}
-			if (!dir_path.is_empty()) {
-				src = "res://" + dir_path.path_join(src.get_file());
-			}
-		}
-
 		String remapped_path = get_remap(src);
 		if (!remapped_path.is_empty()) {
 			return remapped_path;
