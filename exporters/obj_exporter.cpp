@@ -243,6 +243,7 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 	f->store_line("# Exported from Godot Engine");
 	auto base_dir = p_path.get_base_dir();
 	auto filebasename = p_path.get_file().get_basename();
+	String relative_dir = get_relative_path(base_dir, p_output_dir);
 
 	auto check_and_save_texture = [&](Ref<Texture2D> tex, const String &suffix) {
 		if (tex.is_valid()) {
@@ -251,7 +252,16 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 			// if no output_dir or no path, we need to save it to disk
 			if (p_output_dir.is_empty() || path.is_empty() || !path.begins_with("res://")) {
 				// we need to save it to disk
-				save_texture = true;
+				if (!relative_dir.is_empty() && !path.is_empty()) {
+					path = "res://" + relative_dir.path_join(path.get_file());
+					if (FileAccess::exists(path)) {
+						save_texture = false;
+					} else {
+						save_texture = true;
+					}
+				} else {
+					save_texture = true;
+				}
 			} else {
 				// if we have an output_dir, check if the path is relative to the output_dir
 				String local_dir = p_output_dir.path_join(path.trim_prefix("res://"));
@@ -310,22 +320,22 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 			Ref<Texture2D> tex = mat->get_texture(StandardMaterial3D::TEXTURE_ALBEDO);
 			String path = check_and_save_texture(tex, "albedo");
 			if (!path.is_empty()) {
-				f->store_line("map_Kd " + get_relative_path(path, base_dir));
+				f->store_line("map_Kd " + path);
 			}
 			Ref<Texture2D> met_tex = mat->get_texture(StandardMaterial3D::TEXTURE_METALLIC);
 			path = check_and_save_texture(met_tex, "metallic");
 			if (!path.is_empty()) {
-				f->store_line("map_Ks " + get_relative_path(path, base_dir));
+				f->store_line("map_Ks " + path);
 			}
 			Ref<Texture2D> rough_tex = mat->get_texture(StandardMaterial3D::TEXTURE_ROUGHNESS);
 			path = check_and_save_texture(rough_tex, "roughness");
 			if (!path.is_empty()) {
-				f->store_line("map_Ns " + get_relative_path(path, base_dir));
+				f->store_line("map_Ns " + path);
 			}
 			Ref<Texture2D> norm_tex = mat->get_texture(StandardMaterial3D::TEXTURE_NORMAL);
 			path = check_and_save_texture(norm_tex, "normal");
 			if (!path.is_empty()) {
-				f->store_line("map_bump " + get_relative_path(path, base_dir));
+				f->store_line("map_bump " + path);
 			}
 		}
 	}
