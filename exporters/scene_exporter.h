@@ -12,6 +12,8 @@ class SceneExporter : public ResourceExporter {
 	Error export_file_to_obj(const String &out_path, const String &res_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info);
 
 public:
+	void rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info);
+
 	virtual Error export_file(const String &out_path, const String &res_path) override;
 	virtual Ref<ExportReport> export_resource(const String &output_dir, Ref<ImportInfo> import_infos) override;
 	virtual bool handles_import(const String &importer, const String &resource_type = String()) const override;

@@ -20,9 +20,12 @@ public:
 		bool has_shadow_meshes = false;
 		bool has_lightmap_uv2 = false;
 		float lightmap_uv2_texel_size = 0.2;
+		int bake_mode = 1;
 		Vector3 scale_mesh = Vector3(1, 1, 1);
 		Vector3 offset_mesh = Vector3(0, 0, 0);
 		bool compression_enabled = false;
+		String name;
+		String path;
 	};
 	static Error _write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info);
 	static Error write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path);

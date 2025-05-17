@@ -7,6 +7,8 @@
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
 #include "modules/gltf/gltf_document.h"
+#include "scene/3d/mesh_instance_3d.h"
+#include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
@@ -114,6 +116,29 @@ inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<R
 	}
 }
 
+void SceneExporter::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
+	auto ver_major = p_import_info->get_ver_major();
+	auto ver_minor = p_import_info->get_ver_minor();
+	if (ver_major == 4) {
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/ensure_tangents"), true));
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/generate_lods"), true));
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/create_shadow_meshes"), true));
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "meshes/light_baking", PROPERTY_HINT_ENUM, "Disabled,Static,Static Lightmaps,Dynamic", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 1));
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::FLOAT, "meshes/lightmap_texel_size", PROPERTY_HINT_RANGE, "0.001,100,0.001"), 0.2));
+		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/force_disable_compression"), false));
+
+		// 4.x removes the import params, so we need to rewrite all of them
+		p_import_info->set_param("meshes/ensure_tangents", p_mesh_info.has_tangents);
+		p_import_info->set_param("meshes/generate_lods", p_mesh_info.has_lods);
+		p_import_info->set_param("meshes/create_shadow_meshes", p_mesh_info.has_shadow_meshes);
+		p_import_info->set_param("meshes/light_baking", p_mesh_info.has_lightmap_uv2 ? 2 : 1);
+		p_import_info->set_param("meshes/lightmap_texel_size", p_mesh_info.lightmap_uv2_texel_size);
+		if (ver_minor >= 2) {
+			p_import_info->set_param("meshes/force_disable_compression", !p_mesh_info.compression_enabled);
+		}
+	}
+	// 2.x doesn't require this
+}
 HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, int ver_major) {
 	HashSet<Ref<Resource>> resources;
 	switch (p_variant.get_type()) {
@@ -193,6 +218,144 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 	return resources;
 }
 
+Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
+	auto state_buffers = p_state->get_buffers();
+	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
+
+	if (state_buffers.is_empty()) {
+		return OK;
+	}
+	Array buffers;
+	if (!state_buffers.is_empty()) {
+		Vector<uint8_t> buffer_data = state_buffers[0];
+		Dictionary gltf_buffer;
+
+		gltf_buffer["byteLength"] = buffer_data.size();
+		buffers.push_back(gltf_buffer);
+	}
+
+	for (GLTFBufferIndex i = 1; i < state_buffers.size() - 1; i++) {
+		Vector<uint8_t> buffer_data = state_buffers[i];
+		Dictionary gltf_buffer;
+		String filename = p_path.get_basename().get_file() + itos(i) + ".bin";
+		String path = p_path.get_base_dir() + "/" + filename;
+		Error err;
+		Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE, &err);
+		if (file.is_null()) {
+			return err;
+		}
+		if (buffer_data.is_empty()) {
+			return OK;
+		}
+		file->create(FileAccess::ACCESS_RESOURCES);
+		file->store_buffer(buffer_data.ptr(), buffer_data.size());
+		gltf_buffer["uri"] = filename;
+		gltf_buffer["byteLength"] = buffer_data.size();
+		buffers.push_back(gltf_buffer);
+	}
+	p_state->get_json()["buffers"] = buffers;
+
+	return OK;
+}
+
+Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
+	auto state_buffers = p_state->get_buffers();
+	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
+
+	if (state_buffers.is_empty()) {
+		return OK;
+	}
+	Array buffers;
+
+	for (GLTFBufferIndex i = 0; i < state_buffers.size(); i++) {
+		Vector<uint8_t> buffer_data = state_buffers[i];
+		Dictionary gltf_buffer;
+		String filename = p_path.get_basename().get_file() + itos(i) + ".bin";
+		String path = p_path.get_base_dir() + "/" + filename;
+		Error err;
+		Ref<FileAccess> file = FileAccess::open(path, FileAccess::WRITE, &err);
+		if (file.is_null()) {
+			return err;
+		}
+		if (buffer_data.is_empty()) {
+			return OK;
+		}
+		file->create(FileAccess::ACCESS_RESOURCES);
+		file->store_buffer(buffer_data.ptr(), buffer_data.size());
+		gltf_buffer["uri"] = filename;
+		gltf_buffer["byteLength"] = buffer_data.size();
+		buffers.push_back(gltf_buffer);
+	}
+	p_state->get_json()["buffers"] = buffers;
+
+	return OK;
+}
+
+Error _serialize_file(Ref<GLTFState> p_state, const String p_path) {
+	Error err = FAILED;
+	if (p_path.to_lower().ends_with("glb")) {
+		err = _encode_buffer_glb(p_state, p_path);
+		ERR_FAIL_COND_V(err != OK, err);
+		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
+		ERR_FAIL_COND_V(file.is_null(), FAILED);
+
+		String json = Variant(p_state->get_json()).to_json_string();
+
+		const uint32_t magic = 0x46546C67; // GLTF
+		const int32_t header_size = 12;
+		const int32_t chunk_header_size = 8;
+		CharString cs = json.utf8();
+		const uint32_t text_data_length = cs.length();
+		const uint32_t text_chunk_length = ((text_data_length + 3) & (~3));
+		const uint32_t text_chunk_type = 0x4E4F534A; //JSON
+
+		uint32_t binary_data_length = 0;
+		auto state_buffers = p_state->get_buffers();
+		if (state_buffers.size() > 0) {
+			binary_data_length = ((PackedByteArray)state_buffers[0]).size();
+		}
+		const uint32_t binary_chunk_length = ((binary_data_length + 3) & (~3));
+		const uint32_t binary_chunk_type = 0x004E4942; //BIN
+
+		file->create(FileAccess::ACCESS_RESOURCES);
+		file->store_32(magic);
+		file->store_32(p_state->get_major_version()); // version
+		uint32_t total_length = header_size + chunk_header_size + text_chunk_length;
+		if (binary_chunk_length) {
+			total_length += chunk_header_size + binary_chunk_length;
+		}
+		file->store_32(total_length);
+
+		// Write the JSON text chunk.
+		file->store_32(text_chunk_length);
+		file->store_32(text_chunk_type);
+		file->store_buffer((uint8_t *)&cs[0], cs.length());
+		for (uint32_t pad_i = text_data_length; pad_i < text_chunk_length; pad_i++) {
+			file->store_8(' ');
+		}
+
+		// Write a single binary chunk.
+		if (binary_chunk_length) {
+			file->store_32(binary_chunk_length);
+			file->store_32(binary_chunk_type);
+			file->store_buffer(((PackedByteArray)state_buffers[0]).ptr(), binary_data_length);
+			for (uint32_t pad_i = binary_data_length; pad_i < binary_chunk_length; pad_i++) {
+				file->store_8(0);
+			}
+		}
+	} else {
+		err = _encode_buffer_bins(p_state, p_path);
+		ERR_FAIL_COND_V(err != OK, err);
+		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
+		ERR_FAIL_COND_V(file.is_null(), FAILED);
+
+		file->create(FileAccess::ACCESS_RESOURCES);
+		String json = Variant(p_state->get_json()).to_json_string();
+		file->store_string(json);
+	}
+	return err;
+}
+
 Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
@@ -212,6 +375,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 	} else if (dest_ext != "glb" && dest_ext != "gltf") {
 		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, .obj, .glb, and .gltf formats are supported for export.");
 	}
+	ObjExporter::MeshInfo r_mesh_info;
 	Vector<uint64_t> texture_uids;
 	Error err = OK;
 	bool has_script = false;
@@ -381,8 +545,22 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		Vector<String> id_to_texture_path;
 		Vector<Pair<String, String>> id_to_material_path;
 		Vector<Pair<String, String>> id_to_meshes_path;
+		Vector<ObjExporter::MeshInfo> id_to_mesh_info;
 		Vector<Pair<String, String>> id_to_animations_path;
 		HashMap<String, String> animation_map;
+		HashMap<String, ObjExporter::MeshInfo> mesh_info_map;
+		HashMap<String, Dictionary> animation_options;
+
+		auto get_resource_path = [&](const Ref<Resource> &res) {
+			String path = res->get_path();
+			if (path.is_empty()) {
+				Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
+				if (compat.size() > 0) {
+					path = compat["original_path"];
+				}
+			}
+			return path;
+		};
 
 		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
 		auto _export_scene = [&]() {
@@ -408,22 +586,37 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 						anim_lib->get_animation_list(&anim_names);
 						for (auto &anim_name : anim_names) {
 							Ref<Animation> anim = anim_lib->get_animation(anim_name);
-							auto path = anim->get_path();
-							if (path.is_empty()) {
-								Dictionary compat = anim->get_meta("compat", Dictionary());
-								if (compat.size() > 0) {
-									path = compat["original_path"];
-								}
+							auto path = get_resource_path(anim);
+							String name = anim_name;
+							int i = 1;
+							while (animation_options.has(name)) {
+								// append _001, _002, etc.
+								name = String(anim_name) + "_" + String::num(i, 3);
+								i++;
 							}
-							if (path.is_empty() || path.get_file().contains("::")) {
-								continue;
+							animation_options[name] = Dictionary();
+							auto &options = animation_options[name];
+							if (!(path.is_empty() || path.get_file().contains("::"))) {
+								options["save_to_file/enabled"] = true;
+								options["save_to_file/keep_custom_tracks"] = true;
+								options["save_to_file/path"] = path;
+							} else {
+								options["save_to_file/enabled"] = false;
+								options["save_to_file/keep_custom_tracks"] = false;
+								options["save_to_file/path"] = "";
 							}
-							animation_map[anim_name] = path;
+							options["settings/loop_mode"] = (int)anim->get_loop_mode();
 						}
 					}
 				}
 			}
 			Node *root;
+			String scene_name;
+			if (p_report.is_valid()) {
+				scene_name = iinfo->get_source_file().get_file().get_basename();
+			} else {
+				scene_name = p_src_path.get_file().get_slice(".", 0);
+			}
 			auto pop_res_path_vec = [](Array arr, Vector<String> &paths) {
 				paths.clear();
 				paths.resize(arr.size());
@@ -436,6 +629,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					}
 				}
 			};
+
+			// TODO: handle Godot version <= 4.2 image naming scheme?
+			auto get_res_name = [scene_name](const String &path) {
+				return path.get_file().get_basename().trim_prefix(scene_name + "_");
+			};
+
 			{
 				List<String> deps;
 				Ref<GLTFDocument> doc;
@@ -451,11 +650,77 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					memdelete(root);
 					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 				}
-#if DEBUG_ENABLED
-				// gdre::ensure_dir(p_dest_path.get_base_dir() + "/GLTF_orig/");
-				// doc->write_to_filesystem(state, p_dest_path.get_base_dir() + "/GLTF_orig/" + p_dest_path.get_file().get_basename() + ".gltf");
-#endif
-				p_err = doc->write_to_filesystem(state, p_dest_path);
+				Vector<String> original_mesh_names;
+				Vector<String> original_image_names;
+
+				p_err = doc->_serialize(state);
+				if (p_err) {
+					ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
+				}
+				{
+					auto json = state->get_json();
+					Array images = state->get_images();
+					Array json_images = json["images"];
+					for (int i = 0; i < json_images.size(); i++) {
+						Dictionary image_dict = json_images[i];
+						Ref<Texture2D> image = images[i];
+						auto path = image->get_path();
+						String name = image_dict.get("name", String());
+						if (path.is_empty()) {
+							continue;
+						}
+						image_dict["name"] = get_res_name(path);
+						external_deps_updated.insert(path);
+					}
+					{
+						auto default_light_map_size = Vector2i(0, 0);
+						TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
+						Vector<String> mesh_names;
+						Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
+						Vector<bool> mesh_is_shadow;
+						auto gltf_meshes = state->get_meshes();
+						Array json_meshes = json["meshes"];
+						for (int i = 0; i < gltf_meshes.size(); i++) {
+							Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
+							auto mesh = gltf_mesh->get_mesh();
+							auto name = gltf_mesh->get_original_name();
+							if (name.is_empty()) {
+								name = mesh->get_name();
+							}
+							Dictionary mesh_dict = json_meshes[i];
+							if (mesh.is_null()) {
+								id_to_meshes_path.push_back({ "", "" });
+								continue;
+							}
+							ObjExporter::MeshInfo mesh_info;
+							Dictionary compat = ResourceInfo::get_info_dict_from_resource(mesh);
+							String path;
+							if (compat.size() > 0) {
+								path = compat["original_path"];
+								if (name.is_empty()) {
+									name = compat["resource_name"];
+								}
+							}
+							if (!name.is_empty()) {
+								mesh_dict["name"] = get_res_name(name);
+							}
+
+							mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
+							mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
+							for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
+								auto format = mesh->get_surface_format(surf_idx);
+								mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
+								mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
+								mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
+								// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
+							}
+
+							id_to_meshes_path.push_back({ name, path });
+							id_to_mesh_info.push_back(mesh_info);
+						}
+					}
+				}
+				p_err = _serialize_file(state, p_dest_path);
 
 				// Need to get the names and paths for the external resources that are used in the scene
 				// 1) we need to rename the resources in the saved GLTF document
@@ -473,7 +738,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					auto name = mat->get_name();
 					auto path = mat->get_path();
 					if (name.is_empty() || path.is_empty()) {
-						Dictionary compat = mat->get_meta("compat", Dictionary());
+						Dictionary compat = ResourceInfo::get_info_dict_from_resource(mat);
 						if (compat.size() > 0) {
 							path = compat["original_path"];
 							if (name.is_empty()) {
@@ -485,15 +750,19 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					id_to_material_path.push_back({ name, path });
 				}
 
+				auto default_light_map_size = Vector2i(0, 0);
+				Vector<Ref<ArrayMesh>> mesh_arrs;
 				for (int i = 0; i < meshes.size(); i++) {
 					Ref<GLTFMesh> gltf_mesh = meshes[i];
 					if (gltf_mesh.is_null()) {
 						id_to_meshes_path.push_back({ "", "" });
+						id_to_mesh_info.push_back(ObjExporter::MeshInfo());
 						continue;
 					}
 					auto name = gltf_mesh->get_original_name();
 					auto mesh = gltf_mesh->get_mesh();
-					Dictionary compat = mesh->get_meta("compat", Dictionary());
+					ObjExporter::MeshInfo mesh_info;
+					Dictionary compat = ResourceInfo::get_info_dict_from_resource(mesh);
 					String path;
 					if (compat.size() > 0) {
 						path = compat["original_path"];
@@ -501,24 +770,120 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							name = compat["resource_name"];
 						}
 					}
+					if (name.is_empty()) {
+						name = mesh->get_name();
+					}
+					if (name.is_empty()) {
+						mesh_arrs.push_back(mesh->get_mesh());
+					} else {
+						mesh_arrs.push_back(Ref<ArrayMesh>());
+					}
+
+					mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
+					mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
+					for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
+						auto format = mesh->get_surface_format(surf_idx);
+						mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
+						mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
+						mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
+						// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
+					}
 
 					id_to_meshes_path.push_back({ name, path });
+					id_to_mesh_info.push_back(mesh_info);
 				}
 
 				// We have to go through each surface in the mesh to find the names for external materials, since they're
 				// not saved to the material resources, and the surface names aren't present in the meshes in the gltfdoc either
 				// TODO: PR GLTFdocument fix for this
 				TypedArray<Node> nodes = root->find_children("*", "MeshInstance3D");
+				Vector<String> mesh_names;
+				size_t actual_mesh_count = 0;
+				Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
+				Vector<bool> mesh_is_shadow;
 				for (int32_t node_i = 0; node_i < nodes.size(); node_i++) {
+					Ref<ArrayMesh> mesh;
 					MeshInstance3D *mesh_instance = cast_to<MeshInstance3D>(nodes[node_i]);
 					if (mesh_instance == nullptr) {
+						mesh_to_instance.push_back({ mesh, mesh_instance });
+						mesh_is_shadow.push_back(false);
 						continue;
 					}
 					// only ArrayMeshes have surface names
-					Ref<ArrayMesh> mesh = mesh_instance->get_mesh();
+					mesh = mesh_instance->get_mesh();
+					if (mesh.is_null()) {
+						mesh_to_instance.push_back({ mesh, mesh_instance });
+						mesh_is_shadow.push_back(false);
+						continue;
+					}
+					mesh_to_instance.push_back({ mesh, mesh_instance });
+					mesh_is_shadow.push_back(false);
+					if (mesh->get_shadow_mesh().is_valid() && nodes.size() * 2 == id_to_meshes_path.size()) {
+						mesh_to_instance.push_back({ mesh->get_shadow_mesh(), nullptr });
+						mesh_is_shadow.push_back(true);
+					}
+				}
+				for (int64_t node_i = 0; node_i < mesh_to_instance.size(); node_i++) {
+					auto &E = mesh_to_instance[node_i];
+					auto mesh = E.first;
+					auto mesh_instance = E.second;
 					if (mesh.is_null()) {
 						continue;
 					}
+					actual_mesh_count++;
+
+					auto mesh_name = mesh->get_name();
+					mesh_names.push_back(mesh_name);
+					int64_t mesh_idx = -1;
+					if (mesh_arrs.size() > node_i) {
+						if (mesh_arrs.size() > node_i && mesh_arrs[node_i].is_valid()) {
+							auto aabb1 = mesh->get_aabb();
+							auto aabb2 = mesh_arrs[node_i]->get_aabb();
+							if (aabb1 != aabb2) {
+								WARN_PRINT("SHIT!!!!!");
+							}
+						}
+					} else {
+						WARN_PRINT("SHIT!!!!!");
+					}
+					if (mesh_name.is_empty()) {
+						if (node_i < id_to_meshes_path.size() && id_to_meshes_path[node_i].first.is_empty()) {
+							mesh_idx = node_i;
+						}
+					} else {
+						for (int64_t i = 0; i < id_to_meshes_path.size(); i++) {
+							auto &E = id_to_meshes_path[i];
+							if (E.first == mesh_name) {
+								mesh_idx = i;
+								break;
+							}
+						}
+					}
+					if (mesh_idx == -1 && !mesh_name.is_empty() && node_i < id_to_meshes_path.size() && id_to_meshes_path[node_i].first.is_empty()) {
+						id_to_meshes_path.write[node_i].first = mesh_name;
+						mesh_idx = node_i;
+					}
+					if (mesh_idx != -1 && mesh_instance != nullptr) {
+						auto gi_mode = mesh_instance->get_gi_mode();
+						auto &mesh_info = id_to_mesh_info.write[mesh_idx];
+						switch (gi_mode) {
+							case MeshInstance3D::GI_MODE_DISABLED:
+								mesh_info.bake_mode = 0;
+								break;
+							case MeshInstance3D::GI_MODE_STATIC:
+								mesh_info.bake_mode = 1;
+								break;
+							case MeshInstance3D::GI_MODE_DYNAMIC:
+								mesh_info.bake_mode = 3;
+								break;
+						}
+						if (mesh_info.has_lightmap_uv2) {
+							mesh_info.bake_mode = 2;
+						}
+					} else {
+						int i = 0;
+					}
+
 					for (int j = 0; j < mesh->get_surface_count(); j++) {
 						auto surf_mat = mesh->surface_get_material(j);
 						if (surf_mat.is_null()) {
@@ -533,6 +898,15 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 							}
 						}
 					}
+					if (mesh->get_shadow_mesh().is_valid()) {
+						actual_mesh_count++;
+					}
+					actual_mesh_count++;
+				}
+				for (int i = 0; i < mesh_names.size(); i++) {
+					if (mesh_names[i].is_empty()) {
+						mesh_names.write[i] = vformat("%s_%03d", scene_name, (uint64_t)i + 1);
+					}
 				}
 			}
 			memdelete(root);
@@ -542,20 +916,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			p_err = load_model(p_dest_path, model, error_string);
 			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CORRUPT, "Failed to load glTF document from " + p_dest_path + ": " + error_string);
 			// rename the images
-			String scene_name;
-			auto iinfo = p_report->get_import_info();
-			if (p_report.is_valid()) {
-				scene_name = iinfo->get_source_file().get_file().get_basename();
-			} else {
-				scene_name = p_src_path.get_file().get_slice(".", 0);
-			}
-
-			// TODO: handle Godot version <= 4.2 image naming scheme?
-			auto get_res_name = [scene_name](const String &path) {
-				return path.get_file().get_basename().trim_prefix(scene_name + "_");
-			};
 
 			for (size_t i = 0; i < model.images.size(); i++) {
+				auto &gltf_image = model.images[i];
 				ERR_FAIL_COND_V(i > id_to_texture_path.size(), ERR_FILE_CORRUPT);
 				String img_path = id_to_texture_path[i];
 				if (img_path.is_empty() || img_path.get_file().contains("::")) {
@@ -563,7 +926,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				}
 
 				String img_name = get_res_name(img_path);
-				auto &gltf_image = model.images[i];
 				gltf_image.name = img_name.utf8().get_data();
 				external_deps_updated.insert(img_path);
 			}
@@ -574,25 +936,36 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				if (img_name.is_empty() || id_to_material_path[i].second.is_empty()) {
 					continue;
 				}
+
 				auto &gltf_image = model.materials[i];
 				gltf_image.name = img_name.utf8().get_data();
 			}
 
 			for (size_t i = 0; i < model.meshes.size(); i++) {
 				ERR_FAIL_COND_V(i > id_to_meshes_path.size(), ERR_FILE_CORRUPT);
-				String img_name = id_to_meshes_path[i].first;
-				if (img_name.is_empty() || id_to_meshes_path[i].second.is_empty()) {
+				auto &gltf_image = model.meshes[i];
+				// if we have no name for this, or if there is no external mesh for this and the name is already set, skip
+				if (id_to_meshes_path[i].first.is_empty()) {
+					if (!gltf_image.name.empty()) {
+						id_to_meshes_path.write[i].first = vformat("%s_%s", scene_name, String::utf8(gltf_image.name.c_str()));
+					} else {
+						id_to_meshes_path.write[i].first = vformat("%s_%03d", scene_name, (uint64_t)i + 1);
+						gltf_image.name = id_to_meshes_path[i].first.trim_prefix(scene_name + "_").utf8().get_data();
+					}
 					continue;
 				}
-				String new_name = img_name.trim_prefix(scene_name + "_");
-				auto &gltf_image = model.meshes[i];
+
+				if (!gltf_image.name.empty() && id_to_meshes_path[i].second.is_empty()) {
+					continue;
+				}
+				String new_name = id_to_meshes_path[i].first.trim_prefix(scene_name + "_");
 				gltf_image.name = new_name.utf8().get_data();
 			}
 
 			// save the model
 #if DEBUG_ENABLED
 			// save a GLTF copy for comparison
-			// save_model(p_dest_path.get_base_dir() + "/GLTF/" + p_dest_path.get_file().get_basename() + ".gltf", model);
+			save_model(p_dest_path.get_base_dir() + "/GLTF/" + p_dest_path.get_file().get_basename() + ".gltf", model);
 #endif
 			return save_model(p_dest_path, model);
 		};
@@ -615,16 +988,15 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					_subresources_dict["animations"] = Dictionary();
 				}
 				Dictionary animations_dict = _subresources_dict["animations"];
-				for (auto &E : animation_map) {
+				for (auto &E : animation_options) {
 					// "save_to_file/enabled": true,
 					// "save_to_file/keep_custom_tracks": true,
 					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
-					animations_dict[E.key] = Dictionary();
-					Dictionary subres = animations_dict[E.key];
-					subres["save_to_file/enabled"] = true;
-					subres["save_to_file/keep_custom_tracks"] = true;
-					subres["save_to_file/path"] = E.value;
-					external_deps_updated.insert(E.value);
+					animations_dict[E.key] = E.value;
+					String path = animations_dict[E.key].operator Dictionary().get("save_to_file/path", String());
+					if (!path.is_empty()) {
+						external_deps_updated.insert(path);
+					}
 				}
 			}
 			if (has_external_meshes) {
