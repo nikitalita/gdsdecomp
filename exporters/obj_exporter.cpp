@@ -1,11 +1,15 @@
 #include "obj_exporter.h"
+#include "compat/fake_mesh.h"
 #include "compat/resource_loader_compat.h"
+#include "core/error/error_list.h"
 #include "core/io/file_access.h"
 #include "core/templates/hashfuncs.h"
 #include "scene/resources/material.h"
 #include "scene/resources/mesh.h"
 #include "utility/common.h"
+#include "utility/gdre_logger.h"
 #include "utility/import_info.h"
+
 #include <filesystem>
 
 struct Triplet {
@@ -46,8 +50,78 @@ struct TripletHasher {
 		return HashMapHasherDefault::hash(t.v) ^ HashMapHasherDefault::hash(t.vt) ^ HashMapHasherDefault::hash(t.vn);
 	}
 };
+namespace {
 
-Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info) {
+inline bool has_shadow_mesh(const Ref<Mesh> &p_mesh) {
+	Ref<ArrayMesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->get_shadow_mesh().is_valid();
+	}
+	Ref<FakeMesh> imp_mesh = p_mesh;
+	if (imp_mesh.is_valid()) {
+		return imp_mesh->get_shadow_mesh().is_valid();
+	}
+	return false;
+}
+
+inline Array surface_get_arrays(const Ref<Mesh> &p_mesh, int p_surf_idx) {
+	Ref<Mesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->surface_get_arrays(p_surf_idx);
+	}
+	return Array();
+}
+
+inline String get_surface_name(const Ref<Mesh> &p_mesh, int p_surf_idx) {
+	Ref<ArrayMesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->surface_get_name(p_surf_idx);
+	}
+	Ref<FakeMesh> imp_mesh = p_mesh;
+	if (imp_mesh.is_valid()) {
+		return imp_mesh->surface_get_name(p_surf_idx);
+	}
+	return String();
+}
+
+inline int get_surface_count(const Ref<Mesh> &p_mesh) {
+	Ref<Mesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->get_surface_count();
+	}
+	return 0;
+}
+
+inline BitField<Mesh::ArrayFormat> get_surface_format(const Ref<Mesh> &p_mesh, int p_surf_idx) {
+	Ref<Mesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->surface_get_format(p_surf_idx);
+	}
+	return (BitField<Mesh::ArrayFormat>)0;
+}
+
+inline bool surface_has_lods(const Ref<Mesh> &p_mesh, int p_surf_idx) {
+	Ref<ArrayMesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return !arr_mesh->surface_get_lods(p_surf_idx).is_empty();
+	}
+	Ref<FakeMesh> imp_mesh = p_mesh;
+	if (imp_mesh.is_valid()) {
+		return !imp_mesh->surface_get_lods(p_surf_idx).is_empty();
+	}
+	return false;
+}
+
+inline Ref<Material> surface_get_material(const Ref<Mesh> &p_mesh, int p_surf_idx) {
+	Ref<Mesh> arr_mesh = p_mesh;
+	if (arr_mesh.is_valid()) {
+		return arr_mesh->surface_get_material(p_surf_idx);
+	}
+	return Ref<Material>();
+}
+} //namespace
+
+Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const String &p_path, const String &p_output_dir, MeshInfo &r_mesh_info) {
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Cannot open file for writing: " + p_path);
@@ -72,18 +146,18 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, 
 		Vector<String> surface_material_names;
 		Vector<Vector<int>> surface_face_triplet_indices;
 		Vector<String> groups;
-		r_mesh_info.has_shadow_meshes = r_mesh_info.has_shadow_meshes || p_mesh->get_shadow_mesh().is_valid();
-
-		for (int surf_idx = 0; surf_idx < p_mesh->get_surface_count(); surf_idx++) {
-			Array arrays = p_mesh->surface_get_arrays(surf_idx);
+		r_mesh_info.has_shadow_meshes = r_mesh_info.has_shadow_meshes || has_shadow_mesh(p_mesh);
+		auto surface_count = get_surface_count(p_mesh);
+		for (int surf_idx = 0; surf_idx < surface_count; surf_idx++) {
+			Array arrays = surface_get_arrays(p_mesh, surf_idx);
 			Vector<Vector3> surface_vertices = arrays[Mesh::ARRAY_VERTEX];
 			Vector<Vector2> surface_uvs = arrays[Mesh::ARRAY_TEX_UV];
 			Vector<Vector3> surface_normals = arrays[Mesh::ARRAY_NORMAL];
 			Vector<Color> surface_colors = arrays[Mesh::ARRAY_COLOR];
 			Vector<int> indices = arrays[Mesh::ARRAY_INDEX];
-			auto format = p_mesh->surface_get_format(surf_idx);
+			auto format = get_surface_format(p_mesh, surf_idx);
 			r_mesh_info.has_tangents = r_mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
-			r_mesh_info.has_lods = r_mesh_info.has_lods || !p_mesh->surface_get_lods(surf_idx).is_empty();
+			r_mesh_info.has_lods = r_mesh_info.has_lods || surface_has_lods(p_mesh, surf_idx);
 			r_mesh_info.has_lightmap_uv2 = r_mesh_info.has_lightmap_uv2 || ((format & Mesh::ARRAY_FORMAT_TEX_UV2) != 0);
 			r_mesh_info.compression_enabled = r_mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
 
@@ -95,9 +169,9 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, 
 			bool has_vertex_colors = !surface_colors.is_empty();
 
 			// Material
-			Ref<Material> mat = p_mesh->surface_get_material(surf_idx);
+			Ref<Material> mat = surface_get_material(p_mesh, surf_idx);
 			String mat_name;
-			String surface_name = p_mesh->surface_get_name(surf_idx);
+			String surface_name = get_surface_name(p_mesh, surf_idx);
 			if (mat.is_valid()) {
 				mat_name = mat->get_name();
 				if (mat_name.is_empty()) {
@@ -343,7 +417,7 @@ Error ObjExporter::write_materials_to_mtl(const HashMap<String, Ref<Material>> &
 	return OK;
 }
 
-Error ObjExporter::write_meshes_to_obj(const Vector<Ref<ArrayMesh>> &p_meshes, const String &p_path) {
+Error ObjExporter::write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const String &p_path) {
 	MeshInfo mesh_info;
 	return _write_meshes_to_obj(p_meshes, p_path, "", mesh_info);
 }
@@ -403,6 +477,41 @@ void ObjExporter::rewrite_import_params(Ref<ImportInfo> p_import_info, const Mes
 	// 2.x doesn't require this
 }
 
+Vector<Ref<Mesh>> load_meshes_as_fake_meshes(const HashSet<String> &p_paths, Ref<ExportReport> report) {
+	Vector<Ref<Mesh>> meshes;
+	for (auto &path : p_paths) {
+		Error err;
+		Ref<MissingResource> mr = ResourceCompatLoader::fake_load(path, "", &err);
+		if (err != OK) {
+			report->set_error(err);
+			report->set_message("Failed to load mesh: " + path);
+			return Vector<Ref<Mesh>>();
+		}
+
+		Ref<FakeMesh> mesh;
+		mesh.instantiate();
+		mesh->load_type = ResourceCompatLoader::get_default_load_type();
+		List<PropertyInfo> property_info;
+		mr->get_property_list(&property_info);
+		for (auto &property : property_info) {
+			bool is_storage = property.usage & PROPERTY_USAGE_STORAGE;
+			// if (property.usage & PROPERTY_USAGE_STORAGE) {
+			if (property.name == "resource_path") {
+				mesh->set_path_cache(mr->get(property.name));
+			} else if (is_storage) {
+				mesh->set(property.name, mr->get(property.name));
+			} else {
+				// WARN_PRINT("Property " + property.name + " is not storage");
+			}
+			// }
+		}
+		mesh->set_path_cache(mr->get_path());
+
+		meshes.push_back(mesh);
+	}
+	return meshes;
+}
+
 Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<ImportInfo> p_import_info) {
 	// TODO: This may fail on Godot 2.x objs due to "blend_shapes" property being named "morph_targets" in 2.x,
 	// but I can't find any to test...
@@ -414,17 +523,44 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 
 	// Load the mesh
 	Error err;
-	Vector<Ref<ArrayMesh>> meshes;
+	Vector<Ref<Mesh>> meshes;
 	// deduplicate
+	size_t errors_before = supports_multithread() ? GDRELogger::get_thread_error_count() : GDRELogger::get_error_count();
 	auto dest_files = gdre::vector_to_hashset(p_import_info->get_dest_files());
-	for (auto &path : dest_files) {
-		Ref<ArrayMesh> mesh = ResourceCompatLoader::custom_load(path, "ArrayMesh", ResourceInfo::LoadType::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
-		if (mesh.is_null()) {
-			report->set_error(ERR_FILE_UNRECOGNIZED);
-			report->set_message("Not a valid mesh resource: " + path);
-			return report;
+	// always force this if we're using multithreading, or if we're <= 3.x 
+	// if we support multithreading, loading real ArrayMesh objects on the task thread will often cause segfaults
+	// if we're recovering a mesh from 3.x or lower, they supported meshes with > 256 surfaces, loading those will fail
+	bool use_fake_meshes = supports_multithread() || p_import_info->get_ver_major() <= 3;
+	if (use_fake_meshes) {
+		meshes = load_meshes_as_fake_meshes(dest_files, report);
+	} else {
+		for (auto &path : dest_files) {
+			Ref<ArrayMesh> mesh;
+			if (!ResourceCompatLoader::is_globally_available() || ResourceCompatLoader::get_default_load_type() != ResourceInfo::LoadType::GLTF_LOAD) {
+				mesh = ResourceCompatLoader::custom_load(path, "ArrayMesh", ResourceInfo::LoadType::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
+			} else {
+				mesh = ResourceCompatLoader::load_with_real_resource_loader(path, "ArrayMesh", &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
+				// mesh = ResourceLoader::load(path, "ArrayMesh", ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP, &err);
+			}
+			if (mesh.is_null()) {
+				report->set_error(ERR_FILE_UNRECOGNIZED);
+				report->set_message("Not a valid mesh resource: " + path);
+				return report;
+			}
+			meshes.push_back(mesh);
 		}
-		meshes.push_back(mesh);
+	}
+	size_t errors_after = supports_multithread() ? GDRELogger::get_thread_error_count() : GDRELogger::get_error_count();
+	if (errors_after > errors_before) {
+#if DEBUG_ENABLED
+		// save it to a text resource so that we can see the resource errors
+		for (auto &path : dest_files) {
+			ResourceCompatLoader::to_text(path, p_output_dir.path_join((path.get_basename() + ".tres").trim_prefix("res://")), err);
+		}
+#endif
+		report->set_error(ERR_INVALID_DATA);
+		report->set_message("Errors loading mesh resources");
+		return report;
 	}
 
 	// Ensure the output directory exists
@@ -463,7 +599,8 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 }
 
 bool ObjExporter::supports_multithread() const {
-	// TODO: For some reason the dummy render server is deadlocking when calling mesh->surface_get_arrays from multiple threads simultaneously.
+	// Note: For some reason the dummy render server is deadlocking when calling mesh->surface_get_arrays from multiple threads simultaneously.
 	// Also getting crashes on forward_plus.
-	return false;
+	// So, if we're using multithreading, we use the fake mesh loader to load meshes without loading them into the render server.
+	return true;
 }
