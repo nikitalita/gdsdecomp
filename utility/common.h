@@ -25,6 +25,7 @@ Error wget_sync(const String &p_url, Vector<uint8_t> &response, int retries = 5,
 Error download_file_sync(const String &url, const String &output_path, float *p_progress = nullptr, bool *p_cancelled = nullptr);
 Error rimraf(const String &dir);
 bool dir_is_empty(const String &dir);
+Error touch_file(const String &path);
 
 String num_scientific(double p_num);
 String num_scientific(float p_num);
