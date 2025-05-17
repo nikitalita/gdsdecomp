@@ -1274,17 +1274,32 @@ String GDRESettings::get_mapped_path(const String &p_src) const {
 		}
 	}
 	if (is_pack_loaded()) {
+		if (src.is_absolute_path() && !src.begins_with("res://") && !src.begins_with("user://")) {
+			// it's a file system path... we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
+			String dir_path = src.get_base_dir().simplify_path();
+			// LEFT hand side, not right
+			while (!dir_path.is_empty() && !DirAccess::dir_exists_absolute("res://" + dir_path)) {
+				auto parts = dir_path.split("/", false, 1);
+				if (parts.size() < 2) {
+					dir_path = "";
+					break;
+				}
+				dir_path = parts[1];
+			}
+			if (!dir_path.is_empty()) {
+				src = "res://" + dir_path.path_join(src.get_file());
+			}
+		}
+
 		String remapped_path = get_remap(src);
 		if (!remapped_path.is_empty()) {
 			return remapped_path;
 		}
 		String local_src = localize_path(src);
-		if (!FileAccess::exists(local_src + ".import")) {
-			return src;
-		}
+
 		for (int i = 0; i < import_files.size(); i++) {
 			Ref<ImportInfo> iinfo = import_files[i];
-			if (iinfo->get_source_file() == local_src) {
+			if (iinfo->get_source_file().nocasecmp_to(local_src) == 0) {
 				return iinfo->get_path();
 			}
 		}
