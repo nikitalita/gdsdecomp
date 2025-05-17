@@ -126,7 +126,7 @@ public:
 		compat.uid = uid;
 		compat.type = type;
 		compat.topology_type = ResourceInfo::MAIN_RESOURCE;
-		compat.set_on_resource(res);
+		compat._set_on_resource(res);
 		return res;
 	}
 
@@ -136,7 +136,7 @@ public:
 		compat.uid = ResourceUID::INVALID_ID;
 		compat.type = type;
 		compat.topology_type = ResourceInfo::INTERNAL_RESOURCE;
-		compat.set_on_resource(res);
+		compat._set_on_resource(res);
 		return res;
 	}
 
