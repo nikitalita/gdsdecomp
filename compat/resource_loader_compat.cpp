@@ -414,6 +414,15 @@ void ResourceCompatLoader::get_dependencies(const String &p_path, List<String> *
 	loader->get_dependencies(p_path, p_dependencies, p_add_types);
 }
 
+// static String get_resource_script_class(const String &p_path);
+String ResourceCompatLoader::get_resource_script_class(const String &p_path) {
+	auto loader = get_loader_for_path(p_path, "");
+	if (loader.is_null()) {
+		return ResourceLoader::get_resource_script_class(p_path);
+	}
+	return loader->get_resource_script_class(p_path);
+}
+
 Vector<String> ResourceCompatLoader::_get_dependencies(const String &p_path, bool p_add_types) {
 	auto loader = get_loader_for_path(p_path, "");
 	ERR_FAIL_COND_V_MSG(loader.is_null(), Vector<String>(), "Failed to load resource '" + p_path + "'. ResourceFormatLoader::load was not implemented for this resource type.");
