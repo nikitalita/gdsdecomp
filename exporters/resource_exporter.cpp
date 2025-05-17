@@ -60,13 +60,13 @@ void ResourceExporter::get_handled_types(List<String> *out) const {
 
 Error ResourceExporter::export_file(const String &out_path, const String &res_path) {
 	return ERR_UNAVAILABLE;
-};
+}
 
 Ref<ExportReport> ResourceExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
 	auto thing = Ref<ExportReport>(import_infos);
 	thing->set_error(ERR_UNAVAILABLE);
 	return thing;
-};
+}
 
 void ResourceExporter::_bind_methods() {
 	// ClassDB::bind_method(D_METHOD("export_file", "out_path", "src_path"), &ResourceExporter::export_file);
