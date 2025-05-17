@@ -4,11 +4,11 @@
 class AudioStreamOggVorbis;
 class OggStrExporter : public ResourceExporter {
 	GDCLASS(OggStrExporter, ResourceExporter);
-	static Error get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &sample, Vector<uint8_t> &r_data);
+	static Error get_data_from_ogg_stream(const String &real_src, const Ref<AudioStreamOggVorbis> &sample, Vector<uint8_t> &r_data);
 
-	Error _export_file(const String &out_path, const String &res_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major);
-	static Vector<uint8_t> get_ogg_stream_data(const Ref<AudioStreamOggVorbis> &sample);
-	static Vector<uint8_t> load_ogg_stream_data(const String &p_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major = 0, Error *r_err = nullptr);
+	Error _export_file(const String real_src, const String &out_path, const String &res_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major);
+	static Vector<uint8_t> get_ogg_stream_data(const String &real_src, const Ref<AudioStreamOggVorbis> &sample);
+	static Vector<uint8_t> load_ogg_stream_data(const String &real_src, const String &p_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major = 0, Error *r_err = nullptr);
 
 public:
 	virtual Error export_file(const String &out_path, const String &res_path) override;

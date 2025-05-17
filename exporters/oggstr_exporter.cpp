@@ -7,7 +7,7 @@
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
 #include "utility/common.h"
 
-Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &sample, Vector<uint8_t> &r_data) {
+Error OggStrExporter::get_data_from_ogg_stream(const String &real_src, const Ref<AudioStreamOggVorbis> &sample, Vector<uint8_t> &r_data) {
 	Ref<OggPacketSequence> packet_sequence = sample->get_packet_sequence();
 	auto page_data = packet_sequence->get_packet_data();
 	Vector<uint64_t> page_sizes;
@@ -38,7 +38,8 @@ Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &
 	auto playback = packet_sequence->instantiate_playback();
 	ogg_packet *pkt;
 	ogg_stream_state os_en;
-	ogg_stream_init(&os_en, rand());
+	uint32_t id = real_src.hash();
+	ogg_stream_init(&os_en, id);
 
 	int64_t page_cursor = 0;
 	bool reached_eos = false;
@@ -89,10 +90,10 @@ Error OggStrExporter::get_data_from_ogg_stream(const Ref<AudioStreamOggVorbis> &
 	return warned ? ERR_PRINTER_ON_FIRE : OK;
 }
 
-Vector<uint8_t> OggStrExporter::get_ogg_stream_data(const Ref<AudioStreamOggVorbis> &sample) {
+Vector<uint8_t> OggStrExporter::get_ogg_stream_data(const String &real_src, const Ref<AudioStreamOggVorbis> &sample) {
 	Error _err = OK;
 	Vector<uint8_t> data;
-	_err = get_data_from_ogg_stream(sample, data);
+	_err = get_data_from_ogg_stream(real_src, sample, data);
 	if (_err == ERR_PRINTER_ON_FIRE) {
 		WARN_PRINT("Ogg stream had warnings: " + sample->get_path());
 		_err = OK;
@@ -101,7 +102,7 @@ Vector<uint8_t> OggStrExporter::get_ogg_stream_data(const Ref<AudioStreamOggVorb
 	return data;
 }
 
-Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major, Error *r_err) {
+Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &real_src, const String &p_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major, Error *r_err) {
 	Error _err = OK;
 	if (!r_err) {
 		r_err = &_err;
@@ -113,7 +114,7 @@ Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, Ref<A
 	if (ver_major == 4) {
 		r_sample = ResourceCompatLoader::non_global_load(p_path, "", r_err);
 		ERR_FAIL_COND_V_MSG(*r_err != OK, Vector<uint8_t>(), "Cannot open resource '" + p_path + "'.");
-		*r_err = get_data_from_ogg_stream(r_sample, data);
+		*r_err = get_data_from_ogg_stream(real_src, r_sample, data);
 		if (*r_err == ERR_PRINTER_ON_FIRE) {
 			WARN_PRINT("Ogg stream had warnings: " + p_path);
 			*r_err = OK;
@@ -128,12 +129,12 @@ Vector<uint8_t> OggStrExporter::load_ogg_stream_data(const String &p_path, Ref<A
 	return data;
 }
 
-Error OggStrExporter::_export_file(const String &dst_path, const String &res_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major) {
+Error OggStrExporter::_export_file(const String real_src, const String &dst_path, const String &res_path, Ref<AudioStreamOggVorbis> &r_sample, int ver_major) {
 	Error err = OK;
 	if (ver_major == 0) {
 		ver_major = get_ver_major(res_path);
 	}
-	Vector<uint8_t> data = load_ogg_stream_data(res_path, r_sample, ver_major, &err);
+	Vector<uint8_t> data = load_ogg_stream_data(real_src, res_path, r_sample, ver_major, &err);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load Ogg stream data from " + res_path);
 	err = gdre::ensure_dir(dst_path.get_base_dir());
 	Ref<FileAccess> f = FileAccess::open(dst_path, FileAccess::WRITE);
@@ -144,7 +145,7 @@ Error OggStrExporter::_export_file(const String &dst_path, const String &res_pat
 
 Error OggStrExporter::export_file(const String &dst_path, const String &res_path) {
 	Ref<AudioStreamOggVorbis> sample;
-	return _export_file(dst_path, res_path, sample, get_ver_major(res_path));
+	return _export_file(dst_path, dst_path, res_path, sample, get_ver_major(res_path));
 }
 
 Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_info) {
@@ -153,7 +154,7 @@ Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<
 	// Implement the logic to export the Ogg Vorbis stream to the specified path
 	Ref<ExportReport> report = memnew(ExportReport(import_info));
 	Ref<AudioStreamOggVorbis> sample;
-	Error err = _export_file(dst_path, src_path, sample, import_info->get_ver_major());
+	Error err = _export_file(import_info->get_source_file(), dst_path, src_path, sample, import_info->get_ver_major());
 	if (err != OK) {
 		report->set_error(err);
 		if (err == ERR_FILE_CORRUPT) {
