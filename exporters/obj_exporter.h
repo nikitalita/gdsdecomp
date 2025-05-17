@@ -21,9 +21,9 @@ public:
 		bool has_lightmap_uv2 = false;
 		float lightmap_uv2_texel_size = 0.2;
 		int bake_mode = 1;
-		Vector3 scale_mesh = Vector3(1, 1, 1);
-		Vector3 offset_mesh = Vector3(0, 0, 0);
 		bool compression_enabled = false;
+		Vector3 scale_mesh = Vector3(1, 1, 1); // these are constant
+		Vector3 offset_mesh = Vector3(0, 0, 0);
 		String name;
 		String path;
 	};
