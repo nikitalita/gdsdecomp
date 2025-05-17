@@ -483,12 +483,15 @@ Error ImportInfoModern::_load(const String &p_path) {
 					set_dest_files(dest_files);
 				}
 			}
-			auto deduped = gdre::vector_to_hashset(dest_files);
-			Array arr;
-			for (auto &E : deduped) {
-				arr.push_back(E);
+			if (dest_files.size() > 1) { // only write this if there are multiple files
+				auto deduped = gdre::vector_to_hashset(dest_files);
+				// we still write this even if the deduped list is 1 file
+				Array arr;
+				for (auto &E : deduped) {
+					arr.push_back(E);
+				}
+				cf->set_value("deps", "files", arr);
 			}
-			cf->set_value("deps", "files", arr);
 		}
 	}
 
@@ -811,6 +814,16 @@ Error ImportInfov2::save_to(const String &new_import_file) {
 	return err;
 }
 
+String ImportInfoModern::get_md5_file_path() const {
+	Vector<String> dest_files = get_dest_files();
+	if (dest_files.size() == 0) {
+		return "";
+	}
+	Vector<String> parts = dest_files[0].rsplit("-", true, 1);
+	String md5_file_path = parts[0] + "-" + get_source_file().md5_text() + ".md5";
+	return md5_file_path;
+}
+
 Error ImportInfoModern::save_md5_file(const String &output_dir) {
 	Vector<String> dest_files = get_dest_files();
 	if (dest_files.size() == 0) {
@@ -824,9 +837,6 @@ Error ImportInfoModern::save_md5_file(const String &output_dir) {
 	if (export_dest != actual_source) {
 		return ERR_PRINTER_ON_FIRE;
 	}
-	Vector<String> spl = dest_files[0].rsplit("-", true, 1);
-	ERR_FAIL_COND_V_MSG(spl.size() < 2, ERR_FILE_BAD_PATH, "Weird import path!");
-	String md5_file_base = spl[0].replace_first("res://", "");
 	// check if each exists
 	for (int i = 0; i < dest_files.size(); i++) {
 		if (!FileAccess::exists(dest_files[i])) {
@@ -845,7 +855,7 @@ Error ImportInfoModern::save_md5_file(const String &output_dir) {
 			ERR_FAIL_COND_V_MSG(src_md5.is_empty(), ERR_FILE_BAD_PATH, "Can't open exported resource to check md5!");
 		}
 	}
-	String md5_file_path = output_dir.path_join(md5_file_base + "-" + actual_source.md5_text() + ".md5");
+	String md5_file_path = output_dir.path_join(get_md5_file_path().trim_prefix("res://"));
 	gdre::ensure_dir(md5_file_path.get_base_dir());
 	Ref<FileAccess> md5_file = FileAccess::open(md5_file_path, FileAccess::WRITE);
 	ERR_FAIL_COND_V_MSG(md5_file.is_null(), ERR_FILE_CANT_OPEN, "Can't open exported resource to check md5!");

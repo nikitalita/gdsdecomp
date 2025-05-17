@@ -232,6 +232,7 @@ public:
 
 	virtual Error save_to(const String &p_path) override;
 	Error save_md5_file(const String &output_dir);
+	String get_md5_file_path() const;
 
 	virtual Error reload() override { return _load(import_md_path); }
 	ImportInfoModern();
