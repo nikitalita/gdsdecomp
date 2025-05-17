@@ -39,8 +39,8 @@ public:
 	};
 	static Error _load_data_ctexlayered_v4(const String &p_path, Vector<Ref<Image>> &r_data, Image::Format &r_format, int &r_width, int &r_height, int &r_depth, int &r_type, bool &r_mipmaps, int &r_data_format);
 	static Error _load_layered_texture_v3(const String &p_path, Vector<Ref<Image>> &r_data, Image::Format &r_format, int &r_width, int &r_height, int &r_depth, bool &r_mipmaps);
-	static ResourceInfo _get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t);
-	static ResourceInfo get_resource_info(const String &p_path, Error *r_error);
+	static Ref<ResourceInfo> _get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t);
+	static Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error);
 	static Error load_image_from_fileV3(Ref<FileAccess> f, int tw, int th, int tw_custom, int th_custom, int flags, int p_size_limit, uint32_t df, Ref<Image> &image);
 	static Error _load_data_ctex2d_v4(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, Ref<Image> &image, int &r_data_format, int &r_texture_flags, int p_size_limit = 0);
 	static Error _load_data_stex2d_v3(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, int &flags, Ref<Image> &image, int p_size_limit = 0);
@@ -89,7 +89,7 @@ public:
 
 	static Ref<CompressedTexture2D> _set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int tw_custom, int th_custom, int flags, Ref<Image> image);
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return false; }
 };
 
@@ -104,7 +104,7 @@ public:
 
 	static Ref<CompressedTexture3D> _set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int td, bool mipmaps, const Vector<Ref<Image>> &images);
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return false; }
 };
 
@@ -119,7 +119,7 @@ public:
 
 	static Ref<CompressedTextureLayered> _set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int td, int type, bool mipmaps, const Vector<Ref<Image>> &images);
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return false; }
 };
 

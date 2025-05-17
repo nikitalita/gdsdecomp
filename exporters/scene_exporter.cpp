@@ -612,9 +612,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		auto get_resource_path = [&](const Ref<Resource> &res) {
 			String path = res->get_path();
 			if (path.is_empty()) {
-				Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
-				if (compat.size() > 0) {
-					path = compat["original_path"];
+				Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
+				if (compat.is_valid()) {
+					path = compat->original_path;
 				}
 			}
 			return path;
@@ -725,9 +725,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					if (name.is_empty()) {
 						name = res->get_name();
 						if (name.is_empty()) {
-							Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
-							if (compat.size() > 0) {
-								name = compat["resource_name"];
+							Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+							if (info.is_valid() && !info->resource_name.is_empty()) {
+								name = info->resource_name;
 							} else {
 								name = res->get_class() + "_" + String::num_int64(rand());
 							}
@@ -739,9 +739,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 				auto get_path_res = [](const Ref<Resource> &res) {
 					String path = res->get_path();
 					if (path.is_empty()) {
-						Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
-						if (compat.size() > 0) {
-							path = compat["original_path"];
+						Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+						if (info.is_valid() && !info->original_path.is_empty()) {
+							path = info->original_path;
 						}
 					}
 					return path;
@@ -825,11 +825,11 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 						if (!name.is_empty()) {
 							image_dict["name"] = demangle_name(name);
 						}
-						auto compat_dict = ResourceInfo::get_info_dict_from_resource(image);
-						Dictionary extras = compat_dict.get("extra", Dictionary());
+						Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(image);
+						Dictionary extras = info.is_valid() ? info->extra : Dictionary();
 						had_images = true;
 						if (extras.has("data_format")) {
-							image_formats.push_back(CompressedTexture2D::DataFormat(int(compat_dict["data_format"])));
+							image_formats.push_back(CompressedTexture2D::DataFormat(int(extras["data_format"])));
 						}
 					}
 					HashMap<int, int> removal_to_replacement;
@@ -891,7 +891,6 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 								id_to_mesh_info.push_back(mesh_info);
 								continue;
 							}
-							Dictionary compat = ResourceInfo::get_info_dict_from_resource(mesh);
 							String path = get_path_res(mesh);
 							String name;
 							bool is_internal = path.is_empty() || path.get_file().contains("::");

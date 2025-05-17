@@ -5,7 +5,10 @@
 #define META_PROPERTY_COMPAT_DATA "metadata/compat"
 #define META_COMPAT "compat"
 
-struct ResourceInfo {
+class ResourceInfo : public RefCounted {
+	GDCLASS(ResourceInfo, RefCounted);
+
+public:
 	enum LoadType {
 		ERR = -1,
 		FAKE_LOAD,
@@ -44,30 +47,30 @@ struct ResourceInfo {
 	bool using_script_class() const {
 		return !script_class.is_empty();
 	}
-	static ResourceInfo from_dict(const Dictionary &dict) {
-		ResourceInfo ri;
-		ri.uid = dict.get("uid", ResourceUID::INVALID_ID);
-		ri.original_path = dict.get("original_path", "");
-		ri.resource_name = dict.get("resource_name", "");
-		ri.ver_format = dict.get("ver_format", 0);
-		ri.ver_major = dict.get("ver_major", 0);
-		ri.ver_minor = dict.get("ver_minor", 0);
-		ri.packed_scene_version = dict.get("packed_scene_version", 0);
-		ri.load_type = static_cast<LoadType>(int(dict.get("load_type", FAKE_LOAD)));
-		ri.type = dict.get("type", "");
-		ri.resource_format = dict.get("format_type", "");
-		ri.script_class = dict.get("script_class", "");
-		ri.cached_id = dict.get("cached_id", "");
-		ri.v2metadata = dict.get("v2metadata", Ref<ResourceImportMetadatav2>());
-		ri.topology_type = static_cast<ResTopologyType>(int(dict.get("topology_type", MAIN_RESOURCE)));
-		ri.suspect_version = dict.get("suspect_version", false);
-		ri.using_real_t_double = dict.get("using_real_t_double", false);
-		ri.using_named_scene_ids = dict.get("using_named_scene_ids", false);
-		ri.stored_use_real64 = dict.get("stored_use_real64", false);
-		ri.stored_big_endian = dict.get("stored_big_endian", false);
-		ri.using_uids = dict.get("using_uids", false);
-		ri.is_compressed = dict.get("is_compressed", false);
-		ri.extra = dict.get("extra", Dictionary());
+	static Ref<ResourceInfo> from_dict(const Dictionary &dict) {
+		Ref<ResourceInfo> ri = memnew(ResourceInfo);
+		ri->uid = dict.get("uid", ResourceUID::INVALID_ID);
+		ri->original_path = dict.get("original_path", "");
+		ri->resource_name = dict.get("resource_name", "");
+		ri->ver_format = dict.get("ver_format", 0);
+		ri->ver_major = dict.get("ver_major", 0);
+		ri->ver_minor = dict.get("ver_minor", 0);
+		ri->packed_scene_version = dict.get("packed_scene_version", 0);
+		ri->load_type = static_cast<LoadType>(int(dict.get("load_type", FAKE_LOAD)));
+		ri->type = dict.get("type", "");
+		ri->resource_format = dict.get("format_type", "");
+		ri->script_class = dict.get("script_class", "");
+		ri->cached_id = dict.get("cached_id", "");
+		ri->v2metadata = dict.get("v2metadata", Ref<ResourceImportMetadatav2>());
+		ri->topology_type = static_cast<ResTopologyType>(int(dict.get("topology_type", MAIN_RESOURCE)));
+		ri->suspect_version = dict.get("suspect_version", false);
+		ri->using_real_t_double = dict.get("using_real_t_double", false);
+		ri->using_named_scene_ids = dict.get("using_named_scene_ids", false);
+		ri->stored_use_real64 = dict.get("stored_use_real64", false);
+		ri->stored_big_endian = dict.get("stored_big_endian", false);
+		ri->using_uids = dict.get("using_uids", false);
+		ri->is_compressed = dict.get("is_compressed", false);
+		ri->extra = dict.get("extra", Dictionary());
 		return ri;
 	}
 
@@ -98,22 +101,16 @@ struct ResourceInfo {
 		return dict;
 	}
 	void set_on_resource(Ref<Resource> res) const {
-		res->set_meta(META_COMPAT, to_dict());
+		res->set_meta(META_COMPAT, this);
 	}
 	void _set_on_resource(Resource *res) const {
-		res->set_meta(META_COMPAT, to_dict());
+		res->set_meta(META_COMPAT, this);
 	}
-	static void set_info_dict_on_resource(const Dictionary &dict, Ref<Resource> res) {
-		res->set_meta(META_COMPAT, dict);
-	}
-	static ResourceInfo get_info_from_resource(Ref<Resource> res) {
-		return from_dict(res->get_meta(META_COMPAT, Dictionary()));
-	}
-	static Dictionary get_info_dict_from_resource(Ref<Resource> res) {
-		return res->get_meta(META_COMPAT, Dictionary());
+	static Ref<ResourceInfo> get_info_from_resource(Ref<Resource> res) {
+		return res->get_meta(META_COMPAT, Ref<ResourceInfo>());
 	}
 	static bool resource_has_info(Ref<Resource> res) {
-		return res->has_meta(META_COMPAT);
+		return ((Ref<ResourceInfo>)res->get_meta(META_COMPAT, Ref<ResourceInfo>())).is_valid();
 	}
 };
 

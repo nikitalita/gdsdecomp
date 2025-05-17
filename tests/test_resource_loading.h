@@ -89,11 +89,12 @@ TEST_CASE("[GDSDecomp][ResourceLoading] Resource format compatibility") {
 			String resource_path = test_dir.path_join("simple_resource.tres");
 			Error error;
 			ResourceFormatLoaderCompatText loader;
-			ResourceInfo info = loader.get_resource_info(resource_path, &error);
+			Ref<ResourceInfo> info = loader.get_resource_info(resource_path, &error);
 
 			CHECK(error == OK);
-			CHECK(info.resource_format == "text");
-			CHECK(info.ver_format > 0);
+			CHECK(info.is_valid());
+			CHECK(info->resource_format == "text");
+			CHECK(info->ver_format > 0);
 		}
 
 		// Test resource type detection
@@ -101,10 +102,11 @@ TEST_CASE("[GDSDecomp][ResourceLoading] Resource format compatibility") {
 			String resource_path = test_dir.path_join("simple_resource.tres");
 			Error error;
 			ResourceFormatLoaderCompatText loader;
-			ResourceInfo info = loader.get_resource_info(resource_path, &error);
+			Ref<ResourceInfo> info = loader.get_resource_info(resource_path, &error);
 
 			CHECK(error == OK);
-			CHECK(info.type == "Resource");
+			CHECK(info.is_valid());
+			CHECK(info->type == "Resource");
 		}
 		// }
 	}

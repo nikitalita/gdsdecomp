@@ -55,27 +55,37 @@ void set_res_path(Ref<Resource> res, const String &path, ResourceInfo::LoadType 
 	}
 }
 
-Dictionary merge_resource_info(Dictionary &new_dict, Dictionary &texture_dict, int int_flags) {
-	Dictionary new_extra = new_dict.get("extra", Dictionary());
-	Dictionary old_extra = texture_dict.get("extra", Dictionary());
-	new_dict.set("ver_major", texture_dict.get("ver_major", new_dict.get("ver_major", 0)));
-	new_dict.set("type", texture_dict.get("type", new_dict.get("type", "")));
-	new_dict.set("resource_format", texture_dict.get("resource_format", new_dict.get("resource_format", "")));
-	new_extra.set("texture_flags", old_extra.get("texture_flags", int_flags));
-	new_extra.set("data_format", old_extra.get("data_format", new_extra.get("data_format", 0)));
-	new_dict.set("extra", new_extra);
+Ref<ResourceInfo> merge_resource_info(Ref<ResourceInfo> &new_dict, Ref<ResourceInfo> &texture_dict, int int_flags) {
+	new_dict->ver_major = texture_dict->ver_major;
+	new_dict->type = texture_dict->type;
+	new_dict->resource_format = texture_dict->resource_format;
+	if (new_dict->original_path.is_empty()) {
+		new_dict->original_path = texture_dict->original_path;
+	}
+	if (texture_dict->extra.has("texture_flags")) {
+		new_dict->extra["texture_flags"] = texture_dict->extra["texture_flags"];
+	} else {
+		new_dict->extra["texture_flags"] = int_flags;
+	}
+	if (texture_dict->extra.has("data_format")) {
+		new_dict->extra["data_format"] = texture_dict->extra["data_format"];
+	}
 	return new_dict;
 }
 
-void _set_resource_info(ResourceInfo &info, const String &original_path, TextureLoaderCompat::TextureVersionType t) {
-	info.ver_major = TextureLoaderCompat::get_ver_major_from_textype(t);
-	info.type = TextureLoaderCompat::get_type_name_from_textype(t);
-	info.resource_format = "Texture";
-	info.original_path = original_path;
+void _set_resource_info(Ref<ResourceInfo> &info, const String &original_path, TextureLoaderCompat::TextureVersionType t) {
+	if (!info.is_valid()) {
+		info.instantiate();
+	}
+	info->ver_major = TextureLoaderCompat::get_ver_major_from_textype(t);
+	info->type = TextureLoaderCompat::get_type_name_from_textype(t);
+	info->resource_format = "Texture";
+	info->original_path = original_path;
 }
 
-ResourceInfo TextureLoaderCompat::_get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t) {
-	ResourceInfo info;
+Ref<ResourceInfo> TextureLoaderCompat::_get_resource_info(const String &original_path, TextureLoaderCompat::TextureVersionType t) {
+	Ref<ResourceInfo> info;
+	info.instantiate();
 	_set_resource_info(info, original_path, t);
 	return info;
 }
@@ -111,7 +121,7 @@ TextureLoaderCompat::TextureVersionType TextureLoaderCompat::recognize(const Str
 			(header[0] == 'R' && header[1] == 'S' && header[2] == 'C' && header[3] == 'C')) {
 		// check if this is a V2 texture
 		ResourceFormatLoaderCompatBinary rlcb;
-		ResourceInfo i_info = rlcb.get_resource_info(p_path, r_err);
+		Ref<ResourceInfo> i_info = rlcb.get_resource_info(p_path, r_err);
 
 		if (*r_err == ERR_PRINTER_ON_FIRE) {
 			// no import metadata
@@ -119,18 +129,18 @@ TextureLoaderCompat::TextureVersionType TextureLoaderCompat::recognize(const Str
 		} else if (*r_err) {
 			ERR_FAIL_V_MSG(FORMAT_NOT_TEXTURE, "Can't open texture file " + p_path);
 		}
-		String type = i_info.type;
+		String type = i_info->type;
 		if (type == "Texture") {
 			return FORMAT_V2_TEXTURE;
 		} else if (type == "ImageTexture") {
-			if (i_info.ver_major <= 2) {
+			if (i_info->ver_major <= 2) {
 				return FORMAT_V2_IMAGE_TEXTURE;
-			} else if (i_info.ver_major == 3) {
+			} else if (i_info->ver_major == 3) {
 				return FORMAT_V3_IMAGE_TEXTURE;
 			}
 			return FORMAT_V4_IMAGE_TEXTURE;
 		} else if (type == "AtlasTexture") {
-			switch (i_info.ver_major) {
+			switch (i_info->ver_major) {
 				case 1:
 				case 2:
 					return FORMAT_V2_ATLAS_TEXTURE;
@@ -433,6 +443,7 @@ static_assert(sizeof(faketex2D) == sizeof(CompressedTexture2D), "faketex2D must 
 
 Error TextureLoaderCompat::_load_data_stex2d_v3(const String &p_path, int &tw, int &th, int &tw_custom, int &th_custom, int &flags, Ref<Image> &image, int p_size_limit) {
 	Error err;
+	// TODO: make this pass back the flags
 
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ, &err);
 	ERR_FAIL_COND_V_MSG(f.is_null(), err, "Can't open image file for loading: " + p_path);
@@ -758,25 +769,27 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	if (p_type == ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
 		return res;
 	}
-	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
-	String type = res->get_original_class();
+	auto info = ResourceInfo::get_info_from_resource(res);
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
+	String type = info->type;
 	int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
 		auto res = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
-		ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+		info->set_on_resource(res);
 		return res;
 	}
 	if (p_type == ResourceInfo::GLTF_LOAD || p_type == ResourceInfo::REAL_LOAD) {
 		texture = ResourceCompatLoader::custom_load(load_path, type, p_type, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 	}
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
-	Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
-	if (compat_dict.size() > 0) {
-		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
-		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
+	Ref<ResourceInfo> existing_dict = ResourceInfo::get_info_from_resource(texture);
+	if (existing_dict.is_valid()) {
+		existing_dict = merge_resource_info(existing_dict, info, flags);
+		existing_dict->set_on_resource(texture);
 	} else {
-		ResourceInfo::set_info_dict_on_resource(existing_dict, texture);
+		WARN_PRINT("ResourceInfo is not valid for MissingResource???!1!!!!!1111!");
+		info->set_on_resource(texture);
 	}
 	return texture;
 }
@@ -825,26 +838,26 @@ Ref<CompressedTexture2D> ResourceFormatLoaderCompatTexture2D::_set_tex(const Str
 	return texture;
 }
 
-ResourceInfo ResourceFormatLoaderCompatTexture2D::get_resource_info(const String &p_path, Error *r_error) const {
+Ref<ResourceInfo> ResourceFormatLoaderCompatTexture2D::get_resource_info(const String &p_path, Error *r_error) const {
 	return TextureLoaderCompat::get_resource_info(p_path, r_error);
 }
 
-ResourceInfo ResourceFormatLoaderCompatTexture3D::get_resource_info(const String &p_path, Error *r_error) const {
+Ref<ResourceInfo> ResourceFormatLoaderCompatTexture3D::get_resource_info(const String &p_path, Error *r_error) const {
 	return TextureLoaderCompat::get_resource_info(p_path, r_error);
 }
 
-ResourceInfo ResourceFormatLoaderCompatTextureLayered::get_resource_info(const String &p_path, Error *r_error) const {
+Ref<ResourceInfo> ResourceFormatLoaderCompatTextureLayered::get_resource_info(const String &p_path, Error *r_error) const {
 	return TextureLoaderCompat::get_resource_info(p_path, r_error);
 }
 
-ResourceInfo TextureLoaderCompat::get_resource_info(const String &p_path, Error *r_error) {
+Ref<ResourceInfo> TextureLoaderCompat::get_resource_info(const String &p_path, Error *r_error) {
 	Error err;
 	TextureLoaderCompat::TextureVersionType t = TextureLoaderCompat::recognize(p_path, &err);
 	if (t == TextureLoaderCompat::FORMAT_NOT_TEXTURE) {
 		if (r_error) {
 			*r_error = err;
 		}
-		return ResourceInfo();
+		return Ref<ResourceInfo>();
 	}
 	if (TextureLoaderCompat::is_binary_resource(t)) {
 		ResourceFormatLoaderCompatBinary rlcb;
@@ -886,10 +899,10 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 	texture = _set_tex(p_path, p_type, lw, lh, lwc, lhc, lflags, image);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
-	info.cached_id = p_path;
-	info.extra["data_format"] = data_format;
-	info.extra["texture_flags"] = texture_flags;
-	info.set_on_resource(texture);
+	info->cached_id = p_path;
+	info->extra["data_format"] = data_format;
+	info->extra["texture_flags"] = texture_flags;
+	info->set_on_resource(texture);
 	return texture;
 }
 
@@ -967,9 +980,9 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	texture = _set_tex(p_path, p_type, lw, lh, ld, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
-	info.extra["data_format"] = data_format;
-	info.extra["texture_flags"] = texture_flags;
-	info.set_on_resource(texture);
+	info->extra["data_format"] = data_format;
+	info->extra["texture_flags"] = texture_flags;
+	info->set_on_resource(texture);
 	return texture;
 }
 
@@ -1070,9 +1083,9 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 	texture = _set_tex(p_path, p_type, lw, lh, ld, ltype, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
-	info.extra["data_format"] = data_format;
-	info.extra["texture_flags"] = texture_flags;
-	info.set_on_resource(texture);
+	info->extra["data_format"] = data_format;
+	info->extra["texture_flags"] = texture_flags;
+	info->set_on_resource(texture);
 	return texture;
 }
 
@@ -1090,8 +1103,9 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	int flags = 0;
 	Ref<Image> image;
 	Ref<Resource> texture;
-	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
-	String type = res->get_original_class();
+	auto info = ResourceInfo::get_info_from_resource(res);
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
+	String type = info->type;
 
 	auto convert_image = [&](const Ref<Resource> &image_res) -> Ref<Image> {
 		Ref<Image> img = image_res;
@@ -1123,13 +1137,12 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
 	TextureLoaderCompat::TextureVersionType t = (ver_major >= 4 ? TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURE2D : (ver_major == 3 ? TextureLoaderCompat::FORMAT_V3_IMAGE_TEXTURE : TextureLoaderCompat::FORMAT_V2_IMAGE_TEXTURE));
-	auto info = TextureLoaderCompat::_get_resource_info(res->get_path(), t);
-	Dictionary existing_dict = info.to_dict();
-	if (compat_dict.size() > 0) {
-		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
-		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
+	auto new_info = TextureLoaderCompat::_get_resource_info(res->get_path(), t);
+	if (info.is_valid()) {
+		new_info = merge_resource_info(new_info, info, flags);
+		new_info->set_on_resource(texture);
 	} else {
-		ResourceInfo::set_info_dict_on_resource(existing_dict, texture);
+		new_info->set_on_resource(texture);
 	}
 
 	return texture;
@@ -1142,8 +1155,9 @@ bool ImageConverterCompat::handles_type(const String &p_type, int ver_major) con
 Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
 	String name;
 	Ref<Image> image;
-	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
-	String type = res->get_original_class();
+	auto info = ResourceInfo::get_info_from_resource(res);
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
+	String type = info->type;
 	if (type != "Image") {
 		WARN_PRINT("ImageConverterCompat: Unsupported type: " + type);
 		return res;
@@ -1162,8 +1176,8 @@ Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, Res
 	Vector<uint8_t> img_data = data.get("data", Vector<uint8_t>());
 	image = Image::create_from_data(tw, th, mipmaps, fmt_enum, img_data);
 	image->set_name(name);
-	if (compat_dict.size() > 0) {
-		ResourceInfo::set_info_dict_on_resource(compat_dict, image);
+	if (info.is_valid()) {
+		info->set_on_resource(image);
 	}
 	return image;
 }

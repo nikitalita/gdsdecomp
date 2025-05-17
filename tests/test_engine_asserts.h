@@ -50,13 +50,15 @@ TEST_CASE("[GDSDecomp][ResourceFormatLoaderCompatBinary] ResourceFormatLoaderCom
 	SUBCASE("Binary format version hasn't changed") {
 		auto res_info = loader.get_resource_info(temp_path, &error);
 		CHECK(error == OK);
-		CHECK(res_info.ver_format == ResourceLoaderCompatBinary::get_current_format_version());
+		CHECK(res_info.is_valid());
+		CHECK(res_info->ver_format == ResourceLoaderCompatBinary::get_current_format_version());
 	}
 	SUBCASE("ResourceInfo has other correct info") {
 		auto res_info = loader.get_resource_info(temp_path, &error);
 		CHECK(error == OK);
-		CHECK(res_info.resource_format == "binary");
-		CHECK(res_info.type == "Resource");
+		CHECK(res_info.is_valid());
+		CHECK(res_info->resource_format == "binary");
+		CHECK(res_info->type == "Resource");
 	}
 	gdre::rimraf(temp_path);
 }
@@ -75,9 +77,10 @@ TEST_CASE("[GDSDecomp][ResourceFormatLoaderCompatText] ResourceFormatLoaderCompa
 	SUBCASE("ResourceInfo has correct info") {
 		auto res_info = loader.get_resource_info(temp_path, &error);
 		CHECK(error == OK);
-		CHECK(res_info.ver_format == ResourceLoaderCompatText::FORMAT_VERSION);
-		CHECK(res_info.resource_format == "text");
-		CHECK(res_info.type == "Resource");
+		CHECK(res_info.is_valid());
+		CHECK(res_info->ver_format == ResourceLoaderCompatText::FORMAT_VERSION);
+		CHECK(res_info->resource_format == "text");
+		CHECK(res_info->type == "Resource");
 	}
 	gdre::rimraf(temp_path);
 }

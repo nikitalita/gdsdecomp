@@ -391,14 +391,14 @@ bool ResourceCompatLoader::handles_resource(const String &p_path, const String &
 }
 
 // static ResourceInfo get_resource_info(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
-ResourceInfo ResourceCompatLoader::get_resource_info(const String &p_path, const String &p_type_hint, Error *r_error) {
+Ref<ResourceInfo> ResourceCompatLoader::get_resource_info(const String &p_path, const String &p_type_hint, Error *r_error) {
 	auto loader = get_loader_for_path(p_path, p_type_hint);
 	if (loader.is_null()) {
 		if (r_error) {
 			*r_error = ERR_FILE_NOT_FOUND;
 		}
 		ERR_PRINT("Failed to load resource '" + p_path + "'. ResourceFormatLoader::load was not implemented for this resource type.");
-		return ResourceInfo();
+		return Ref<ResourceInfo>();
 	}
 	return loader->get_resource_info(p_path, r_error);
 }
@@ -502,7 +502,11 @@ Ref<Resource> ResourceCompatLoader::_real_load(const String &p_path, const Strin
 }
 
 Dictionary ResourceCompatLoader::_get_resource_info(const String &p_path, const String &p_type_hint) {
-	return get_resource_info(p_path, p_type_hint, nullptr).to_dict();
+	Ref<ResourceInfo> info = get_resource_info(p_path, p_type_hint, nullptr);
+	if (info.is_valid()) {
+		return info->to_dict();
+	}
+	return Dictionary();
 }
 
 void ResourceCompatLoader::_bind_methods() {
@@ -536,11 +540,11 @@ Ref<Resource> CompatFormatLoader::custom_load(const String &p_path, const String
 	}
 	ERR_FAIL_V_MSG(Ref<Resource>(), "Not implemented.");
 }
-ResourceInfo CompatFormatLoader::get_resource_info(const String &p_path, Error *r_error) const {
+Ref<ResourceInfo> CompatFormatLoader::get_resource_info(const String &p_path, Error *r_error) const {
 	if (r_error) {
 		*r_error = ERR_UNAVAILABLE;
 	}
-	ERR_FAIL_V_MSG(ResourceInfo(), "Not implemented.");
+	ERR_FAIL_V_MSG(Ref<ResourceInfo>(), "Not implemented.");
 }
 bool CompatFormatLoader::handles_fake_load() const {
 	return false;

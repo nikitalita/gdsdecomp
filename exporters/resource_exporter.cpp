@@ -22,7 +22,7 @@ int ResourceExporter::get_ver_major(const String &res_path) {
 	Error err;
 	auto info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
 	ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to get resource info for " + res_path);
-	return info.ver_major; // Placeholder return value
+	return info->ver_major; // Placeholder return value
 }
 
 bool ResourceExporter::supports_multithread() const {
@@ -131,8 +131,8 @@ Ref<ExportReport> Exporter::export_resource(const String &output_dir, Ref<Import
 
 Error Exporter::export_file(const String &out_path, const String &res_path) {
 	String importer = "";
-	ResourceInfo info = ResourceCompatLoader::get_resource_info(res_path, importer);
-	String type = info.type;
+	Ref<ResourceInfo> info = ResourceCompatLoader::get_resource_info(res_path, importer);
+	String type = info.is_valid() ? info->type : "";
 	auto exporter = get_exporter(importer, type);
 	if (exporter.is_null()) {
 		return ERR_UNAVAILABLE;

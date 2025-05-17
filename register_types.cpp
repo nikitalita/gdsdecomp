@@ -364,6 +364,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GitHubSource>();
 	ClassDB::register_class<AssetLibrarySource>();
 	ClassDB::register_class<GitLabSource>();
+	ClassDB::register_class<ResourceInfo>();
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));

@@ -49,7 +49,7 @@ public:
 	static void remove_resource_object_converter(Ref<ResourceCompatConverter> p_converter);
 	static Ref<CompatFormatLoader> get_loader_for_path(const String &p_path, const String &p_type_hint);
 	static Ref<ResourceCompatConverter> get_converter_for_type(const String &p_type, int ver_major);
-	static ResourceInfo get_resource_info(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
+	static Ref<ResourceInfo> get_resource_info(const String &p_path, const String &p_type_hint = "", Error *r_error = nullptr);
 	static void get_dependencies(const String &p_path, List<String> *p_dependencies, bool p_add_types = false);
 	static Error to_text(const String &p_path, const String &p_dst, uint32_t p_flags = 0, const String &original_path = {});
 	static Error to_binary(const String &p_path, const String &p_dst, uint32_t p_flags = 0);
@@ -71,7 +71,7 @@ class CompatFormatLoader : public ResourceFormatLoader {
 
 public:
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE);
-	virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const;
+	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const;
 	virtual bool handles_fake_load() const;
 	static ResourceInfo::LoadType get_default_real_load() {
 		return ResourceCompatLoader::get_default_load_type();
@@ -111,32 +111,35 @@ public:
 
 	static Ref<Resource> create_missing_external_resource(const String &path, const String &type, const ResourceUID::ID uid, const String &scene_id = "") {
 		Ref<Resource> res{ make_fakescript_or_mising_resource(path, type) };
-		ResourceInfo compat;
-		compat.uid = uid;
-		compat.type = type;
-		compat.cached_id = scene_id;
-		compat.topology_type = ResourceInfo::UNLOADED_EXTERNAL_RESOURCE;
-		compat.set_on_resource(res);
+		Ref<ResourceInfo> compat;
+		compat.instantiate();
+		compat->uid = uid;
+		compat->type = type;
+		compat->cached_id = scene_id;
+		compat->topology_type = ResourceInfo::UNLOADED_EXTERNAL_RESOURCE;
+		compat->set_on_resource(res);
 		return res;
 	}
 
 	static Resource *create_missing_main_resource(const String &path, const String &type, const ResourceUID::ID uid) {
 		Resource *res{ make_fakescript_or_mising_resource(path, type) };
-		ResourceInfo compat;
-		compat.uid = uid;
-		compat.type = type;
-		compat.topology_type = ResourceInfo::MAIN_RESOURCE;
-		compat._set_on_resource(res);
+		Ref<ResourceInfo> compat;
+		compat.instantiate();
+		compat->uid = uid;
+		compat->type = type;
+		compat->topology_type = ResourceInfo::MAIN_RESOURCE;
+		compat->_set_on_resource(res);
 		return res;
 	}
 
 	static Resource *create_missing_internal_resource(const String &path, const String &type, const String &scene_id) {
 		Resource *res{ make_fakescript_or_mising_resource("", type, scene_id) };
-		ResourceInfo compat;
-		compat.uid = ResourceUID::INVALID_ID;
-		compat.type = type;
-		compat.topology_type = ResourceInfo::INTERNAL_RESOURCE;
-		compat._set_on_resource(res);
+		Ref<ResourceInfo> compat;
+		compat.instantiate();
+		compat->uid = ResourceUID::INVALID_ID;
+		compat->type = type;
+		compat->topology_type = ResourceInfo::INTERNAL_RESOURCE;
+		compat->_set_on_resource(res);
 		return res;
 	}
 

@@ -53,7 +53,9 @@ Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, Re
 	sample->set_loop_begin(loop_begin);
 	sample->set_loop_end(loop_end);
 	sample->set_mix_rate(mix_rate);
-	ResourceInfo::set_info_dict_on_resource(ResourceInfo::get_info_dict_from_resource(res), sample);
+	auto info = ResourceInfo::get_info_from_resource(res);
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
+	info->set_on_resource(sample);
 	return sample;
 }
 

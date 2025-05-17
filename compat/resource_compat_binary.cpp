@@ -953,12 +953,16 @@ Error ResourceLoaderCompatBinary::load() {
 					// WARN_PRINT("PackedScene found in non-main resource?!!??!?!?!");
 					// set it anyway; get the compat metadata from the res and set the packed_scene_version
 					if (_bundled.has("version")) {
-						ResourceInfo compat = ResourceInfo::get_info_from_resource(res);
-						compat.packed_scene_version = (int)_bundled.get("version", -1);
-						compat.set_on_resource(res);
+						Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
+						ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_BUG, "PackedScene has no compat metadata??????????? This should have been set by us!!!!!!!!");
+						compat->packed_scene_version = (int)_bundled.get("version", -1);
+						compat->set_on_resource(res);
 					}
 				} else if (_bundled.has("version")) {
-					packed_scene_version = _bundled.get("version", -1);
+					Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
+					ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_BUG, "PackedScene has no compat metadata??????????? This should have been set by us!!!!!!!!");
+					compat->packed_scene_version = (int)_bundled.get("version", -1);
+					compat->set_on_resource(res);
 				}
 			}
 
@@ -970,14 +974,15 @@ Error ResourceLoaderCompatBinary::load() {
 		if (missing_resource) {
 			missing_resource->set_recording_properties(false);
 			if (converter.is_valid()) {
-				Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(missing_resource);
+				Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(missing_resource);
+				ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_UNAVAILABLE, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
 				auto new_res = converter->convert(missing_resource, load_type, ver_major, &error);
 				if (error == OK) {
 					res = new_res;
 					// converters *SHOULD* already set this
 					if (!ResourceInfo::resource_has_info(res)) {
 						WARN_PRINT("Converter " + converter->get_class() + " did not set info on resource!!");
-						ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+						compat->set_on_resource(res);
 					}
 					if (!path.is_empty()) {
 						if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && is_real_load()) {
@@ -1027,29 +1032,34 @@ Error ResourceLoaderCompatBinary::load() {
 			if (is_real_load()) {
 				resource->set_as_translation_remapped(translation_remapped);
 			}
-			set_compat_meta(res);
+			set_compat_meta(res, true);
 			error = OK;
 			return OK;
 		} else if (!ResourceInfo::resource_has_info(res)) {
-			ResourceInfo info;
-			info.topology_type = ResourceInfo::INTERNAL_RESOURCE;
-			info.type = t;
-			info.resource_name = res->get_name();
-			info.original_path = path;
-			info.cached_id = id;
-			info.set_on_resource(res);
+			Ref<ResourceInfo> info;
+			info.instantiate();
+			info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
+			info->type = t;
+			info->resource_name = res->get_name();
+			info->original_path = path;
+			info->cached_id = id;
+			info->set_on_resource(res);
 		} else {
-			Dictionary compat = ResourceInfo::get_info_dict_from_resource(res);
-			if (compat.get("resource_name", String()).operator String().is_empty()) {
-				compat["resource_name"] = res->get_name();
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+			info->topology_type = ResourceInfo::INTERNAL_RESOURCE;
+			if (info->type.is_empty()) {
+				info->type = t;
 			}
-			if (compat.get("original_path", String()).operator String().is_empty()) {
-				compat["original_path"] = path;
+			if (info->resource_name.is_empty()) {
+				info->resource_name = res->get_name();
 			}
-			if (compat.get("cached_id", String()).operator String().is_empty()) {
-				compat["cached_id"] = id;
+			if (info->original_path.is_empty()) {
+				info->original_path = path;
 			}
-			ResourceInfo::set_info_dict_on_resource(compat, res);
+			if (info->cached_id.is_empty()) {
+				info->cached_id = id;
+			}
+			info->set_on_resource(res);
 		}
 	}
 
@@ -2411,32 +2421,31 @@ static String _resource_get_class(Ref<Resource> p_resource) {
 Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
 	// Resource::seed_scene_unique_id(p_path.hash());
 	// get metadata from the resource
-	Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(p_resource);
-	if (compat_dict.is_empty()) {
+	if (!ResourceInfo::resource_has_info(p_resource)) {
 		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
 		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
 	}
-	ResourceInfo compat = ResourceInfo::from_dict(compat_dict);
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
 
 	Error err;
 
-	String original_path = compat.original_path;
-	ver_format = compat.ver_format;
-	ver_major = compat.ver_major;
-	ver_minor = compat.ver_minor;
+	String original_path = compat->original_path;
+	ver_format = compat->ver_format;
+	ver_major = compat->ver_major;
+	ver_minor = compat->ver_minor;
 	if (ver_major == 0) {
 		WARN_PRINT("Resource has a major version of 0, this is not supported.");
 	}
-	String format = compat.resource_format;
-	script_class = compat.script_class;
-	using_script_class = compat.using_script_class();
-	big_endian = compat.stored_big_endian;
-	using_uids = compat.using_uids;
-	using_named_scene_ids = compat.using_named_scene_ids;
-	using_real_t_double = compat.using_real_t_double;
-	stored_use_real64 = compat.stored_use_real64;
-	Ref<ResourceImportMetadatav2> imd = compat.v2metadata;
-	ResourceUID::ID uid = compat.uid;
+	String format = compat->resource_format;
+	script_class = compat->script_class;
+	using_script_class = compat->using_script_class();
+	big_endian = compat->stored_big_endian;
+	using_uids = compat->using_uids;
+	using_named_scene_ids = compat->using_named_scene_ids;
+	using_real_t_double = compat->using_real_t_double;
+	stored_use_real64 = compat->stored_use_real64;
+	Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
+	ResourceUID::ID uid = compat->uid;
 	if (using_uids && uid == ResourceUID::INVALID_ID) {
 		uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
 	}
@@ -2457,7 +2466,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	}
 
 	Ref<FileAccess> f;
-	bool using_compression = p_flags & ResourceSaver::FLAG_COMPRESS || compat.is_compressed;
+	bool using_compression = p_flags & ResourceSaver::FLAG_COMPRESS || compat->is_compressed;
 	if (using_compression) {
 		Ref<FileAccessCompressed> fac;
 		fac.instantiate();
@@ -2659,8 +2668,8 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 		save_unicode_string(f, res_path);
 		// ResourceUID::ID ruid = ResourceSaver::get_resource_id_for_path(save_order[i]->get_path(), false);
 		if (using_uids) {
-			Dictionary dict = ResourceInfo::get_info_dict_from_resource(save_order[i]);
-			ResourceUID::ID ruid = dict.get("uid", ResourceUID::INVALID_ID);
+			Ref<ResourceInfo> dict = ResourceInfo::get_info_from_resource(save_order[i]);
+			ResourceUID::ID ruid = dict.is_valid() ? dict->uid : ResourceUID::INVALID_ID;
 			if (ruid == ResourceUID::INVALID_ID) {
 				ruid = GDRESettings::get_singleton()->get_uid_for_path(res_path);
 			}
@@ -2733,8 +2742,8 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 				if (rd.type == "PackedScene" && saved_resources.get(i)->get_class() == "PackedScene") {
 					Dictionary bundled = p.value;
 					int packed_scene_version = bundled.get("version", -1);
-					ResourceInfo ri = ResourceInfo::get_info_from_resource(saved_resources.get(i));
-					int original_scene_version = ri.packed_scene_version;
+					Ref<ResourceInfo> ri = ResourceInfo::get_info_from_resource(saved_resources.get(i));
+					int original_scene_version = ri.is_valid() ? ri->packed_scene_version : -1;
 					if (original_scene_version < 0 || original_scene_version != packed_scene_version) {
 						value = fix_scene_bundle(saved_resources.get(i), original_scene_version);
 						// we have to fix this
@@ -3074,37 +3083,38 @@ Ref<Resource> ResourceLoaderCompatBinary::finish_ext_load(Ref<ResourceLoader::Lo
 	ERR_FAIL_V_MSG(Ref<Resource>(), "Invalid load token.");
 }
 
-void ResourceLoaderCompatBinary::set_compat_meta(Ref<Resource> &r_res) {
+void ResourceLoaderCompatBinary::set_compat_meta(Ref<Resource> &r_res, bool is_main_resource) {
 	//
-	ResourceInfo compat = get_resource_info();
-	compat.topology_type = ResourceInfo::MAIN_RESOURCE;
+	Ref<ResourceInfo> compat = get_resource_info();
+	compat->topology_type = is_main_resource ? ResourceInfo::MAIN_RESOURCE : ResourceInfo::INTERNAL_RESOURCE;
 	if (packed_scene_version >= 0) {
-		compat.packed_scene_version = packed_scene_version;
+		compat->packed_scene_version = packed_scene_version;
 	}
-	compat.set_on_resource(r_res);
+	compat->set_on_resource(r_res);
 }
 
-ResourceInfo ResourceLoaderCompatBinary::get_resource_info() {
-	ResourceInfo d;
-	d.uid = uid;
-	d.type = type;
-	d.original_path = local_path;
-	d.resource_name = resource.is_valid() ? resource->get_name() : "";
-	d.ver_major = ver_major;
-	d.ver_minor = ver_minor;
-	d.ver_format = ver_format;
-	d.suspect_version = suspect_version;
-	d.resource_format = "binary";
+Ref<ResourceInfo> ResourceLoaderCompatBinary::get_resource_info() {
+	Ref<ResourceInfo> d;
+	d.instantiate();
+	d->uid = uid;
+	d->type = type;
+	d->original_path = local_path;
+	d->resource_name = resource.is_valid() ? resource->get_name() : "";
+	d->ver_major = ver_major;
+	d->ver_minor = ver_minor;
+	d->ver_format = ver_format;
+	d->suspect_version = suspect_version;
+	d->resource_format = "binary";
 	// TODO: fix this
-	d.load_type = load_type;
-	d.using_real_t_double = using_real_t_double;
-	d.stored_use_real64 = stored_use_real64;
-	d.stored_big_endian = stored_big_endian;
-	d.using_named_scene_ids = using_named_scene_ids;
-	d.using_uids = using_uids;
-	d.script_class = script_class;
-	d.v2metadata = imd;
-	d.is_compressed = is_compressed;
+	d->load_type = load_type;
+	d->using_real_t_double = using_real_t_double;
+	d->stored_use_real64 = stored_use_real64;
+	d->stored_big_endian = stored_big_endian;
+	d->using_named_scene_ids = using_named_scene_ids;
+	d->using_uids = using_uids;
+	d->script_class = script_class;
+	d->v2metadata = imd;
+	d->is_compressed = is_compressed;
 	return d;
 }
 // virtual ResourceInfo get_resource_info(const String &p_path, Error *r_error) const override;
@@ -3135,7 +3145,7 @@ Error ResourceFormatLoaderCompatBinary::get_ver_major_minor(const String &p_path
 	return OK;
 }
 
-ResourceInfo ResourceFormatLoaderCompatBinary::get_resource_info(const String &p_path, Error *r_error) const {
+Ref<ResourceInfo> ResourceFormatLoaderCompatBinary::get_resource_info(const String &p_path, Error *r_error) const {
 	if (r_error) {
 		*r_error = ERR_CANT_OPEN;
 	}
@@ -3143,7 +3153,7 @@ ResourceInfo ResourceFormatLoaderCompatBinary::get_resource_info(const String &p
 	Error err;
 
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::READ, &err);
-	ERR_FAIL_COND_V_MSG(err, ResourceInfo(), "Cannot open file '" + p_path + "'.");
+	ERR_FAIL_COND_V_MSG(err, Ref<ResourceInfo>(), "Cannot open file '" + p_path + "'.");
 
 	ResourceLoaderCompatBinary loader;
 	String path = p_path;
@@ -3153,7 +3163,7 @@ ResourceInfo ResourceFormatLoaderCompatBinary::get_resource_info(const String &p
 	loader.local_path = GDRESettings::get_singleton()->localize_path(path);
 	loader.res_path = loader.local_path;
 	loader.open(f, true, true);
-	ERR_FAIL_SET_ERR_V_MSG_SETERR(loader.error, ResourceInfo(), "Cannot load binary resource " + p_path + ".");
+	ERR_FAIL_SET_ERR_V_MSG_SETERR(loader.error, Ref<ResourceInfo>(), "Cannot load binary resource " + p_path + ".");
 	if (loader.ver_major <= 2) {
 		f->seek(0);
 		loader.open(f, false, true);
@@ -3220,9 +3230,9 @@ Error ResourceFormatLoaderCompatBinary::rewrite_v2_import_metadata(const String 
 		if (requires_whole_resave) {
 			loader.load();
 			auto res = loader.get_resource();
-			Dictionary compat_dict = ResourceInfo::get_info_dict_from_resource(res);
-			compat_dict["v2metadata"] = imd;
-			ResourceInfo::set_info_dict_on_resource(compat_dict, res);
+			Ref<ResourceInfo> compat_dict = ResourceInfo::get_info_from_resource(res);
+			ERR_FAIL_COND_V_MSG(!compat_dict.is_valid(), ERR_UNAVAILABLE, "Resource has no compat metadata???????????");
+			compat_dict->v2metadata = imd;
 			ResourceFormatSaverCompatBinaryInstance saver;
 			int flags = 0;
 			err = saver.save(dest, res, flags);
