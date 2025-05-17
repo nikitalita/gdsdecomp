@@ -56,13 +56,16 @@ void set_res_path(Ref<Resource> res, const String &path, ResourceInfo::LoadType 
 	}
 }
 
-void merge_resource_info(Dictionary &new_dict, Dictionary &texture_dict, Ref<Resource> texture) {
+Dictionary merge_resource_info(Dictionary &new_dict, Dictionary &texture_dict, int int_flags) {
+	Dictionary new_extra = new_dict.get("extra", Dictionary());
+	Dictionary old_extra = texture_dict.get("extra", Dictionary());
 	new_dict.set("ver_major", texture_dict.get("ver_major", new_dict.get("ver_major", 0)));
 	new_dict.set("type", texture_dict.get("type", new_dict.get("type", "")));
 	new_dict.set("resource_format", texture_dict.get("resource_format", new_dict.get("resource_format", "")));
-	new_dict.set("texture_flags", texture_dict.get("texture_flags", new_dict.get("texture_flags", 0)));
-	new_dict.set("data_format", texture_dict.get("data_format", new_dict.get("data_format", 0)));
-	texture->set_meta("compat", new_dict);
+	new_extra.set("texture_flags", old_extra.get("texture_flags", int_flags));
+	new_extra.set("data_format", old_extra.get("data_format", new_extra.get("data_format", 0)));
+	new_dict.set("extra", new_extra);
+	return new_dict;
 }
 
 void _set_resource_info(ResourceInfo &info, const String &original_path, TextureLoaderCompat::TextureVersionType t) {
@@ -792,10 +795,8 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
 	if (compat_dict.size() > 0) {
 		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
-		if (!existing_dict.has("texture_flags") && !compat_dict.has("texture_flags")) {
-			existing_dict.set("texture_flags", flags);
-		}
-		merge_resource_info(compat_dict, existing_dict, texture);
+		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
+		texture->set_meta("compat", compat_dict);
 	}
 	return texture;
 }
@@ -906,8 +907,8 @@ Ref<Resource> ResourceFormatLoaderCompatTexture2D::custom_load(const String &p_p
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
 	info.cached_id = p_path;
-	info.data_format = data_format;
-	info.texture_flags = texture_flags;
+	info.extra["data_format"] = data_format;
+	info.extra["texture_flags"] = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -986,8 +987,8 @@ Ref<Resource> ResourceFormatLoaderCompatTexture3D::custom_load(const String &p_p
 	texture = _set_tex(p_path, p_type, lw, lh, ld, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
-	info.data_format = data_format;
-	info.texture_flags = texture_flags;
+	info.extra["data_format"] = data_format;
+	info.extra["texture_flags"] = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -1089,8 +1090,8 @@ Ref<Resource> ResourceFormatLoaderCompatTextureLayered::custom_load(const String
 	texture = _set_tex(p_path, p_type, lw, lh, ld, ltype, mipmaps, images);
 	set_res_path(texture, p_original_path.is_empty() ? p_path : p_original_path, p_type, p_cache_mode);
 	auto info = TextureLoaderCompat::_get_resource_info(p_original_path.is_empty() ? p_path : p_original_path, t);
-	info.data_format = data_format;
-	info.texture_flags = texture_flags;
+	info.extra["data_format"] = data_format;
+	info.extra["texture_flags"] = texture_flags;
 	texture->set_meta("compat", info.to_dict());
 	return texture;
 }
@@ -1143,7 +1144,8 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
 	if (compat_dict.size() > 0) {
 		Dictionary existing_dict = texture->get_meta("compat", Dictionary());
-		merge_resource_info(compat_dict, existing_dict, texture);
+		merge_resource_info(compat_dict, existing_dict, flags);
+		texture->set_meta("compat", compat_dict);
 	}
 	return texture;
 }

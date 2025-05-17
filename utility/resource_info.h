@@ -38,9 +38,8 @@ struct ResourceInfo {
 	bool using_uids = false;
 	bool stored_big_endian = false;
 	bool is_compressed = false;
-	int data_format = 0;
-	int texture_flags = 0;
-	bool using_script_class() {
+	Dictionary extra;
+	bool using_script_class() const {
 		return !script_class.is_empty();
 	}
 	static ResourceInfo from_dict(const Dictionary &dict) {
@@ -65,12 +64,11 @@ struct ResourceInfo {
 		ri.stored_big_endian = dict.get("stored_big_endian", false);
 		ri.using_uids = dict.get("using_uids", false);
 		ri.is_compressed = dict.get("is_compressed", false);
-		ri.data_format = dict.get("data_format", 0);
-		ri.texture_flags = dict.get("texture_flags", 0);
+		ri.extra = dict.get("extra", Dictionary());
 		return ri;
 	}
 
-	Dictionary to_dict() {
+	Dictionary to_dict() const {
 		Dictionary dict;
 		dict["uid"] = uid;
 		dict["original_path"] = original_path;
@@ -92,8 +90,7 @@ struct ResourceInfo {
 		dict["stored_big_endian"] = stored_big_endian;
 		dict["using_uids"] = using_uids;
 		dict["is_compressed"] = is_compressed;
-		dict["data_format"] = data_format;
-		dict["texture_flags"] = texture_flags;
+		dict["extra"] = extra;
 		return dict;
 	}
 };
