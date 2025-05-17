@@ -429,11 +429,13 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
 	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
+	HashMap<String, Ref<ImportInfo>> src_to_iinfo;
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
 		if (partial_export && !hashset_intersects_vector(files_to_export_set, iinfo->get_dest_files())) {
 			continue;
 		}
+		src_to_iinfo.insert(iinfo->get_source_file(), iinfo);
 		String importer = iinfo->get_importer();
 		if (importer == "script_bytecode") {
 			if (iinfo->get_path().get_extension().to_lower() == "gde" && GDRESettings::get_singleton()->had_encryption_error()) {
@@ -568,7 +570,35 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			continue;
 		}
 		if (iinfo->get_importer() == "scene" && src_ext != "escn" && src_ext != "tscn") {
-			report->exported_scenes = true;
+			// report->exported_scenes = true;
+// This is currently forcing a reimport instead of preventing it, disabling for now
+#if 0
+			auto extra_info = ret->get_extra_info();
+			if (extra_info.has("image_path_to_data_hash")) {
+				// We have to rewrite the generator_parameters for the images if they were used as part of an imported scene
+				Dictionary image_path_to_data_hash = extra_info["image_path_to_data_hash"];
+				for (auto &E : image_path_to_data_hash) {
+					String path = E.key;
+					String data_hash = E.value;
+					if (src_to_iinfo.has(path)) {
+						Ref<ImportInfoModern> iinfo = src_to_iinfo[path];
+						if (iinfo.is_null()) {
+							continue;
+						}
+						Dictionary generator_parameters;
+						generator_parameters["md5"] = data_hash;
+						iinfo->set_iinfo_val("remap", "generator_parameters", generator_parameters);
+						auto path = output_dir.path_join(iinfo->get_import_md_path().trim_prefix("res://"));
+						iinfo->save_to(path);
+						ret->import_modified_time = FileAccess::get_modified_time(path);
+						ret->import_md5 = FileAccess::get_md5(path);
+						// we have to touch the md5 file again
+						auto md5_file_path = iinfo->get_md5_file_path();
+						touch_file(md5_file_path);
+					}
+				}
+			}
+#endif
 		} else if (iinfo->get_importer() == "csv_translation") {
 			report->translation_export_message += ret->get_message();
 		} else if (iinfo->get_importer() == "script_bytecode") {

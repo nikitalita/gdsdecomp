@@ -13,6 +13,7 @@
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
 
+#include "core/crypto/crypto_core.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/json.h"
@@ -567,6 +568,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 		}
 		Vector<String> id_to_texture_path;
+		Dictionary image_path_to_data_hash;
 		Vector<Pair<String, String>> id_to_material_path;
 		// Vector<Pair<String, String>> id_to_meshes_path;
 		Vector<ObjExporter::MeshInfo> id_to_mesh_info;
@@ -741,6 +743,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 								has_duped_images = true;
 							}
 							image_map[name].push_back(i);
+							unsigned char md5_hash[16];
+							Ref<Image> img = image->get_image();
+							auto img_data = img->get_data();
+							CryptoCore::md5(img_data.ptr(), img_data.size(), md5_hash);
+							String new_md5 = String::hex_encode_buffer(md5_hash, 16);
+							image_path_to_data_hash[path] = new_md5;
 						}
 						if (!name.is_empty()) {
 							image_dict["name"] = demangle_name(name);
@@ -1017,7 +1025,12 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 					subres["generate/shadow_meshes"] = E.has_shadow_meshes ? 1 : 0;
 					subres["generate/lightmap_uv"] = E.has_lightmap_uv2 ? 1 : 0;
 					subres["generate/lods"] = E.has_lods ? 1 : 0;
-					subres["lods/normal_merge_angle"] = 60.0f; // TODO: get this somehow??
+					// TODO: get these somehow??
+					subres["lods/normal_split_angle"] = 25.0f;
+					subres["lods/normal_merge_angle"] = 60.0f;
+					if (after_4_3) {
+						subres["lods/raycast_normals"] = false;
+					}
 				}
 			}
 			if (id_to_material_path.size() > 0) {
@@ -1046,6 +1059,9 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			}
 
 			iinfo->set_param("_subresources", _subresources_dict);
+			Dictionary extra_info;
+			extra_info["image_path_to_data_hash"] = image_path_to_data_hash;
+			p_report->set_extra_info(extra_info);
 		}
 	}
 
