@@ -282,7 +282,7 @@ bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, 
 	ERR_FAIL_COND_V(!tasks.contains(p_task), canceled);
 	bool is_main_thread = is_safe_to_redraw();
 	bool do_update = false;
-	tasks.if_contains(p_task, [&](TaskMap::value_type &t) {
+	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
 		t.second.set_step(p_state, p_step, p_force_redraw);
 		if (is_main_thread) {
 			do_update = t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
@@ -299,7 +299,7 @@ bool GDREProgressDialog::_process_removals() {
 	String p_task;
 	bool has_deletions = false;
 	while (queued_removals.try_pop(p_task)) {
-		bool has = tasks.if_contains(p_task, [](TaskMap::value_type &t) {
+		bool has = tasks.modify_if(p_task, [](TaskMap::value_type &t) {
 			if (t.second.vb) {
 				memdelete(t.second.vb);
 				t.second.vb = nullptr;
@@ -332,13 +332,20 @@ void GDREProgressDialog::main_thread_update() {
 	bool should_update = _process_removals();
 	bool p_can_cancel = false;
 	bool initialized = false;
+	bool should_force_redraw = false;
 	uint64_t size = 0;
+	uint64_t last_tick = OS::get_singleton()->get_ticks_usec();
+	// if it's been more than 500ms since the last update_ui happened, force a redraw (if we have any tasks to redraw).
+	if (last_tick - last_tick_updated > 500000) {
+		should_force_redraw = true;
+	}
 	tasks.for_each_m([&](TaskMap::value_type &E) {
 		Task &t = E.second;
 		if (!t.initialized) {
 			initialized = true;
 			t.init(main);
 		}
+		t.force_next_redraw = t.force_next_redraw || should_force_redraw;
 		if (t.update()) {
 			should_update = true;
 		}
@@ -346,6 +353,7 @@ void GDREProgressDialog::main_thread_update() {
 		size++;
 	});
 	if (should_update || initialized) {
+		last_tick_updated = last_tick;
 		if (size == 0) {
 			hide();
 		} else if (initialized) {
@@ -413,11 +421,17 @@ bool StdOutProgress::step(int p_step, bool p_force_refresh) {
 	} else {
 		current_step = p_step;
 	}
+	auto current_tick = OS::get_singleton()->get_ticks_usec();
 	float progress = (float)current_step / (float)amount;
 	size_t progress_percent = MIN((size_t)(progress * 100), 100);
 	size_t prev_progress_percent = MIN((size_t)(((float)prev_step / (float)amount) * 100), 100);
 	if (progress_percent != prev_progress_percent) {
 		GDRELogger::print_status_bar(label, progress);
+	}
+	if (current_tick - last_progress_tick > 200000 && GDREProgressDialog::is_safe_to_redraw()) {
+		// force the main loop to iterate; this is needed to allow for input events to be processed and the command queue to be flushed.
+		Main::iteration();
+		last_progress_tick = current_tick;
 	}
 	return false;
 }

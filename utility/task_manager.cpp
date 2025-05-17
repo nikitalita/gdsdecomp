@@ -160,7 +160,7 @@ Error TaskManager::DownloadQueueThread::wait_for_task_completion(DownloadTaskID 
 	}
 	Error err = OK;
 	while (!task->is_started()) {
-		if (GDREProgressDialog::get_singleton() && GDREProgressDialog::get_singleton()->is_safe_to_redraw()) {
+		if (GDREProgressDialog::get_singleton() && GDREProgressDialog::is_safe_to_redraw()) {
 			GDREProgressDialog::get_singleton()->main_thread_update();
 		}
 		OS::get_singleton()->delay_usec(10000);

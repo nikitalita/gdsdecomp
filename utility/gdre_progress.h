@@ -114,12 +114,13 @@ class GDREProgressDialog : public PopupPanel {
 	void _update_ui();
 	std::atomic<bool> canceled = false;
 	bool is_updating = false;
+	uint64_t last_tick_updated = 0;
 
 protected:
 	void _notification(int p_what);
 
 public:
-	bool is_safe_to_redraw();
+	static bool is_safe_to_redraw();
 	static GDREProgressDialog *get_singleton() { return singleton; }
 	void add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel = false);
 	bool task_step(const String &p_task, const String &p_state, int p_step = -1, bool p_force_redraw = true);
@@ -138,6 +139,7 @@ struct StdOutProgress {
 	int amount = 0;
 	int current_step = 0;
 	int width = 30;
+	uint64_t last_progress_tick = 0;
 	bool step(int p_step = -1, bool p_force_refresh = true);
 	void end();
 	void print_status_bar(const String &p_status, float p_progress);
