@@ -264,7 +264,9 @@ Ref<ExportReport> SampleExporter::export_resource(const String &output_dir, Ref<
 	} else if (err != OK) {
 		report->set_error(err);
 		report->set_message("Failed to export sample: " + src_path);
-	} else {
+	}
+
+	if (err == OK || err == ERR_PRINTER_ON_FIRE) {
 		report->set_saved_path(dst_path);
 		if (import_infos->get_ver_major() >= 4) {
 			// 			r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "force/8_bit"), false));
@@ -282,7 +284,7 @@ Ref<ExportReport> SampleExporter::export_resource(const String &output_dir, Ref<
 			import_infos->set_param("force/8_bit", false);
 			import_infos->set_param("force/mono", false);
 			import_infos->set_param("force/max_rate", false);
-			import_infos->set_param("force/max_rate_hz", 44100);
+			import_infos->set_param("force/max_rate_hz", sample->get_mix_rate());
 			import_infos->set_param("edit/trim", false);
 			import_infos->set_param("edit/normalize", false);
 			import_infos->set_param("edit/loop_mode", sample->get_loop_mode());
