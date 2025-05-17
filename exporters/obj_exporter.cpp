@@ -527,7 +527,7 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 	// deduplicate
 	size_t errors_before = supports_multithread() ? GDRELogger::get_thread_error_count() : GDRELogger::get_error_count();
 	auto dest_files = gdre::vector_to_hashset(p_import_info->get_dest_files());
-	// always force this if we're using multithreading, or if we're <= 3.x 
+	// always force this if we're using multithreading, or if we're <= 3.x
 	// if we support multithreading, loading real ArrayMesh objects on the task thread will often cause segfaults
 	// if we're recovering a mesh from 3.x or lower, they supported meshes with > 256 surfaces, loading those will fail
 	bool use_fake_meshes = supports_multithread() || p_import_info->get_ver_major() <= 3;
