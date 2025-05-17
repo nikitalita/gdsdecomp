@@ -1122,7 +1122,9 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 		th_custom = size.height;
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
-	Dictionary existing_dict = ResourceInfo::get_info_dict_from_resource(texture);
+	TextureLoaderCompat::TextureVersionType t = (ver_major >= 4 ? TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURE2D : (ver_major == 3 ? TextureLoaderCompat::FORMAT_V3_IMAGE_TEXTURE : TextureLoaderCompat::FORMAT_V2_IMAGE_TEXTURE));
+	auto info = TextureLoaderCompat::_get_resource_info(res->get_path(), t);
+	Dictionary existing_dict = info.to_dict();
 	if (compat_dict.size() > 0) {
 		compat_dict = merge_resource_info(compat_dict, existing_dict, flags);
 		ResourceInfo::set_info_dict_on_resource(compat_dict, texture);
