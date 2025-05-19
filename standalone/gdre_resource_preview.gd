@@ -286,9 +286,7 @@ func _ready():
 	self.connect("resized", self._on_resized)
 	previous_res_info_size = Vector2(0, 100)
 	%ResourceInfoContainer.custom_minimum_size = previous_res_info_size
-	# TODO: remove me
-	load_resource
-	load_resource("res://.godot/imported/ScifiStruct_3.obj-8ad9868dec2ef9403c73f82a7404489a.mesh")
+	# load_resource("res://.godot/imported/ScifiStruct_3.obj-8ad9868dec2ef9403c73f82a7404489a.mesh")
 	# load_resource("res://.godot/imported/gdre_Script.svg-4c68c9c5e02f5e7a41dddea59a95e245.ctex")
 	#load_resource("res://.godot/imported/anomaly 105 jun12.ogg-d3e939934d210d1a4e1f9d2d34966046.oggvorbisstr")
 
