@@ -116,7 +116,6 @@ Use the same Godot tools version that the original game was compiled in to edit 
 Support has yet to be implemented for converting the following resources:
 
 - 3.x and 2.x models (`dae`, `fbx`, `glb`, etc.)
-- OBJ meshes
 - Bitmap and image fonts (recovering 4.x TTF/OTF fontfiles is supported)
 - GDNative or GDExtension scripts (e.g. GDMono and CSharp)
 
