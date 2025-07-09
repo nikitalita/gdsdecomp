@@ -22,7 +22,7 @@ mmp3thirdparty_dir = "#thirdparty/minimp3/"
 liboggthirdparty_dir = "#thirdparty/libogg/"
 libvorbisthirdparty_dir = "#thirdparty/libvorbis/"
 webpthirdparty_dir = "#thirdparty/libwebp/"
-vtracer_dir_include_dir = "#modules/gdsdecomp/external/vtracer/include"
+vtracer_dir_include_dir = "#modules/gdtr/external/vtracer/include"
 
 # hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13 in the macos/detect.py script
 # TODO: remove this hack once the minimum macOS version is updated to 10.15
@@ -44,11 +44,11 @@ env_gdsdecomp = env_modules.Clone()
 # TODO: Figure out a way to not have to do this
 if env["tests"]:
     env.Append(CPPPATH=[vtracer_dir_include_dir])
-    env.Append(CPPPATH=["#modules/gdsdecomp/"])
+    env.Append(CPPPATH=["#modules/gdtr/"])
     env.Append(CPPPATH=[liboggthirdparty_dir])
     env.Append(CPPPATH=[libvorbisthirdparty_dir])
 env_gdsdecomp.Append(CPPPATH=[vtracer_dir_include_dir])
-env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp/"])
+env_gdsdecomp.Append(CPPPATH=["#modules/gdtr/"])
 env_gdsdecomp.Append(CPPPATH=["#thirdparty/thorsvg/"])
 
 env_gdsdecomp["BUILDERS"]["MakeGDREIconsBuilder"] = Builder(

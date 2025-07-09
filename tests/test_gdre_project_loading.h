@@ -64,7 +64,7 @@ TEST_CASE("[GDSDecomp] GDRESettings works") {
 	CHECK(settings->get_cwd() != "");
 	auto cwd = settings->get_cwd();
 	auto gdsdecomp_path = get_gdsdecomp_path();
-	// check that modules/gdsdecomp exists
+	// check that modules/gdtr exists
 	auto da = DirAccess::open(gdsdecomp_path);
 	CHECK(da.is_valid());
 	CHECK(da->dir_exists(gdsdecomp_path));

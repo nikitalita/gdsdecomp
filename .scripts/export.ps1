@@ -50,8 +50,8 @@ $scriptPath = $MyInvocation.MyCommand.Path
 $scriptDir = Split-Path $scriptPath
 $scriptDir = $scriptDir -replace '\\', '/'
 $standaloneDir = $scriptDir -replace '/.scripts', '/standalone'
-# we're in ${workspaceDir}/modules/gdsdecomp/.scripts, need to be in ${workspaceDir}/bin
-$godotBinDir = $scriptDir -replace '/modules/gdsdecomp/.scripts', '/bin'
+# we're in ${workspaceDir}/modules/gdtr/.scripts, need to be in ${workspaceDir}/bin
+$godotBinDir = $scriptDir -replace '/modules/gdtr/.scripts', '/bin'
 
 # check if $export_command is empty
 if ($export_command -eq "") {
@@ -95,7 +95,7 @@ echo "Build number: $build_num"
 
 $export_presets = Get-Content export_presets.cfg
 $export_presets = $export_presets -replace 'application/short_version=".*"', "application/short_version=""$version"""
-$export_presets = $export_presets -replace 'application/version=".*"', "application/version=""$version""" 
+$export_presets = $export_presets -replace 'application/version=".*"', "application/version=""$version"""
 $export_presets = $export_presets -replace 'application/file_version=".*"', "application/file_version=""$number_only_version.$build_num"""
 $export_presets = $export_presets -replace 'application/product_version=".*"', "application/product_version=""$number_only_version.$build_num"""
 

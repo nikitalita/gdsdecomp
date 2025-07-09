@@ -3,6 +3,7 @@
 #include "compat/variant_writer_compat.h"
 
 #include "core/io/file_access.h"
+#include "core/io/marshalls.h"
 #include "core/variant/variant_parser.h"
 #include <core/config/project_settings.h>
 #include <core/templates/rb_set.h>
@@ -35,6 +36,18 @@ Error ProjectConfigLoader::save_cfb(const String dir, const uint32_t ver_major, 
 	}
 
 	return save_custom(dir.path_join(file).replace("res://", ""), ver_major, ver_minor);
+}
+
+Error ProjectConfigLoader::save_cfb_binary(const String dir, const uint32_t ver_major, const uint32_t ver_minor) {
+	ERR_FAIL_COND_V_MSG(!loaded, ERR_INVALID_DATA, "Attempted to save project config when not loaded!");
+	String file;
+	if (ver_major > 2) {
+		file = "project.binary";
+	} else {
+		file = "engine.cfg";
+	}
+
+	return save_custom_binary(dir.path_join(file).replace("res://", ""), ver_major, ver_minor);
 }
 
 bool ProjectConfigLoader::has_setting(String p_var) const {
@@ -201,6 +214,48 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 	return _save_settings_text(p_path, proops, ver_major, ver_minor);
 }
 
+Error ProjectConfigLoader::save_custom_binary(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor) {
+	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
+
+	RBSet<_VCSort> vclist;
+
+	for (RBMap<StringName, VariantContainer>::Element *G = props.front(); G; G = G->next()) {
+		const VariantContainer *v = &G->get();
+
+		if (v->hide_from_editor)
+			continue;
+
+		_VCSort vc;
+		vc.name = G->key(); //*k;
+		vc.order = v->order;
+		vc.type = v->variant.get_type();
+		vc.flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_STORAGE;
+		if (v->variant == v->initial)
+			continue;
+
+		vclist.insert(vc);
+	}
+	RBMap<String, List<String>> proops;
+
+	for (RBSet<_VCSort>::Element *E = vclist.front(); E; E = E->next()) {
+		String category = E->get().name;
+		String name = E->get().name;
+
+		int div = category.find("/");
+
+		if (div < 0)
+			category = "";
+		else {
+			category = category.substr(0, div);
+			name = name.substr(div + 1, name.size());
+		}
+		proops[category].push_back(name);
+	}
+
+	String bin_path = p_path.get_base_dir().path_join("project.binary");
+	return _save_settings_binary(p_path, proops);
+}
+
 Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
 	Error err;
 	Ref<FileAccess> file = FileAccess::open(p_file, FileAccess::WRITE, &err);
@@ -255,6 +310,75 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 	return OK;
 }
 
+Error ProjectConfigLoader::_save_settings_binary(const String &p_file, const RBMap<String, List<String>> &proops, const CustomMap &p_custom, const String &p_custom_features) {
+	Error err;
+	Ref<FileAccess> file = FileAccess::open(p_file, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err != OK, err, vformat("Couldn't save project.binary at '%s'.", p_file));
+
+	uint8_t hdr[4] = { 'E', 'C', 'F', 'G' };
+	file->store_buffer(hdr, 4);
+
+	int count = 0;
+
+	for (const KeyValue<String, List<String>> &E : proops) {
+		count += E.value.size();
+	}
+
+	if (!p_custom_features.is_empty()) {
+		// Store how many properties are saved, add one for custom features, which must always go first.
+		file->store_32(uint32_t(count + 1));
+		String key = CoreStringName(_custom_features);
+		file->store_pascal_string(key);
+
+		int len;
+		err = encode_variant(p_custom_features, nullptr, len, false);
+		ERR_FAIL_COND_V(err != OK, err);
+
+		Vector<uint8_t> buff;
+		buff.resize(len);
+
+		err = encode_variant(p_custom_features, buff.ptrw(), len, false);
+		ERR_FAIL_COND_V(err != OK, err);
+		file->store_32(uint32_t(len));
+		file->store_buffer(buff.ptr(), buff.size());
+
+	} else {
+		// Store how many properties are saved.
+		file->store_32(uint32_t(count));
+	}
+
+	for (const KeyValue<String, List<String>> &E : proops) {
+		for (const String &key : E.value) {
+			String k = key;
+			if (!E.key.is_empty()) {
+				k = E.key + "/" + k;
+			}
+			Variant value;
+			if (p_custom.has(k)) {
+				value = p_custom[k];
+			} else {
+				value = props[k].variant;
+			}
+
+			file->store_pascal_string(k);
+
+			int len;
+			err = encode_variant(value, nullptr, len, true);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
+
+			Vector<uint8_t> buff;
+			buff.resize(len);
+
+			err = encode_variant(value, buff.ptrw(), len, true);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
+			file->store_32(uint32_t(len));
+			file->store_buffer(buff.ptr(), buff.size());
+		}
+	}
+
+	return OK;
+}
+
 ProjectConfigLoader::ProjectConfigLoader() {
 }
 
@@ -269,4 +393,5 @@ void ProjectConfigLoader::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("remove_setting", "var"), &ProjectConfigLoader::remove_setting);
 	ClassDB::bind_method(D_METHOD("set_setting", "var", "value"), &ProjectConfigLoader::set_setting);
 	ClassDB::bind_method(D_METHOD("save_custom", "path", "ver_major", "ver_minor"), &ProjectConfigLoader::save_custom);
+	ClassDB::bind_method(D_METHOD("save_custom_binary", "path", "ver_major", "ver_minor"), &ProjectConfigLoader::save_custom_binary);
 }

@@ -103,6 +103,35 @@ bool map_has_str(const ParallelFlatHashMap<String, String> &map, const String &k
 	return map.contains(key);
 }
 
+static Error write_to_csv(const String &output_path, const String &header, const Vector<String> &keys, const Vector<Vector<String>> &translation_messages) {
+	Error err = gdre::ensure_dir(output_path.get_base_dir());
+	ERR_FAIL_COND_V(err, err);
+	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V(err, err);
+	ERR_FAIL_COND_V(f.is_null(), err);
+	// Set UTF-8 BOM (required for opening with Excel in UTF-8 format, works with all Godot versions)
+	f->store_8(0xef);
+	f->store_8(0xbb);
+	f->store_8(0xbf);
+	f->store_string(header);
+	for (int i = 0; i < keys.size(); i++) {
+		Vector<String> line_values;
+		line_values.push_back(keys[i]);
+		for (auto messages : translation_messages) {
+			if (i >= messages.size()) {
+				line_values.push_back("");
+			} else {
+				line_values.push_back(messages[i]);
+			}
+		}
+		f->store_csv_line(line_values, ",");
+	}
+	f->flush();
+	f->close();
+
+	return OK;
+}
+
 struct KeyWorker {
 	static constexpr int MAX_FILT_RES_STRINGS = 8000;
 	static constexpr uint64_t MAX_STAGE_TIME = 30 * 1000ULL;
@@ -126,7 +155,7 @@ struct KeyWorker {
 	Vector<CharString> filtered_resource_strings_t;
 
 	const Ref<OptimizedTranslationExtractor> default_translation;
-	const Vector<String> default_messages;
+	const Vector<String>& default_messages;
 	const HashSet<String> previous_keys_found;
 
 	Vector<String> keys;
@@ -165,13 +194,16 @@ struct KeyWorker {
 	// 30 seconds in msec
 	uint64_t start_time = OS::get_singleton()->get_ticks_usec();
 	uint64_t start_of_multithread = start_time;
+	String default_locale;
+	String old_translation_csv_path;
 	String path;
 	String current_stage;
 	//default_translation,  default_messages;
 	KeyWorker(const Ref<OptimizedTranslation> &p_default_translation,
+			const Vector<String>& default_messages,
 			const HashSet<String> &p_previous_keys_found) :
 			default_translation(OptimizedTranslationExtractor::create_from(p_default_translation)),
-			default_messages(default_translation->get_translated_message_list()),
+			default_messages(default_messages),
 			previous_keys_found(p_previous_keys_found) {
 	}
 
@@ -362,6 +394,9 @@ struct KeyWorker {
 
 	_FORCE_INLINE_ bool _set_key(const String &key, const String &msg) {
 		MutexLock lock(mutex);
+		if (key.is_empty()) {
+			return false;
+		}
 		if (map_has(key_to_message, key)) {
 			return true;
 		}
@@ -372,6 +407,9 @@ struct KeyWorker {
 	}
 
 	_FORCE_INLINE_ bool try_key(const String &key) {
+		if (key.is_empty()) {
+			return false;
+		}
 		auto msg = default_translation->get_message_str(key);
 		if (!msg.is_empty()) {
 			return _set_key(key, msg);
@@ -380,6 +418,9 @@ struct KeyWorker {
 	}
 
 	_FORCE_INLINE_ bool try_key(const char *key) {
+		if (key[0] == '\0') {
+			return false;
+		}
 		auto msg = default_translation->get_message_str(key);
 		if (!msg.is_empty()) {
 			return _set_key(key, msg);
@@ -1045,6 +1086,33 @@ struct KeyWorker {
 		start_time = OS::get_singleton()->get_ticks_msec();
 		auto progress = EditorProgressGDDC::create(nullptr, "TranslationExporter - " + path, "Exporting translation " + path + "...", -1, true);
 
+		// hint file read
+		const String translation_hint_file_path = GDRESettings::get_singleton()->get_translation_hint_file_path();
+		if (!translation_hint_file_path.is_empty()) {
+			Ref<FileAccess> f = FileAccess::open(translation_hint_file_path, FileAccess::READ);
+			while (f.is_valid() && !f->eof_reached()) {
+				String line = f->get_line();
+				if (!line.is_empty()) {
+					try_key(line);
+				}
+			}
+		}
+
+		// old translation csv read
+		if (!old_translation_csv_path.is_empty()) {
+			Ref<FileAccess> f = FileAccess::open(old_translation_csv_path, FileAccess::READ);
+			while (f.is_valid() && !f->eof_reached()) {
+				Vector<String> line = f->get_csv_line();
+				if (line.size() <= 1) {
+					continue;
+				}
+				if (line[0].is_empty()) {
+					continue;
+				}
+				try_key(line[0]);
+			}
+		}
+
 		// Stage 1: Unmodified resource strings
 		// We need to load all the resource strings in all resources to find the keys
 		if (!GDRESettings::get_singleton()->loaded_resource_strings()) {
@@ -1260,11 +1328,24 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		default_locale = dest_files[0].get_basename().get_extension().to_lower();
 		has_default_translation = !default_locale.is_empty();
 	}
-	bl_debug("Exporting translation file " + iinfo->get_export_dest());
+
+	String export_dest = iinfo->get_export_dest();
+	String old_translation_csv_path;
+	const Vector<String> old_translation_csv_paths = GDRESettings::get_singleton()->get_old_translation_csv_paths();
+	if (!old_translation_csv_paths.is_empty()) {
+		String export_dest_fname = export_dest.get_file();
+		for (const String &path : old_translation_csv_paths) {
+			if (path.get_file() == export_dest_fname) {
+				old_translation_csv_path = path;
+				break;
+			}
+		}
+	}
+
+	bl_debug("Exporting translation file " + export_dest);
 	Vector<Ref<Translation>> translations;
 	Vector<Vector<String>> translation_messages;
-	Ref<Translation> default_translation;
-	Vector<String> default_messages;
+	uint64_t default_messages_index = UINT64_MAX;
 	String header = "key";
 	Vector<String> keys;
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
@@ -1288,17 +1369,15 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		}
 		Vector<String> messages = tr->get_translated_message_list();
 		if (locale.to_lower() == default_locale.to_lower()) {
-			default_messages = messages;
-			default_translation = tr;
+			default_messages_index = translation_messages.size();
 		}
 		translation_messages.push_back(messages);
 		translations.push_back(tr);
 	}
 
-	if (default_translation.is_null()) {
+	if (default_messages_index == UINT64_MAX) {
 		if (!has_default_translation) {
-			default_translation = translations[0];
-			default_messages = translation_messages[0];
+			default_messages_index = 0;
 		} else {
 			report->set_error(ERR_FILE_MISSING_DEPENDENCIES);
 			ERR_FAIL_V_MSG(report, "No default translation found for " + iinfo->get_path());
@@ -1306,13 +1385,13 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	}
 	// check default_messages for empty strings
 	size_t empty_strings = 0;
-	for (auto &message : default_messages) {
+	for (auto &message : translation_messages[default_messages_index]) {
 		if (message.is_empty()) {
 			empty_strings++;
 		}
 	}
 	// if >20% of the strings are empty, this probably isn't the default translation; search the rest of the translations for a non-empty string
-	if (empty_strings > default_messages.size() * 0.2) {
+	if (empty_strings > translation_messages[default_messages_index].size() * 0.2) {
 		size_t best_empty_strings = empty_strings;
 		for (int i = 0; i < translations.size(); i++) {
 			size_t empty_strings = 0;
@@ -1323,19 +1402,57 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 			}
 			if (empty_strings < best_empty_strings) {
 				best_empty_strings = empty_strings;
-				default_translation = translations[i];
-				default_messages = translation_messages[i];
+				default_messages_index = i;
 			}
 		}
 	}
+
+	// remove empty strings
+	if (keys.is_empty()) { // optimized
+		for (auto &translation_message : translation_messages) {
+			for (int64_t i = translation_message.size() - 1; i >= 0; i--) {
+				if (translation_message[i].is_empty()) {
+					translation_message.remove_at(i);
+				}
+			}
+		}
+	} else {
+		for (auto &translation_message : translation_messages) {
+			for (int64_t i = translation_message.size() - 1; i >= 0; i--) {
+				if (translation_message[i].is_empty() && keys[i].is_empty()) {
+					translation_message.remove_at(i);
+					keys.remove_at(i);
+				}
+			}
+		}
+	}
+
 	// We can't recover the keys from Optimized translations, we have to guess
 	int missing_keys = 0;
 	bool is_optimized = keys.size() == 0;
 	if (is_optimized) {
-		KeyWorker kw(default_translation, all_keys_found);
+		KeyWorker kw(translations[default_messages_index], translation_messages[default_messages_index], all_keys_found);
 		kw.path = iinfo->get_path();
+		kw.default_locale = default_locale;
+		kw.old_translation_csv_path = old_translation_csv_path;
 		missing_keys = kw.run();
 		keys = kw.keys;
+
+		// remove duplicate key
+		HashSet<String> key_set;
+		for (int64_t i = 0; i < keys.size(); i++) {
+			const auto &key = keys[i];
+			if (!key_set.has(key)) {
+				key_set.insert(key);
+			} else {
+				keys.remove_at(i);
+				for (auto &translation_message : translation_messages) {
+					translation_message.remove_at(i);
+				}
+				i--;
+			}
+		}
+
 		for (auto &key : keys) {
 			if (!String(key).begins_with(MISSING_KEY_PREFIX)) {
 				all_keys_found.insert(key);
@@ -1343,42 +1460,190 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		}
 	}
 	header += "\n";
-	String export_dest = iinfo->get_export_dest();
 	// If greater than 15% of the keys are missing, we save the file to the export directory.
 	// The reason for this threshold is that the translations may contain keys that are not currently in use in the project.
-	bool resave = missing_keys > (default_messages.size() * threshold);
+	bool resave = missing_keys > (translation_messages[default_messages_index].size() * threshold);
 	if (resave) {
 		iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
 	}
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
-	err = gdre::ensure_dir(output_path.get_base_dir());
-	ERR_FAIL_COND_V(err, report);
-	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &err);
-	ERR_FAIL_COND_V(err, report);
-	ERR_FAIL_COND_V(f.is_null(), report);
-	// Set UTF-8 BOM (required for opening with Excel in UTF-8 format, works with all Godot versions)
-	f->store_8(0xef);
-	f->store_8(0xbb);
-	f->store_8(0xbf);
-	f->store_string(header);
-	for (int i = 0; i < keys.size(); i++) {
-		Vector<String> line_values;
-		line_values.push_back(keys[i]);
-		for (auto messages : translation_messages) {
-			if (i >= messages.size()) {
-				line_values.push_back("");
-			} else {
-				line_values.push_back(messages[i]);
+	err = write_to_csv(output_path, header, keys, translation_messages);
+	if (err != OK) {
+		report->set_error(err);
+		return report;
+	}
+	if (!old_translation_csv_path.is_empty()) {
+		Vector<String> old_translation_csv_keys;
+		Vector<String> old_translation_header;
+		Vector<String> add_locales;
+		HashMap<int64_t, String> old_translation_index_locale_map;
+		HashMap<String, Ref<Translation>> old_translation_map;
+		{
+			Ref<FileAccess> f = FileAccess::open(old_translation_csv_path, FileAccess::READ);
+			old_translation_header = f->get_csv_line();
+			for (int64_t i = 1; i < old_translation_header.size(); i++) {
+				const String &locale = old_translation_header[i];
+				if (locale.left(1) == "_" || locale.is_empty()) {
+					continue;
+				}
+
+				Ref<Translation> translation;
+				translation.instantiate();
+				translation->set_locale(locale);
+				old_translation_map[locale] = translation;
+
+				old_translation_index_locale_map[i] = locale;
+
+				auto it = std::find_if(translations.begin(), translations.end(), [&](const Ref<Translation> &tr) { return tr->get_locale() == locale; });
+				if (it == translations.end()) {
+					add_locales.append(locale);
+				}
+			}
+
+			while (f.is_valid() && !f->eof_reached()) {
+				Vector<String> line = f->get_csv_line();
+				if (line.size() <= 1) {
+					continue;
+				}
+				const String& key = line[0];
+				if (key.is_empty()) {
+					continue;
+				}
+				old_translation_csv_keys.append(key);
+
+				for (const auto &p : old_translation_index_locale_map) {
+					const auto index = p.key;
+					const auto& locale = p.value;
+					const auto &tr = old_translation_map[locale];
+					tr->add_message(key, line[index].c_unescape());
+				}
 			}
 		}
-		f->store_csv_line(line_values, ",");
+
+		if (!old_translation_csv_keys.is_empty()) {
+			Vector<String> sorted_keys;
+			Vector<Vector<String>> sorted_translation_messages;
+			for (int64_t i = 0; i < translation_messages.size(); i++) {
+				sorted_translation_messages.push_back(Vector<String>());
+			}
+
+			for (const String &key : old_translation_csv_keys) {
+				const int64_t idx = keys.find(key);
+				sorted_keys.append(key);
+				if (idx >= 0) {
+					for (int64_t i = 0; i < translation_messages.size(); i++) {
+						sorted_translation_messages.write[i].append(translation_messages[i][idx]);
+					}
+
+					keys.write[idx] = String();
+				} else {
+					for (int64_t i = 0; i < translation_messages.size(); i++) {
+						sorted_translation_messages.write[i].append("");
+					}
+				}
+			}
+			for (int64_t idx = 0; idx < keys.size(); idx++) {
+				const auto &key = keys[idx];
+				if (key.is_empty()) {
+					continue;
+				}
+				sorted_keys.append(key);
+
+				for (int64_t i = 0; i < translation_messages.size(); i++) {
+					sorted_translation_messages.write[i].append(translation_messages[i][idx]);
+				}
+			}
+
+			// diff_fmt.csv output
+			String diff_header = "key";
+
+			for (const auto &tr : translations) {
+				String locale = tr->get_locale();
+				diff_header += "," + locale;
+			}
+			for (const auto &locale : add_locales) {
+				diff_header += "," + locale;
+			}
+			diff_header += ",old_" + default_locale;
+			diff_header += ",is_add_" + default_locale;
+			diff_header += ",is_update_" + default_locale;
+			diff_header += ",is_remove_" + default_locale;
+			diff_header += "\n";
+
+			Vector<Vector<String>> add_locale_column;
+			Vector<String> old_default_locale_column;
+			Vector<String> is_add_column;
+			Vector<String> is_update_column;
+			Vector<String> is_remove_column;
+
+			for (int64_t i = 0; i < add_locales.size(); i++) {
+				add_locale_column.push_back(Vector<String>());
+			}
+
+			for (int64_t i = 0; i < sorted_keys.size(); i++) {
+				const auto &key = sorted_keys[i];
+
+				for (int64_t j = 0; j < add_locales.size(); j++) {
+					const auto &locale = add_locales[j];
+					const auto &tr = old_translation_map[locale];
+					const auto &add_message = tr->get_message(key).operator String();
+					add_locale_column.write[j].append(add_message);
+				}
+
+				{
+					const auto &tr = old_translation_map[default_locale];
+					const auto &add_message = tr->get_message(key).operator String();
+					old_default_locale_column.append(add_message);
+				}
+
+				{
+					const auto &new_tr = translations[default_messages_index];
+					const auto &old_tr = old_translation_map[default_locale];
+
+					const auto &new_message = new_tr->get_message(key).operator String();
+					const auto &old_message = old_tr->get_message(key).operator String();
+
+					String is_add = "";
+					if (!new_message.is_empty() && old_message.is_empty()) {
+						is_add = "1";
+					}
+					is_add_column.append(is_add);
+
+					String is_update = "";
+					if (!new_message.is_empty() && !old_message.is_empty() && new_message != old_message) {
+						is_update = "1";
+					}
+					is_update_column.append(is_update);
+
+					String is_remove = "";
+					if (new_message.is_empty() && !old_message.is_empty()) {
+						is_remove = "1";
+					}
+					is_remove_column.append(is_remove);
+				}
+			}
+
+			sorted_translation_messages.append_array(add_locale_column);
+			sorted_translation_messages.append(old_default_locale_column);
+			sorted_translation_messages.append(is_add_column);
+			sorted_translation_messages.append(is_update_column);
+			sorted_translation_messages.append(is_remove_column);
+
+			String export_dest_dir = iinfo->get_export_dest().get_base_dir().replace("res://", "");
+			String export_dest_fname = iinfo->get_export_dest().get_file().get_basename() + "_diff_fmt.csv";
+
+			String output_path = output_dir.simplify_path().path_join(export_dest_dir).path_join(export_dest_fname);
+			err = write_to_csv(output_path, diff_header, sorted_keys, sorted_translation_messages);
+			if (err != OK) {
+				report->set_error(err);
+				return report;
+			}
+		}
 	}
-	f->flush();
-	f->close();
 	report->set_error(OK);
 	Dictionary extra_info;
 	extra_info["missing_keys"] = missing_keys;
-	extra_info["total_keys"] = default_messages.size();
+	extra_info["total_keys"] = translation_messages[default_messages_index].size();
 	report->set_extra_info(extra_info);
 	if (missing_keys) {
 		String translation_export_message = "WARNING: Could not recover " + itos(missing_keys) + " keys for " + iinfo->get_source_file() + "\n";

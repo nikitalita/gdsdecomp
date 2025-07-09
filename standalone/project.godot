@@ -10,9 +10,12 @@ config_version=5
 
 [application]
 
-config/name="Godot RE Tools"
-run/main_scene="res://gdre_main.tscn"
+config/name="Godot Translation Tools"
+run/main_scene="uid://dpr1lgl7fgvb5"
 config/features=PackedStringArray("4.5")
+boot_splash/show_image=false
+boot_splash/fullsize=false
+boot_splash/use_filter=false
 config/icon="res://gdre_icon.png"
 
 [display]

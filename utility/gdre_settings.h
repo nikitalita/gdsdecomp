@@ -174,6 +174,8 @@ private:
 	String project_path = "";
 	static GDRESettings *singleton;
 	static String exec_dir;
+	String translation_hint_file_path = "";
+	Vector<String> old_translation_csv_paths;
 	bool headless = false;
 	bool download_plugins = false;
 
@@ -259,6 +261,7 @@ public:
 	String get_remap(const String &src) const;
 	String get_mapped_path(const String &src) const;
 	Error remove_remap(const String &src, const String &dst, const String &output_dir = "");
+	void set_project_setting(const String &p_setting, Variant value);
 	Variant get_project_setting(const String &p_setting);
 	bool has_project_setting(const String &p_setting);
 	String get_project_config_path();
@@ -279,7 +282,12 @@ public:
 	String get_sys_info_string() const;
 	Error load_project_config();
 	Error save_project_config(const String &p_out_dir);
+	Error save_project_config_binary(const String &p_out_dir);
 	bool pack_has_project_config();
+	void set_translation_hint_file_path(const String& p_path);
+	String get_translation_hint_file_path() const;
+	void add_old_translation_csv_path(const String &p_path);
+	Vector<String> get_old_translation_csv_paths() const;
 	float get_auto_display_scale() const;
 	String get_gdre_version() const;
 	String get_disclaimer_text() const;
@@ -293,6 +301,12 @@ public:
 	ResourceUID::ID get_uid_for_path(const String &p_path) const;
 	String get_game_name() const;
 	String get_remapped_source_path(const String &p_dst) const;
+
+	Vector<uint8_t> dummy_get_encryption_key();
+	String dummy_get_encryption_key_string();
+	Error dummy_set_encryption_key(Vector<uint8_t> key);
+	Error dummy_set_encryption_key_string(const String &key);
+	void dummy_reset_encryption_key();
 
 	Vector<String> get_errors();
 

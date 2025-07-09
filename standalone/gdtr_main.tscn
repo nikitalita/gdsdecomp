@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://dpr1lgl7fgvb5"]
+
+[ext_resource type="Script" uid="uid://dh5xkrg8ghatd" path="res://gdtr_main.gd" id="2_ow0ai"]
+
+[node name="root" type="GodotREEditorStandalone"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 40.0
+offset_bottom = 8.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_ow0ai")

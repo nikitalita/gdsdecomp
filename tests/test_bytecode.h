@@ -183,7 +183,7 @@ inline void test_script_text(const String &script_name, const String &helper_scr
 }
 
 inline void test_script(const String &helper_script_path, int revision, bool helper_script, bool no_text_equality_check) {
-	// tests are located in modules/gdsdecomp/helpers
+	// tests are located in modules/gdtr/helpers
 	auto da = DirAccess::create_for_path(helper_script_path);
 	CHECK(da.is_valid());
 	CHECK(da->file_exists(helper_script_path));
@@ -213,7 +213,7 @@ TEST_CASE("[GDSDecomp][Bytecode] Compiling Helper Scripts") {
 		auto &script_to_revision = tests[i];
 		String sub_case_name = vformat("Testing compiling script %s, revision %07x", String(script_to_revision.script), script_to_revision.revision);
 		SUBCASE(sub_case_name.utf8().get_data()) {
-			// tests are located in modules/gdsdecomp/helpers
+			// tests are located in modules/gdtr/helpers
 			auto helpers_path = get_gdsdecomp_path().path_join("helpers");
 			auto da = DirAccess::open(helpers_path);
 			CHECK(da.is_valid());

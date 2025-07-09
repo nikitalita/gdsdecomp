@@ -5,7 +5,7 @@
 #include "tests/test_macros.h"
 #include <compat/resource_compat_text.h>
 #include <compat/resource_loader_compat.h>
-#include <modules/gdsdecomp/exporters/resource_exporter.h>
+#include <modules/gdtr/exporters/resource_exporter.h>
 #include <scene/resources/audio_stream_wav.h>
 namespace TestResourceExport {
 // oggvorbisstr

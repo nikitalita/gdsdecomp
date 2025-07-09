@@ -13,7 +13,7 @@
             "args": [
                 "--headless",
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone",
+                "${workspaceFolder}/modules/gdtr/standalone",
                 // Put the pck you want to test here
                 "--recover=${workspaceFolder}/../wherever_the_pck_you_want_to_test_is",
                 "--output-dir=${workspaceFolder}/../wherever_you_want_the_output_to_be"
@@ -33,7 +33,7 @@
             "program": "${workspaceFolder}/bin/godot.windows.editor.dev.x86_64.exe",
             "args": [
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone"
+                "${workspaceFolder}/modules/gdtr/standalone"
             ],
             "visualizerFile": "${workspaceFolder}/platform/windows/godot.natvis",
             "stopAtEntry": false,
@@ -50,7 +50,7 @@
             "program": "${workspaceFolder}/bin/godot.windows.template_release.x86_64.exe",
             "args": [
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone"
+                "${workspaceFolder}/modules/gdtr/standalone"
             ],
             "visualizerFile": "${workspaceFolder}/platform/windows/godot.natvis",
             "stopAtEntry": false,
@@ -68,7 +68,7 @@
             "args": [
                 "-e",
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone"
+                "${workspaceFolder}/modules/gdtr/standalone"
             ],
             "visualizerFile": "${workspaceFolder}/platform/windows/godot.natvis",
             "stopAtEntry": false,
@@ -85,7 +85,7 @@
             "args": [
                 "-e",
                 "--path",
-                //"${workspaceFolder}/modules/gdsdecomp/standalone"
+                //"${workspaceFolder}/modules/gdtr/standalone"
                 "${workspaceFolder}/../godot-projects/godot-4.x-test-project"
             ],
             "visualizerFile": "${workspaceFolder}/platform/windows/godot.natvis",
@@ -103,7 +103,7 @@
             "args": [
                 "--headless",
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone",
+                "${workspaceFolder}/modules/gdtr/standalone",
                 // Put the pck you want to test here
                 "--recover=${workspaceFolder}/../wherever_the_pck_you_want_to_test_is",
                 "--output-dir=${workspaceFolder}/../wherever_you_want_the_output_to_be"
@@ -121,7 +121,7 @@
             "args": [
                 "--headless",
                 "--path",
-                "${workspaceFolder}/modules/gdsdecomp/standalone",
+                "${workspaceFolder}/modules/gdtr/standalone",
                 // Put the pck you want to test here
                 "--recover=${workspaceFolder}/../wherever_the_pck_you_want_to_test_is",
                 "--output-dir=${workspaceFolder}/../wherever_you_want_the_output_to_be"

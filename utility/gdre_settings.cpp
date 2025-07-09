@@ -243,6 +243,20 @@ GDRESettings::GDRESettings() {
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
 	PluginManager::load_cache();
+
+	Vector<uint8_t> key;
+	key.resize(32);
+	bool is_all_zero = true;
+	for (int i = 0; i < key.size(); i++) {
+		key.write[i] = script_encryption_key[i];
+		if(script_encryption_key[i] != 0) {
+			is_all_zero = false;
+		}
+	}
+	if (!is_all_zero) {
+		enc_key = key;
+		enc_key_str = String::hex_encode_buffer(key.ptr(), 32);
+	}
 }
 
 GDRESettings::~GDRESettings() {
@@ -891,6 +905,14 @@ Error GDRESettings::save_project_config(const String &p_out_dir = "") {
 	return current_project->pcfg->save_cfb(output_dir, get_ver_major(), get_ver_minor());
 }
 
+Error GDRESettings::save_project_config_binary(const String &p_out_dir = "") {
+	String output_dir = p_out_dir;
+	if (output_dir.is_empty()) {
+		output_dir = project_path;
+	}
+	return current_project->pcfg->save_cfb_binary(output_dir, get_ver_major(), get_ver_minor());
+}
+
 Error GDRESettings::unload_project() {
 	if (!is_pack_loaded()) {
 		return ERR_DOES_NOT_EXIST;
@@ -1411,6 +1433,12 @@ Variant GDRESettings::get_project_setting(const String &p_setting) {
 	return current_project->pcfg->get_setting(p_setting, Variant());
 }
 
+void GDRESettings::set_project_setting(const String &p_setting, Variant value) {
+	ERR_FAIL_COND_EDMSG(!is_pack_loaded(), "Pack not loaded!");
+	ERR_FAIL_COND_EDMSG(!is_project_config_loaded(), "project config not loaded!");
+	current_project->pcfg->set_setting(p_setting, value);
+}
+
 String GDRESettings::get_project_config_path() {
 	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), String(), "project config not loaded!");
 	return current_project->pcfg->get_cfg_path();
@@ -1829,6 +1857,22 @@ bool GDRESettings::pack_has_project_config() {
 	return false;
 }
 
+void GDRESettings::set_translation_hint_file_path(const String &p_path) {
+	translation_hint_file_path = p_path;
+}
+
+String GDRESettings::get_translation_hint_file_path() const {
+	return translation_hint_file_path;
+}
+
+void GDRESettings::add_old_translation_csv_path(const String &p_path) {
+	old_translation_csv_paths.append(p_path);
+}
+
+Vector<String> GDRESettings::get_old_translation_csv_paths() const {
+	return old_translation_csv_paths;
+}
+
 String GDRESettings::get_gdre_version() const {
 	return GDRE_VERSION;
 }
@@ -1990,6 +2034,25 @@ void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
 	PluginManager::prepop_cache(plugins, !GDREConfig::get_singleton()->get_setting("force_single_threaded", false));
 }
 
+Vector<uint8_t> GDRESettings::dummy_get_encryption_key() {
+	return Vector<uint8_t>();
+}
+
+String GDRESettings::dummy_get_encryption_key_string() {
+	return String();
+}
+
+Error GDRESettings::dummy_set_encryption_key(Vector<uint8_t> key) {
+	return OK;
+}
+
+Error GDRESettings::dummy_set_encryption_key_string(const String &key) {
+	return OK;
+}
+
+void GDRESettings::dummy_reset_encryption_key() {
+}
+
 Vector<String> GDRESettings::get_errors() {
 	return GDRELogger::get_errors();
 }
@@ -1999,13 +2062,13 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
 	ClassDB::bind_method(D_METHOD("get_gdre_resource_path"), &GDRESettings::get_gdre_resource_path);
 	ClassDB::bind_method(D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);
-	ClassDB::bind_method(D_METHOD("get_encryption_key"), &GDRESettings::get_encryption_key);
-	ClassDB::bind_method(D_METHOD("get_encryption_key_string"), &GDRESettings::get_encryption_key_string);
+	ClassDB::bind_method(D_METHOD("get_encryption_key"), &GDRESettings::dummy_get_encryption_key);
+	ClassDB::bind_method(D_METHOD("get_encryption_key_string"), &GDRESettings::dummy_get_encryption_key_string);
 	ClassDB::bind_method(D_METHOD("is_pack_loaded"), &GDRESettings::is_pack_loaded);
 	ClassDB::bind_method(D_METHOD("_set_error_encryption", "is_encryption_error"), &GDRESettings::_set_error_encryption);
-	ClassDB::bind_method(D_METHOD("set_encryption_key_string", "key"), &GDRESettings::set_encryption_key_string);
-	ClassDB::bind_method(D_METHOD("set_encryption_key", "key"), &GDRESettings::set_encryption_key);
-	ClassDB::bind_method(D_METHOD("reset_encryption_key"), &GDRESettings::reset_encryption_key);
+	ClassDB::bind_method(D_METHOD("set_encryption_key_string", "key"), &GDRESettings::dummy_set_encryption_key_string);
+	ClassDB::bind_method(D_METHOD("set_encryption_key", "key"), &GDRESettings::dummy_set_encryption_key);
+	ClassDB::bind_method(D_METHOD("reset_encryption_key"), &GDRESettings::dummy_reset_encryption_key);
 	ClassDB::bind_method(D_METHOD("get_file_list", "filters"), &GDRESettings::get_file_list, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_file_info_array", "filters"), &GDRESettings::get_file_info_array, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_pack_type"), &GDRESettings::get_pack_type);
@@ -2029,6 +2092,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_remap", "src", "dst"), &GDRESettings::has_remap);
 	ClassDB::bind_method(D_METHOD("add_remap", "src", "dst"), &GDRESettings::add_remap);
 	ClassDB::bind_method(D_METHOD("remove_remap", "src", "dst", "output_dir"), &GDRESettings::remove_remap);
+	ClassDB::bind_method(D_METHOD("set_project_setting", "p_setting", "value"), &GDRESettings::set_project_setting);
 	ClassDB::bind_method(D_METHOD("get_project_setting", "p_setting"), &GDRESettings::get_project_setting);
 	ClassDB::bind_method(D_METHOD("has_project_setting", "p_setting"), &GDRESettings::has_project_setting);
 	ClassDB::bind_method(D_METHOD("get_project_config_path"), &GDRESettings::get_project_config_path);
@@ -2046,7 +2110,12 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_sys_info_string"), &GDRESettings::get_sys_info_string);
 	ClassDB::bind_method(D_METHOD("load_project_config"), &GDRESettings::load_project_config);
 	ClassDB::bind_method(D_METHOD("save_project_config", "p_out_dir"), &GDRESettings::save_project_config);
+	ClassDB::bind_method(D_METHOD("save_project_config_binary", "p_out_dir"), &GDRESettings::save_project_config_binary);
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
+	ClassDB::bind_method(D_METHOD("set_translation_hint_file_path", "p_path"), &GDRESettings::set_translation_hint_file_path);
+	ClassDB::bind_method(D_METHOD("get_translation_hint_file_path"), &GDRESettings::get_translation_hint_file_path);
+	ClassDB::bind_method(D_METHOD("add_old_translation_csv_path", "p_path"), &GDRESettings::add_old_translation_csv_path);
+	ClassDB::bind_method(D_METHOD("get_old_translation_csv_paths"), &GDRESettings::get_old_translation_csv_paths);
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
 	ClassDB::bind_method(D_METHOD("prepop_plugin_cache", "plugins"), &GDRESettings::prepop_plugin_cache);

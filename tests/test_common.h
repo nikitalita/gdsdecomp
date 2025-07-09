@@ -7,7 +7,7 @@
 #include <utility/gdre_settings.h>
 
 _ALWAYS_INLINE_ String get_gdsdecomp_path() {
-	return GDRESettings::get_singleton()->get_cwd().path_join("modules/gdsdecomp");
+	return GDRESettings::get_singleton()->get_cwd().path_join("modules/gdtr");
 }
 
 _ALWAYS_INLINE_ String get_tmp_path() {

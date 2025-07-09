@@ -53,6 +53,7 @@
 #include "utility/pck_dumper.h"
 #include "utility/plugin_manager.h"
 #include "utility/task_manager.h"
+#include "utility/translation_converter.h"
 
 #include "module_etc_decompress/register_types.h"
 
@@ -293,7 +294,7 @@ void deinit_loaders() {
 	large_texture_converter = nullptr;
 }
 
-void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
+void initialize_gdtr_module(ModuleInitializationLevel p_level) {
 	ResourceLoader::set_create_missing_resources_if_class_unavailable(true);
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
@@ -322,6 +323,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ResourceImportMetadatav2>();
 	ClassDB::register_abstract_class<ImportInfo>();
 	ClassDB::register_class<ProjectConfigLoader>();
+	ClassDB::register_class<TranslationConverter>();
 
 	ClassDB::register_class<Exporter>();
 	ClassDB::register_class<ExportReport>();
@@ -403,10 +405,14 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	initialize_etcpak_decompress_module(p_level);
 }
 
-void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
+void uninitialize_gdtr_module(ModuleInitializationLevel p_level) {
 	uninitialize_etcpak_decompress_module(p_level);
 	deinit_exporters();
 	deinit_loaders();
+	if (gdre_config) {
+		memdelete(gdre_config);
+		gdre_config = nullptr;
+	}
 	if (gdre_singleton) {
 		memdelete(gdre_singleton);
 		gdre_singleton = nullptr;
