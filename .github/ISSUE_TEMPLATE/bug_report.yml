@@ -57,10 +57,10 @@ body:
   attributes:
     label: Link to game download
     description: |
-      ## DO NOT POST LINKS TO COPYRIGHTED CONTENT.
+      ## DO NOT POST LINKS TO COPYRIGHTED CONTENT WITHOUT PERMISSION.
       If the issue is not trivially reproducable, it is recommended that you provide a link to the game that you encountered this issue with here.
       
-      *If you own the game in question* and prefer not to not post it publicly, you may send it to us privately; in this case, post an alternate means of contacting yourself here (e.g. Discord tag). 
+      **If you own the game in question** and prefer not to not post it publicly, you may send it to us privately; in this case, post an alternate means of contacting yourself here (e.g. Discord tag). 
       
       You can also attempt to recreate the issue by creating a minimal reproduction project in the Godot editor and then exporting it. If that reproduces the issue, attach the zipped export here. **Do not select another field until the project is done uploading.**
   validations:
