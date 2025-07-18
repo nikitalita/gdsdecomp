@@ -6,6 +6,9 @@ struct dep_info;
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
 
+protected:
+	static void _bind_methods();
+
 public:
 	static constexpr bool can_multithread = false;
 
@@ -17,9 +20,16 @@ public:
 	virtual String get_name() const override;
 	virtual bool supports_nonpack_export() const override { return false; }
 	virtual String get_default_export_extension(const String &res_path) const override;
+
+	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
 };
 
-struct SceneExporterInstance {
+class SceneExporterInstance {
+	Dictionary options;
+
+public:
+	SceneExporterInstance(Dictionary curr_options = {});
+
 	int get_ver_major(const String &res_path);
 	void rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info);
 	bool using_threaded_load() const;
