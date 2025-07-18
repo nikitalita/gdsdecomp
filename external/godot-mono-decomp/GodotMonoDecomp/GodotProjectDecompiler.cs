@@ -153,7 +153,7 @@ namespace GodotMonoDecomp
 		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
 		DotNetCoreDepInfo? depInfo;
 
-		public void DecompileGodotProject(MetadataFile file,
+		public ProjectId DecompileGodotProject(MetadataFile file,
 											string targetDirectory,
 											TextWriter? projectFileWriter = null,
 											IEnumerable<TypeDefinitionHandle>? excludeTypes = null,
@@ -164,25 +164,27 @@ namespace GodotMonoDecomp
 			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
 			this.handleToFileMap = handleToFileMap ?? [];
 			this.depInfo = depInfo;
+			ProjectId projectId;
 			if (projectFileWriter == null)
 			{
 				using (var writer = CreateFile(Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj")))){
-					DecompileProject(file, targetDirectory, writer, cancellationToken);
+					projectId = DecompileProject(file, targetDirectory, writer, cancellationToken);
 				}
 			} else {
-				DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);
+				projectId = DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);
 			}
 			this.excludeTypes.Clear();
 			this.handleToFileMap.Clear();
 			this.depInfo = null;
+			return projectId;
 		}
 
-		protected void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
+		protected ProjectId DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			string projectFileName = Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj"));
 			using (var writer = CreateFile(projectFileName))
 			{
-				DecompileProject(file, targetDirectory, writer, cancellationToken);
+				return DecompileProject(file, targetDirectory, writer, cancellationToken);
 			}
 		}
 
