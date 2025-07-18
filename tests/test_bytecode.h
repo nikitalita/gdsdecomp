@@ -170,6 +170,17 @@ inline void test_script_binary(const String &script_name, const Vector<uint8_t> 
 	}
 	CHECK(decomp->get_error_message() == "");
 	CHECK(err == OK);
+
+	Ref<FakeGDScript> fake_script = memnew(FakeGDScript);
+	fake_script->set_override_bytecode_revision(revision);
+	CHECK(fake_script->get_override_bytecode_revision() == revision);
+	fake_script->set_source_code(helper_script_text);
+	CHECK(fake_script->is_loaded());
+	CHECK(fake_script->get_error_message() == "");
+	fake_script->load_binary_tokens(bytecode);
+	CHECK(fake_script->is_loaded());
+	CHECK(fake_script->get_error_message() == "");
+	CHECK(fake_script->get_override_bytecode_revision() == revision);
 }
 
 inline void test_script_text(const String &script_name, const String &helper_script_text, int revision, bool helper_script, bool no_text_equality_check, bool compare_whitespace = false) {
