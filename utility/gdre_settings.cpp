@@ -1501,6 +1501,12 @@ Variant GDRESettings::get_project_setting(const String &p_setting) {
 	return current_project->pcfg->get_setting(p_setting, Variant());
 }
 
+void GDRESettings::set_project_setting(const String &p_setting, Variant value) {
+	ERR_FAIL_COND_MSG(!is_pack_loaded(), "Pack not loaded!");
+	ERR_FAIL_COND_MSG(!is_project_config_loaded(), "project config not loaded!");
+	current_project->pcfg->set_setting(p_setting, value);
+}
+
 String GDRESettings::get_project_config_path() {
 	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), String(), "project config not loaded!");
 	return current_project->pcfg->get_cfg_path();
@@ -2120,6 +2126,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("add_remap", "src", "dst"), &GDRESettings::add_remap);
 	ClassDB::bind_method(D_METHOD("remove_remap", "src", "dst", "output_dir"), &GDRESettings::remove_remap);
 	ClassDB::bind_method(D_METHOD("get_project_setting", "p_setting"), &GDRESettings::get_project_setting);
+	ClassDB::bind_method(D_METHOD("set_project_setting", "p_setting", "value"), &GDRESettings::set_project_setting);
 	ClassDB::bind_method(D_METHOD("has_project_setting", "p_setting"), &GDRESettings::has_project_setting);
 	ClassDB::bind_method(D_METHOD("get_project_config_path"), &GDRESettings::get_project_config_path);
 	ClassDB::bind_method(D_METHOD("get_cwd"), &GDRESettings::get_cwd);

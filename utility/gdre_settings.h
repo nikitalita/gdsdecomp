@@ -264,6 +264,7 @@ public:
 	Error remove_remap(const String &src, const String &dst, const String &output_dir = "");
 	Variant get_project_setting(const String &p_setting);
 	bool has_project_setting(const String &p_setting);
+	void set_project_setting(const String &p_setting, Variant value);
 	String get_project_config_path();
 	String get_cwd();
 	Array get_import_files(bool copy = false);
