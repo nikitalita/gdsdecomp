@@ -1,14 +1,14 @@
 ﻿// Copyright (c) 2020 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
@@ -196,7 +196,7 @@ namespace GodotMonoDecomp
 				var deps = getDeps(Name, Version, target, blob, _deps);
 				return new DotNetCoreDepInfo(Name, Version, type, serviceable, path, sha512, deps, runtimeComponents);
 			}
-			
+
 
 			static DotNetCoreDepInfo[] getDeps(string Name, string Version, string target, JsonObject blob,
 				HashSet<string> _deps = null)
@@ -233,7 +233,7 @@ namespace GodotMonoDecomp
 						deps.Add(dep.Key, dep.Value.AsString);
 					}
 				}
-				
+
 				for (int i = 0; i < deps.Count; i++)
 				{
 					var dep = deps.ElementAt(i);
@@ -256,7 +256,7 @@ namespace GodotMonoDecomp
 					{
 						continue;
 					}
-					
+
 					if (deps[i].Name == name)
 					{
 						return true;
@@ -413,8 +413,8 @@ namespace GodotMonoDecomp
 			// Actually, we don't.
 			// xml.WriteElementString("GenerateAssemblyInfo", FalseString);
 			xml.WriteElementString("EnableDynamicLoading", TrueString);
-			
-			
+
+
 			string platformName;
 			CorFlags flags;
 			if (module is PEFile { Reader.PEHeaders: var headers } peFile)
@@ -624,23 +624,27 @@ namespace GodotMonoDecomp
 				WriteRef(xml, reference);
 			}
 
-			writeBlockComment(xml, (newXml) => {
-					foreach (var reference in godotSharpRefs)
-					{
-						WriteRef(newXml, reference);
-					}
-				},
-				"The following references were not added to the project file because they are automatically added by the Godot SDK.");
+			if (godotSharpRefs.Count > 0)
+			{
+				writeBlockComment(xml, (newXml) => {
+						foreach (var reference in godotSharpRefs)
+						{
+							WriteRef(newXml, reference);
+						}
+					},
+					"The following references were not added to the project file because they are automatically added by the Godot SDK.");
+			}
 
-			writeBlockComment(xml, (newXml) => {
-					foreach (var reference in commentedReferences)
-					{
-						WriteRef(newXml, reference);
-					}
-				},
-				"The following references were not added to the project file because they are part of the package references above.");
-
-			return;
+			if (commentedReferences.Count > 0)
+			{
+				writeBlockComment(xml, (newXml) => {
+						foreach (var reference in commentedReferences)
+						{
+							WriteRef(newXml, reference);
+						}
+					},
+					"The following references were not added to the project file because they are part of the package references above.");
+			}
 
 			void WriteRef(XmlTextWriter newXml, AssemblyReference reference)
 			{
@@ -656,6 +660,7 @@ namespace GodotMonoDecomp
 
 				newXml.WriteEndElement();
 			}
+			return;
 		}
 
 		static string GetGodotVersion(DotNetCoreDepInfo deps)
