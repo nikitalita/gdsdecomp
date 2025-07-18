@@ -42,6 +42,7 @@ String ResourceFormatGDScriptLoader::_get_resource_type(const String &p_path) {
 }
 
 Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
+	String load_path = p_original_path.is_empty() ? p_path : p_original_path;
 	Ref<Script> fake_script;
 	if (p_path.get_extension().to_lower() == "cs") {
 		Ref<FakeEmbeddedScript> csharp_script;
@@ -56,15 +57,15 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 		if (!r_error) {
 			r_error = &err;
 		}
-		*r_error = fake_gd_script->load_source_code(p_path);
-		ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + p_path);
+		*r_error = fake_gd_script->load_source_code(load_path);
+		ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + load_path);
 	}
 
 	bool is_real_load = p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD;
 	if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP) {
-		fake_script->set_path(p_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
+		fake_script->set_path(load_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
 	} else {
-		fake_script->set_path_cache(p_original_path);
+		fake_script->set_path_cache(load_path);
 	}
 	return fake_script;
 }

@@ -1800,7 +1800,7 @@ void GDRESettings::_ensure_script_cache_complete() {
 		}
 		String orig_path = path.ends_with(".gd") ? path : path.get_basename() + ".gd";
 		if (!script_cache.has(orig_path)) {
-			Ref<Script> script = ResourceCompatLoader::non_global_load(orig_path, "");
+			Ref<Script> script = ResourceCompatLoader::custom_load(orig_path, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 			if (script.is_valid()) {
 				// {
 				// 	"base": &"Node",
