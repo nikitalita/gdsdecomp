@@ -95,6 +95,35 @@ public static class GodotStuff
 		return null;
 	}
 
+	// change this to a generator that yields the script paths
+	public static IEnumerable<string> GetCanonicalGodotScriptPaths(MetadataFile module,
+		IEnumerable<TypeDefinitionHandle> typesToDecompile,
+		Dictionary<string, GodotScriptMetadata>? scriptMetadata)
+	{
+		Dictionary<string, string>? metadataFQNToFileMap = scriptMetadata?.ToDictionary(
+			pair => pair.Value.Class.GetFullClassName(),
+			pair => pair.Key,
+			StringComparer.OrdinalIgnoreCase);
+
+		var metadata = module.Metadata;
+		foreach (var h in typesToDecompile)
+		{
+			var scriptPath = Common.TrimPrefix(GetScriptPathAttributeValue(metadata, h) ?? "", "res://");
+			if (!string.IsNullOrEmpty(scriptPath))
+			{
+				yield return scriptPath;
+			}
+			else if (metadataFQNToFileMap != null)
+			{
+				var fqn = metadata.GetTypeDefinition(h).GetFullTypeName(metadata).ToString();
+				if (metadataFQNToFileMap.TryGetValue(fqn, out var filePath))
+				{
+					yield return Common.TrimPrefix(filePath, "res://");
+				}
+			}
+		}
+	}
+
 
 	public static Dictionary<string, TypeDefinitionHandle> CreateFileMap(MetadataFile module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile,

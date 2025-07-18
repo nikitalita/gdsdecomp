@@ -15,13 +15,15 @@ public class GodotModule
 	public readonly DotNetCoreDepInfo? depInfo;
 	public readonly LanguageVersion languageVersion;
 	public readonly IDebugInfoProvider? debugInfoProvider;
+	public readonly string? SubDirectory;
 	public Dictionary<string, TypeDefinitionHandle> fileMap;
 
 
 
 
-	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo)
+	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo, string? subdir = null)
 	{
+		SubDirectory = subdir;
 		Module = module ?? throw new ArgumentNullException(nameof(module));
 		this.depInfo = depInfo;
 		debugInfoProvider = DebugInfoUtils.LoadSymbols(module);
@@ -62,6 +64,12 @@ public class GodotModuleDecompiler
 		List<string> names = [];
 		if (Settings.CreateAdditionalProjectsForProjectReferences && mainDepInfo != null)
 		{
+			HashSet<string> canonicalSubDirs = GodotStuff.GetCanonicalGodotScriptPaths(MainModule.Module,
+			 	CreateProjectDecompiler(MainModule).GetTypesToDecompile(MainModule.Module), godot3xMetadata)
+				.Where(p => !string.IsNullOrEmpty(Path.GetDirectoryName(p)))
+				.Select(p => Path.GetDirectoryName(p)!)
+				.ToHashSet();
+
 			foreach (var dep in mainDepInfo.deps.Where(d => d is {Type : "project"}).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
 			{
 				if (names.Contains(dep.Name))
@@ -85,8 +93,12 @@ public class GodotModuleDecompiler
 				}
 				if (reference is PEFile module)
 				{
-					var fullName = module.FullName;;
-					AdditionalModules.Add(new GodotModule(module, dep));
+					var subdir = canonicalSubDirs.Contains(module.Name) ? "subprojects" + "/" + module.Name : null;
+					while (subdir != null && canonicalSubDirs.Contains(subdir))
+					{
+						subdir = "_" + subdir;
+					}
+					AdditionalModules.Add(new GodotModule(module, dep, subdir));
 				}
 
 			}
