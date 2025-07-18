@@ -37,6 +37,18 @@ Error ProjectConfigLoader::save_cfb(const String dir, const uint32_t ver_major, 
 	return save_custom(dir.path_join(file).replace("res://", ""), ver_major, ver_minor);
 }
 
+Error ProjectConfigLoader::save_cfb_binary(const String dir, const uint32_t ver_major, const uint32_t ver_minor) {
+	ERR_FAIL_COND_V_MSG(!loaded, ERR_INVALID_DATA, "Attempted to save project config when not loaded!");
+	String file;
+	if (ver_major > 2) {
+		file = "project.binary";
+	} else {
+		file = "engine.cfb";
+	}
+
+	return save_custom(dir.path_join(file).replace("res://", ""), ver_major, ver_minor);
+}
+
 bool ProjectConfigLoader::has_setting(String p_var) const {
 	return props.has(p_var);
 }
@@ -198,7 +210,15 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 		proops[category].push_back(name);
 	}
 
-	return _save_settings_text(p_path, proops, ver_major, ver_minor);
+	String ext = p_path.get_extension().to_lower();
+
+	if (ext == "godot" || ext == "cfg") {
+		return _save_settings_text(p_path, proops, ver_major, ver_minor);
+	} else if (ext == "binary" || ext == "cfb") {
+		return _save_settings_binary(p_path, proops, ver_major, ver_minor);
+	} else {
+		ERR_FAIL_V_MSG(ERR_FILE_UNRECOGNIZED, vformat("Unknown config file format: '%s'.", p_path));
+	}
 }
 
 Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
@@ -252,6 +272,75 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 			file->store_string(F->get().property_name_encode() + "=" + vstr + "\n");
 		}
 	}
+	return OK;
+}
+
+Error ProjectConfigLoader::_save_settings_binary(const String &p_file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor, const CustomMap &p_custom, const String &p_custom_features) {
+	Error err;
+	Ref<FileAccess> file = FileAccess::open(p_file, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err != OK, err, vformat("Couldn't save project.binary at '%s'.", p_file));
+
+	uint8_t hdr[4] = { 'E', 'C', 'F', 'G' };
+	file->store_buffer(hdr, 4);
+
+	int count = 0;
+
+	for (const KeyValue<String, List<String>> &E : proops) {
+		count += E.value.size();
+	}
+
+	if (!p_custom_features.is_empty()) {
+		// Store how many properties are saved, add one for custom features, which must always go first.
+		file->store_32(uint32_t(count + 1));
+		String key = CoreStringName(_custom_features);
+		file->store_pascal_string(key);
+
+		int len;
+		err = VariantDecoderCompat::encode_variant_compat(ver_major, p_custom_features, nullptr, len, false);
+		ERR_FAIL_COND_V(err != OK, err);
+
+		Vector<uint8_t> buff;
+		buff.resize(len);
+
+		err = VariantDecoderCompat::encode_variant_compat(ver_major, p_custom_features, buff.ptrw(), len, false);
+		ERR_FAIL_COND_V(err != OK, err);
+		file->store_32(uint32_t(len));
+		file->store_buffer(buff.ptr(), buff.size());
+
+	} else {
+		// Store how many properties are saved.
+		file->store_32(uint32_t(count));
+	}
+
+	for (const KeyValue<String, List<String>> &E : proops) {
+		for (const String &key : E.value) {
+			String k = key;
+			if (!E.key.is_empty()) {
+				k = E.key + "/" + k;
+			}
+			Variant value;
+			if (p_custom.has(k)) {
+				value = p_custom[k];
+			} else {
+				value = props[k].variant;
+			}
+
+			file->store_pascal_string(k);
+
+			int len;
+			err = VariantDecoderCompat::encode_variant_compat(ver_major, value, nullptr, len, true);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
+
+			Vector<uint8_t> buff;
+			buff.resize(len);
+
+			err = VariantDecoderCompat::encode_variant_compat(ver_major, value, buff.ptrw(), len, true);
+			ERR_FAIL_COND_V_MSG(err != OK, ERR_INVALID_DATA, "Error when trying to encode Variant.");
+			file->store_32(uint32_t(len));
+			file->store_buffer(buff.ptr(), buff.size());
+		}
+	}
+
 	return OK;
 }
 
