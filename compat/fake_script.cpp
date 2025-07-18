@@ -32,7 +32,9 @@ Error FakeGDScript::_reload_from_file() {
 	is_binary = false;
 	String actual_path = GDRESettings::get_singleton()->get_mapped_path(script_path);
 	auto ext = actual_path.get_extension().to_lower();
-	FAKEGDSCRIPT_FAIL_COND_V_MSG(!FileAccess::exists(actual_path), ERR_FILE_NOT_FOUND, vformat("File does not exist: %s (remapped to %s)", script_path, actual_path));
+	if (!FileAccess::exists(actual_path)) {
+		FAKEGDSCRIPT_FAIL_COND_V_MSG(true, ERR_FILE_NOT_FOUND, vformat("File does not exist: %s (remapped to %s)", script_path, actual_path));
+	}
 
 	if (ext == "gde") {
 		is_binary = true;
@@ -400,14 +402,19 @@ Error FakeGDScript::parse_script() {
 					String base_type_str = base_type.get_data();
 					// GDScript 1.x allowed paths to be used with the "extends" keyword
 					if (base_type_str.to_lower().ends_with(".gd")) {
+						if (base_type_str.is_relative_path()) {
+							base_type_str = GDRESettings::get_singleton()->localize_path(script_path.get_base_dir().path_join(base_type_str));
+						}
 						StringName found_class = GDRESettings::get_singleton()->get_cached_script_class(base_type_str);
-						if (found_class.is_empty()) { // During the initial cache; we'll just have to load it ourselves
+						if (!found_class.is_empty()) {
+							base_type = found_class;
+						} else if (GDRESettings::get_singleton()->is_pack_loaded()) { // During the initial cache; we'll just have to load it ourselves
 							Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 							if (base_script.is_valid()) {
 								base_type = base_script->get_global_name();
 							}
 						} else {
-							base_type = found_class;
+							base_type = base_type_str;
 						}
 					}
 				}
@@ -424,7 +431,7 @@ Error FakeGDScript::parse_script() {
 	}
 	// If it doesn't use class_name, it's a script without a global identifier; for our sake, we'll just use the path as the global name
 	if (global_name.is_empty() && !script_path.is_empty()) {
-		global_name = script_path.get_basename() + ".gd";
+		global_name = GDRESettings::get_singleton()->localize_path(script_path.get_basename() + ".gd");
 		local_name = global_name;
 	}
 #if 0 // debug
