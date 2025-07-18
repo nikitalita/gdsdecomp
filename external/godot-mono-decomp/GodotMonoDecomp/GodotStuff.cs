@@ -128,6 +128,17 @@ public static class GodotStuff
 
 		bool nosubdirs = excludedSubdirectories == null || !excludedSubdirectories.Any();
 
+		// ensure that all paths use forward slashes in fileMap to match Godot's path style
+		string _NormalizePath(string path)
+		{
+			return path.Replace(Path.DirectorySeparatorChar, '/');
+		}
+
+		string _PathCombine(string a, string b)
+		{
+			return _NormalizePath(Path.Combine(a, b));
+		}
+
 		bool IsExcludedSubdir(string? dir)
 		{
 			if (nosubdirs || string.IsNullOrEmpty(dir))
@@ -194,6 +205,10 @@ public static class GodotStuff
 			}
 		}
 
+		string default_dir = "src";
+		while (IsExcludedSubdir(default_dir)){
+			default_dir = "_" + default_dir;
+		}
 
 
 		string GetAutoFileNameForHandle(TypeDefinitionHandle h)
@@ -214,13 +229,9 @@ public static class GodotStuff
 				// TODO: come back to this
 				if (IsExcludedSubdir(dir) /*|| dir == ""*/)
 				{
-					string default_dir = "src";
-					while (IsExcludedSubdir(default_dir)){
-						default_dir = "_" + default_dir;
-					}
 					dir = default_dir;
 				}
-				return Path.Combine(dir, file).Replace(Path.DirectorySeparatorChar, '/');
+				return _PathCombine(dir, file);
 			}
 		}
 
@@ -331,7 +342,7 @@ public static class GodotStuff
 
 				if (directories.Count == 1)
 				{
-					p = Path.Combine(directories.First(), fileStem);
+					p = _PathCombine(directories.First(), fileStem);
 				}
 				// check if the namespace has a parent
 				else if (string.IsNullOrEmpty(p) && directories.Count <= 1 && parentNamespace.Length != 0 &&
@@ -339,10 +350,10 @@ public static class GodotStuff
 				{
 					var parentDirectories = GetNamespaceDirectories(parentNamespace).Where(d => !string.IsNullOrEmpty(d) && !IsInExcludedSubdir(d)).ToHashSet();
 					var child = ns.Substring(parentNamespace.Length + 1).Replace('.', '/');
-					fileStem = Path.Combine(child, Path.GetFileName(auto_path));
+					fileStem = _PathCombine(child, Path.GetFileName(auto_path));
 					if (parentDirectories.Count == 1)
 					{
-						p = Path.Combine(parentDirectories.First(), fileStem);
+						p = _PathCombine(parentDirectories.First(), fileStem);
 					}
 
 					directories = parentDirectories;
@@ -353,7 +364,7 @@ public static class GodotStuff
 					var commonRoot = Common.FindCommonRoot(directories);
 					if (!string.IsNullOrEmpty(commonRoot))
 					{
-						p = Path.Combine(commonRoot, fileStem);
+						p = _PathCombine(commonRoot, fileStem);
 					}
 				}
 			}
@@ -361,6 +372,7 @@ public static class GodotStuff
 			{
 				p = auto_path;
 			}
+			p = _NormalizePath(p);
 			fileMap[p] = h;
 		}
 
