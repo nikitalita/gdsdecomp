@@ -236,7 +236,7 @@ namespace GodotMonoDecomp
 			}
 		}
 
-		protected virtual CSharpDecompiler CreateDecompiler(DecompilerTypeSystem ts)
+		public virtual CSharpDecompiler CreateDecompiler(DecompilerTypeSystem ts)
 		{
 			var decompiler = new CSharpDecompiler(ts, Settings);
 			decompiler.DebugInfoProvider = DebugInfoProvider;
