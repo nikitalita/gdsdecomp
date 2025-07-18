@@ -242,6 +242,7 @@ visible = false
 
 [node name="GdreRecover" parent="." instance=ExtResource("8_xa6jx")]
 unique_name_in_owner = true
+visible = false
 
 [node name="GdreDecompile" parent="." instance=ExtResource("13_ql2ay")]
 visible = false
