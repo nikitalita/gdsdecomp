@@ -160,241 +160,6 @@ namespace GodotMonoDecomp
 		// per-run members
 		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
 		readonly IProjectFileWriter projectWriter;
-		static string TrimPrefix(string path, string prefix)
-		{
-			if (path.StartsWith(prefix))
-			{
-				return path.Substring(prefix.Length);
-			}
-			return path;
-		}
-
-		public Dictionary<string, TypeDefinitionHandle> CreateFileMap(MetadataFile module)
-		{
-			var fileMap = new Dictionary<string, TypeDefinitionHandle>();
-			var typeMap = new Dictionary<TypeDefinitionHandle, TypeDefinitionHandle>();
-			var metadata = module.Metadata;
-			var paths_found_in_attributes = new HashSet<string>();
-
-			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
-			var allTypeDefs = ts.GetAllTypeDefinitions();
-			var tds = module.Metadata.GetTopLevelTypeDefinitions().Where(td => IncludeTypeWhenDecompilingProject(module, td));
-			var processAgain = new HashSet<TypeDefinitionHandle>();
-			var namespaceToFile = new Dictionary<string, List<string>>();
-			var namespaceToDirectory = new Dictionary<string, HashSet<string>>();
-			void addToNamespaceToFile(string ns, string file)
-			{
-				if (namespaceToFile.ContainsKey(ns))
-				{
-					namespaceToFile[ns].Add(file);
-					namespaceToDirectory[ns].Add(Path.GetDirectoryName(file));
-				}
-				else
-				{
-					namespaceToFile[ns] = new List<string> { file };
-					namespaceToDirectory[ns] = new HashSet<string> { Path.GetDirectoryName(file) };
-				}
-			}
-			foreach (var h in tds)
-			{
-				var type = metadata.GetTypeDefinition(h);
-				var scriptPath = GetScriptPathAttribute(h);
-				if (scriptPath != null)
-				{
-					addToNamespaceToFile(metadata.GetString(type.Namespace), scriptPath);
-					fileMap[scriptPath] = h;
-				}
-				else
-				{
-					processAgain.Add(h);
-				}
-			}
-
-			string GetScriptPathAttribute(TypeDefinitionHandle h)
-			{
-				var typeDef = allTypeDefs
-					.Select(td => td)
-					.FirstOrDefault(td => td.MetadataToken.Equals(h));
-
-				foreach (var attr in typeDef.GetAttributes())
-				{
-					if (attr.AttributeType.Name == "ScriptPathAttribute" && attr.FixedArguments.Length > 0)
-					{
-						var p = attr.FixedArguments[0].Value as string;
-						// remove "res://" prefix if it exists
-						if (p != null && p.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-						{
-							p = p.Substring(6);
-						}
-						if (!string.IsNullOrEmpty(p))
-						{
-							return p;
-						}
-					}
-				}
-				return null;
-			}
-
-			string GetAutoFileNameForHandle(TypeDefinitionHandle h)
-			{
-				var type = metadata.GetTypeDefinition(h);
-
-				string file = CleanUpFileName(metadata.GetString(type.Name), ".cs");
-				string ns = metadata.GetString(type.Namespace);
-				string path;
-				if (string.IsNullOrEmpty(ns))
-				{
-					return file;
-				}
-				else
-				{
-					string dir = Settings.UseNestedDirectoriesForNamespaces ? CleanUpPath(ns) : CleanUpDirectoryName(ns);
-					return Path.Combine(dir, file).Replace(Path.DirectorySeparatorChar, '/');
-				}
-			}
-
-			string GetPathFromOriginalFiles(string file_path)
-			{
-				// otherwise, try to find it in the original directory files
-				string scriptPath = "";
-				// empty vector of strings
-				var possibles = FilesInOriginal.Where(f =>
-						!fileMap.ContainsKey(f) &&
-						Path.GetFileName(f) == Path.GetFileName(file_path)
-					)
-					.ToList();
-
-				if (scriptPath == "" && possibles.Count == 1)
-				{
-					scriptPath = possibles[0];
-				}
-				else if (scriptPath == "" && possibles.Count > 1)
-				{
-					possibles = possibles.Where(f => f.EndsWith(file_path)).ToList();
-					if (possibles.Count == 1)
-					{
-						scriptPath = possibles[0];
-					}
-				}
-				if (scriptPath == "" && possibles.Count > 1){
-					return "<multiple>";
-				}
-				return scriptPath;
-			}
-
-			var potentialMap = new Dictionary<string, List<TypeDefinitionHandle>>();
-
-
-			var processAgainAgain = new HashSet<TypeDefinitionHandle>();
-			var dupes = new HashSet<TypeDefinitionHandle>();
-
-			foreach (var h in processAgain)
-			{
-				var path = GetAutoFileNameForHandle(h);
-				var real_path = GetPathFromOriginalFiles(path);
-				if (real_path != "" && real_path != "<multiple>")
-				{
-					if (!potentialMap.ContainsKey(real_path))
-					{
-						potentialMap[real_path] = new List<TypeDefinitionHandle>();
-					}
-					potentialMap[real_path].Add(h);
-				} else {
-					if (real_path == "<multiple>" && !dupes.Contains(h))
-					{
-						dupes.Add(h);
-					}
-					else
-					{
-						processAgainAgain.Add(h);
-					}
-				}
-			}
-
-			foreach (var pair in potentialMap)
-			{
-				if (pair.Value.Count == 1)
-				{
-					var type = metadata.GetTypeDefinition(pair.Value[0]);
-					addToNamespaceToFile(metadata.GetString(type.Namespace), pair.Key);
-					fileMap[pair.Key] = pair.Value[0];
-				} else {
-					foreach (var h in pair.Value)
-					{
-						processAgainAgain.Add(h);
-					}
-				}
-			}
-
-			foreach (var h in processAgainAgain)
-			{
-				var type = metadata.GetTypeDefinition(h);
-				var ns = metadata.GetString(type.Namespace);
-				var auto_path = GetAutoFileNameForHandle(h);
-				string p = "";
-				var namespaceParts = ns.Split('.');
-				var parentNamespace = ns.Contains('.') ? ns.Split('.')[0] : "";
-				if (ns != "" && ns != null)
-				{
-					// pop off the first part of the path, if necessary
-					var fileStem = GodotStuff.RemoveNamespacePartOfPath(auto_path, ns);
-					var directories = namespaceToDirectory.ContainsKey(ns)
-						? namespaceToDirectory[ns]
-						: new HashSet<string>();
-
-					if (directories.Count == 1 && (directories.First() != "" && directories.First() != null))
-					{
-						p = Path.Combine(directories.First(), fileStem);
-					}
-					// check if the namespace has a parent
-					else if (directories.Count == 0 && parentNamespace.Length != 0 &&
-							namespaceToFile.ContainsKey(parentNamespace))
-					{
-						var parentDirectories = namespaceToDirectory.ContainsKey(parentNamespace)
-							? namespaceToDirectory[parentNamespace]
-							: new HashSet<string>();
-						var child = ns.Substring(parentNamespace.Length + 1).Replace('.', '/');
-						fileStem = Path.Combine(child, Path.GetFileName(auto_path));
-						if (parentDirectories.Count == 1 && (parentDirectories.First() != "" &&
-															parentDirectories.First() != null))
-						{
-							p = Path.Combine(parentDirectories.First(), fileStem);
-						}
-
-						directories = parentDirectories;
-					}
-
-					if (p == "" && directories.Count > 1)
-					{
-						var commonRoot = GodotStuff.FindCommonRoot(directories);
-						if (commonRoot != "")
-						{
-							p = Path.Combine(commonRoot, fileStem);
-						}
-					}
-				}
-				if (p == "" || fileMap.ContainsKey(p))
-				{
-					p = auto_path;
-				}
-				fileMap[p] = h;
-			}
-
-			foreach (var h in dupes)
-			{
-				var auto_path = GetAutoFileNameForHandle(h);
-				var scriptPath = GetPathFromOriginalFiles(auto_path);
-
-				if (scriptPath == "" || fileMap.ContainsKey(scriptPath))
-				{
-					scriptPath = auto_path;
-				}
-
-				fileMap[scriptPath] = h;
-			}
-
-			return fileMap;
-		}
 
 		public void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
 		{
@@ -498,70 +263,25 @@ namespace GodotMonoDecomp
 			return new[] { new ProjectItemInfo("Compile", assemblyInfo) };
 		}
 
-		List<PartialTypeInfo> GetPartialGodotTypes(MetadataFile module,
-			List<IGrouping<string, TypeDefinitionHandle>> files,
-			DecompilerTypeSystem ts)
-		{
-
-			var partialTypes = new List<PartialTypeInfo>();
-
-			var allTypeDefs = ts.GetAllTypeDefinitions();
-			foreach (var file in files)
-			{
-				var fileName = file.Key;
-				var arr = file.ToImmutableArray();
-				foreach (var type in arr)
-				{
-					// get the type definition from allTypeDefs where the metadata token matches
-					var typeDef = allTypeDefs
-						.Select(td => td)
-						.FirstOrDefault(td => td.MetadataToken.Equals(type));
-
-					if (GodotStuff.IsGodotPartialClass(typeDef))
-					{
-						IEnumerable<IMember> fieldsAndProperties = typeDef.Fields.Concat<IMember>(typeDef.Properties);
-
-						IEnumerable<IMember> allOrderedMembers =
-							fieldsAndProperties.Concat(typeDef.Events).Concat(typeDef.Methods);
-
-						var allOrderedEntities = typeDef.NestedTypes.Concat<IEntity>(allOrderedMembers).ToArray();
-
-						var partialTypeInfo = new PartialTypeInfo(typeDef);
-						foreach (var member in allOrderedEntities)
-						{
-							if (GodotStuff.IsBannedGodotTypeMember(member))
-							{
-								partialTypeInfo.AddDeclaredMember(member.MetadataToken);
-							}
-						}
-
-						partialTypes.Add(partialTypeInfo);
-					}
-				}
-			}
-
-			return partialTypes;
-		}
-
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
 			var metadata = module.Metadata;
 			var paths_found_in_attributes = new HashSet<string>();
-			var fileMap = CreateFileMap(module);
+			var typesToDecompile = metadata.GetTopLevelTypeDefinitions()
+				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
+			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
+			partialTypes = partialTypes.Concat(GodotStuff.GetPartialGodotTypes(module, typesToDecompile, ts)).ToList();
+			var fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces);
 			var handle_to_file_map = fileMap.ToDictionary<KeyValuePair<string, TypeDefinitionHandle>, TypeDefinitionHandle, string>(
 				pair => pair.Value,
 				pair => pair.Key,
 				null);
 
-			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
-			var allTypeDefs = ts.GetAllTypeDefinitions();
-			var files = module.Metadata.GetTopLevelTypeDefinitions().Where(td => IncludeTypeWhenDecompilingProject(module, td))
-				.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
+			var files = typesToDecompile.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
 			var progressReporter = ProgressIndicator;
 			var progress = new DecompilationProgress { TotalUnits = files.Count, Title = "Exporting project..." };
 			var workList = new HashSet<TypeDefinitionHandle>();
 			var processedTypes = new HashSet<TypeDefinitionHandle>();
-			partialTypes = partialTypes.Concat(GetPartialGodotTypes(module, files, ts)).ToList();
 			ProcessFiles(files);
 			while (workList.Count > 0)
 			{
@@ -657,9 +377,9 @@ namespace GodotMonoDecomp
 									}
 								}
 							}
+							GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
 
 							var path = Path.Combine(TargetDirectory, file.Key);
-							GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
 							using StreamWriter w = new StreamWriter(path);
 							syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, Settings.CSharpFormattingOptions));
 						}
