@@ -411,11 +411,18 @@ func add_project(paths: PackedStringArray) -> int:
 	if FILE_TREE.num_broken > 0 or FILE_TREE.num_malformed > 0:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
 	DIRECTORY.text = DESKTOP_DIR.path_join(paths[0].get_file().get_basename())
+
+	if GDRESettings.project_requires_dotnet_assembly():
+		%Assembly.text = GDRESettings.get_dotnet_assembly_path()
+		set_assembly_good(GDRESettings.has_loaded_dotnet_assembly())
+		%AssemblyPickerHBox.visible = true
+	else:
+		%AssemblyPickerHBox.visible = false
 	return OK
 
 func load_test():
 	#const path = "/Users/nikita/Workspace/godot-ws/godot-test-bins/satryn.apk"
-	const path = '/Users/nikita/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/CRUEL/Cruel.pck'
+	const path = '/Users/nikita/Library/Application Support/CrossOver/Bottles/Steam/drive_c/Program Files (x86)/Steam/steamapps/common/Psychopomp Gold/Psychopomp GOLD.exe'
 	add_project([path])
 	show_win()
 
@@ -471,6 +478,8 @@ func _go():
 
 
 func confirm():
+	if changed_assembly:
+		handle_assembly_change()
 	RESOURCE_PREVIEW.reset()
 	if (not EXTRACT_ONLY.is_pressed() and GDREConfig.get_setting("ask_for_download", true)):
 		for file in FILE_TREE.get_checked_files():
@@ -521,3 +530,50 @@ func _on_download_confirm_dialog_confirmed() -> void:
 	GDREConfig.set_setting("ask_for_download", not %DontAskAgainCheck.is_pressed())
 	GDREConfig.set_setting("download_plugins", true)
 	_go()
+
+func set_assembly_good(good: bool) -> void:
+	if good:
+		%AssemblyLabel.text = "C# Assembly"
+		%AssemblyLabel.tooltip_text = ""
+	else:
+		%AssemblyLabel.text = "C# Assembly ⚠️"
+		if FileAccess.file_exists(%Assembly.text):
+			%AssemblyLabel.tooltip_text = "File is not a valid .NET IL assembly"
+		else:
+			%AssemblyLabel.tooltip_text = "File does not exist"
+
+
+func _on_assembly_button_pressed() -> void:
+	var assembly_name = GDRESettings.get_project_dotnet_assembly_name()
+	var filter = "*.dll"
+	if !assembly_name.is_empty():
+		filter = assembly_name + ".dll"
+	var assembly_dir = %Assembly.text.get_base_dir()
+	if assembly_dir.is_empty():
+		assembly_dir = GDRESettings.get_pack_path().get_base_dir()
+	%AssemblyPickerDialog.current_dir = assembly_dir
+	%AssemblyPickerDialog.filters = PackedStringArray([filter])
+
+	open_subwindow(%AssemblyPickerDialog)
+
+var changed_assembly = false
+
+func handle_assembly_change() -> void:
+	changed_assembly = false
+	GDRESettings.set_dotnet_assembly_path(%Assembly.text)
+	set_assembly_good(GDRESettings.has_loaded_dotnet_assembly())
+
+func _on_assembly_picker_dialog_file_selected(path:  String) -> void:
+	%Assembly.text = path
+	handle_assembly_change()
+
+func _on_assembly_text_submitted(_new_text:  String) -> void:
+	handle_assembly_change()
+
+func _on_assembly_text_changed(_new_text:  String) -> void:
+	changed_assembly = true
+	# we don't want to handle this change yet, the user might be still typing, wait until the focus is lost
+
+func _on_assembly_focus_exited() -> void:
+	if changed_assembly:
+		handle_assembly_change()
