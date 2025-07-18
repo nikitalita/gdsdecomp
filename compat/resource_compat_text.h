@@ -257,6 +257,13 @@ public:
 	virtual bool recognize(const Ref<Resource> &p_resource) const override;
 	virtual void get_recognized_extensions(const Ref<Resource> &p_resource, List<String> *p_extensions) const override;
 
+	static int get_default_format_version(int ver_major, int ver_minor);
+
+	static int get_ver_major_from_format_version(int ver_format);
+	static int get_ver_minor_from_format_version(int ver_format);
+
+	Error save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_format, int ver_major, int ver_minor, uint32_t p_flags = 0);
+
 	ResourceFormatSaverCompatText();
 };
 

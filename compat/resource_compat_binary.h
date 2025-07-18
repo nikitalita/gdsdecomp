@@ -201,6 +201,9 @@ class ResourceFormatSaverCompatBinaryInstance {
 	String script_class;
 	size_t md_at = 0;
 
+	Ref<ResourceImportMetadatav2> imd;
+	ResourceUID::ID res_uid = ResourceUID::INVALID_ID;
+
 	struct NonPersistentKey { //for resource properties generated on the fly
 		Ref<Resource> base;
 		StringName property;
@@ -230,6 +233,7 @@ class ResourceFormatSaverCompatBinaryInstance {
 	static void save_unicode_string(Ref<FileAccess> f, const String &p_string, bool p_bit_on_len = false);
 	int get_string_index(const String &p_string);
 	Dictionary fix_scene_bundle(const Ref<PackedScene> &p_scene, int original_version);
+	Error set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags);
 
 public:
 	enum {
@@ -254,6 +258,13 @@ public:
 	virtual Error set_uid(const String &p_path, ResourceUID::ID p_uid) override;
 	virtual bool recognize(const Ref<Resource> &p_resource) const override;
 	virtual void get_recognized_extensions(const Ref<Resource> &p_resource, List<String> *p_extensions) const override;
+
+	static int get_default_format_version(int ver_major, int ver_minor);
+
+	static int get_ver_major_from_format_version(int ver_format);
+	static int get_ver_minor_from_format_version(int ver_format);
+
+	Error save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_format, int ver_major, int ver_minor, uint32_t p_flags = 0);
 
 	ResourceFormatSaverCompatBinary();
 };

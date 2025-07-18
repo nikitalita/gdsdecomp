@@ -38,6 +38,7 @@
 #include "core/io/missing_resource.h"
 #include "core/io/resource.h"
 #include "core/version.h"
+#include "core/version_generated.gen.h"
 #include "scene/resources/packed_scene.h"
 
 #include "core/io/resource_format_binary.h"
@@ -2392,41 +2393,8 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 
 	Error err;
 
-	String original_path = compat->original_path;
-	ver_format = compat->ver_format;
-	ver_major = compat->ver_major;
-	ver_minor = compat->ver_minor;
-	if (ver_major == 0) {
-		WARN_PRINT("Resource has a major version of 0, this is not supported.");
-	}
-	String format = compat->resource_format;
-	script_class = compat->script_class;
-	using_script_class = compat->using_script_class();
-	big_endian = compat->stored_big_endian;
-	using_uids = compat->using_uids;
-	using_named_scene_ids = compat->using_named_scene_ids;
-	using_real_t_double = compat->using_real_t_double;
-	stored_use_real64 = compat->stored_use_real64;
-	Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
-	ResourceUID::ID uid = compat->uid;
-	if (using_uids && uid == ResourceUID::INVALID_ID) {
-		uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
-	}
-	if (format != "binary") { // text
-		if (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)) {
-			ver_format = 6;
-		} else if (using_script_class) {
-			ver_format = 5;
-		} else if (using_named_scene_ids || ver_major == 4) {
-			// If we're using named_scene_ids, it's version 4
-			ver_format = 4;
-			// else go by engine major version
-		} else if (ver_major == 3) {
-			ver_format = 3;
-		} else {
-			ver_format = 1;
-		}
-	}
+	set_save_settings(p_resource, p_flags);
+	ResourceUID::ID uid = res_uid;
 
 	Ref<FileAccess> f;
 	bool using_compression = p_flags & ResourceSaver::FLAG_COMPRESS || compat->is_compressed;
@@ -3461,4 +3429,148 @@ Error ResourceFormatLoaderCompatBinary::get_ver_major_minor(const String &p_path
 
 void ResourceFormatLoaderCompatBinary::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_binary_resource", "p_path"), &ResourceFormatLoaderCompatBinary::is_binary_resource);
+}
+
+Error ResourceFormatSaverCompatBinaryInstance::set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags) {
+	using_script_class = true;
+	using_uids = true;
+	using_named_scene_ids = true;
+
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
+	ver_format = CompatFormatLoader::get_format_version_from_flags(p_flags);
+	ver_major = CompatFormatLoader::get_ver_major_from_flags(p_flags);
+	ver_minor = CompatFormatLoader::get_ver_minor_from_flags(p_flags); // ver_minor can be 0.
+	bool set_format = ver_format != 0 && ver_major != 0;
+	String original_path;
+	if (compat.is_valid()) {
+		original_path = compat->original_path;
+		if (!set_format) {
+			ver_format = compat->ver_format;
+			ver_major = compat->ver_major;
+			ver_minor = compat->ver_minor;
+		}
+		if (ver_major == 0) {
+			WARN_PRINT("Resource has a major version of 0, this is not supported.");
+		}
+		String format = compat->resource_format;
+		script_class = compat->script_class;
+		using_script_class = compat->using_script_class();
+		big_endian = compat->stored_big_endian;
+		using_uids = compat->using_uids;
+		using_named_scene_ids = compat->using_named_scene_ids;
+		using_real_t_double = compat->using_real_t_double;
+		stored_use_real64 = compat->stored_use_real64;
+		imd = compat->v2metadata;
+		ResourceUID::ID uid = compat->uid;
+		if (using_uids && uid == ResourceUID::INVALID_ID) {
+			uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
+		}
+		if (format != "binary" && !set_format) { // text
+			if (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)) {
+				ver_format = 6;
+			} else if (using_script_class) {
+				ver_format = 5;
+			} else if (using_named_scene_ids || ver_major == 4) {
+				// If we're using named_scene_ids, it's version 4
+				ver_format = 4;
+				// else go by engine major version
+			} else if (ver_major == 3) {
+				ver_format = 3;
+			} else if (ver_major == 2) {
+				ver_format = 1;
+			} else {
+				ver_format = 0;
+			}
+		}
+	} else {
+		if (!set_format) {
+			if (GDRESettings::get_singleton()->is_pack_loaded()) {
+				WARN_PRINT("Non-loaded resource and did not set version info, using default for pack.");
+				ver_major = GDRESettings::get_singleton()->get_ver_major();
+				ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+				ver_format = ResourceFormatSaverCompatBinary::get_default_format_version(ver_major, ver_minor);
+			} else {
+				WARN_PRINT("Non-loaded resource and did not set version info, using default format version for current engine.");
+				ver_format = FORMAT_VERSION;
+				ver_major = GODOT_VERSION_MAJOR;
+				ver_minor = GODOT_VERSION_MINOR;
+			}
+		}
+		res_uid = ResourceUID::INVALID_ID;
+		script_class = "";
+		imd = Ref<ResourceImportMetadatav2>();
+	}
+
+	if (ver_format < 5) {
+		using_script_class = false;
+	}
+
+	if (ver_format < 4) {
+		using_uids = false;
+		using_named_scene_ids = false;
+	}
+
+	if (using_uids && res_uid == ResourceUID::INVALID_ID) {
+		if (!original_path.is_empty()) {
+			res_uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
+		}
+		if (res_uid == ResourceUID::INVALID_ID && !local_path.is_empty()) {
+			res_uid = GDRESettings::get_singleton()->get_uid_for_path(local_path);
+		}
+	}
+
+	if (script_class.is_empty() && using_script_class) {
+		Ref<Script> script = p_resource->get_script();
+		if (script.is_valid()) {
+			script_class = script->get_global_name();
+		}
+	}
+	return OK;
+}
+
+int ResourceFormatSaverCompatBinary::get_default_format_version(int ver_major, int ver_minor) {
+	if (ver_major == 4 && ver_minor >= 3) {
+		return 6;
+	} else if (ver_major == 4) {
+		return 5;
+	} else if (ver_major == 3) {
+		return 3;
+	} else if (ver_major == 2) {
+		return 1;
+	}
+	return 0;
+}
+
+int ResourceFormatSaverCompatBinary::get_ver_major_from_format_version(int ver_format) {
+	switch (ver_format) {
+		case 6:
+		case 5:
+		case 4:
+			return 4;
+		case 3:
+		case 2:
+			return 3;
+		case 1:
+			return 2;
+		case 0:
+			return 1;
+		default:
+			ERR_FAIL_V_MSG(0, "Invalid format version: " + itos(ver_format));
+	}
+	return 0;
+}
+
+int ResourceFormatSaverCompatBinary::get_ver_minor_from_format_version(int ver_format) {
+	switch (ver_format) {
+		case 6:
+			return 3;
+	}
+	return 0;
+}
+
+Error ResourceFormatSaverCompatBinary::save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_format, int ver_major, int ver_minor, uint32_t p_flags) {
+	ERR_FAIL_COND_V_MSG(ver_format <= 0 || ver_major <= 0, ERR_INVALID_PARAMETER, "Invalid version info");
+
+	p_flags = CompatFormatLoader::set_version_info_in_flags(p_flags, ver_format, ver_major, ver_minor);
+	return ResourceFormatSaverCompatBinary::save(p_resource, p_path, p_flags);
 }

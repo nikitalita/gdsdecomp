@@ -76,13 +76,23 @@ public:
 	virtual bool handles_fake_load() const;
 
 	static constexpr int get_format_version_from_flags(uint32_t p_flags) {
-		// we want to get the last 8 bits of the flags
-		return (p_flags >> 24) & 0xFF;
+		// we want to get the last 4 bits of the flags
+		return (p_flags >> 28) & 0xF;
 	}
 
-	static constexpr int set_format_version_in_flags(uint32_t p_flags, int p_format_version) {
-		p_flags &= ~0xFF000000;
-		p_flags |= p_format_version << 24;
+	static constexpr int get_ver_major_from_flags(uint32_t p_flags) {
+		return (p_flags >> 24) & 0xF;
+	}
+
+	static constexpr int get_ver_minor_from_flags(uint32_t p_flags) {
+		return (p_flags >> 20) & 0xF;
+	}
+
+	static constexpr int set_version_info_in_flags(uint32_t p_flags, int p_format_version, int p_ver_major, int p_ver_minor) {
+		p_flags &= ~0xFFF00000;
+		p_flags |= p_format_version << 28;
+		p_flags |= p_ver_major << 24;
+		p_flags |= p_ver_minor << 20;
 		return p_flags;
 	}
 
