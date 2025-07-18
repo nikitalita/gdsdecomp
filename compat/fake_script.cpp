@@ -29,14 +29,17 @@ Error FakeGDScript::_reload_from_file() {
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(script_path.is_empty(), ERR_FILE_NOT_FOUND, "Script path is empty");
 	Error err = OK;
 	// check the first four bytes to see if it's a binary file
-	auto ext = script_path.get_extension().to_lower();
 	is_binary = false;
+	String actual_path = GDRESettings::get_singleton()->get_mapped_path(script_path);
+	auto ext = actual_path.get_extension().to_lower();
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(!FileAccess::exists(actual_path), ERR_FILE_NOT_FOUND, vformat("File does not exist: %s (remapped to %s)", script_path, actual_path));
+
 	if (ext == "gde") {
 		is_binary = true;
-		err = GDScriptDecomp::get_buffer_encrypted(script_path, 3, GDRESettings::get_singleton()->get_encryption_key(), binary_buffer);
+		err = GDScriptDecomp::get_buffer_encrypted(actual_path, 3, GDRESettings::get_singleton()->get_encryption_key(), binary_buffer);
 		FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error reading encrypted file: " + script_path);
 	} else {
-		binary_buffer = FileAccess::get_file_as_bytes(script_path, &err);
+		binary_buffer = FileAccess::get_file_as_bytes(actual_path, &err);
 		FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error reading file: " + script_path);
 		is_binary = binary_buffer.size() >= 4 && binary_buffer[0] == 'G' && binary_buffer[1] == 'D' && binary_buffer[2] == 'S' && binary_buffer[3] == 'C';
 		if (!is_binary) {
@@ -61,7 +64,7 @@ bool FakeGDScript::can_instantiate() const {
 }
 
 Ref<Script> FakeGDScript::get_base_script() const {
-	Ref<FakeGDScript> script;
+	Ref<Script> script;
 	String path = GDRESettings::get_singleton()->get_path_for_script_class(base_type);
 	if (path.is_empty()) {
 		return {};
