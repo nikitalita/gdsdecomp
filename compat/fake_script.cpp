@@ -27,6 +27,7 @@ Error FakeGDScript::_reload_from_file() {
 	error_message.clear();
 	source.clear();
 	binary_buffer.clear();
+	loaded = false;
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(script_path.is_empty(), ERR_FILE_NOT_FOUND, "Script path is empty");
 	Error err = OK;
 	// check the first four bytes to see if it's a binary file
@@ -142,6 +143,7 @@ Error FakeGDScript::reload(bool p_keep_state) {
 	error_message.clear();
 	auto revision = override_bytecode_revision != 0 ? override_bytecode_revision : GDRESettings::get_singleton()->get_bytecode_revision();
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(!revision, ERR_UNCONFIGURED, "No bytecode revision set");
+	loaded = false;
 
 	decomp = GDScriptDecomp::create_decomp_for_commit(revision);
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(decomp.is_null(), ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
@@ -164,6 +166,8 @@ Error FakeGDScript::reload(bool p_keep_state) {
 	}
 	err = decomp->get_script_state(binary_buffer, script_state);
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error loading script state");
+	loaded = true;
+
 	err = parse_script();
 	ERR_FAIL_V_MSG(err, decomp->get_error_message());
 
@@ -589,6 +593,7 @@ String FakeGDScript::get_script_path() const {
 
 Error FakeGDScript::load_source_code(const String &p_path) {
 	script_path = p_path;
+	loaded = false;
 	if (autoload) {
 		return _reload_from_file();
 	}
@@ -597,6 +602,7 @@ Error FakeGDScript::load_source_code(const String &p_path) {
 
 Error FakeGDScript::load_binary_tokens(const Vector<uint8_t> &p_binary_tokens) {
 	is_binary = true;
+	loaded = false;
 	binary_buffer = p_binary_tokens;
 	if (autoload) {
 		return reload(false);
