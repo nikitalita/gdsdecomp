@@ -635,6 +635,60 @@ public static class GodotStuff
 			    } _]);
 	}
 
+	public static bool IsCompilerGeneratedAccessorMethod(IMethod method)
+	{
+		// if it's compiler generated, it won't be marked as virtual and it won't be an actual accessor method
+		if (!method.Name.Contains('.') || method.IsVirtual || method.IsAccessor)
+		{
+			return false;
+		}
+
+		bool isAdder = method.Name.Contains(".add_");
+		bool isRemover = method.Name.Contains(".remove_");
+		bool isInvoker = method.Name.Contains(".invoke_");
+		bool isGetter = method.Name.Contains(".get_");
+		bool isSetter = method.Name.Contains(".set_");
+		if (isGetter || isSetter || isAdder || isRemover || isInvoker)
+		{
+			var lastDot = method.Name.LastIndexOf('.');
+			var parentClass = method.Name.Substring(0, lastDot).Split("<")[0];
+			var methodName = method.Name.Substring(lastDot + 1);
+			var usidx = methodName.IndexOf('_');
+			if (string.IsNullOrEmpty(parentClass) || string.IsNullOrEmpty(methodName) || usidx < 0)
+			{
+				return false;
+			}
+			var memberName = methodName.Substring(usidx + 1);
+			var baseTypes = method.DeclaringType.GetAllBaseTypes();
+			var baseType = baseTypes.FirstOrDefault(t => t.FullName == parentClass);
+			if (baseType == null)
+			{
+				return false;
+			}
+			IMember member = baseType.GetMembers().FirstOrDefault(m => m.Name == memberName);
+
+			if ((isGetter || isSetter) && member is IProperty prop)
+			{
+				var memberAccessorName = isGetter ? prop.Getter?.Name : prop.Setter?.Name;
+
+				if (memberAccessorName == methodName)
+				{
+					return true;
+				}
+			} else if (member is IEvent ev)
+			{
+				var memberAccessorName = isInvoker ? ev.InvokeAccessor?.Name :
+					isAdder ? ev.AddAccessor?.Name : isRemover ? ev.RemoveAccessor?.Name : null;
+				if (memberAccessorName == methodName)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+
+	}
+
 
 	public static bool IsBannedGodotTypeMember(IEntity entity)
 	{
@@ -669,42 +723,13 @@ public static class GodotStuff
 				{
 					return true;
 				}
-				if (method.IsVirtual)
+				if (IsCompilerGeneratedAccessorMethod(method))
 				{
-					break;
+					return true;
 				}
 
 				// auto-generated getter methods for properties of parent classes
-				bool isGetter = method.Name.Contains(".get_");
-				bool isSetter = method.Name.Contains(".set_");
-				if (isGetter || isSetter)
-				{
-					var parts = method.Name.Split(isGetter ? ".get_" : ".set_");
-					if (parts.Length <= 1)
-					{
-						break;
-					}
-					var parentClass = parts[0].Split("<")[0];
-					var memberName = parts[1];
-					var baseTypes = method.DeclaringType.GetAllBaseTypes();
-					var baseType = baseTypes.FirstOrDefault(t => t.Name == parentClass);
-					if (baseType == null)
-					{
-						break;
-					}
-					IMember member = baseType.GetMembers().FirstOrDefault(m => m.Name == memberName);
-					if (member != null && member is IProperty prop)
-					{
-						var memberAccessorName = isGetter ? prop.Getter?.Name : prop.Setter?.Name;
 
-						if (memberAccessorName == method.Name.Split('.').Last())
-						{
-							return true;
-						}
-
-						break;
-					}
-				}
 
 				break;
 			case IEvent @event:
