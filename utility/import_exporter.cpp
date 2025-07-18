@@ -480,7 +480,9 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 				report->failed_scripts.append_array(failed);
 			}
 		} else {
-			report_unsupported_resource("CSharpScript", "3.x C# scripts", cs_files[0]);
+			if (get_ver_major() < 4) {
+				report_unsupported_resource("CSharpScript", "3.x C# scripts", cs_files[0]);
+			}
 			report->failed_scripts.append_array(cs_files);
 		}
 	}

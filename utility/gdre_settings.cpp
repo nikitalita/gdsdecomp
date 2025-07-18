@@ -700,7 +700,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
-	if (gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
+	if (get_ver_major() >= 4 && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
 		err = load_project_dotnet_assembly();
 		if (err) {
 			err = OK;
