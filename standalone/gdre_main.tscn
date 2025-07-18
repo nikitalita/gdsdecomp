@@ -236,19 +236,15 @@ visible = false
 
 [node name="GdrePatchPck" parent="." instance=ExtResource("7_ubmam")]
 visible = false
-metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="GdreRecover" parent="." instance=ExtResource("8_xa6jx")]
 unique_name_in_owner = true
-visible = false
 
 [node name="GdreDecompile" parent="." instance=ExtResource("13_ql2ay")]
 visible = false
-metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="GdreCompile" parent="." instance=ExtResource("14_8cc8u")]
 visible = false
-metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="GdreExportReport" parent="." instance=ExtResource("16_htlpu")]
 unique_name_in_owner = true

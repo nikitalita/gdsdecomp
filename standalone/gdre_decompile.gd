@@ -1,11 +1,6 @@
 class_name GDREDecompile
 extends GDRECompDecomp
 
-	# "4.5-dev.6 (2e216b5 / 2025-06-10 / Bytecode version: 101) - content header size changed"
-	# "	4.5-dev.5 (ee121ef / 2025-06-09 / Bytecode version: 100) - Added `PERIOD_PERIOD_PERIOD` token."
-	# "	4.5-dev.4 (b59d6be / 2025-05-18 / Bytecode version: 100) - Added `ABSTRACT` token."
-
-
 func get_bytecode_parts(idx = -1) -> PackedStringArray:
 	if idx == -1:
 		idx = %BytecodeSelector.get_selected_id()
