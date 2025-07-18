@@ -93,7 +93,7 @@ public class GodotModuleDecompiler
 				}
 				if (reference is PEFile module)
 				{
-					var subdir = canonicalSubDirs.Contains(module.Name) ? "subprojects" + "/" + module.Name : null;
+					var subdir = canonicalSubDirs.Contains(module.Name) ? "subprojects" + "/" + module.Name : module.Name;
 					while (subdir != null && canonicalSubDirs.Contains(subdir))
 					{
 						subdir = "_" + subdir;
@@ -141,36 +141,13 @@ public class GodotModuleDecompiler
 
 			foreach (var pair in nfileMap.ToList())
 			{
-				if (module.Name == "ThirdParty")
-				{
-					var fdsagdas = "";
-				}
-				// TODO: right now we're force appending module name to the file path
 				string path = pair.Key;
 				string fixedPath = path;
-				if (!path.StartsWith(module.Name + "/", StringComparison.CurrentCultureIgnoreCase))
+				if (!path.StartsWith(module.SubDirectory + "/", StringComparison.CurrentCultureIgnoreCase))
 				{
-					fixedPath = module.Name + "/" + pair.Key;
+					fixedPath = module.SubDirectory + "/" + pair.Key;
 				}
-
-				// only append it if it doesn't already have a module name
-				if (!fileToModuleMap.ContainsKey(fixedPath))
-				{
-					fileToModuleMap.Add(fixedPath, module);
-					module.fileMap.Add(fixedPath, pair.Value);
-				}
-				else
-				{
-					if (path == fixedPath || originalProjectFiles.Contains(fixedPath) )
-					{
-						// remove it from the previous module's file map
-						var prevmod = fileToModuleMap[fixedPath];
-						prevmod.fileMap.Remove(fixedPath);
-						module.fileMap.Add(fixedPath, pair.Value);
-					} // otherwise don't add it
-					alreadyExistsCount++;
-					var far = "";
-				}
+				module.fileMap.Add(fixedPath, pair.Value);
 			}
 
 			if (module.fileMap.Count == 0)
@@ -248,7 +225,7 @@ public class GodotModuleDecompiler
 			projectIDs.Add(decompileFile(MainModule, outputCSProjectPath));
 			foreach (var module in AdditionalModules)
 			{
-				var csProjPath = Path.Combine(targetDirectory, module.Name, module.Name + ".csproj");
+				var csProjPath = Path.Combine(targetDirectory, module.SubDirectory!, module.Name + ".csproj");
 				projectIDs.Add(decompileFile(module, csProjPath));
 			}
 			var solutionPath = Path.ChangeExtension(outputCSProjectPath, ".sln");
