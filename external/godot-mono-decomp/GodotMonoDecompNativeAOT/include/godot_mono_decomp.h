@@ -30,6 +30,36 @@ int GodotMonoDecomp_DecompileModule(
 	int excludeFilesCount
 );
 
+
+// userdata, current step, total steps, status string, cancellation token source
+typedef int (*progressCallbackFunc_t)(void*, int, int, const char*);
+
+/**
+ * @brief Decompile a module with progress callback.
+ *
+ * The progress callback is a function that will be called with the progress of the decompilation.
+ * The function must return true if the decompilation should continue, false otherwise.
+ *
+ * The progress callback must be a function that takes a void pointer as an argument.
+ *
+ * @param decompilerHandle The handle to the decompiler
+ * @param outputCSProjectPath The path to the output CS project
+ * @param excludeFiles The files to exclude from the decompilation
+ * @param excludeFilesCount The number of files to exclude
+ * @param progressCallback The progress callback (a function pointer that takes in a void*, an int, an int, a const char*, and a void* (cancellation token))
+ * @param userData The user data to pass to the progress callback
+ */
+int GodotMonoDecomp_DecompileModuleWithProgress(
+	void* decompilerHandle,
+	const char* outputCSProjectPath,
+	const char** excludeFiles,
+	int excludeFilesCount,
+	progressCallbackFunc_t progressCallback,
+	void* userData
+);
+
+int GodotMonoDecomp_CancelDecompilation(void* cancelSource);
+
 const char* GodotMonoDecomp_DecompileIndividualFile(
 	void* decompilerHandle,
 	const char* file
@@ -42,6 +72,10 @@ int GodotMonoDecomp_GetNumberOfFilesNotPresentInFileMap(
 const char** GodotMonoDecomp_GetFilesNotPresentInFileMap(
 	void* decompilerHandle
 );
+
+int GodotMonoDecomp_GetNumberOfFilesInFileMap(void* decompilerHandle);
+
+const char** GodotMonoDecomp_GetFilesInFileMap(void* decompilerHandle);
 
 void GodotMonoDecomp_FreeObjectHandle(void* handle);
 

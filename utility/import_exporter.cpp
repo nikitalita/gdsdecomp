@@ -463,12 +463,13 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (exclude_files.size() == cs_files.size()) {
 			// nothing to do
 		} else if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
-			Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Decompiling C# scripts...", cs_files.size() - exclude_files.size(), true));
-
 			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
 			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
-			err = decompiler->decompile_module(csproj_path, exclude_files);
+			err = decompiler->decompile_module_with_progress(csproj_path, exclude_files);
 			if (err != OK) {
+				if (err == ERR_SKIP) {
+					return ERR_SKIP;
+				}
 				ERR_PRINT("Failed to decompile C# scripts!");
 				report->failed_scripts.append_array(cs_files);
 			} else {

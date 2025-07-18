@@ -31,7 +31,7 @@ public class GodotModuleDecompiler
 		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
 	}
 
-	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null)
+	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null, IProgress<DecompilationProgress>? progress_reporter = null, CancellationToken token = default(CancellationToken))
 	{
 		try{
 			outputCSProjectPath = Path.GetFullPath(outputCSProjectPath);
@@ -45,9 +45,11 @@ public class GodotModuleDecompiler
 
 			var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(fileMap.ContainsKey).Select(file => fileMap[file]).ToHashSet() ?? [];
 
+			godotProjectDecompiler.ProgressIndicator = progress_reporter;
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath))) {
-				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key));
+				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), token);
 			}
+			godotProjectDecompiler.ProgressIndicator = null;
 		}
 		catch (Exception e)
 		{
@@ -79,6 +81,16 @@ public class GodotModuleDecompiler
 	public string[] GetFilesNotPresentInFileMap()
 	{
 		return this.originalProjectFiles.Where(file => !fileMap.ContainsKey(file)).ToArray();
+	}
+
+	public int GetNumberOfFilesInFileMap()
+	{
+		return fileMap.Count;
+	}
+
+	public string[] GetFilesInFileMap()
+	{
+		return fileMap.Keys.ToArray();
 	}
 
 

@@ -4,21 +4,24 @@
 #include "core/object/ref_counted.h"
 #include "core/string/ustring.h"
 
+struct DecompileModuleTaskData;
 class GodotMonoDecompWrapper : public RefCounted {
 	GDCLASS(GodotMonoDecompWrapper, RefCounted);
 
 protected:
 	static void _bind_methods();
 	GodotMonoDecompWrapper();
+	friend struct DecompileModuleTaskData;
 
 public:
+	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	~GodotMonoDecompWrapper();
 
 	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs);
 
 	bool is_valid() const;
 
-	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
+	Error decompile_module_with_progress(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	String decompile_individual_file(const String &file);
 	Vector<String> get_files_not_present_in_file_map();
 
