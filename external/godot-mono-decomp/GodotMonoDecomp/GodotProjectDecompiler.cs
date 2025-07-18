@@ -232,7 +232,21 @@ namespace GodotMonoDecomp
 			}
 		}
 
-		public virtual CSharpDecompiler CreateDecompiler(DecompilerTypeSystem ts)
+		public DecompilerTypeSystem CreateTypeSystem(MetadataFile module)
+		{
+			return new DecompilerTypeSystem(module, AssemblyResolver, Settings);
+		}
+
+		public CSharpDecompiler CreateDecompilerWithPartials(MetadataFile module,
+			IEnumerable<TypeDefinitionHandle> typesToDecompile)
+		{
+			var ts = CreateTypeSystem(module);
+			var decompiler = CreateDecompiler(ts);
+			GodotStuff.GetPartialGodotTypes(ts, typesToDecompile).ForEach(p => decompiler.AddPartialTypeDefinition(p));
+			return decompiler;
+		}
+
+		protected virtual CSharpDecompiler CreateDecompiler(DecompilerTypeSystem ts)
 		{
 			var decompiler = new CSharpDecompiler(ts, Settings);
 			decompiler.DebugInfoProvider = DebugInfoProvider;
@@ -474,7 +488,7 @@ namespace GodotMonoDecomp
 				}
 			}
 			var dummy = new ProjectItemInfo("DummyGodotPartials", "");
-			dummy.PartialTypes = GodotStuff.GetPartialGodotTypes(module, GetTypesToDecompile(module), new DecompilerTypeSystem(module, AssemblyResolver, Settings));
+			dummy.PartialTypes = GodotStuff.GetPartialGodotTypes(new DecompilerTypeSystem(module, AssemblyResolver, Settings), GetTypesToDecompile(module));
 			yield return dummy;
 		}
 

@@ -64,16 +64,8 @@ public class GodotModuleDecompiler
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path) && fileMap.TryGetValue(path, out var type)){
-			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, assemblyResolver, godotProjectDecompiler.Settings);
-			var partialTypes = GodotStuff.GetPartialGodotTypes(module, [type], ts);
-			var decompiler = godotProjectDecompiler.CreateDecompiler(ts);
-			foreach (var partialType in partialTypes){
-				decompiler.AddPartialTypeDefinition(partialType);
-			}
-			var syntaxTree = decompiler.DecompileTypes([type]);
-			using var w = new StringWriter();
-			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, godotProjectDecompiler.Settings.CSharpFormattingOptions));
-			return w.ToString();
+			var decompiler = godotProjectDecompiler.CreateDecompilerWithPartials(module, [type]);
+			return decompiler.DecompileTypesAsString([type]);
 		}
 		return string.Format(error_message, file, module.Name) + (
 			originalProjectFiles.Contains(file) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
