@@ -351,6 +351,10 @@ bool GDRESettings::is_project_config_loaded() const {
 }
 
 void GDRESettings::remove_current_pack() {
+	if (current_project.is_valid() && !current_project->assembly_temp_dir.is_empty()) {
+		DirAccess::remove_absolute(current_project->assembly_temp_dir);
+		current_project->assembly_temp_dir = "";
+	}
 	current_project = Ref<PackInfo>();
 	packs.clear();
 	import_files.clear();
@@ -699,15 +703,15 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
-	if (!csharp_assembly_override.is_empty()) {
-		err = reload_dotnet_assembly(csharp_assembly_override);
-	} else {
-		err = load_project_dotnet_assembly();
-	}
-	if (err) {
-		WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
-	} else {
-		print_line(vformat("Loaded .NET assembly: %s", get_dotnet_assembly_path()));
+	if (gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
+		if (!csharp_assembly_override.is_empty()) {
+			err = reload_dotnet_assembly(csharp_assembly_override);
+		} else {
+			err = load_project_dotnet_assembly();
+		}
+		if (err) {
+			WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
+		}
 	}
 
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
@@ -719,7 +723,6 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		}
 	}
 
-	_ensure_script_cache_complete();
 	return OK;
 }
 
@@ -2180,11 +2183,27 @@ Vector<String> GDRESettings::get_errors() {
 Error GDRESettings::load_project_dotnet_assembly() {
 	String assembly_name = get_project_dotnet_assembly_name();
 	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: could not determine assembly name");
+	String assembly_file = assembly_name + ".dll";
+
+	if (get_ver_major() <= 3) {
+		// Godot 3.x projects have the assembly in the PCK
+		//res://.mono/assemblies/<Debug or Release>/<assembly_name>.dll
+		String base_path = "res://.mono/assemblies";
+		String assembly_path = base_path.path_join("Release").path_join(assembly_file);
+
+		if (!FileAccess::exists(assembly_path)) {
+			assembly_path = base_path.path_join("Debug").path_join(assembly_file);
+		}
+		if (FileAccess::exists(assembly_path)) {
+			return reload_dotnet_assembly(assembly_path);
+		} else {
+			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + base_path);
+		}
+	}
 	String project_dir = get_pack_path().get_base_dir();
 	if (project_dir.is_empty()) {
 		project_dir = get_project_path();
 	}
-	String assembly_file = assembly_name + ".dll";
 	Vector<String> directories = DirAccess::get_directories_at(project_dir);
 	for (String directory : directories) {
 		if (!directory.begins_with("data_")) {
@@ -2200,11 +2219,26 @@ Error GDRESettings::load_project_dotnet_assembly() {
 
 Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "Pack is not loaded");
+	if (!current_project->assembly_temp_dir.is_empty()) {
+		DirAccess::remove_absolute(current_project->assembly_temp_dir);
+		current_project->assembly_temp_dir = "";
+	}
 	current_project->decompiler = Ref<GodotMonoDecompWrapper>();
 	current_project->assembly_path = p_path;
 	ERR_FAIL_COND_V_MSG(current_project->assembly_path.is_empty(), ERR_INVALID_PARAMETER, "Assembly path is empty");
 	ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
 
+	if (p_path.begins_with("res://")) {
+		// We have to copy the entire .mono folder to a temporary directory
+		// because the decompiler needs to read the assemblies and the metadata files
+		current_project->assembly_temp_dir = GDRESettings::get_singleton()->get_gdre_user_path().path_join(".tmp").path_join(p_path.get_file().get_basename() + "_mono_temp");
+		Error err = gdre::ensure_dir(current_project->assembly_temp_dir.path_join(".mono"));
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create temporary directory for assembly");
+		err = gdre::copy_dir("res://.mono", current_project->assembly_temp_dir.path_join(".mono"));
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to copy .mono folder to temporary directory");
+		current_project->assembly_path = current_project->assembly_temp_dir.path_join(p_path.trim_prefix("res://"));
+		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
+	}
 	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
 	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() });
 	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
@@ -2238,6 +2272,9 @@ String GDRESettings::get_project_dotnet_assembly_name() const {
 		// fallback in case this is a add-on pck
 		return current_project->assembly_path.get_file().get_basename();
 	}
+	if (get_ver_major() <= 3) {
+		return get_project_setting("mono/project/assembly_name", get_game_name());
+	}
 	return get_project_setting("dotnet/project/assembly_name", get_game_name());
 }
 
@@ -2246,16 +2283,24 @@ bool GDRESettings::has_loaded_dotnet_assembly() const {
 }
 
 bool GDRESettings::project_requires_dotnet_assembly() const {
-	if (!(is_pack_loaded() && get_ver_major() >= 4)) {
+	if (!is_pack_loaded()) {
 		return false;
 	}
 	if (is_project_config_loaded()) {
 		return !get_project_setting("dotnet/project/assembly_name", String()).operator String().is_empty() ||
+				!get_project_setting("mono/project/assembly_name", String()).operator String().is_empty() ||
 				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
 				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
 	}
 	// fallback in case this is a add-on pck
 	return gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+}
+
+String GDRESettings::get_temp_dotnet_assembly_dir() const {
+	if (!is_pack_loaded()) {
+		return "";
+	}
+	return current_project->assembly_temp_dir;
 }
 
 void GDRESettings::_bind_methods() {
