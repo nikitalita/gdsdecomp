@@ -191,11 +191,6 @@ namespace GodotMonoDecomp
 				File.Copy(StrongNameKeyFile, Path.Combine(targetDirectory, Path.GetFileName(StrongNameKeyFile)), overwrite: true);
 			}
 
-			// if (Settings.GodotMode)
-			{
-				GodotStuff.RemoveExtraneousFiles(files, targetDirectory);
-			}
-
 			projectWriter.Write(projectFileWriter, this, files, file);
 
 			string platformName = module != null ? TargetServices.GetPlatformName(module) : "AnyCPU";
@@ -215,6 +210,11 @@ namespace GodotMonoDecomp
 				return false;
 			if (!typeDef.IsNested && EmbeddedAttributeNames.Contains(ns + "." + name))
 				return false;
+			// Godot stuff
+			if (GodotStuff.IsGodotGameMainClass(module, type))
+			{
+				return false;
+			}
 			return true;
 		}
 
@@ -293,7 +293,7 @@ namespace GodotMonoDecomp
 				progress.TotalUnits = files.Count;
 			}
 
-			return files.Select(f => new ProjectItemInfo("Compile", f.Key)).Concat(WriteAssemblyInfo(ts, cancellationToken));
+			return files.Select(f => new ProjectItemInfo("Compile", f.Key));//.Concat(WriteAssemblyInfo(ts, cancellationToken));
 
 			string GetFileFileNameForHandle(TypeDefinitionHandle h)
 			{
