@@ -74,6 +74,18 @@ public:
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE);
 	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const;
 	virtual bool handles_fake_load() const;
+
+	static constexpr int get_format_version_from_flags(uint32_t p_flags) {
+		// we want to get the last 8 bits of the flags
+		return (p_flags >> 24) & 0xFF;
+	}
+
+	static constexpr int set_format_version_in_flags(uint32_t p_flags, int p_format_version) {
+		p_flags &= ~0xFF000000;
+		p_flags |= p_format_version << 24;
+		return p_flags;
+	}
+
 	static ResourceInfo::LoadType get_default_real_load() {
 		return ResourceCompatLoader::get_default_load_type();
 	}
