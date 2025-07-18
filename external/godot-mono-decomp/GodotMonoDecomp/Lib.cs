@@ -14,8 +14,8 @@ namespace GodotMonoDecomp
             try
             {
                 var files = GodotStuff.ListCSharpFiles(projectPath, false);
-				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, outputCSProjectPath, [.. files], ReferencePaths);
-                decompiler.DecompileModule();
+				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], ReferencePaths);
+                decompiler.DecompileModule(outputCSProjectPath);
             }
             catch (Exception e)
             {
