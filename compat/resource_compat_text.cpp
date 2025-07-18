@@ -36,6 +36,7 @@
 #include "core/io/missing_resource.h"
 
 #include "compat/variant_writer_compat.h"
+#include "core/version_generated.gen.h"
 #include "utility/gdre_settings.h"
 
 #include "core/io/dir_access.h"
@@ -2774,30 +2775,16 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 
 	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
 	format_version = CompatFormatLoader::get_format_version_from_flags(p_flags);
-	auto set_major_minor_based_on_format = [&](int p_format_version) {
-		if (format_version == 4) {
-			ver_major = 4;
-			ver_minor = 3;
-		} else if (format_version == 3) {
-			ver_major = 4;
-			ver_minor = 0;
-		} else if (format_version == 2) {
-			ver_major = 3;
-			ver_minor = 0;
-		} else if (format_version == 1) {
-			ver_major = 2;
-			ver_minor = 0;
-		}
-	};
+	ver_major = CompatFormatLoader::get_ver_major_from_flags(p_flags);
+	ver_minor = CompatFormatLoader::get_ver_minor_from_flags(p_flags);
+	bool set_format = format_version != 0 && ver_major != 0;
 	String original_path;
 	if (compat.is_valid()) {
 		original_path = compat->original_path;
-		if (format_version == 0) {
+		if (!set_format) {
 			format_version = compat->ver_format;
 			ver_major = compat->ver_major;
 			ver_minor = compat->ver_minor;
-		} else {
-			set_major_minor_based_on_format(format_version);
 		}
 		res_uid = compat->uid;
 		String orig_format = compat->resource_format;
@@ -2806,7 +2793,7 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 		using_uids = compat->using_uids;
 		using_named_scene_ids = compat->using_named_scene_ids;
 		Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
-		if (orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0) {
+		if (!set_format && (orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0)) {
 			if (orig_format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
 				format_version = 4;
 			} else if (using_uids || using_named_scene_ids || using_script_class) {
@@ -2834,10 +2821,19 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 			}
 		}
 	} else {
-		if (format_version == 0) {
-			format_version = ResourceLoaderCompatText::FORMAT_VERSION;
+		if (!set_format) {
+			if (GDRESettings::get_singleton()->is_pack_loaded()) {
+				WARN_PRINT("Non-loaded resource and did not set version info, using default for pack.");
+				ver_major = GDRESettings::get_singleton()->get_ver_major();
+				ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+				format_version = ResourceFormatSaverCompatText::get_default_format_version(ver_major, ver_minor);
+			} else {
+				WARN_PRINT("Non-loaded resource and did not set version info, using default format version for current engine.");
+				format_version = ResourceLoaderCompatText::FORMAT_VERSION;
+				ver_major = GODOT_VERSION_MAJOR;
+				ver_minor = GODOT_VERSION_MINOR;
+			}
 		}
-		set_major_minor_based_on_format(format_version);
 
 		res_uid = ResourceUID::INVALID_ID;
 		script_class = "";
@@ -2865,4 +2861,47 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 		}
 	}
 	return OK;
+}
+
+int ResourceFormatSaverCompatText::get_default_format_version(int ver_major, int ver_minor) {
+	if (ver_major == 4 && ver_minor >= 3) {
+		return 4;
+	} else if (ver_major == 4) {
+		return 3;
+	} else if (ver_major == 3) {
+		return 2;
+	} else if (ver_major == 2) {
+		return 1;
+	}
+	return 0;
+}
+
+int ResourceFormatSaverCompatText::get_ver_major_from_format_version(int ver_format) {
+	switch (ver_format) {
+		case 4:
+		case 3:
+			return 4;
+		case 2:
+			return 3;
+		case 1:
+			return 2;
+		// did not have a version 0
+		default:
+			ERR_FAIL_V_MSG(0, "Invalid format version: " + itos(ver_format));
+	}
+}
+
+int ResourceFormatSaverCompatText::get_ver_minor_from_format_version(int ver_format) {
+	switch (ver_format) {
+		case 4:
+			return 3;
+	}
+	return 0;
+}
+
+Error ResourceFormatSaverCompatText::save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_format, int ver_major, int ver_minor, uint32_t p_flags) {
+	ERR_FAIL_COND_V_MSG(ver_format <= 0 || ver_major <= 0, ERR_INVALID_PARAMETER, "Invalid version info");
+
+	p_flags = CompatFormatLoader::set_version_info_in_flags(p_flags, ver_format, ver_major, ver_minor);
+	return ResourceFormatSaverCompatText::save(p_resource, p_path, p_flags);
 }
