@@ -1,28 +1,22 @@
-
-
 using System.Reflection.Metadata;
 using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.CSharp;
-using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.Metadata;
-using ICSharpCode.Decompiler.TypeSystem;
 
 namespace GodotMonoDecomp;
 
 public class GodotModuleDecompiler
 {
 	public readonly PEFile module;
-
 	public readonly UniversalAssemblyResolver assemblyResolver;
 	public readonly GodotProjectDecompiler godotProjectDecompiler;
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 
 
-	public GodotModuleDecompiler(string assemblyPath, string[] originalProjectFiles, string[]? ReferencePaths = null){
+	public GodotModuleDecompiler(string assemblyPath, string[] originalProjectFiles, string[]? ReferencePaths = null) {
 		var decompilerSettings = new DecompilerSettings();
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
-		this.originalProjectFiles = originalProjectFiles.Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).ToList();
+		this.originalProjectFiles = [.. originalProjectFiles.Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		this.module = new PEFile(assemblyPath);
 		this.assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
