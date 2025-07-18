@@ -56,6 +56,8 @@ func reset():
 	%ResourceInfo.text = ""
 	%MeshPreviewer.visible = false
 	%MeshPreviewer.reset()
+	%ScenePreviewer3D.visible = false
+	%ScenePreviewer3D.reset()
 
 
 var previous_res_info_size = Vector2(0, 0)
@@ -97,6 +99,9 @@ func pop_resource_info(path: String):
 func is_mesh(ext):
 	return ext == "mesh"
 
+func is_scene(ext):
+	return ext == "tscn" || ext == "scn"
+
 func load_mesh(path):
 	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
 	if not res:
@@ -104,17 +109,29 @@ func load_mesh(path):
 	# check if the resource is a mesh or a descendant of mesh
 	if not res.get_class().contains("Mesh"):
 		return false
-	print(res.get_class())
 	%MeshPreviewer.edit(res)
 	%MeshPreviewer.visible = true
 	return true
 
+func load_scene(path):
+	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	if not res:
+		return false
+	# check if the resource is a scene or a descendant of scene
+	if not res.get_class().contains("PackedScene"):
+		return false
+	%ScenePreviewer3D.edit(res)
+	%ScenePreviewer3D.visible = true
+	return true
 
 func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 	reset()
 	var ext = path.get_extension().to_lower()
 	var error_opening = false
 	var not_supported = false
+	var info: Dictionary = {}
+	if ResourceCompatLoader.handles_resource(path, ""):
+		info = ResourceCompatLoader.get_resource_info(path)
 	if (is_shader(ext)):
 		%TextView.load_gdshader(path)
 		%TextView.visible = true
@@ -135,6 +152,8 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		error_opening = not load_texture(path)
 	elif (is_mesh(ext)):
 		error_opening = not load_mesh(path)
+	elif (is_scene(ext) and info.get("ver_major", 0) >= 4):
+		error_opening = not load_scene(path)
 	elif (is_text_resource(ext) or is_ini_like(ext)):
 		%TextView.load_text_resource(path)
 		%TextView.visible = true
@@ -281,6 +300,8 @@ func get_currently_visible_view() -> Control:
 		return %TextureView
 	elif %MeshPreviewer.visible:
 		return %MeshPreviewer
+	elif %ScenePreviewer3D.visible:
+		return %ScenePreviewer3D
 	return null
 
 
@@ -295,6 +316,7 @@ func _ready():
 	self.connect("resized", self._on_resized)
 	previous_res_info_size = Vector2(0, 100)
 	%ResourceInfoContainer.custom_minimum_size = previous_res_info_size
+	load_resource("res://.godot/imported/kyuu_on_bike.glb-ecab64cc65c256db28f6d03df73eb447.scn")
 	# load_resource("res://.godot/imported/ScifiStruct_3.obj-8ad9868dec2ef9403c73f82a7404489a.mesh")
 	# load_resource("res://.godot/imported/gdre_Script.svg-4c68c9c5e02f5e7a41dddea59a95e245.ctex")
 	#load_resource("res://.godot/imported/anomaly 105 jun12.ogg-d3e939934d210d1a4e1f9d2d34966046.oggvorbisstr")
