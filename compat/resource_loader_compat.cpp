@@ -478,6 +478,18 @@ bool ResourceCompatLoader::is_globally_available() {
 	return globally_available;
 }
 
+Error ResourceCompatLoader::save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_major, int ver_minor) {
+	ERR_FAIL_COND_V_MSG(ver_major <= 0, ERR_INVALID_PARAMETER, "Invalid version info");
+	if (p_path.get_extension() == "tres" || p_path.get_extension() == "tscn") {
+		int ver_format = ResourceFormatSaverCompatText::get_default_format_version(ver_major, ver_minor);
+		ResourceFormatSaverCompatText saver;
+		return saver.save_custom(p_resource, p_path, ver_format, ver_major, ver_minor);
+	}
+	int ver_format = ResourceFormatSaverCompatBinary::get_default_format_version(ver_major, ver_minor);
+	ResourceFormatSaverCompatBinary saver;
+	return saver.save_custom(p_resource, p_path, ver_format, ver_major, ver_minor);
+}
+
 String ResourceCompatConverter::get_resource_name(const Ref<Resource> &res, int ver_major) {
 	String name;
 	Variant n = ver_major < 3 ? res->get("resource/name") : res->get("resource_name");
@@ -541,6 +553,7 @@ void ResourceCompatLoader::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("handles_resource", "path", "type_hint"), &ResourceCompatLoader::handles_resource, DEFVAL(""));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_resource_script_class", "path"), &ResourceCompatLoader::get_resource_script_class);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_resource_type", "path"), &ResourceCompatLoader::get_resource_type);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_custom", "resource", "path", "ver_major", "ver_minor"), &ResourceCompatLoader::save_custom);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "FAKE_LOAD", ResourceInfo::FAKE_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "NON_GLOBAL_LOAD", ResourceInfo::NON_GLOBAL_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "GLTF_LOAD", ResourceInfo::GLTF_LOAD);

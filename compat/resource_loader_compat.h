@@ -65,6 +65,9 @@ public:
 
 	static void get_base_extensions_for_type(const String &p_type, List<String> *p_extensions);
 	static void get_base_extensions(List<String> *p_extensions, int ver_major = 0);
+
+	// only supports resource text and binary formats, not texture formats
+	static Error save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_major, int ver_minor);
 };
 
 class CompatFormatLoader : public ResourceFormatLoader {
