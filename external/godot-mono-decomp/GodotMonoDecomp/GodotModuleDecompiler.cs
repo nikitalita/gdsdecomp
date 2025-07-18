@@ -12,6 +12,8 @@ public class GodotModuleDecompiler
 	public readonly GodotProjectDecompiler godotProjectDecompiler;
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
+	public readonly Version godotVersion;
+	public readonly Dictionary<string, GodotScriptMetadata> godot3xMetadata;
 
 
 	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null) {
@@ -26,9 +28,20 @@ public class GodotModuleDecompiler
 			assemblyResolver.AddSearchDirectory(path);
 		}
 
+		godotVersion = GodotStuff.GetGodotVersion(module) ?? new Version(0, 0, 0, 0);
+		if (godotVersion.Major <= 3)
+		{
+			// check for "script_metadata.{release,debug}" files
+			var godot3xMetadataFile = GodotScriptMetadataLoader.FindGodotScriptMetadataFile(assemblyPath);
+			if (godot3xMetadataFile != null && File.Exists(godot3xMetadataFile))
+			{
+				godot3xMetadata = GodotScriptMetadataLoader.LoadFromFile(godot3xMetadataFile);
+			}
+		}
+
 		godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, ProjectFileWriterGodotStyle.Create(), assemblyResolver, debugInfoProvider, this.originalProjectFiles);
 		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
-		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
+		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
 	}
 
 	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null, IProgress<DecompilationProgress>? progress_reporter = null, CancellationToken token = default(CancellationToken))
