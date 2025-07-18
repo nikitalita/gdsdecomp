@@ -129,6 +129,7 @@ public:
 
 	String get_script_path() const;
 	Error load_source_code(const String &p_path);
+	Error load_binary_tokens(const Vector<uint8_t> &p_binary_tokens);
 
 	String get_error_message() const;
 

@@ -576,6 +576,7 @@ Variant FakeGDScript::callp(const StringName &p_method, const Variant **p_args, 
 
 void FakeGDScript::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeGDScript::get_script_path);
+	ClassDB::bind_method(D_METHOD("load_binary_tokens", "binary_tokens"), &FakeGDScript::load_binary_tokens);
 	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeGDScript::load_source_code);
 	ClassDB::bind_method(D_METHOD("get_error_message"), &FakeGDScript::get_error_message);
 	ClassDB::bind_method(D_METHOD("set_override_bytecode_revision", "revision"), &FakeGDScript::set_override_bytecode_revision);
@@ -590,6 +591,15 @@ Error FakeGDScript::load_source_code(const String &p_path) {
 	script_path = p_path;
 	if (autoload) {
 		return _reload_from_file();
+	}
+	return OK;
+}
+
+Error FakeGDScript::load_binary_tokens(const Vector<uint8_t> &p_binary_tokens) {
+	is_binary = true;
+	binary_buffer = p_binary_tokens;
+	if (autoload) {
+		return reload(false);
 	}
 	return OK;
 }
