@@ -1,6 +1,7 @@
 
 
 using ICSharpCode.Decompiler;
+using ICSharpCode.Decompiler.CSharp;
 
 namespace GodotMonoDecomp;
 
@@ -21,4 +22,8 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// Whether to create additional projects for project references in main module.
 	/// </summary>
 	public bool CreateAdditionalProjectsForProjectReferences { get; set; } = true;
+
+	public GodotMonoDecompSettings(){}
+
+	public GodotMonoDecompSettings(LanguageVersion languageVersion) : base(languageVersion){}
 }

@@ -208,11 +208,16 @@ namespace GodotMonoDecomp
 			}
 		}
 
-		static TargetFramework GetActualTargetFramework(MetadataFile module)
+		static TargetFramework GetActualTargetFramework(MetadataFile module, IProjectInfoProvider project)
 		{
-			var framework = TargetServices.DetectTargetFramework(module);
-
-			return new TargetFramework(".NETFramework", framework.VersionNumber, framework.Profile);
+			var targetFramework = TargetServices.DetectTargetFramework(module);
+			if (GetProjectType(module) == ProjectType.Godot)
+			{
+				return new TargetFramework(".NETFramework", targetFramework.VersionNumber, targetFramework.Profile);
+			}
+			if (targetFramework.Identifier == ".NETFramework" && targetFramework.VersionNumber == 200)
+				targetFramework = TargetServices.DetectTargetFrameworkNET20(module, project.AssemblyResolver, targetFramework);
+			return targetFramework;
 		}
 
 		static void WriteAssemblyInfo(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
@@ -246,7 +251,7 @@ namespace GodotMonoDecomp
 
 			WriteDesktopExtensions(xml, projectType);
 
-			var targetFramework = GetActualTargetFramework(module);
+			var targetFramework = GetActualTargetFramework(module, project);
 
 			xml.WriteElementString("TargetFramework", targetFramework.Moniker);
 
@@ -636,6 +641,15 @@ namespace GodotMonoDecomp
 		{
 			foreach (var referenceName in module.AssemblyReferences.Select(r => r.Name))
 			{
+
+				if (referenceName == "GodotSharp")
+				{
+					return ProjectType.Godot;
+				}
+			}
+
+			foreach (var referenceName in module.AssemblyReferences.Select(r => r.Name))
+			{
 				if (referenceName.StartsWith(AspNetCorePrefix, StringComparison.Ordinal))
 				{
 					return ProjectType.Web;
@@ -649,11 +663,6 @@ namespace GodotMonoDecomp
 				if (referenceName == WindowsFormsName)
 				{
 					return ProjectType.WinForms;
-				}
-
-				if (referenceName == "GodotSharp")
-				{
-					return ProjectType.Godot;
 				}
 			}
 
