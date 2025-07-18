@@ -157,11 +157,11 @@ public static class Common
 		return path;
 	}
 
-	public static string FindCommonRoot(IEnumerable<string> paths)
+	public static string? FindCommonRoot(IEnumerable<string> paths)
 	{
 		if (paths == null || !paths.Any())
 		{
-			return "";
+			return null;
 		}
 
 		// sort by length to find the shortest path first
@@ -175,7 +175,7 @@ public static class Common
 				commonRoot = Path.GetDirectoryName(commonRoot);
 				if (commonRoot == null)
 				{
-					return "";
+					return null;
 				}
 			}
 		}
