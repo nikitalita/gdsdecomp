@@ -57,9 +57,6 @@ void FakeGDScript::reload_from_file() {
 }
 
 bool FakeGDScript::can_instantiate() const {
-	if (ver_major < 4) {
-		return false;
-	}
 	return true;
 }
 
@@ -107,6 +104,7 @@ ScriptInstance *FakeGDScript::instance_create(Object *p_this) {
 	auto instance = memnew(FakeScriptInstance());
 	instance->script = Ref<FakeGDScript>(this);
 	instance->owner = p_this;
+	instance->update_cached_prop_names();
 	return instance;
 }
 
@@ -451,6 +449,9 @@ bool FakeGDScript::_set(const StringName &p_name, const Variant &p_value) {
 
 void FakeGDScript::_get_property_list(List<PropertyInfo> *p_properties) const {
 	p_properties->push_back(PropertyInfo(Variant::STRING, "script/source", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL));
+	for (const KeyValue<StringName, Variant> &E : properties) {
+		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
+	}
 }
 
 Variant FakeGDScript::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
@@ -511,6 +512,18 @@ String FakeGDScript::get_original_class() const {
 
 // FakeEmbeddedScript
 
+String FakeEmbeddedScript::_get_normalized_path() const {
+	String path = get_path();
+	if (path.is_empty() || !path.is_resource_file()) {
+		return "";
+	}
+	String ext = path.get_extension().to_lower();
+	if (ext == "gdc" || ext == "gde") {
+		path = path.get_basename() + ".gd";
+	}
+	return path;
+}
+
 bool FakeEmbeddedScript::_get(const StringName &p_name, Variant &r_ret) const {
 	if (!properties.has(p_name)) {
 		return false;
@@ -536,11 +549,7 @@ void FakeEmbeddedScript::_get_property_list(List<PropertyInfo> *p_list) const {
 }
 
 StringName FakeEmbeddedScript::get_global_name() const {
-	auto path = get_path();
-	if (path.is_empty() || !path.is_resource_file()) {
-		return "";
-	}
-	return GDRESettings::get_singleton()->get_cached_script_class(path);
+	return GDRESettings::get_singleton()->get_cached_script_class(_get_normalized_path());
 }
 
 bool FakeEmbeddedScript::inherits_script(const Ref<Script> &p_script) const {
@@ -548,11 +557,7 @@ bool FakeEmbeddedScript::inherits_script(const Ref<Script> &p_script) const {
 }
 
 StringName FakeEmbeddedScript::get_instance_base_type() const {
-	auto path = get_path();
-	if (path.is_empty() || !path.is_resource_file()) {
-		return "";
-	}
-	return GDRESettings::get_singleton()->get_cached_script_base(path);
+	return GDRESettings::get_singleton()->get_cached_script_base(_get_normalized_path());
 }
 
 bool FakeEmbeddedScript::can_instantiate() const {
@@ -570,6 +575,7 @@ ScriptInstance *FakeEmbeddedScript::instance_create(Object *p_this) {
 	auto instance = memnew(FakeScriptInstance());
 	instance->script = Ref<FakeEmbeddedScript>(this);
 	instance->owner = p_this;
+	instance->is_fake_embedded = true;
 	return instance;
 }
 
@@ -611,24 +617,48 @@ String FakeEmbeddedScript::get_original_class() const {
 
 // FakeGDScriptInstance implementations
 
+void FakeScriptInstance::update_cached_prop_names() {
+	if (!_cached_prop_names_valid) {
+		_cached_prop_names.clear();
+		Ref<Script> script_parent = script;
+		while (script_parent.is_valid()) {
+			script_parent->get_members(&_cached_prop_names);
+			script_parent = script_parent->get_base_script();
+		}
+		_cached_prop_names_valid = true;
+	}
+}
+
+bool FakeScriptInstance::has_cached_prop_name(const StringName &p_name) {
+	update_cached_prop_names();
+	return _cached_prop_names.has(p_name);
+}
+
 bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
 	if (!owner) {
 		return false;
 	}
-	MissingResource *mres = Object::cast_to<MissingResource>(owner);
-	if (mres) {
-		// let mres handle it
-		return false;
-	}
-	if (!properties.has(p_name)) {
-		// check if it's a property of the owning object
-		List<PropertyInfo> properties;
-		owner->get_property_list(&properties);
-		for (const PropertyInfo &pi : properties) {
-			if (pi.name == p_name) {
-				return false;
+	if (is_fake_embedded) {
+		MissingResource *mres = Object::cast_to<MissingResource>(owner);
+		if (mres && mres->is_recording_properties()) {
+			// let mres handle it
+			return false;
+		}
+		if (!properties.has(p_name)) {
+			// check if it's a property of the owning object
+			List<PropertyInfo> properties;
+			owner->get_property_list(&properties);
+			for (const PropertyInfo &pi : properties) {
+				if (pi.name == p_name) {
+					return false;
+				}
 			}
 		}
+		properties[p_name] = p_value;
+		return true;
+	} // else
+	if (!has_cached_prop_name(p_name)) {
+		return false;
 	}
 	properties[p_name] = p_value;
 	return true;
@@ -645,6 +675,16 @@ bool FakeScriptInstance::get(const StringName &p_name, Variant &r_ret) const {
 void FakeScriptInstance::get_property_list(List<PropertyInfo> *p_properties) const {
 	for (const KeyValue<StringName, Variant> &E : properties) {
 		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
+	}
+	if (is_fake_embedded) {
+		return;
+	}
+	for (const StringName &E : _cached_prop_names) {
+		if (properties.has(E)) {
+			continue;
+		}
+		// TODO: get types
+		p_properties->push_back(PropertyInfo(Variant::NIL, E));
 	}
 }
 
