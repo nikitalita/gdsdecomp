@@ -9,6 +9,7 @@
 class FakeGDScript : public Script {
 	GDCLASS(FakeGDScript, Script);
 	bool tool = false;
+	bool abstract = false;
 	bool valid = false;
 	bool loaded = false;
 	bool autoload = true;
