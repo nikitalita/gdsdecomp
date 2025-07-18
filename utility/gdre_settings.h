@@ -314,6 +314,8 @@ public:
 	bool has_loaded_dotnet_assembly() const;
 	String get_project_dotnet_assembly_name() const;
 
+	bool project_requires_dotnet_assembly() const;
+
 	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
 
 	static GDRESettings *get_singleton();
