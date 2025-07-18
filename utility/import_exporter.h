@@ -15,6 +15,7 @@ class ImportExporterReport : public RefCounted {
 	GDCLASS(ImportExporterReport, RefCounted)
 	friend class ImportExporter;
 	bool had_encryption_error = false;
+	bool mono_detected = false;
 	bool godotsteam_detected = false;
 	bool exported_scenes = false;
 	int session_files_total = 0;
@@ -73,6 +74,7 @@ public:
 	Vector<String> get_failed_gdnative_copy() const;
 
 	bool is_steam_detected() const;
+	bool is_mono_detected() const;
 
 	void print_report();
 	ImportExporterReport() {
