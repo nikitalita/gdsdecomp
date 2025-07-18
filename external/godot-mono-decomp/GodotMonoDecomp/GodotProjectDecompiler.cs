@@ -242,6 +242,7 @@ namespace GodotMonoDecomp
 			decompiler.DebugInfoProvider = DebugInfoProvider;
 			decompiler.AstTransforms.Add(new EscapeInvalidIdentifiers());
 			decompiler.AstTransforms.Add(new RemoveCLSCompliantAttribute());
+			decompiler.AstTransforms.Add(new RemoveGodotScriptPathAttribute());
 			return decompiler;
 		}
 
@@ -268,6 +269,7 @@ namespace GodotMonoDecomp
 			return module.Metadata.GetTopLevelTypeDefinitions()
 				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
 		}
+
 
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
@@ -382,7 +384,6 @@ namespace GodotMonoDecomp
 									}
 								}
 							}
-							GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
 
 							var path = Path.Combine(TargetDirectory, file.Key);
 							using StreamWriter w = new StreamWriter(path);

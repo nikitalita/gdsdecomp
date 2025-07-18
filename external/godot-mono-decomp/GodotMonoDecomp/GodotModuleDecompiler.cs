@@ -18,10 +18,10 @@ public class GodotModuleDecompiler
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 
-	public DecompilerSettings decompilerSettings;
 
 	public GodotModuleDecompiler(string assemblyPath, string[] originalProjectFiles, string[]? ReferencePaths = null){
-		this.decompilerSettings = new DecompilerSettings();
+		var decompilerSettings = new DecompilerSettings();
+		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
 		this.originalProjectFiles = originalProjectFiles.Select(file => GodotStuff.TrimPrefix(file, "res://")).ToList();
 		this.module = new PEFile(assemblyPath);
 		this.assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
@@ -30,7 +30,7 @@ public class GodotModuleDecompiler
 			this.assemblyResolver.AddSearchDirectory(path);
 		}
 
-		this.godotProjectDecompiler = new GodotProjectDecompiler(this.decompilerSettings, this.assemblyResolver, ProjectFileWriterGodotStyle.Create(), this.assemblyResolver, null, this.originalProjectFiles);
+		this.godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, this.assemblyResolver, ProjectFileWriterGodotStyle.Create(), this.assemblyResolver, null, this.originalProjectFiles);
 		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
 		this.fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
 	}
@@ -57,16 +57,15 @@ public class GodotModuleDecompiler
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
 		if (fileMap.TryGetValue(path, out var type)){
-			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, assemblyResolver, decompilerSettings);
+			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, assemblyResolver, godotProjectDecompiler.Settings);
 			var partialTypes = GodotStuff.GetPartialGodotTypes(module, [type], ts);
 			var decompiler = godotProjectDecompiler.CreateDecompiler(ts);
 			foreach (var partialType in partialTypes){
 				decompiler.AddPartialTypeDefinition(partialType);
 			}
 			var syntaxTree = decompiler.DecompileTypes([type]);
-			GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
 			using var w = new StringWriter();
-			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, decompilerSettings.CSharpFormattingOptions));
+			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, godotProjectDecompiler.Settings.CSharpFormattingOptions));
 			return w.GetStringBuilder().ToString();
 		}
 		return "// ERROR: Could not find file " + file + " in assembly " + module.Name + ".dll.\n// The associated class(es) may have not been compiled into the assembly.";
