@@ -1,6 +1,8 @@
 using System.Reflection.Metadata;
 using ICSharpCode.Decompiler;
+using ICSharpCode.Decompiler.DebugInfo;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.ILSpyX.PdbProvider;
 
 namespace GodotMonoDecomp;
 
@@ -16,16 +18,17 @@ public class GodotModuleDecompiler
 		var decompilerSettings = new DecompilerSettings();
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
 		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
-		this.module = new PEFile(assemblyPath);
+		module = new PEFile(assemblyPath);
+		IDebugInfoProvider? debugInfoProvider = DebugInfoUtils.LoadSymbols(this.module);
 		var assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
 		{
 			assemblyResolver.AddSearchDirectory(path);
 		}
 
-		this.godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, ProjectFileWriterGodotStyle.Create(), assemblyResolver, null, this.originalProjectFiles);
+		godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, ProjectFileWriterGodotStyle.Create(), assemblyResolver, debugInfoProvider, this.originalProjectFiles);
 		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
-		this.fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
+		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
 	}
 
 	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null)
