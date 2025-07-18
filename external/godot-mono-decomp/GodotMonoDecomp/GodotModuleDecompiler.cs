@@ -13,7 +13,8 @@ public class GodotModuleDecompiler
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 	public readonly Version godotVersion;
-	public readonly Dictionary<string, GodotScriptMetadata> godot3xMetadata;
+	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
+	public readonly DotNetCoreDepInfo? depInfo;
 
 
 	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null) {
@@ -21,6 +22,7 @@ public class GodotModuleDecompiler
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
 		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		module = new PEFile(assemblyPath);
+		depInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), module.Name);
 		IDebugInfoProvider? debugInfoProvider = DebugInfoUtils.LoadSymbols(this.module);
 		var assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
@@ -70,7 +72,7 @@ public class GodotModuleDecompiler
 				}
 			}
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath))) {
-				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), token);
+				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), depInfo, token);
 			}
 			godotProjectDecompiler.ProgressIndicator = null;
 		}

@@ -8,7 +8,7 @@ using System.Linq;
 
 namespace GodotMonoDecomp;
 
-class DotNetCoreDepInfo
+public class DotNetCoreDepInfo
 {
 	public readonly string Name;
 	public readonly string Version;
@@ -43,7 +43,7 @@ class DotNetCoreDepInfo
 		this.runtimeComponents = runtimeComponents;
 	}
 
-	static public DotNetCoreDepInfo Create(string fullName, string version, string target, JsonObject blob)
+	static DotNetCoreDepInfo CreateFromJson(string fullName, string version, string target, JsonObject blob)
 	{
 		return Create(fullName, version, target, blob, new HashSet<string>());
 	}
@@ -172,9 +172,19 @@ class DotNetCoreDepInfo
 	public string PathName { get => System.IO.Path.Combine(Name, Version); }
 
 
+	public static string GetDepPath(string assemblyPath)
+	{
+		return System.IO.Path.ChangeExtension(assemblyPath, ".deps.json");
+	}
+
+
 	public static DotNetCoreDepInfo? LoadDepInfoFromFile(string depsJsonFileName, string moduleName)
 	{
 		// remove the .dll extension
+		if (string.IsNullOrEmpty(depsJsonFileName) || !System.IO.File.Exists(depsJsonFileName))
+		{
+			return null;
+		}
 		var depsJson = File.ReadAllText(depsJsonFileName);
 		var dependencies = JsonReader.Parse(depsJson);
 		// go through each target framework, find the one that matches the module
@@ -184,7 +194,7 @@ class DotNetCoreDepInfo
 			{
 				if (dependency.Key.StartsWith(moduleName))
 				{
-					return DotNetCoreDepInfo.Create(dependency.Key, "", target.Key, dependencies.AsJsonObject);
+					return DotNetCoreDepInfo.CreateFromJson(dependency.Key, "", target.Key, dependencies.AsJsonObject);
 				}
 			}
 		}
