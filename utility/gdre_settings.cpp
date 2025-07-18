@@ -352,7 +352,7 @@ bool GDRESettings::is_project_config_loaded() const {
 
 void GDRESettings::remove_current_pack() {
 	if (current_project.is_valid() && !current_project->assembly_temp_dir.is_empty()) {
-		DirAccess::remove_absolute(current_project->assembly_temp_dir);
+		gdre::rimraf(current_project->assembly_temp_dir);
 		current_project->assembly_temp_dir = "";
 	}
 	current_project = Ref<PackInfo>();
