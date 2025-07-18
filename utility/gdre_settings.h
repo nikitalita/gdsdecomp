@@ -283,6 +283,7 @@ public:
 	String get_sys_info_string() const;
 	Error load_project_config();
 	Error save_project_config(const String &p_out_dir);
+	Error save_project_config_binary(const String &p_out_dir);
 	bool pack_has_project_config();
 	float get_auto_display_scale() const;
 	String get_gdre_version() const;
