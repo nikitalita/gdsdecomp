@@ -1734,11 +1734,10 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		report->set_saved_path(dest_path);
 		// save the import info anyway
-		auto import_dest = output_dir.path_join(iinfo->get_import_md_path().trim_prefix("res://"));
-		iinfo->save_to(import_dest);
-		report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
 		if (err == ERR_DATABASE_CANT_READ) {
 			err = OK;
+		} else if (err == ERR_BUG) {
+			err = ERR_PRINTER_ON_FIRE;
 		}
 	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= 4) {
 		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
