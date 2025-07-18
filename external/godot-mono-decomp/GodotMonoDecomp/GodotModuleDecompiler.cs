@@ -6,31 +6,41 @@ using ICSharpCode.ILSpyX.PdbProvider;
 
 namespace GodotMonoDecomp;
 
+public class GodotModule {
+	public readonly PEFile Module;
+	public DotNetCoreDepInfo? depInfo;
+
+	public GodotModule(string assemblyPath){
+		Module = new PEFile(assemblyPath);
+	}
+
+	public MetadataReader Metadata => Module.Metadata;
+	public string Name => Module.Name;
+}
+
 public class GodotModuleDecompiler
 {
-	public readonly PEFile module;
+	public readonly GodotModule MainModule;
 	public readonly GodotProjectDecompiler godotProjectDecompiler;
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 	public readonly Version godotVersion;
 	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
-	public readonly DotNetCoreDepInfo? depInfo;
-
 
 	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null) {
 		var decompilerSettings = new DecompilerSettings();
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
 		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
-		module = new PEFile(assemblyPath);
-		depInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), module.Name);
-		IDebugInfoProvider? debugInfoProvider = DebugInfoUtils.LoadSymbols(this.module);
-		var assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
+		MainModule = new GodotModule(assemblyPath);
+		MainModule.depInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), MainModule.Name);
+		IDebugInfoProvider? debugInfoProvider = DebugInfoUtils.LoadSymbols(MainModule.Module);
+		var assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, MainModule.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
 		{
 			assemblyResolver.AddSearchDirectory(path);
 		}
 
-		godotVersion = GodotStuff.GetGodotVersion(module) ?? new Version(0, 0, 0, 0);
+		godotVersion = GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
 		if (godotVersion.Major <= 3)
 		{
 			// check for "script_metadata.{release,debug}" files
@@ -42,8 +52,8 @@ public class GodotModuleDecompiler
 		}
 
 		godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, assemblyResolver, debugInfoProvider, this.originalProjectFiles);
-		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
-		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(MainModule.Module);
+		fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
 	}
 
 	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null, IProgress<DecompilationProgress>? progress_reporter = null, CancellationToken token = default(CancellationToken))
@@ -72,7 +82,7 @@ public class GodotModuleDecompiler
 				}
 			}
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath))) {
-				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), depInfo, token);
+				godotProjectDecompiler.DecompileGodotProject(MainModule.Module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), MainModule.depInfo, token);
 			}
 			godotProjectDecompiler.ProgressIndicator = null;
 		}
@@ -90,10 +100,10 @@ public class GodotModuleDecompiler
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path) && fileMap.TryGetValue(path, out var type)){
-			var decompiler = godotProjectDecompiler.CreateDecompilerWithPartials(module, [type]);
+			var decompiler = godotProjectDecompiler.CreateDecompilerWithPartials(MainModule.Module, [type]);
 			return decompiler.DecompileTypesAsString([type]);
 		}
-		return string.Format(error_message, file, module.Name) + (
+		return string.Format(error_message, file, MainModule.Name) + (
 			originalProjectFiles.Contains(file) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
 		);
 	}
