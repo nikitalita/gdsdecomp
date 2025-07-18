@@ -233,7 +233,7 @@ private:
 	bool _cached_prop_names_valid = false;
 
 	void update_cached_prop_names();
-	bool has_cached_prop_name(const StringName &p_name);
+	bool has_cached_prop_name(const StringName &p_name) const;
 
 public:
 	virtual bool set(const StringName &p_name, const Variant &p_value) override;

@@ -726,8 +726,7 @@ void FakeScriptInstance::update_cached_prop_names() {
 	}
 }
 
-bool FakeScriptInstance::has_cached_prop_name(const StringName &p_name) {
-	update_cached_prop_names();
+bool FakeScriptInstance::has_cached_prop_name(const StringName &p_name) const {
 	return _cached_prop_names.has(p_name);
 }
 
@@ -763,6 +762,10 @@ bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
 
 bool FakeScriptInstance::get(const StringName &p_name, Variant &r_ret) const {
 	if (!properties.has(p_name)) {
+		if (!is_fake_embedded && has_cached_prop_name(p_name)) {
+			r_ret = Variant();
+			return true;
+		}
 		return false;
 	}
 	r_ret = properties[p_name];
