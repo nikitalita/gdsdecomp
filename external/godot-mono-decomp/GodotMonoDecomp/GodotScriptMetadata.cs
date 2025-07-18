@@ -3,6 +3,7 @@ namespace GodotMonoDecomp;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.IO;
+using System.Text.Json.Serialization.Metadata;
 
 // Metadata for Godot 3.x Mono scripts is stored in a JSON file.
 // metadata is in a json format that is formatted like this:
@@ -33,6 +34,16 @@ using System.IO;
 // 	},
 // ...
 // }
+
+//Use System.Text.Json source generation for native AOT applications.
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(Dictionary<string, GodotScriptMetadata>))]
+[JsonSerializable(typeof(GodotScriptMetadata))]
+[JsonSerializable(typeof(ClassInfo))]
+internal partial class SourceGenerationContext : JsonSerializerContext
+{
+}
+
 
 public class GodotScriptMetadata
 {
@@ -67,7 +78,7 @@ public class ClassInfo
 }
 
 
-static class GodotScriptMetadataLoader
+public static class GodotScriptMetadataLoader
 {
     /// <summary>
     /// Loads the metadata dictionary from a JSON file
@@ -82,12 +93,7 @@ static class GodotScriptMetadataLoader
         }
 
         string jsonContent = File.ReadAllText(filePath);
-        var options = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
-
-        return JsonSerializer.Deserialize<Dictionary<string, GodotScriptMetadata>>(jsonContent, options)
+        return JsonSerializer.Deserialize<Dictionary<string, GodotScriptMetadata>>(jsonContent, SourceGenerationContext.Default.DictionaryStringGodotScriptMetadata)
                ?? new Dictionary<string, GodotScriptMetadata>();
     }
 
