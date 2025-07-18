@@ -84,6 +84,10 @@ def doproc(cmd):
 semver_regex = r"^[vV]?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
 
 
+def is_dev_build(env):
+    return env["dev_build"] if "dev_build" in env else False
+
+
 def write_version_header():
     git = shutil.which("git")
     version_info = "unknown"
@@ -419,7 +423,11 @@ def get_godot_mono_triplet(platform: str, arch: str):
     return f"{platform_part}-{arch_part}"
 
 
-def get_godot_mono_decomp_lib_dir(platform: str, arch: str):
+def get_dotnet_variant_name(dev_build: bool):
+    return "Debug" if dev_build else "Release"
+
+
+def get_godot_mono_decomp_lib_dir(platform: str, arch: str, dev_build: bool):
     # Determine the platform and architecture for the library path
     triplet = get_godot_mono_triplet(platform, arch)
     target_framework = "net9.0"
@@ -431,13 +439,19 @@ def get_godot_mono_decomp_lib_dir(platform: str, arch: str):
                 print("TARGET FRAMEWORK", target_framework)
                 break
 
-    return os.path.join(GODOT_MONO_DECOMP_DIR, "bin", "Release", target_framework, triplet, "publish")
+    return os.path.join(
+        GODOT_MONO_DECOMP_DIR, "bin", get_dotnet_variant_name(dev_build), target_framework, triplet, "publish"
+    )
 
 
 def get_godot_mono_decomp_lib_paths(_env=env) -> list[Any]:
     libs = get_godot_mono_decomp_libs(False, _env)
     lib_paths = []
-    build_dir = get_godot_mono_decomp_lib_dir(_env["platform"], _env["arch"])
+    build_dir = get_godot_mono_decomp_lib_dir(
+        _env["platform"],
+        _env["arch"],
+        is_dev_build(_env),
+    )
     for lib in libs:
         lib_path = os.path.join(build_dir, lib)
         lib_paths.append(lib_path)
@@ -446,22 +460,25 @@ def get_godot_mono_decomp_lib_paths(_env=env) -> list[Any]:
 
 
 env.Append(LIBPATH=[BUILD_DIR])
-env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir(env["platform"], env["arch"])])
+env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], is_dev_build(env))])
 
 def godot_mono_builder(target, source, env: dict[str, Any]):
     print("GODOT MONO DECOMP BUILD: ", target)
     libs = get_godot_mono_decomp_lib_paths(env)
     native_lib_type = "Shared"
+    dev_build: bool = is_dev_build(env)
+    build_variant = get_dotnet_variant_name(dev_build)
+    print("BUILD VARIANT ", build_variant)
     BASE_CMD = [
         "dotnet",
         "publish",
         f"/p:NativeLib={native_lib_type}",
         "/p:PublishProfile=AOT",
         "-c",
-        "Release",
+        build_variant,
     ]
     dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], env["arch"])]
-    lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"])
+    lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], dev_build)
     cwd = GODOT_MONO_DECOMP_DIR
     print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
     dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd)
@@ -473,7 +490,7 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
         new_arch = "x86_64" if env["arch"] == "arm64" else "arm64"
         new_triplet = get_godot_mono_triplet(env["platform"], new_arch)
         dotnet_publish_cmd = BASE_CMD + ["-r", new_triplet]
-        other_lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], new_arch)
+        other_lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], new_arch, dev_build)
         cwd = GODOT_MONO_DECOMP_DIR
         print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
         dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd)
