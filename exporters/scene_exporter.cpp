@@ -748,6 +748,14 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				}
 			}
 		}
+
+		if (p_report.is_valid()) {
+			Dictionary extra_info = p_report->get_extra_info();
+			extra_info["has_script"] = has_script;
+			extra_info["has_shader"] = has_shader;
+			p_report->set_extra_info(extra_info);
+		}
+
 		// Don't need this right now, we just instance shader to a missing resource
 		// If GLTF exporter somehow starts making use of them, we'll have to do this
 		// bool is_default_gltf_load = ResourceCompatLoader::is_default_gltf_load();
@@ -771,8 +779,12 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		for (auto &E : get_deps_map) {
 			dep_info &info = E.value;
 			// Never set Script or Shader, they're not used by the GLTF writer and cause errors
-			if (info.type == "Script" || info.type == "Shader") {
+			if ((info.type == "Script" && info.dep.get_extension().to_lower() != "gd") || (info.type == "Shader")) {
 				auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
+				if (info.type == "Script") {
+					Ref<FakeEmbeddedScript> script = texture;
+					script->set_can_instantiate(true);
+				}
 				set_cache_res(info, texture, false);
 				continue;
 			}
@@ -894,6 +906,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			TypedArray<Node> animation_player_nodes = root->find_children("*", "AnimationPlayer");
 			TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
 			HashSet<Node *> skinned_mesh_instances;
+			HashSet<Ref<Mesh>> meshes_in_mesh_instances;
 			for (auto &E : mesh_instances) {
 				MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
 				ERR_CONTINUE(!mesh_instance);
@@ -901,6 +914,37 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				if (skin.is_valid()) {
 					has_skinned_meshes = true;
 					skinned_mesh_instances.insert(mesh_instance);
+					auto mesh = mesh_instance->get_mesh();
+					if (mesh.is_valid()) {
+						meshes_in_mesh_instances.insert(mesh);
+					}
+				}
+			}
+			if (has_script) {
+				TypedArray<Node> nodes = { root };
+				nodes.append_array(root->get_children());
+				for (auto &E : nodes) {
+					Node *node = static_cast<Node *>(E.operator Object *());
+					ScriptInstance *si = node->get_script_instance();
+					List<PropertyInfo> properties;
+					if (si) {
+						si->get_property_list(&properties);
+						for (auto &E : properties) {
+							Variant value;
+							if (si->get(E.name, value)) {
+								// check if it's a mesh instance
+								Ref<Mesh> mesh = value;
+								if (mesh.is_valid() && !meshes_in_mesh_instances.has(mesh)) {
+									// create a new mesh instance
+									auto mesh_instance = memnew(MeshInstance3D());
+									mesh_instance->set_mesh(mesh);
+									mesh_instance->set_name(mesh->get_name());
+									node->add_child(mesh_instance);
+									// meshes_in_mesh_instances.insert(mesh);
+								}
+							}
+						}
+					}
 				}
 			}
 			for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
@@ -1522,7 +1566,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			}
 
 			iinfo->set_param("_subresources", _subresources_dict);
-			Dictionary extra_info;
+			Dictionary extra_info = p_report->get_extra_info();
 			extra_info["image_path_to_data_hash"] = image_path_to_data_hash;
 			p_report->set_extra_info(extra_info);
 		}
@@ -1562,7 +1606,9 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		}
 	}
 	if (!set_all_externals) {
-		error_messages.append("Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
+		if (p_report.is_valid()) {
+			p_report->set_message("Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
+		}
 		error_messages.append("Dependencies that were not set:");
 		for (auto &E : need_to_be_updated) {
 			if (external_deps_updated.has(E)) {
@@ -1577,14 +1623,18 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		} else {
 			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 		}
+	}
+	if (has_script) {
+		if (p_report.is_valid()) {
+			p_report->set_message("Script has scripts, not saving to original path.");
+		}
+		if (err == OK) {
+			err = ERR_DATABASE_CANT_READ;
+		}
 	} else {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
 
-	// Not really an error, just letting export_resources know that we're not going to be able to import the scene.
-	if (err == OK && (has_script || has_shader)) {
-		err = ERR_DATABASE_CANT_READ;
-	}
 	return err;
 }
 
@@ -1699,12 +1749,12 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	}
 
 #if DEBUG_ENABLED
-	if (err && err != ERR_UNAVAILABLE) {
-		// save it as a text scene so we can see what went wrong
-		auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
-		auto new_dest = output_dir.path_join(new_new_path);
-		ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
-	}
+	// if (err && err != ERR_UNAVAILABLE) {
+	// save it as a text scene so we can see what went wrong
+	auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
+	auto new_dest = output_dir.path_join(new_new_path);
+	ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
+	// }
 #endif
 	report->set_error(err);
 	return report; // We always save to an unoriginal path
