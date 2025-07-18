@@ -198,7 +198,7 @@ namespace GodotMonoDecomp
 				if (settings.WriteNuGetPackageReferences && includeWarningComment.Contains(dep))
 				{
 					xml.WriteComment(
-						"This package has no listed runtime components, but the module has a reference to it. ");
+						"WARNING: Possible source generator package: has no listed runtime components, but the module has a reference to it.");
 				}
 				xml.WriteStartElement("PackageReference");
 				xml.WriteAttributeString("Include", dep.Name);
@@ -231,7 +231,7 @@ namespace GodotMonoDecomp
 			if (excludedDepsToComment.Count > 0)
 			{
 				writeSeriesOfLineComments(xml, (newXml) => WritePackageRefs(newXml, excludedDepsToComment),
-					"The following packages are not referenced by the assembly and may be source generators.");
+					"The following packages are not referenced by the assembly and may be source generators. Including these may cause build errors.");
 			}
 		}
 
