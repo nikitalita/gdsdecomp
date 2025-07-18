@@ -86,7 +86,7 @@ public static class GodotStuff
 		return "";
 	}
 
-	public static string FindScriptPathInChildren(IEnumerable<AstNode> children)
+	public static bool RemoveScriptPathAttribute(IEnumerable<AstNode> children)
 	{
 		// using StreamWriter w = new StreamWriter(Path.Combine(TargetDirectory, file.Key));
 		foreach (var child in children)
@@ -102,34 +102,32 @@ public static class GodotStuff
 						{
 							if (attr.Type.ToString() == "ScriptPath")
 							{
-								// get the value of the attribute
-								string scriptPath = attr.Arguments.First().ToString();
+								attr.Remove();
+								if (attrSection.Attributes.Count == 0)
+								{
+									attrSection.Remove();
+								}
 
-								// remove the quotes
-								scriptPath = scriptPath.Substring(1, scriptPath.Length - 2);
-								// remove "res://" from the beginning
-								scriptPath = scriptPath.Substring(6);
-								return scriptPath;
+								return true;
 							}
 						}
+
 					}
 
 					break;
 				}
 				case NamespaceDeclaration namespaceDeclaration:
 				{
-					var scriptPath = FindScriptPathInChildren(namespaceDeclaration.Children);
-					if (scriptPath != "")
+					if (RemoveScriptPathAttribute(namespaceDeclaration.Children))
 					{
-						return scriptPath;
+						return true;
 					}
 
 					break;
 				}
 			}
 		}
-
-		return "";
+		return false;
 	}
 
 	// list all .cs files in the directory and subdirectories
@@ -170,24 +168,6 @@ public static class GodotStuff
 		return FindScriptNamespaceInChildren(syntaxTree.Children);
 	}
 
-	public static string GetPathMinusFirstDirectory(string path)
-	{
-		// get the first directory in the path
-		var slashPos = path.IndexOf('/');
-		if (slashPos == -1)
-		{
-			slashPos = path.IndexOf('\\');
-		}
-
-		if (slashPos == -1)
-		{
-			return path; // no directory, return the path as is
-		}
-
-		// get the new path without the first directory	
-		return path.Substring(slashPos + 1);
-	}
-
 	public static string RemoveNamespacePartOfPath(string path, string ns)
 	{
 		// remove the namespace part of the path
@@ -199,7 +179,7 @@ public static class GodotStuff
 		// find the ns in the path
 		if (!path.StartsWith(ns))
 		{
-			ns = ns.Replace('.', '/');
+			ns = ns.Replace('.', Path.DirectorySeparatorChar);
 		}
 
 		if (path.StartsWith(ns))
@@ -280,7 +260,6 @@ public static class GodotStuff
 			var file = pair.Key;
 			// otherwise, try to find it in the original directory files
 			string scriptPath = "";
-			//"/Users/nikita/Workspace/godot-ws/test-decomps/Taverna-decomp2"
 			// empty vector of strings
 			var possibles = originalDirFiles.Where(f =>
 					!renamedFiles.Contains(f) &&
@@ -373,7 +352,7 @@ public static class GodotStuff
 					var parentDirectories = namespaceToDirectory.ContainsKey(parentNamespace)
 						? namespaceToDirectory[parentNamespace]
 						: new HashSet<string>();
-					var child = ns.Substring(parentNamespace.Length + 1).Replace('.', '/');
+					var child = ns.Substring(parentNamespace.Length + 1).Replace('.', Path.DirectorySeparatorChar);
 					fileStem = Path.Combine(child, Path.GetFileName(file_syntax_tree.Key.Key));
 					if (parentDirectories.Count == 1 && (parentDirectories.First() != "" &&
 					                                     parentDirectories.First() != null))
@@ -576,8 +555,8 @@ public static class GodotStuff
 		var attributes = entity.GetAttributes();
 		// I think we got all the banned methods and generated classes, so we don't need this anymore
 		// check to see if any of the attributes are System.ComponentModel.EditorBrowsableAttribute with a System.ComponentModel.EditorBrowsableState.Never argument
-		// if (attributes.Any(a => 
-		// 	    a.AttributeType.FullName == "System.ComponentModel.EditorBrowsableAttribute" 
+		// if (attributes.Any(a =>
+		// 	    a.AttributeType.FullName == "System.ComponentModel.EditorBrowsableAttribute"
 		// 	    && a.FixedArguments is [{ Value: (int)EditorBrowsableState.Never or EditorBrowsableState.Never } _]))
 		// {
 		// 	return true;
@@ -640,13 +619,13 @@ public static class GodotStuff
 		// 	{
 		// 		var method_def = godotSharpModule.MetadataFile.Metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
 		// 		var methodBody = godotSharpModule.MetadataFile.GetMethodBody(method_def.RelativeVirtualAddress);
-		// 		// Read the IL and get the ILFunction 
+		// 		// Read the IL and get the ILFunction
 		// 		ILReader ilReader = new ILReader(methodBody);
-		// 		var ilFunction = 
-		// 		
-		// 		
-		// 		
-		// 		
+		// 		var ilFunction =
+		//
+		//
+		//
+		//
 		// 		var thing = "";
 		// 		if (!thing.Contains(".getMethod"))
 		// 		{
@@ -664,7 +643,7 @@ public static class GodotStuff
 		// 		}
 		//
 		// 	}
-		// 	
+		//
 		// }
 		// return returned_collection;
 	}
