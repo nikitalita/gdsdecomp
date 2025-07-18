@@ -169,7 +169,7 @@ Error FakeGDScript::reload(bool p_keep_state) {
 	loaded = true;
 
 	err = parse_script();
-	ERR_FAIL_V_MSG(err, decomp->get_error_message());
+	ERR_FAIL_COND_V_MSG(err, err, decomp->get_error_message());
 
 	if (GDRESettings::get_singleton()->is_pack_loaded()) {
 		ensure_base_and_global_name();
