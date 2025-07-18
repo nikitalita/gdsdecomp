@@ -32,6 +32,8 @@
 
 #include "scene/3d/camera_3d.h"
 #include "scene/3d/light_3d.h"
+#include "scene/gui/box_container.h"
+#include "scene/gui/margin_container.h"
 #include "scene/gui/subviewport_container.h"
 #include "scene/resources/camera_attributes.h"
 #include "scene/resources/packed_scene.h"
@@ -47,15 +49,13 @@ class ScenePreviewer3D : public SubViewportContainer {
 	Vector3 center;
 	Vector3 scale = Vector3(1.0, 1.0, 1.0);
 
-	Node *root = nullptr;
+	Node3D *root = nullptr;
 	SubViewport *viewport = nullptr;
 	Node3D *rotation = nullptr;
 	DirectionalLight3D *light1 = nullptr;
 	DirectionalLight3D *light2 = nullptr;
 	Camera3D *camera = nullptr;
 	Ref<CameraAttributesPractical> camera_attributes;
-
-	Ref<PackedScene> scene;
 
 	Button *light_1_switch = nullptr;
 	Button *light_2_switch = nullptr;
@@ -76,11 +76,41 @@ protected:
 	static void _bind_methods();
 	void setup_3d();
 	void setup_2d();
-	void edit_3d(Node3D *root);
-	void edit_2d(Node *root);
+	// void edit_3d(Node3D *root);
+
+public:
+	void edit(Node3D *root);
+	void reset();
+	ScenePreviewer3D();
+};
+
+class ScenePreviewer2D : public SubViewportContainer {
+	GDCLASS(ScenePreviewer2D, SubViewportContainer);
+
+	Node *root = nullptr;
+	SubViewport *viewport = nullptr;
+
+protected:
+	static void _bind_methods();
+
+public:
+	void edit(Node *root);
+	void reset();
+	ScenePreviewer2D();
+};
+
+class ScenePreviewer : public MarginContainer {
+	GDCLASS(ScenePreviewer, MarginContainer);
+
+	Ref<PackedScene> scene;
+	ScenePreviewer3D *previewer_3d = nullptr;
+	ScenePreviewer2D *previewer_2d = nullptr;
+
+protected:
+	static void _bind_methods();
 
 public:
 	void edit(Ref<PackedScene> p_scene);
 	void reset();
-	ScenePreviewer3D();
+	ScenePreviewer();
 };
