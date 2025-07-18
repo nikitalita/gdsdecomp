@@ -1,5 +1,6 @@
 #include "utility/common.h"
 #include "bytecode/bytecode_base.h"
+#include "compat/file_access_encrypted_v3.h"
 #include "compat/variant_decoder_compat.h"
 #include "external/tga/tga.h"
 #include "utility/glob.h"
@@ -1056,6 +1057,19 @@ bool gdre::store_var_compat(Ref<FileAccess> f, const Variant &p_var, int ver_maj
 	return f->store_32(uint32_t(len)) && f->store_buffer(buff);
 }
 
+Ref<FileAccess> gdre::open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key) {
+	Ref<FileAccess> p_base = FileAccess::open(p_path, p_mode);
+	ERR_FAIL_COND_V(p_base.is_null(), Ref<FileAccess>());
+
+	Ref<FileAccessEncryptedv3> fae;
+	fae.instantiate();
+	Error err = fae->open_and_parse(p_base, p_key, (p_mode == FileAccess::WRITE) ? FileAccessEncryptedv3::MODE_WRITE_AES256 : FileAccessEncryptedv3::MODE_READ);
+	if (err != OK) {
+		return Ref<FileAccess>();
+	}
+	return fae;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
@@ -1075,4 +1089,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("split_multichar", "str", "splitters", "allow_empty", "maxsplit"), &gdre::_split_multichar);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("rsplit_multichar", "str", "splitters", "allow_empty", "maxsplit"), &gdre::_rsplit_multichar);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("copy_dir", "src", "dst"), &gdre::copy_dir);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("open_encrypted_v3", "path", "mode", "key"), &gdre::open_encrypted_v3);
 }

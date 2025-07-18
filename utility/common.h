@@ -245,6 +245,8 @@ Vector<String> rsplit_multichar(const String &s, const HashSet<char32_t> &splitt
 
 bool detect_utf8(const PackedByteArray &p_utf8_buf);
 Error copy_dir(const String &src, const String &dst);
+
+Ref<FileAccess> open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key);
 } // namespace gdre
 
 class GDRECommon : public Object {
