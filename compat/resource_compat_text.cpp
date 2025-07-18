@@ -1849,18 +1849,51 @@ String ResourceFormatSaverCompatTextInstance::_write_resource(const Ref<Resource
 #endif
 }
 
-// TODO: this could potentially break things if we start messing with resources (renaming dependencies, replacing them, etc.) more than we are currently.
 String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resource> res, int ext_resources_size) {
 	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
-	String id = compat->cached_id;
-	if (id.is_empty() || compat->resource_format != "text") {
-		if (format_version >= 3) {
-			id = itos(ext_resources_size + 1); // + "_" + Resource::generate_scene_unique_id();
-		} else {
+	String id;
+	if (!compat.is_null()) {
+		if (compat->resource_format == "text") {
+			id = compat->cached_id;
+		} else if (format_version >= 3) {
+			// reduce churn on converted resources by not using scene unique ids
 			id = itos(ext_resources_size + 1);
 		}
 	}
+	if (id.is_empty()) {
+		if (format_version >= 3) {
+			id = itos(ext_resources_size + 1) + "_" + Resource::generate_scene_unique_id();
+		} else {
+			id = itos(ext_resources_size);
+		}
+	}
 	return id;
+}
+
+void ResourceFormatSaverCompatTextInstance::ensure_ids_are_unique() {
+	HashSet<String> ids;
+	size_t last = external_resources.size();
+	bool needs_renumbering = false;
+	for (KeyValue<Ref<Resource>, String> &E : external_resources) {
+		while (ids.has(E.value)) {
+			if (format_version < 3) {
+				needs_renumbering = true;
+				break;
+			}
+			// else format version >= 3
+			E.value = E.value.split("_")[0] + "_" + Resource::generate_scene_unique_id();
+		}
+
+		ids.insert(E.value);
+	}
+
+	if (needs_renumbering) {
+		int i = 0;
+		for (KeyValue<Ref<Resource>, String> &E : external_resources) {
+			external_resources[E.key] = itos(i + 1);
+			i++;
+		}
+	}
 }
 
 void ResourceFormatSaverCompatTextInstance::_find_resources(const Variant &p_variant, bool p_main) {
@@ -1994,11 +2027,6 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		packed_scene = p_resource;
 	}
 #endif
-	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
-	if (!compat.is_valid()) {
-		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
-		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
-	}
 
 	if (p_path.ends_with(".tscn") || p_path.ends_with(".escn")) {
 		// If this is a MissingResource holder for a PackedScene, we need to instance it for reals
@@ -2018,48 +2046,8 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 
 	local_path = GDRESettings::get_singleton()->localize_path(p_path);
 
-	String original_path = compat->original_path;
-	format_version = compat->ver_format;
-	ver_major = compat->ver_major;
-	ver_minor = compat->ver_minor;
-	ResourceUID::ID res_uid = compat->uid;
-	String format = compat->resource_format;
-	bool using_script_class = compat->using_script_class();
-	String script_class = compat->script_class;
-	bool using_uids = compat->using_uids;
-	bool using_named_scene_ids = compat->using_named_scene_ids;
-	Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
-	// COMPAT: They're not saving the uids to the binary resources in exported packs anymore, so we need to get it from the cache.
-	if (using_uids && res_uid == ResourceUID::INVALID_ID) {
-		res_uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
-	}
-	if (format != "text") {
-		if (format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
-			format_version = 4;
-		} else if (using_uids || using_named_scene_ids || using_script_class) {
-			format_version = 3;
-		} else {
-			switch (ver_major) {
-				case 1: // v1 did not have text format, but we'll convert it anyway to the v2 format for the previewer
-				case 2:
-					format_version = 1;
-					break;
-				case 3:
-					format_version = 2;
-					break;
-				case 4: {
-					if (ver_minor < 3) {
-						format_version = 3;
-					} else {
-						format_version = 4;
-					}
-				} break;
-				default:
-					ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Invalid version major: " + itos(ver_major));
-					break;
-			}
-		}
-	}
+	set_save_settings(p_resource, p_flags);
+
 #if 0
 	relative_paths = p_flags & ResourceSaver::FLAG_RELATIVE_PATHS;
 	skip_editor = p_flags & ResourceSaver::FLAG_OMIT_EDITOR_PROPERTIES;
@@ -2106,7 +2094,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 				title += "script_class=\"" + String(script->get_global_name()) + "\" ";
 			}
 #endif
-			if (!script_class.is_empty()) {
+			if (format_version >= 3 && !script_class.is_empty()) {
 				title += "script_class=\"" + script_class + "\" ";
 			}
 		}
@@ -2121,10 +2109,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 #if 0
 		ResourceUID::ID uid = ResourceSaver::get_resource_id_for_path(local_path, true);
 #endif
-		ResourceUID::ID uid = res_uid; // TODO!!!
-
-		if (uid == ResourceUID::INVALID_ID && using_uids) {
-		}
+		ResourceUID::ID uid = res_uid;
 
 		if (uid != ResourceUID::INVALID_ID && format_version >= 3) {
 			title += " uid=\"" + ResourceUID::get_singleton()->id_to_text(uid) + "\"";
@@ -2193,6 +2178,8 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 #endif
 		E.value = get_id_for_ext_resource(E.key, counter++);
 	}
+
+	ensure_ids_are_unique();
 
 #endif
 
@@ -2778,4 +2765,104 @@ Ref<ResourceInfo> ResourceFormatLoaderCompatText::get_resource_info(const String
 	_SET_R_ERR(loader.error, r_error);
 	ERR_FAIL_COND_V_MSG(loader.error, Ref<ResourceInfo>(), "Cannot load file '" + p_path + "'.");
 	return loader.get_resource_info();
+}
+
+Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags) {
+	bool using_script_class = true;
+	bool using_uids = true;
+	bool using_named_scene_ids = true;
+
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
+	format_version = CompatFormatLoader::get_format_version_from_flags(p_flags);
+	auto set_major_minor_based_on_format = [&](int p_format_version) {
+		if (format_version == 4) {
+			ver_major = 4;
+			ver_minor = 3;
+		} else if (format_version == 3) {
+			ver_major = 4;
+			ver_minor = 0;
+		} else if (format_version == 2) {
+			ver_major = 3;
+			ver_minor = 0;
+		} else if (format_version == 1) {
+			ver_major = 2;
+			ver_minor = 0;
+		}
+	};
+	String original_path;
+	if (compat.is_valid()) {
+		original_path = compat->original_path;
+		if (format_version == 0) {
+			format_version = compat->ver_format;
+			ver_major = compat->ver_major;
+			ver_minor = compat->ver_minor;
+		} else {
+			set_major_minor_based_on_format(format_version);
+		}
+		res_uid = compat->uid;
+		String orig_format = compat->resource_format;
+		script_class = compat->script_class;
+		using_script_class = compat->using_script_class();
+		using_uids = compat->using_uids;
+		using_named_scene_ids = compat->using_named_scene_ids;
+		Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
+		if (orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0) {
+			if (orig_format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
+				format_version = 4;
+			} else if (using_uids || using_named_scene_ids || using_script_class) {
+				format_version = 3;
+			} else {
+				switch (ver_major) {
+					case 1: // v1 did not have text format, but we'll convert it anyway to the v2 format for the previewer
+					case 2:
+						format_version = 1;
+						break;
+					case 3:
+						format_version = 2;
+						break;
+					case 4: {
+						if (ver_minor < 3) {
+							format_version = 3;
+						} else {
+							format_version = 4;
+						}
+					} break;
+					default:
+						ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Invalid version major: " + itos(ver_major));
+						break;
+				}
+			}
+		}
+	} else {
+		if (format_version == 0) {
+			format_version = ResourceLoaderCompatText::FORMAT_VERSION;
+		}
+		set_major_minor_based_on_format(format_version);
+
+		res_uid = ResourceUID::INVALID_ID;
+		script_class = "";
+	}
+
+	if (format_version < 3) {
+		using_script_class = false;
+		using_uids = false;
+		using_named_scene_ids = false;
+	}
+
+	if (using_uids && res_uid == ResourceUID::INVALID_ID) {
+		if (!original_path.is_empty()) {
+			res_uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
+		}
+		if (res_uid == ResourceUID::INVALID_ID && !local_path.is_empty()) {
+			res_uid = GDRESettings::get_singleton()->get_uid_for_path(local_path);
+		}
+	}
+
+	if (script_class.is_empty() && using_script_class) {
+		Ref<Script> script = p_resource->get_script();
+		if (script.is_valid()) {
+			script_class = script->get_global_name();
+		}
+	}
+	return OK;
 }

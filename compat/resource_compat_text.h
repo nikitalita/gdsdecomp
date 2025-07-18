@@ -226,6 +226,9 @@ class ResourceFormatSaverCompatTextInstance {
 	HashMap<Ref<Resource>, String> internal_resources;
 	bool use_compat = true;
 
+	String script_class;
+	ResourceUID::ID res_uid;
+
 	struct ResourceSort {
 		Ref<Resource> resource;
 		String id;
@@ -239,6 +242,8 @@ class ResourceFormatSaverCompatTextInstance {
 	static String _write_resources(void *ud, const Ref<Resource> &p_resource);
 	String _write_resource(const Ref<Resource> &res);
 	String get_id_for_ext_resource(Ref<Resource> res, int ext_resources_size);
+	void ensure_ids_are_unique();
+	Error set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags);
 
 public:
 	Error save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags = 0);
