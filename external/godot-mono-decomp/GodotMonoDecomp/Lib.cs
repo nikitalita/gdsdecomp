@@ -13,7 +13,7 @@ namespace GodotMonoDecomp
         {
             try
             {
-                var files = GodotStuff.ListCSharpFiles(projectPath, false);
+                var files = Common.ListCSharpFiles(projectPath, false);
 				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], ReferencePaths, settings);
                 return decompiler.DecompileModule(outputCSProjectPath);
             }

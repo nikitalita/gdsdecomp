@@ -19,85 +19,13 @@ public class GodotModule
 
 
 
-// Target 	Version 	C# language version default
-// .NET 			10.x 	C# 14
-// .NET 			9.x 	C# 13
-// .NET 			8.x 	C# 12
-// .NET 			7.x 	C# 11
-// .NET 			6.x 	C# 10
-// .NET 			5.x 	C# 9.0
-// .NET Core 		3.x 	C# 8.0
-// .NET Core 		2.x 	C# 7.3
-// .NET Standard 	2.1 	C# 8.0
-// .NET Standard 	2.0 	C# 7.3
-// .NET Standard 	1.x 	C# 7.3
-// .NET Framework 	all 	C# 7.3
-
-	public static LanguageVersion GetDefaultCSharpLanguageLevel(MetadataFile module){
-
-		// determine the dotnet version
-		var dotnetVersion = TargetServices.DetectTargetFramework(module);
-		if (dotnetVersion == null)
-		{
-			return LanguageVersion.CSharp7_3;
-		}
-		int verMajor = dotnetVersion.VersionNumber / 100;
-		int verMinor = dotnetVersion.VersionNumber % 100 / 10;
-
-		// .NET Framework
-		// ".NETFramework" applies to all the newer ".NET" as well as the legacy ".NET Framework", so check that the version is less than 5
-		if (dotnetVersion.Identifier == ".NETFramework" && verMajor < 5){
-			return LanguageVersion.CSharp7_3;
-		}
-
-		// .NET Core
-		// ".NETCoreApp" applies to all the newer ".NET" if the module is an app, so check if the version number is less than 4
-		if ((dotnetVersion.Identifier == ".NETCoreApp" || dotnetVersion.Identifier == ".NETCore") && verMajor < 4){
-			if (verMajor == 3) {
-				return LanguageVersion.CSharp8_0;
-			}
-			return LanguageVersion.CSharp7_3;
-		}
-
-		// .NET Standard
-		if (dotnetVersion.Identifier == ".NETStandard" && verMajor <= 2){
-			if (verMinor >= 1){
-				return LanguageVersion.CSharp8_0;
-			}
-			return LanguageVersion.CSharp7_3;
-		}
-		// .NET
-		switch (verMajor){
-			case 10:
-			// not yet supported
-			// return LanguageVersion.CSharp14_0;
-			case 9:
-			// not yet supported
-			// return LanguageVersion.CSharp13_0;
-			case 8:
-				return LanguageVersion.CSharp12_0;
-			case 7:
-				return LanguageVersion.CSharp11_0;
-			case 6:
-				return LanguageVersion.CSharp10_0;
-			case 5:
-				return LanguageVersion.CSharp9_0;
-			default:
-			{
-				if (verMajor > 8){
-					return LanguageVersion.CSharp12_0;
-				}
-			}
-				return LanguageVersion.CSharp7_3;
-		}
-	}
 
 	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo)
 	{
 		Module = module ?? throw new ArgumentNullException(nameof(module));
 		this.depInfo = depInfo;
 		debugInfoProvider = DebugInfoUtils.LoadSymbols(module);
-		languageVersion = GetDefaultCSharpLanguageLevel(module);
+		languageVersion = Common.GetDefaultCSharpLanguageLevel(module);
 	}
 
 	public MetadataReader Metadata => Module.Metadata;
@@ -119,7 +47,7 @@ public class GodotModuleDecompiler
 		GodotMonoDecompSettings? settings = default(GodotMonoDecompSettings))
 	{
 		AdditionalModules = [];
-		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
+		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => Common.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		var mod = new PEFile(assemblyPath);
 		var mainDepInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), mod.Name);
 		MainModule = new GodotModule(mod, mainDepInfo);
@@ -306,17 +234,17 @@ public class GodotModuleDecompiler
 				Console.Error.WriteLine("Error: Output path is invalid.");
 				return -1;
 			}
-			GodotStuff.EnsureDir(targetDirectory);
+			Common.EnsureDir(targetDirectory);
 
 			ProjectItem decompileFile(GodotModule module, string csprojPath)
 			{
 				var godotProjectDecompiler = CreateProjectDecompiler(module, progress_reporter);
-				GodotStuff.EnsureDir(Path.GetDirectoryName(csprojPath));
+				Common.EnsureDir(Path.GetDirectoryName(csprojPath));
 
 				removeIfExists(csprojPath);
 
 				ProjectId projectId;
-				var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(module.fileMap.ContainsKey).Select(file => module.fileMap[file]).ToHashSet() ?? [];
+				var typesToExclude = excludeFiles?.Select(file => Common.TrimPrefix(file, "res://")).Where(module.fileMap.ContainsKey).Select(file => module.fileMap[file]).ToHashSet() ?? [];
 
 				using (var projectFileWriter = new StreamWriter(File.OpenWrite(csprojPath)))
 				{
@@ -353,7 +281,7 @@ public class GodotModuleDecompiler
 
 	public string DecompileIndividualFile(string file)
 	{
-		var path = GodotStuff.TrimPrefix(file, "res://");
+		var path = Common.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path))
 		{
 			GodotModule? module = MainModule;
@@ -392,7 +320,7 @@ public class GodotModuleDecompiler
 
 	public bool anyFileMapsContainsFile(string file)
 	{
-		var path = GodotStuff.TrimPrefix(file, "res://");
+		var path = Common.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path))
 		{
 			if (MainModule.fileMap.ContainsKey(path))

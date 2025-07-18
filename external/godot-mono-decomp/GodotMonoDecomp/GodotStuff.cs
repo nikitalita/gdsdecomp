@@ -70,15 +70,6 @@ public static class GodotStuff
 {
 	public const string BACKING_FIELD_PREFIX = "backing_";
 
-	public static string TrimPrefix(string path, string prefix)
-	{
-		if (!string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(prefix) && path.StartsWith(prefix))
-		{
-			return path[prefix.Length..];
-		}
-		return path;
-	}
-
 
 	public static string? GetScriptPathAttributeValue(MetadataReader metadata, TypeDefinitionHandle h)
 	{
@@ -146,7 +137,7 @@ public static class GodotStuff
 			var scriptPath = GetScriptPathAttributeValue(metadata, h);
 			if (!string.IsNullOrEmpty(scriptPath))
 			{
-				scriptPath = TrimPrefix(scriptPath, "res://");
+				scriptPath = Common.TrimPrefix(scriptPath, "res://");
 				addToNamespaceToFile(metadata.GetString(type.Namespace),scriptPath);
 				fileMap[scriptPath] = h;
 			}
@@ -158,7 +149,7 @@ public static class GodotStuff
 					var fqn = type.GetFullTypeName(metadata).ToString();
 					if (metadataFQNToFileMap.TryGetValue(fqn, out var filePath))
 					{
-						filePath = TrimPrefix(filePath, "res://");
+						filePath = Common.TrimPrefix(filePath, "res://");
 						addToNamespaceToFile(metadata.GetString(type.Namespace), filePath);
 						fileMap[filePath] = h;
 						continue;
@@ -279,7 +270,7 @@ public static class GodotStuff
 			if (ns != "" && ns != null)
 			{
 				// pop off the first part of the path, if necessary
-				var fileStem = GodotStuff.RemoveNamespacePartOfPath(auto_path, ns);
+				var fileStem = Common.RemoveNamespacePartOfPath(auto_path, ns);
 				var directories = namespaceToDirectory.TryGetValue(ns, out var v1)
 					? v1
 					: [];
@@ -308,7 +299,7 @@ public static class GodotStuff
 
 				if (p == "" && directories.Count > 1)
 				{
-					var commonRoot = GodotStuff.FindCommonRoot(directories);
+					var commonRoot = Common.FindCommonRoot(directories);
 					if (commonRoot != "")
 					{
 						p = Path.Combine(commonRoot, fileStem);
@@ -422,23 +413,8 @@ public static class GodotStuff
 			files.Remove(file);
 		}
 
-		RemoveDirIfEmpty(Path.Combine(TargetDirectory, "GodotPlugins.Game"));
-		RemoveDirIfEmpty(Path.Combine(TargetDirectory, "Properties"));
-	}
-
-	private static void RemoveDirIfEmpty(string dir)
-	{
-		if (Directory.Exists(dir) && Directory.GetFiles(dir).Length == 0)
-		{
-			try
-			{
-				Directory.Delete(dir);
-			}
-			catch (IOException)
-			{
-				// ignore
-			}
-		}
+		Common.RemoveDirIfEmpty(Path.Combine(TargetDirectory, "GodotPlugins.Game"));
+		Common.RemoveDirIfEmpty(Path.Combine(TargetDirectory, "Properties"));
 	}
 
 
@@ -475,109 +451,6 @@ public static class GodotStuff
 
 
 	// list all .cs files in the directory and subdirectories
-	public static IEnumerable<string> ListCSharpFiles(string directory, bool absolute)
-	{
-		try
-		{
-			// check if the directory exists
-			if (!Directory.Exists(directory))
-			{
-				return Enumerable.Empty<string>();
-			}
-
-			var files = Directory.GetFiles(directory, "*.cs", SearchOption.AllDirectories);
-			if (!absolute)
-			{
-				// if not absolute, return the relative paths
-				files = files.Select(f => FileUtility.GetRelativePath(directory, f)).ToArray();
-			}
-
-			return files;
-		}
-		catch (IOException)
-		{
-			// if the directory doesn't exist, return an empty list
-			return Enumerable.Empty<string>();
-		}
-	}
-
-	public static string RemoveNamespacePartOfPath(string path, string ns)
-	{
-		// remove the namespace part of the path
-		if (ns == "")
-		{
-			return path;
-		}
-
-		// find the ns in the path
-		if (!path.StartsWith(ns))
-		{
-			ns = ns.Replace('.', '/');
-		}
-
-		if (path.StartsWith(ns))
-		{
-			return path.Substring(ns.Length + 1);
-		}
-
-		return path;
-	}
-
-	public static string FindCommonRoot(IEnumerable<string> paths)
-	{
-		if (paths == null || !paths.Any())
-		{
-			return "";
-		}
-
-		// sort by length to find the shortest path first
-		paths = paths.OrderBy(p => p.Length);
-
-		var commonRoot = paths.First();
-		foreach (var path in paths.Skip(1))
-		{
-			while (!path.StartsWith(commonRoot, StringComparison.OrdinalIgnoreCase))
-			{
-				commonRoot = Path.GetDirectoryName(commonRoot);
-				if (commonRoot == null)
-				{
-					return "";
-				}
-			}
-		}
-
-		return commonRoot;
-	}
-
-	public static void EnsureDir(string targetDirectory)
-	{
-
-		// ensure the directory exists for new_path
-		if (string.IsNullOrEmpty(targetDirectory) || Directory.Exists(targetDirectory)) return;
-		try
-		{
-			Directory.CreateDirectory(targetDirectory);
-		}
-		catch (IOException)
-		{
-			// File.Delete(dir);
-			try
-			{
-				Directory.CreateDirectory(targetDirectory);
-			}
-			catch (IOException)
-			{
-				try
-				{
-					Directory.CreateDirectory(targetDirectory);
-				}
-				catch (IOException)
-				{
-					// ignore
-				}
-			}
-		}
-	}
 
 	public static bool IsSignalDelegate(IEntity entity)
 	{
