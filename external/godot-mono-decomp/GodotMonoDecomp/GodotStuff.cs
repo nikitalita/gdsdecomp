@@ -74,13 +74,13 @@ public static class GodotStuff
 	{
 		if (!string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(prefix) && path.StartsWith(prefix))
 		{
-			return path.Substring(prefix.Length);
+			return path[prefix.Length..];
 		}
 		return path;
 	}
 
 
-	public static string GetScriptPathAttributeValue(MetadataReader metadata, TypeDefinitionHandle h)
+	public static string? GetScriptPathAttributeValue(MetadataReader metadata, TypeDefinitionHandle h)
 	{
 		var type = metadata.GetTypeDefinition(h);
 		var attrs = type.GetCustomAttributes();
@@ -120,24 +120,25 @@ public static class GodotStuff
 		var namespaceToDirectory = new Dictionary<string, HashSet<string>>();
 		void addToNamespaceToFile(string ns, string file)
 		{
+			var dir = Path.GetDirectoryName(file) ?? "";
 			if (namespaceToFile.ContainsKey(ns))
 			{
 				namespaceToFile[ns].Add(file);
-				namespaceToDirectory[ns].Add(Path.GetDirectoryName(file));
+				namespaceToDirectory[ns].Add(dir);
 			}
 			else
 			{
 				namespaceToFile[ns] = new List<string> { file };
-				namespaceToDirectory[ns] = new HashSet<string> { Path.GetDirectoryName(file) };
+				namespaceToDirectory[ns] = new HashSet<string> { dir };
 			}
 		}
 		foreach (var h in typesToDecompile)
 		{
 			var type = metadata.GetTypeDefinition(h);
-			var scriptPath = GodotStuff.TrimPrefix(GodotStuff.GetScriptPathAttributeValue(metadata, h), "res://");
+			var scriptPath = GetScriptPathAttributeValue(metadata, h);
 			if (!string.IsNullOrEmpty(scriptPath))
 			{
-				addToNamespaceToFile(metadata.GetString(type.Namespace), scriptPath);
+				addToNamespaceToFile(metadata.GetString(type.Namespace), TrimPrefix(scriptPath, "res://"));
 				fileMap[scriptPath] = h;
 			}
 			else
@@ -153,7 +154,6 @@ public static class GodotStuff
 
 			string file = GodotProjectDecompiler.CleanUpFileName(metadata.GetString(type.Name), ".cs");
 			string ns = metadata.GetString(type.Namespace);
-			string path;
 			if (string.IsNullOrEmpty(ns))
 			{
 				return file;
@@ -258,9 +258,9 @@ public static class GodotStuff
 			{
 				// pop off the first part of the path, if necessary
 				var fileStem = GodotStuff.RemoveNamespacePartOfPath(auto_path, ns);
-				var directories = namespaceToDirectory.ContainsKey(ns)
-					? namespaceToDirectory[ns]
-					: new HashSet<string>();
+				var directories = namespaceToDirectory.TryGetValue(ns, out var v1)
+					? v1
+					: [];
 
 				if (directories.Count == 1 && (directories.First() != "" && directories.First() != null))
 				{
@@ -270,9 +270,9 @@ public static class GodotStuff
 				else if (directories.Count == 0 && parentNamespace.Length != 0 &&
 						namespaceToFile.ContainsKey(parentNamespace))
 				{
-					var parentDirectories = namespaceToDirectory.ContainsKey(parentNamespace)
-						? namespaceToDirectory[parentNamespace]
-						: new HashSet<string>();
+					var parentDirectories = namespaceToDirectory.TryGetValue(parentNamespace, out var v2)
+						? v2
+						: [];
 					var child = ns.Substring(parentNamespace.Length + 1).Replace('.', '/');
 					fileStem = Path.Combine(child, Path.GetFileName(auto_path));
 					if (parentDirectories.Count == 1 && (parentDirectories.First() != "" &&
@@ -332,7 +332,7 @@ public static class GodotStuff
 				.Select(td => td)
 				.FirstOrDefault(td => td.MetadataToken.Equals(type));
 
-			if (GodotStuff.IsGodotPartialClass(typeDef))
+			if (typeDef != null && GodotStuff.IsGodotPartialClass(typeDef))
 			{
 				IEnumerable<IMember> fieldsAndProperties = typeDef.Fields.Concat<IMember>(typeDef.Properties);
 
@@ -500,32 +500,31 @@ public static class GodotStuff
 		return commonRoot;
 	}
 
-	public static void EnsureDir(string TargetDirectory)
+	public static void EnsureDir(string targetDirectory)
 	{
+
 		// ensure the directory exists for new_path
-		if (!Directory.Exists(TargetDirectory))
+		if (string.IsNullOrEmpty(targetDirectory) || Directory.Exists(targetDirectory)) return;
+		try
 		{
+			Directory.CreateDirectory(targetDirectory);
+		}
+		catch (IOException)
+		{
+			// File.Delete(dir);
 			try
 			{
-				Directory.CreateDirectory(TargetDirectory);
+				Directory.CreateDirectory(targetDirectory);
 			}
 			catch (IOException)
 			{
-				// File.Delete(dir);
 				try
 				{
-					Directory.CreateDirectory(TargetDirectory);
+					Directory.CreateDirectory(targetDirectory);
 				}
 				catch (IOException)
 				{
-					try
-					{
-						Directory.CreateDirectory(TargetDirectory);
-					}
-					catch (IOException)
-					{
-						// ignore
-					}
+					// ignore
 				}
 			}
 		}
@@ -558,7 +557,7 @@ public static class GodotStuff
 	{
 		if (entity is IField field)
 		{
-			return field.Name.StartsWith(BACKING_FIELD_PREFIX) &&
+			return field.Name.StartsWith(BACKING_FIELD_PREFIX) && field.DeclaringTypeDefinition != null &&
 			       GetSignalsInClass(field.DeclaringTypeDefinition).Contains(field.Type.GetDefinition());
 		}
 
@@ -577,7 +576,7 @@ public static class GodotStuff
 
 	public static bool IsBannedGodotTypeMember(IEntity entity)
 	{
-		if (!IsGodotPartialClass(entity.DeclaringTypeDefinition))
+		if (entity.DeclaringTypeDefinition == null || !IsGodotPartialClass(entity.DeclaringTypeDefinition))
 		{
 			return false;
 		}
@@ -603,7 +602,7 @@ public static class GodotStuff
 
 				break;
 			case IEvent @event:
-				if (GetSignalsInClass(@event.DeclaringTypeDefinition).Contains(@event.ReturnType.GetDefinition()) &&
+				if (@event.DeclaringTypeDefinition != null && GetSignalsInClass(@event.DeclaringTypeDefinition).Contains(@event.ReturnType.GetDefinition()) &&
 				    GetBackingSignalDelegateFieldNames(@event.DeclaringTypeDefinition)
 					    .Contains(BACKING_FIELD_PREFIX + @event.Name))
 				{
@@ -617,7 +616,7 @@ public static class GodotStuff
 				// check if the type is a nested type
 				var enclosingClassBase = enclosingClass?.DirectBaseTypes;
 				// check if the type is one of the banned embedded classes, and also derives from the base class's embedded class
-				if (enclosingClass != null && bannedEmbeddedClasses.Contains(type.Name) &&
+				if (enclosingClass != null && enclosingClassBase != null && bannedEmbeddedClasses.Contains(type.Name) &&
 				    type.DirectBaseTypes.Any(t => t.FullName.Contains(enclosingClassBase.First().Name)))
 				{
 					return true;

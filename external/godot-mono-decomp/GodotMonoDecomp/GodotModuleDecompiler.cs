@@ -22,7 +22,7 @@ public class GodotModuleDecompiler
 	public GodotModuleDecompiler(string assemblyPath, string[] originalProjectFiles, string[]? ReferencePaths = null){
 		var decompilerSettings = new DecompilerSettings();
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
-		this.originalProjectFiles = originalProjectFiles.Select(file => GodotStuff.TrimPrefix(file, "res://")).ToList();
+		this.originalProjectFiles = originalProjectFiles.Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).ToList();
 		this.module = new PEFile(assemblyPath);
 		this.assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
@@ -38,7 +38,13 @@ public class GodotModuleDecompiler
 	public int DecompileModule(string outputCSProjectPath)
 	{
 		try{
+			outputCSProjectPath = Path.GetFullPath(outputCSProjectPath);
 			var targetDirectory = Path.GetDirectoryName(outputCSProjectPath);
+			if (string.IsNullOrEmpty(targetDirectory))
+			{
+				Console.Error.WriteLine("Error: Output path is invalid.");
+				return -1;
+			}
 			GodotStuff.EnsureDir(targetDirectory);
 
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
@@ -46,17 +52,18 @@ public class GodotModuleDecompiler
 		}
 		catch (Exception e)
 		{
-			Console.WriteLine("Decompilation failed: " + e.Message);
+			Console.Error.WriteLine($"Decompilation failed: {e.Message}");
 			return -1;
 
 		}
 		return 0;
 	}
+	public const string error_message = "// ERROR: Could not find file '{0}' in assembly '{1}.dll'.";
 
 	public string DecompileIndividualFile(string file)
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
-		if (fileMap.TryGetValue(path, out var type)){
+		if (!string.IsNullOrEmpty(path) && fileMap.TryGetValue(path, out var type)){
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, assemblyResolver, godotProjectDecompiler.Settings);
 			var partialTypes = GodotStuff.GetPartialGodotTypes(module, [type], ts);
 			var decompiler = godotProjectDecompiler.CreateDecompiler(ts);
@@ -66,9 +73,11 @@ public class GodotModuleDecompiler
 			var syntaxTree = decompiler.DecompileTypes([type]);
 			using var w = new StringWriter();
 			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, godotProjectDecompiler.Settings.CSharpFormattingOptions));
-			return w.GetStringBuilder().ToString();
+			return w.ToString();
 		}
-		return "// ERROR: Could not find file " + file + " in assembly " + module.Name + ".dll.\n// The associated class(es) may have not been compiled into the assembly.";
+		return string.Format(error_message, file, module.Name) + (
+			originalProjectFiles.Contains(file) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
+		);
 	}
 
 	public int GetNumberOfFilesNotPresentInFileMap()

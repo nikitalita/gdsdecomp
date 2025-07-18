@@ -92,7 +92,7 @@ namespace GodotMonoDecomp
 
 		public AssemblyReferenceClassifier AssemblyReferenceClassifier { get; }
 
-		public IDebugInfoProvider DebugInfoProvider { get; }
+		public IDebugInfoProvider? DebugInfoProvider { get; }
 
 		/// <summary>
 		/// The MSBuild ProjectGuid to use for the new project.
@@ -112,28 +112,23 @@ namespace GodotMonoDecomp
 		/// Path to the snk file to use for signing.
 		/// <c>null</c> to not sign.
 		/// </summary>
-		public string StrongNameKeyFile { get; set; }
+		public string? StrongNameKeyFile { get; set; }
 
 		public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
 
 		public IEnumerable<string> FilesInOriginal { get; set; }
 
-		public IProgress<DecompilationProgress> ProgressIndicator { get; set; }
+		public IProgress<DecompilationProgress>? ProgressIndicator { get; set; }
 		#endregion
-
-		public GodotProjectDecompiler(IAssemblyResolver assemblyResolver)
-			: this(new DecompilerSettings(), assemblyResolver, projectWriter: null, assemblyReferenceClassifier: null, debugInfoProvider: null)
-		{
-		}
 
 		public GodotProjectDecompiler(
 			DecompilerSettings settings,
 			IAssemblyResolver assemblyResolver,
-			IProjectFileWriter projectWriter,
+			IProjectFileWriter? projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider debugInfoProvider,
-			IEnumerable<string> filesInOriginal = null)
+			IDebugInfoProvider? debugInfoProvider,
+			IEnumerable<string>? filesInOriginal = null)
 			: this(settings, Guid.NewGuid(), assemblyResolver, projectWriter, assemblyReferenceClassifier, debugInfoProvider, filesInOriginal)
 		{
 		}
@@ -142,19 +137,20 @@ namespace GodotMonoDecomp
 			DecompilerSettings settings,
 			Guid projectGuid,
 			IAssemblyResolver assemblyResolver,
-			IProjectFileWriter projectWriter,
+			IProjectFileWriter? projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider debugInfoProvider,
-			IEnumerable<string> filesInOriginal = null)
+			IDebugInfoProvider? debugInfoProvider,
+			IEnumerable<string>? filesInOriginal = null)
 		{
-			FilesInOriginal = filesInOriginal ?? Enumerable.Empty<string>();
+			TargetDirectory = "";
+			FilesInOriginal = filesInOriginal ?? [];
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			ProjectGuid = projectGuid;
 			AssemblyResolver = assemblyResolver ?? throw new ArgumentNullException(nameof(assemblyResolver));
 			AssemblyReferenceClassifier = assemblyReferenceClassifier ?? new AssemblyReferenceClassifier();
 			DebugInfoProvider = debugInfoProvider;
 			Settings.UseNestedDirectoriesForNamespaces = true;
-			this.projectWriter = ProjectFileWriterGodotStyle.Create();
+			this.projectWriter = projectWriter ?? ProjectFileWriterGodotStyle.Create();
 		}
 
 		// per-run members
@@ -264,7 +260,7 @@ namespace GodotMonoDecomp
 			return new[] { new ProjectItemInfo("Compile", assemblyInfo) };
 		}
 
-		public IEnumerable<TypeDefinitionHandle> GetTypesToDecompile(MetadataFile module)
+		public List<TypeDefinitionHandle> GetTypesToDecompile(MetadataFile module)
 		{
 			return module.Metadata.GetTopLevelTypeDefinitions()
 				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
@@ -312,7 +308,7 @@ namespace GodotMonoDecomp
 					}
 					fileName = fileName.Replace('/', Path.DirectorySeparatorChar);
 					var dir = Path.GetDirectoryName(fileName);
-					if (directories.Add(dir))
+					if (dir != null && directories.Add(dir))
 					{
 						CreateDirectory(Path.Combine(TargetDirectory, dir));
 					}

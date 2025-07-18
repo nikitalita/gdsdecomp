@@ -199,7 +199,7 @@ namespace GodotMonoDecomp
 
 
 			static DotNetCoreDepInfo[] getDeps(string Name, string Version, string target, JsonObject blob,
-				HashSet<string> _deps = null)
+				HashSet<string>? _deps = null)
 			{
 				if (_deps == null)
 				{
@@ -328,29 +328,38 @@ namespace GodotMonoDecomp
 			}
 		}
 
-		static DotNetCoreDepInfo LoadDeps(MetadataFile module)
+		static DotNetCoreDepInfo? LoadDeps(MetadataFile module)
 		{
 			// remove the .dll extension
 			var depsJsonFileName = module.FileName.Substring(0, module.FileName.Length - 4) + ".deps.json";
-			var dependencies = JsonReader.Parse(File.ReadAllText(depsJsonFileName));
-			// go through each target framework, find the one that matches the module
-			Dictionary<String, JsonValue> targetBlob = new Dictionary<string, JsonValue>();
-			foreach (var target in dependencies["targets"].AsJsonObject)
+			try
 			{
-				foreach (var dependency in target.Value.AsJsonObject)
+				var dependencies = JsonReader.Parse(File.ReadAllText(depsJsonFileName));
+				// go through each target framework, find the one that matches the module
+				Dictionary<String, JsonValue> targetBlob = new Dictionary<string, JsonValue>();
+				foreach (var target in dependencies["targets"].AsJsonObject)
 				{
-					if (dependency.Key.StartsWith(module.Name))
+					foreach (var dependency in target.Value.AsJsonObject)
 					{
-						return DotNetCoreDepInfo.Create(dependency.Key, "", target.Key, dependencies.AsJsonObject);
+						if (dependency.Key.StartsWith(module.Name))
+						{
+							return DotNetCoreDepInfo.Create(dependency.Key, "", target.Key, dependencies.AsJsonObject);
+						}
 					}
 				}
 			}
+			catch (Exception e)
+			{
+				Console.Error.WriteLine($"Error reading {depsJsonFileName}: {e.Message}");
+			}
+
+			Console.Error.WriteLine($"Could not load dependency information for module {module.FileName}");
 
 			return null;
 		}
 
 		static void WritePackageReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo deps, bool writePackageReferences)
+			ProjectType projectType, DotNetCoreDepInfo? deps, bool writePackageReferences)
 		{
 			void WritePackageRefs(XmlTextWriter xml)
 			{
@@ -369,7 +378,7 @@ namespace GodotMonoDecomp
 				}
 			}
 
-			if (deps.deps.Length == 0)
+			if (deps == null || deps.deps.Length == 0)
 			{
 				return;
 			}
@@ -417,7 +426,7 @@ namespace GodotMonoDecomp
 
 			string platformName;
 			CorFlags flags;
-			if (module is PEFile { Reader.PEHeaders: var headers } peFile)
+			if (module is PEFile { Reader.PEHeaders: { PEHeader: not null, CorHeader: not null } headers } peFile)
 			{
 				WriteOutputType(xml, headers.IsDll, headers.PEHeader.Subsystem, projectType);
 				platformName = TargetServices.GetPlatformName(peFile);
@@ -552,7 +561,7 @@ namespace GodotMonoDecomp
 		}
 
 		// takes in a void function and returns a string
-		static void writeBlockComment(XmlTextWriter oldXml, Action<XmlTextWriter> write, string prefixComment = null)
+		static void writeBlockComment(XmlTextWriter oldXml, Action<XmlTextWriter> write, string? prefixComment = null)
 		{
 			var writer = new StringWriter();
 			var xml = new XmlTextWriter(writer);
@@ -576,7 +585,7 @@ namespace GodotMonoDecomp
 
 
 		static void WriteReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo deps, bool writePackageReferences = false)
+			ProjectType projectType, DotNetCoreDepInfo? deps, bool writePackageReferences = false)
 		{
 			bool isNetCoreApp = TargetServices.DetectTargetFramework(module).Identifier == ".NETCoreApp";
 			var targetPacks = new HashSet<string>();
@@ -603,7 +612,7 @@ namespace GodotMonoDecomp
 			foreach (var reference in module.AssemblyReferences.Where(r => !ImplicitReferences.Contains(r.Name)))
 			{
 				if (isNetCoreApp &&
-				    project.AssemblyReferenceClassifier.IsSharedAssembly(reference, out string runtimePack) &&
+				    project.AssemblyReferenceClassifier.IsSharedAssembly(reference, out string? runtimePack) &&
 				    targetPacks.Contains(runtimePack))
 				{
 					continue;
@@ -615,7 +624,7 @@ namespace GodotMonoDecomp
 					continue;
 				}
 
-				if (writePackageReferences && deps.HasDep(reference.Name, true))
+				if (writePackageReferences && deps != null && deps.HasDep(reference.Name, true))
 				{
 					commentedReferences.Add(reference);
 					continue;
@@ -663,8 +672,12 @@ namespace GodotMonoDecomp
 			return;
 		}
 
-		static string GetGodotVersion(DotNetCoreDepInfo deps)
+		static string GetGodotVersion(DotNetCoreDepInfo? deps)
 		{
+			if (deps == null)
+			{
+				return "";
+			}
 			foreach (var reference in deps.deps)
 			{
 				if (reference.Name == "GodotSharp")
