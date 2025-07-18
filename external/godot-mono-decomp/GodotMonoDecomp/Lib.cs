@@ -13,20 +13,9 @@ namespace GodotMonoDecomp
         {
             try
             {
-                DecompilerSettings settings = new DecompilerSettings();
-                var module = new PEFile(assemblyPath);
-                var resolver =
-                    new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
-                foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
-                {
-                    resolver.AddSearchDirectory(path);
-                }
                 var files = GodotStuff.ListCSharpFiles(projectPath, false);
-                var decompiler = new GodotProjectDecompiler(settings, resolver, null, resolver, null, files);
-                GodotStuff.EnsureDir(Path.GetDirectoryName(outputCSProjectPath));
-
-                using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
-                    decompiler.DecompileProject(module, Path.GetDirectoryName(outputCSProjectPath), projectFileWriter);
+				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, outputCSProjectPath, [.. files], ReferencePaths);
+                decompiler.DecompileModule();
             }
             catch (Exception e)
             {

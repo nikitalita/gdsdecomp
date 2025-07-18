@@ -263,12 +263,17 @@ namespace GodotMonoDecomp
 			return new[] { new ProjectItemInfo("Compile", assemblyInfo) };
 		}
 
+		public IEnumerable<TypeDefinitionHandle> GetTypesToDecompile(MetadataFile module)
+		{
+			return module.Metadata.GetTopLevelTypeDefinitions()
+				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
+		}
+
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
 			var metadata = module.Metadata;
 			var paths_found_in_attributes = new HashSet<string>();
-			var typesToDecompile = metadata.GetTopLevelTypeDefinitions()
-				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
+			var typesToDecompile = GetTypesToDecompile(module);
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
 			partialTypes = partialTypes.Concat(GodotStuff.GetPartialGodotTypes(module, typesToDecompile, ts)).ToList();
 			var fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces);
