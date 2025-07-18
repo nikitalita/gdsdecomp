@@ -19,10 +19,11 @@ void ResourceFormatGDScriptLoader::get_recognized_extensions(List<String> *p_ext
 	p_extensions->push_back("gd");
 	p_extensions->push_back("gdc");
 	p_extensions->push_back("gde");
+	p_extensions->push_back("cs");
 }
 
 bool ResourceFormatGDScriptLoader::handles_type(const String &p_type) const {
-	return (p_type == "Script" || p_type == "GDScript");
+	return (p_type == "Script" || p_type == "GDScript" || p_type == "CSharpScript");
 }
 
 String ResourceFormatGDScriptLoader::get_resource_type(const String &p_path) const {
@@ -34,18 +35,32 @@ String ResourceFormatGDScriptLoader::_get_resource_type(const String &p_path) {
 	if (extension == "gd" || extension == "gdc" || extension == "gde") {
 		return "GDScript";
 	}
-	return "";
+	if (extension == "cs") {
+		return "CSharpScript";
+	}
+	return "Script";
 }
 
 Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
-	Ref<FakeGDScript> fake_script;
-	fake_script.instantiate();
-	Error err;
-	if (!r_error) {
-		r_error = &err;
+	Ref<Script> fake_script;
+	if (p_path.get_extension().to_lower() == "cs") {
+		Ref<FakeEmbeddedScript> csharp_script;
+		csharp_script.instantiate();
+		csharp_script->set_original_class("CSharpScript");
+		csharp_script->set_path_cache(p_path);
+		fake_script = csharp_script;
+	} else {
+		Ref<FakeGDScript> fake_gd_script;
+		fake_gd_script.instantiate();
+		fake_script = fake_gd_script;
+		Error err;
+		if (!r_error) {
+			r_error = &err;
+		}
+		*r_error = fake_gd_script->load_source_code(p_path);
+		ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + p_path);
 	}
-	*r_error = fake_script->load_source_code(p_path);
-	ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + p_path);
+
 	bool is_real_load = p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD;
 	if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP) {
 		fake_script->set_path(p_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
@@ -87,6 +102,8 @@ Error ResourceFormatGDScriptLoader::_set_resource_info(Ref<ResourceInfo> &info, 
 		info->resource_format = "GDScriptText";
 	} else if (extension == "gdc" || extension == "gde") {
 		info->resource_format = "GDScriptBytecode";
+	} else if (extension == "cs") {
+		info->resource_format = "CSharpScriptText";
 	} else {
 		info->resource_format = "GDScriptText";
 	}

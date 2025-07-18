@@ -44,6 +44,7 @@ class FakeGDScript : public Script {
 	// String fully_qualified_name;
 	// String simplified_icon_path;
 	Ref<GDScriptDecomp> decomp;
+	int ver_major = 0;
 	HashMap<StringName, Pair<int, int>> subclasses;
 	Vector<uint8_t> binary_buffer;
 
@@ -144,6 +145,7 @@ class FakeEmbeddedScript : public Script {
 	GDCLASS(FakeEmbeddedScript, Script);
 	String original_class;
 	HashMap<StringName, Variant> properties;
+	bool can_instantiate_instance = true;
 
 protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -153,16 +155,16 @@ protected:
 public:
 	virtual void reload_from_file() override {}
 
-	virtual bool can_instantiate() const override { return false; }
+	virtual bool can_instantiate() const override;
 
 	virtual Ref<Script> get_base_script() const override { return nullptr; } //for script inheritance
 	virtual StringName get_global_name() const override;
 	virtual bool inherits_script(const Ref<Script> &p_script) const override;
 
 	virtual StringName get_instance_base_type() const override;
-	virtual ScriptInstance *instance_create(Object *p_this) override { return nullptr; }
-	virtual PlaceHolderScriptInstance *placeholder_instance_create(Object *p_this) override { return nullptr; }
-	virtual bool instance_has(const Object *p_this) const override { return false; }
+	virtual ScriptInstance *instance_create(Object *p_this) override;
+	virtual PlaceHolderScriptInstance *placeholder_instance_create(Object *p_this) override;
+	virtual bool instance_has(const Object *p_this) const override;
 
 	virtual bool has_source_code() const override;
 	virtual String get_source_code() const override;
@@ -211,4 +213,72 @@ public:
 
 	void set_original_class(const String &p_class);
 	String get_original_class() const;
+
+	void set_can_instantiate(bool p_can_instantiate);
+};
+
+class FakeScriptInstance : public ScriptInstance {
+	friend class FakeGDScript;
+	friend class FakeEmbeddedScript;
+
+private:
+	Object *owner = nullptr;
+	Ref<Script> script;
+	HashMap<StringName, Variant> properties;
+
+public:
+	virtual bool set(const StringName &p_name, const Variant &p_value) override;
+	virtual bool get(const StringName &p_name, Variant &r_ret) const override;
+	virtual void get_property_list(List<PropertyInfo> *p_properties) const override;
+	virtual Variant::Type get_property_type(const StringName &p_name, bool *r_is_valid = nullptr) const override;
+	virtual void validate_property(PropertyInfo &p_property) const override;
+
+	virtual bool property_can_revert(const StringName &p_name) const override;
+	virtual bool property_get_revert(const StringName &p_name, Variant &r_ret) const override;
+
+	virtual Object *get_owner() override;
+	virtual void get_property_state(List<Pair<StringName, Variant>> &state) override;
+
+	virtual void get_method_list(List<MethodInfo> *p_list) const override;
+	virtual bool has_method(const StringName &p_method) const override;
+
+	virtual int get_method_argument_count(const StringName &p_method, bool *r_is_valid = nullptr) const override;
+
+	virtual Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override;
+
+	template <typename... VarArgs>
+	Variant call(const StringName &p_method, VarArgs... p_args) {
+		Variant args[sizeof...(p_args) + 1] = { p_args..., Variant() }; // +1 makes sure zero sized arrays are also supported.
+		const Variant *argptrs[sizeof...(p_args) + 1];
+		for (uint32_t i = 0; i < sizeof...(p_args); i++) {
+			argptrs[i] = &args[i];
+		}
+		Callable::CallError cerr;
+		return callp(p_method, sizeof...(p_args) == 0 ? nullptr : (const Variant **)argptrs, sizeof...(p_args), cerr);
+	}
+
+	virtual Variant call_const(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override; // implement if language supports const functions
+	virtual void notification(int p_notification, bool p_reversed = false) override;
+	virtual String to_string(bool *r_valid) override {
+		return "FAKE_SCRIPT_INSTANCE";
+	}
+
+	//this is used by script languages that keep a reference counter of their own
+	//you can make Ref<> not die when it reaches zero, so deleting the reference
+	//depends entirely from the script
+
+	virtual void refcount_incremented() override {}
+	virtual bool refcount_decremented() override { return true; } //return true if it can die
+
+	virtual Ref<Script> get_script() const override;
+
+	virtual bool is_placeholder() const override { return false; }
+
+	virtual void property_set_fallback(const StringName &p_name, const Variant &p_value, bool *r_valid) override;
+	virtual Variant property_get_fallback(const StringName &p_name, bool *r_valid) override;
+
+	virtual const Variant get_rpc_config() const override;
+
+	virtual ScriptLanguage *get_language() override;
+	virtual ~FakeScriptInstance();
 };

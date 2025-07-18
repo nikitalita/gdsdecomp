@@ -119,6 +119,7 @@ public:
 		if (!no_fake_script && (type == "Script" || type == "GDScript" || type == "CSharpScript")) {
 			FakeEmbeddedScript *res{ memnew(FakeEmbeddedScript) };
 			res->set_original_class(type);
+			res->set_can_instantiate(false);
 			ret = res;
 		} else {
 			MissingResource *res{ memnew(MissingResource) };
