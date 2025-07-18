@@ -431,6 +431,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
+	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {
@@ -452,9 +453,20 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	// check if the pack has .cs files
 	auto cs_files = GDRESettings::get_singleton()->get_file_list({ "*.cs" });
 	if (cs_files.size() > 0) {
-		if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+		Vector<String> exclude_files;
+		for (int i = 0; i < cs_files.size(); i++) {
+			if (!files_to_export_set.has(cs_files[i])) {
+				exclude_files.push_back(cs_files[i]);
+			}
+		}
+		if (exclude_files.size() == cs_files.size()) {
+			// nothing to do
+		} else if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+			Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Decompiling C# scripts...", cs_files.size() - exclude_files.size(), true));
+
 			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
-			err = decompiler->decompile_module(output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj"));
+			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
+			err = decompiler->decompile_module(csproj_path, exclude_files);
 			if (err != OK) {
 				ERR_PRINT("Failed to decompile C# scripts!");
 				report->failed_scripts.append_array(cs_files);
@@ -498,7 +510,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
-	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
 	HashMap<String, Vector<Ref<ImportInfo>>> export_dest_to_iinfo;
 	HashSet<String> dupes;
 	for (int i = 0; i < _files.size(); i++) {

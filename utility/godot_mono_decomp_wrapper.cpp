@@ -1,4 +1,5 @@
 #include "godot_mono_decomp_wrapper.h"
+#include "core/templates/vector.h"
 #include "godot_mono_decomp.h"
 
 GodotMonoDecompWrapper::GodotMonoDecompWrapper() {
@@ -39,11 +40,20 @@ Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembl
 	return Ref<GodotMonoDecompWrapper>(wrapper);
 }
 
-Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath) {
+Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
 	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, ERR_CANT_CREATE, "Decompiler handle is null");
 	CharString outputCSProjectPath_chrstr = outputCSProjectPath.utf8();
 	const char *outputCSProjectPath_c = outputCSProjectPath_chrstr.get_data();
-	if (GodotMonoDecomp_DecompileModule(decompilerHandle, outputCSProjectPath_c) != 0) {
+	Vector<CharString> excludeFiles_chrstrrs;
+	excludeFiles_chrstrrs.resize(excludeFiles.size());
+	const char **excludeFiles_c_array = new const char *[excludeFiles.size()];
+	for (int i = 0; i < excludeFiles.size(); i++) {
+		excludeFiles_chrstrrs.write[i] = excludeFiles[i].utf8();
+		excludeFiles_c_array[i] = excludeFiles_chrstrrs[i].get_data();
+	}
+	int ret = GodotMonoDecomp_DecompileModule(decompilerHandle, outputCSProjectPath_c, excludeFiles_c_array, excludeFiles.size());
+	delete[] excludeFiles_c_array;
+	if (ret != 0) {
 		return ERR_CANT_CREATE;
 	}
 	return OK;

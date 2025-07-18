@@ -522,7 +522,7 @@ def build_godot_mono_decomp(module_obj):
     elif env["platform"] == "macos":
         lib_suffix = ".dylib"
 
-    src_suffixes = ["*.h", "*.cs", "*.csproj", "*.sln", "*.props", "*.targets", "*.pubxml"]
+    src_suffixes = ["*.h", "*.cs", "*.csproj", "*.props", "*.targets", "*.pubxml"]
     env_gdsdecomp["BUILDERS"]["godotMonoDecompBuilder"] = Builder(
         action=godot_mono_builder,
         suffix=lib_suffix,

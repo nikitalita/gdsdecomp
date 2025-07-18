@@ -7,29 +7,28 @@ namespace GodotMonoDecomp;
 public class GodotModuleDecompiler
 {
 	public readonly PEFile module;
-	public readonly UniversalAssemblyResolver assemblyResolver;
 	public readonly GodotProjectDecompiler godotProjectDecompiler;
 	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 
 
-	public GodotModuleDecompiler(string assemblyPath, string[] originalProjectFiles, string[]? ReferencePaths = null) {
+	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null) {
 		var decompilerSettings = new DecompilerSettings();
 		decompilerSettings.UseNestedDirectoriesForNamespaces = true;
-		this.originalProjectFiles = [.. originalProjectFiles.Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
+		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		this.module = new PEFile(assemblyPath);
-		this.assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
+		var assemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, module.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
 		{
-			this.assemblyResolver.AddSearchDirectory(path);
+			assemblyResolver.AddSearchDirectory(path);
 		}
 
-		this.godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, this.assemblyResolver, ProjectFileWriterGodotStyle.Create(), this.assemblyResolver, null, this.originalProjectFiles);
+		this.godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, ProjectFileWriterGodotStyle.Create(), assemblyResolver, null, this.originalProjectFiles);
 		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
 		this.fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
 	}
 
-	public int DecompileModule(string outputCSProjectPath)
+	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null)
 	{
 		try{
 			outputCSProjectPath = Path.GetFullPath(outputCSProjectPath);
@@ -41,8 +40,11 @@ public class GodotModuleDecompiler
 			}
 			GodotStuff.EnsureDir(targetDirectory);
 
-			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
-				godotProjectDecompiler.DecompileProject(module, targetDirectory, projectFileWriter);
+			var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(fileMap.ContainsKey).Select(file => fileMap[file]).ToHashSet() ?? [];
+
+			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath))) {
+				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key));
+			}
 		}
 		catch (Exception e)
 		{
