@@ -946,6 +946,14 @@ Error GDRESettings::save_project_config(const String &p_out_dir = "") {
 	return current_project->pcfg->save_cfb(output_dir, get_ver_major(), get_ver_minor());
 }
 
+Error GDRESettings::save_project_config_binary(const String &p_out_dir = "") {
+	String output_dir = p_out_dir;
+	if (output_dir.is_empty()) {
+		output_dir = project_path;
+	}
+	return current_project->pcfg->save_cfb_binary(output_dir, get_ver_major(), get_ver_minor());
+}
+
 Error GDRESettings::unload_project() {
 	if (!is_pack_loaded()) {
 		return ERR_DOES_NOT_EXIST;
@@ -2143,6 +2151,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_sys_info_string"), &GDRESettings::get_sys_info_string);
 	ClassDB::bind_method(D_METHOD("load_project_config"), &GDRESettings::load_project_config);
 	ClassDB::bind_method(D_METHOD("save_project_config", "p_out_dir"), &GDRESettings::save_project_config);
+	ClassDB::bind_method(D_METHOD("save_project_config_binary", "p_out_dir"), &GDRESettings::save_project_config_binary);
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
