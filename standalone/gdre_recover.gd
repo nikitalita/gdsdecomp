@@ -13,7 +13,7 @@ var RESOURCE_PREVIEW: Control = null
 var HSPLIT_CONTAINER: HSplitContainer = null
 var SHOW_PREVIEW_BUTTON: Button = null
 var DESKTOP_DIR = OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP)
-
+var ERROR_DIALOG: AcceptDialog = null
 
 var isHiDPI = false #DisplayServer.screen_get_dpi() >= 240
 var root: TreeItem = null
@@ -50,6 +50,262 @@ func show_win():
 	SHOW_PREVIEW_BUTTON.toggled.emit(true)
 	self.popup_centered()
 
+static var void_func: Callable = func(): return
+func _init_error_dialog():
+	if (ERROR_DIALOG == null):
+		ERROR_DIALOG = AcceptDialog.new()
+	if (not ERROR_DIALOG.is_inside_tree()):
+		self.add_child(ERROR_DIALOG)
+	pass
+
+func popup_error_box(message: String, box_title: String, call_func: Callable = void_func):
+	if not ERROR_DIALOG:
+		_init_error_dialog()
+	return GDREChildDialog.popup_box(self, ERROR_DIALOG, message, box_title, call_func, call_func)
+	# return dialog
+
+
+func extract_file(file: String, output_dir: String, dir_structure: DirStructure, rel_base: String) -> String:
+	var bytes = FileAccess.get_file_as_bytes(file)
+	if bytes.is_empty():
+		return "Failed to read file: " + file
+	else:
+		var file_path = get_output_file_name(file, output_dir, dir_structure, "", rel_base)
+		GDRECommon.ensure_dir(file_path.get_base_dir())
+		var f = FileAccess.open(file_path, FileAccess.WRITE)
+		if f:
+			f.store_buffer(bytes)
+			f.close()
+		else:
+			return "Failed to open file for writing: " + file_path
+	return ""
+
+
+var prev_items: Array = []
+var REL_BASE_DIR = "res://"
+
+func _get_all_files(files: PackedStringArray) -> PackedStringArray:
+	var new_files: Dictionary = {}
+	for file in files:
+		if DirAccess.dir_exists_absolute(file):
+			var new_arr = GDRECommon.get_recursive_dir_list(file, [], true)
+			for new_file in new_arr:
+				new_files[new_file] = true
+		else:
+			new_files[file] = true
+	return PackedStringArray(new_files.keys())
+
+const DIR_STRUCTURE_OPTION_NAME = "Directory Structure"
+
+enum DirStructure {
+	FLAT,
+	RELATIVE_HIERARCHICAL,
+	ABSOLUTE_HIERARCHICAL,
+}
+
+func get_output_file_name(src: String, output_folder: String, dir_structure_option: DirStructure, new_ext: String = "", rel_base: String = "") -> String:
+	var new_name = ""
+	if dir_structure_option == DirStructure.FLAT:
+		new_name = output_folder.path_join(src.get_file())
+	elif dir_structure_option == DirStructure.ABSOLUTE_HIERARCHICAL:
+		new_name = output_folder.path_join(src.trim_prefix("res://").replace("user://", ".user/"))
+	elif dir_structure_option == DirStructure.RELATIVE_HIERARCHICAL:
+		new_name = output_folder.path_join(src.trim_prefix(rel_base))
+	if !new_ext.is_empty():
+		new_name = new_name.get_basename() + "." + new_ext
+	return new_name
+
+func _export_files(files: PackedStringArray, output_dir: String, dir_structure: DirStructure, rel_base: String) -> PackedStringArray:
+	var errs: PackedStringArray = []
+	files = _get_all_files(files)
+
+	for file in files:
+		if DirAccess.dir_exists_absolute(file):
+			continue
+
+		if file.get_file() == "project.binary" || file.get_file() == "engine.cfb":
+			var ret = GDREGlobals.convert_pcfg_to_text(file, output_dir)
+			if ret[0] != OK:
+				errs.append("Failed to convert project config: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+			continue
+		var _ret = GDRESettings.get_import_info_by_dest(file)
+		if _ret:
+			var iinfo: ImportInfo = ImportInfo.copy(_ret)
+			var report: ExportReport = null
+			# if file.get_extension().to_lower() == "scn" and iinfo.get_importer() == "autoconverted":
+			# 	var exporter = Exporter.get_exporter_from_path(file)
+			# 	if exporter:
+			# 		report = exporter.export_resource(output_dir, iinfo)
+			# 	else:
+			# 		errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+			# else:
+			iinfo.export_dest = get_output_file_name(iinfo.source_file, "res://", dir_structure, iinfo.source_file.get_extension(), rel_base)
+			report = Exporter.export_resource(output_dir, iinfo)
+			if not report:
+				errs.append("Failed to export resource: " + file)
+			elif report.error != OK:
+				errs.append("Failed to export resource: " + file + "\n" + "\n".join(report.get_error_messages()))
+			else:
+				var actual_output_path = report.saved_path
+				var rel_path = actual_output_path.trim_prefix(output_dir)
+				if rel_path.begins_with(".assets"):
+					var new_path = output_dir.path_join(rel_path.trim_prefix(".assets"))
+					GDRECommon.ensure_dir(new_path.get_base_dir())
+					DirAccess.rename_absolute(actual_output_path, new_path)
+
+		elif Exporter.is_exportable_resource(file):
+			var ext = Exporter.get_default_export_extension(file)
+			var dest_file = get_output_file_name(file, output_dir, dir_structure, ext, rel_base)
+			var err = Exporter.export_file(dest_file, file)
+			if err:
+				errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+		elif ResourceFormatLoaderCompatBinary.is_binary_resource(file):
+			var new_ext = "tres"
+			if file.get_extension().to_lower() == "scn":
+				new_ext = "tscn"
+			var err = ResourceCompatLoader.to_text(file, get_output_file_name(file, output_dir, dir_structure, new_ext, rel_base))
+			if err:
+				errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+		else:
+			# extract the file
+			var err = extract_file(file, output_dir, dir_structure, rel_base)
+			if not err.is_empty():
+				errs.append(err)
+	return errs
+
+func _on_export_resources_confirmed(output_dir: String):
+	var files: PackedStringArray = []
+	var errs: PackedStringArray = []
+	for item: TreeItem in prev_items:
+		files.append(FILE_TREE._get_path(item))
+	prev_items = []
+	var rel_base = REL_BASE_DIR
+	REL_BASE_DIR = "res://"
+	var options = %ExportResDirDialog.get_selected_options()
+	var dir_structure = DirStructure.FLAT
+	if options.size() > 0:
+		dir_structure = options[DIR_STRUCTURE_OPTION_NAME]
+
+	errs = _export_files(files, output_dir, dir_structure, rel_base)
+
+	if errs.size() > 0:
+		popup_error_box("\n".join(errs), "Error")
+	else:
+		popup_error_box("Successfully exported resources", "Success")
+
+
+
+
+func _on_extract_resources_dir_selected(path: String):
+	var options = %ExtractResDirDialog.get_selected_options()
+	print("OPTIONS: ", options)
+	var dir_structure = DirStructure.FLAT
+	if options.size() > 0:
+		dir_structure = options[DIR_STRUCTURE_OPTION_NAME]
+	var files: PackedStringArray = []
+	var errs: PackedStringArray = []
+	for item in prev_items:
+		files.append(FILE_TREE._get_path(item))
+	print("FILES: ", files)
+	prev_items = []
+	var rel_base = REL_BASE_DIR
+	REL_BASE_DIR = "res://"
+	files = _get_all_files(files)
+	for file in files:
+		if DirAccess.dir_exists_absolute(file):
+			continue
+		var err = extract_file(file, path, dir_structure, rel_base)
+		if not err.is_empty():
+			errs.append(err)
+	if errs.size() > 0:
+		popup_error_box("\n".join(errs), "Error")
+	else:
+		popup_error_box("Successfully extracted resources", "Success")
+
+func _determine_rel_base_dir(selected_items: Array) -> String:
+	var base_dirs: Dictionary = {}
+	if selected_items.size() == 0:
+		return "res://"
+	for item in selected_items:
+		var path = FILE_TREE._get_path(item)
+		var base_dir = path.get_base_dir()
+		#short circuit if the path is in the root
+		if base_dir == "res://":
+			return "res://"
+		base_dirs[base_dir] = true
+	if base_dirs.size() > 1:
+		var keys = base_dirs.keys()
+		# get the shortest path
+		keys.sort_custom(func(a, b): return a.length() < b.length())
+		var shortest_path = keys[0]
+		for base_dir in keys:
+			if base_dir == shortest_path:
+				continue
+			if not base_dir.begins_with(shortest_path):
+				return "res://"
+		return shortest_path
+	return base_dirs.keys()[0]
+
+
+func _determine_default_dir_structure(selected_items: Array) -> Array:
+	var base_dirs: Dictionary = {}
+	var had_folder = false
+	var rel_base_dir = "res://"
+	for item in selected_items:
+		if FILE_TREE.item_is_folder(item):
+			had_folder = true
+			base_dirs[FILE_TREE._get_path(item)] = true
+		else:
+			var path = FILE_TREE._get_path(item)
+			var base_dir = path.get_base_dir()
+			base_dirs[base_dir] = true
+	if base_dirs.size() > 1 or had_folder:
+		rel_base_dir = _determine_rel_base_dir(selected_items)
+		if rel_base_dir.is_empty() or rel_base_dir == "res://":
+			return [DirStructure.ABSOLUTE_HIERARCHICAL, rel_base_dir]
+		else:
+			return [DirStructure.RELATIVE_HIERARCHICAL, rel_base_dir]
+	return [DirStructure.FLAT, ""]
+
+
+func _on_export_resources_pressed(_selected_items):
+	prev_items = _selected_items
+	var ret = _determine_default_dir_structure(_selected_items)
+	var default_dir_structure = ret[0]
+	REL_BASE_DIR = ret[1]
+	open_export_resources_dir_dialog(default_dir_structure)
+
+func _on_extract_resources_pressed(_selected_items):
+	prev_items = _selected_items
+	var ret = _determine_default_dir_structure(_selected_items)
+	var default_dir_structure = ret[0]
+	REL_BASE_DIR = ret[1]
+	open_extract_resources_dir_dialog(default_dir_structure)
+
+
+func open_export_resources_dir_dialog(default_dir_structure: DirStructure):
+	%ExportResDirDialog.set_current_dir(DIRECTORY.text.get_base_dir())
+	var _name = %ExportResDirDialog.get_option_name(0)
+	print("NAME: ", _name)
+	%ExportResDirDialog.set_option_default(0, int(default_dir_structure))
+	open_subwindow(%ExportResDirDialog)
+
+func open_extract_resources_dir_dialog(default_dir_structure: DirStructure):
+	var file_dialog: FileDialog = %ExtractResDirDialog
+	var _name = file_dialog.get_option_name(0)
+	print("NAME: ", _name)
+	file_dialog.set_current_dir(DIRECTORY.text.get_base_dir())
+	file_dialog.set_option_default(0, int(default_dir_structure))
+	open_subwindow(file_dialog)
+
+func setup_export_resources_dir_dialog():
+	%ExportResDirDialog.connect("dir_selected", self._on_export_resources_confirmed)
+
+func setup_extract_resources_dir_dialog():
+	%ExtractResDirDialog.connect("dir_selected", self._on_extract_resources_dir_selected)
+
+
+
 func _ready():
 	FILE_TREE =      %FileTree
 	EXTRACT_ONLY =   %ExtractOnly
@@ -76,8 +332,12 @@ func _ready():
 	var file_list: Tree = FILE_TREE
 	file_list.connect("item_edited", self._on_item_edited)
 	setup_extract_dir_dialog()
+	setup_export_resources_dir_dialog()
+	setup_extract_resources_dir_dialog()
 	DIRECTORY.text = DESKTOP_DIR
-	# load_test()
+	FILE_TREE.add_custom_right_click_item("Extract Selected...", self._on_extract_resources_pressed)
+	FILE_TREE.add_custom_right_click_item("Export Selected...", self._on_export_resources_pressed)
+	load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
