@@ -21,10 +21,9 @@ namespace GodotMonoDecomp
                 {
                     resolver.AddSearchDirectory(path);
                 }
-
-                var decompiler = new GodotProjectDecompiler(settings, resolver, null, resolver, null);
-                decompiler.GodotProjectDirectory = Path.GetDirectoryName(outputCSProjectPath);
-                GodotStuff.EnsureDir(decompiler.GodotProjectDirectory);
+                var files = GodotStuff.ListCSharpFiles(projectPath, false);
+                var decompiler = new GodotProjectDecompiler(settings, resolver, null, resolver, null, files);
+                GodotStuff.EnsureDir(Path.GetDirectoryName(outputCSProjectPath));
 
                 using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
                     decompiler.DecompileProject(module, Path.GetDirectoryName(outputCSProjectPath), projectFileWriter);
