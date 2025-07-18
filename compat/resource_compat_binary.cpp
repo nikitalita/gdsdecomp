@@ -806,7 +806,7 @@ Error ResourceLoaderCompatBinary::load() {
 		}
 		bool is_scene = false;
 		bool fake_script = false;
-		auto init_missing_resource([&]() {
+		auto init_missing_resource([&](bool no_fake_script) {
 			auto nres = main ? CompatFormatLoader::create_missing_main_resource(path, t, uid) : CompatFormatLoader::create_missing_internal_resource(path, t, id);
 			res = Ref<Resource>(nres);
 			if (res->get_class() == "MissingResource") {
@@ -830,12 +830,12 @@ Error ResourceLoaderCompatBinary::load() {
 				is_scene = true;
 			}
 			if (load_type == ResourceInfo::FAKE_LOAD) {
-				init_missing_resource();
+				init_missing_resource(false);
 			} else if (res.is_null()) {
 				converter = ResourceCompatLoader::get_converter_for_type(t, ver_major);
 				if (converter.is_valid()) {
 					// We pass a missing resource to the converter, so it can set the properties correctly.
-					init_missing_resource();
+					init_missing_resource(true);
 				} // else, we will try to load it normally
 			}
 

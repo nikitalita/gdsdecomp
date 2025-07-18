@@ -114,9 +114,9 @@ public:
 		}
 	}
 
-	static Resource *make_fakescript_or_mising_resource(const String &path, const String &type, const String &scene_id = "") {
+	static Resource *make_fakescript_or_mising_resource(const String &path, const String &type, const String &scene_id = "", bool no_fake_script = false) {
 		Resource *ret;
-		if (type == "Script" || type == "GDScript" || type == "CSharpScript") {
+		if (!no_fake_script && (type == "Script" || type == "GDScript" || type == "CSharpScript")) {
 			FakeEmbeddedScript *res{ memnew(FakeEmbeddedScript) };
 			res->set_original_class(type);
 			ret = res;
@@ -158,8 +158,8 @@ public:
 		return res;
 	}
 
-	static Resource *create_missing_internal_resource(const String &path, const String &type, const String &scene_id) {
-		Resource *res{ make_fakescript_or_mising_resource("", type, scene_id) };
+	static Resource *create_missing_internal_resource(const String &path, const String &type, const String &scene_id, bool no_fake_script = false) {
+		Resource *res{ make_fakescript_or_mising_resource("", type, scene_id, no_fake_script) };
 		Ref<ResourceInfo> compat;
 		compat.instantiate();
 		compat->uid = ResourceUID::INVALID_ID;

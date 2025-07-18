@@ -83,6 +83,7 @@ static Ref<ImageConverterCompat> image_converter = nullptr;
 static Ref<ImageTextureConverterCompat> image_texture_converter = nullptr;
 static Ref<OggStreamConverterCompat> ogg_converter = nullptr;
 static Ref<LargeTextureConverterCompat> large_texture_converter = nullptr;
+static Ref<FakeScriptConverterCompat> fake_script_converter = nullptr;
 
 //exporters
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
@@ -129,6 +130,7 @@ void init_loaders() {
 	image_texture_converter = memnew(ImageTextureConverterCompat);
 	ogg_converter = memnew(OggStreamConverterCompat);
 	large_texture_converter = memnew(LargeTextureConverterCompat);
+	fake_script_converter = memnew(FakeScriptConverterCompat);
 	ResourceCompatLoader::add_resource_format_loader(binary_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(text_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(texture_loader, true);
@@ -141,6 +143,7 @@ void init_loaders() {
 	ResourceCompatLoader::add_resource_object_converter(image_texture_converter, true);
 	ResourceCompatLoader::add_resource_object_converter(ogg_converter, true);
 	ResourceCompatLoader::add_resource_object_converter(large_texture_converter, true);
+	ResourceCompatLoader::add_resource_object_converter(fake_script_converter, true);
 }
 
 void init_exporters() {
@@ -279,6 +282,9 @@ void deinit_loaders() {
 	if (large_texture_converter.is_valid()) {
 		ResourceCompatLoader::remove_resource_object_converter(large_texture_converter);
 	}
+	if (fake_script_converter.is_valid()) {
+		ResourceCompatLoader::remove_resource_object_converter(fake_script_converter);
+	}
 	text_loader = nullptr;
 	binary_loader = nullptr;
 	texture_loader = nullptr;
@@ -291,6 +297,7 @@ void deinit_loaders() {
 	image_texture_converter = nullptr;
 	ogg_converter = nullptr;
 	large_texture_converter = nullptr;
+	fake_script_converter = nullptr;
 }
 
 void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
@@ -353,6 +360,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ImageConverterCompat>();
 	ClassDB::register_class<ImageTextureConverterCompat>();
 	ClassDB::register_class<OggStreamConverterCompat>();
+	ClassDB::register_class<FakeScriptConverterCompat>();
 	ClassDB::register_class<FakeEmbeddedScript>();
 	ClassDB::register_class<FakeGDScript>();
 	ClassDB::register_class<FakeMesh>();

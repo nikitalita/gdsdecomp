@@ -15,4 +15,14 @@ public:
 	virtual Ref<Resource> custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error = nullptr, bool use_threads = true, ResourceFormatLoader::CacheMode p_cache_mode = CACHE_MODE_REUSE) override;
 	virtual Ref<ResourceInfo> get_resource_info(const String &p_path, Error *r_error) const override;
 	virtual bool handles_fake_load() const override { return false; }
+	static String _get_resource_type(const String &p_path);
+	static Error _set_resource_info(Ref<ResourceInfo> &info, const String &p_path);
+};
+
+class FakeScriptConverterCompat : public ResourceCompatConverter {
+	GDCLASS(FakeScriptConverterCompat, ResourceCompatConverter);
+
+public:
+	virtual Ref<Resource> convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error = nullptr) override;
+	virtual bool handles_type(const String &p_type, int ver_major) const override;
 };

@@ -26,6 +26,10 @@ bool ResourceFormatGDScriptLoader::handles_type(const String &p_type) const {
 }
 
 String ResourceFormatGDScriptLoader::get_resource_type(const String &p_path) const {
+	return _get_resource_type(p_path);
+}
+
+String ResourceFormatGDScriptLoader::_get_resource_type(const String &p_path) {
 	String extension = p_path.get_extension().to_lower();
 	if (extension == "gd" || extension == "gdc" || extension == "gde") {
 		return "GDScript";
@@ -54,12 +58,17 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 Ref<ResourceInfo> ResourceFormatGDScriptLoader::get_resource_info(const String &p_path, Error *r_error) const {
 	Ref<ResourceInfo> info;
 	info.instantiate();
-	info->type = get_resource_type(p_path);
+	_set_resource_info(info, p_path);
+	info->original_path = p_path;
+	return info;
+}
+
+//	void _set_resource_info(Ref<ResourceInfo> &info, const String &p_path) const;
+
+Error ResourceFormatGDScriptLoader::_set_resource_info(Ref<ResourceInfo> &info, const String &p_path) {
+	info->type = _get_resource_type(p_path);
 	if (info->type == "") {
-		if (r_error) {
-			*r_error = ERR_FILE_UNRECOGNIZED;
-		}
-		return info;
+		return ERR_FILE_UNRECOGNIZED;
 	}
 	String extension = p_path.get_extension().to_lower();
 	auto rev = GDRESettings::get_singleton()->get_bytecode_revision();
@@ -78,7 +87,42 @@ Ref<ResourceInfo> ResourceFormatGDScriptLoader::get_resource_info(const String &
 		info->resource_format = "GDScriptText";
 	} else if (extension == "gdc" || extension == "gde") {
 		info->resource_format = "GDScriptBytecode";
+	} else {
+		info->resource_format = "GDScriptText";
 	}
-	info->original_path = p_path;
-	return info;
+	return OK;
+}
+
+// for embedded scripts
+Ref<Resource> FakeScriptConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
+	if (res->get_original_class() != "GDScript") {
+		Ref<FakeEmbeddedScript> fake_embedded_script;
+		fake_embedded_script.instantiate();
+		fake_embedded_script->set_original_class(res->get_original_class());
+		set_real_from_missing_resource(res, fake_embedded_script, p_type);
+		return fake_embedded_script;
+	}
+	Ref<FakeGDScript> fake_script;
+	fake_script.instantiate();
+	auto resource_info = ResourceInfo::get_info_from_resource(res);
+
+	String path = res->get_path();
+	if (path.is_empty()) {
+		if (resource_info.is_valid()) {
+			path = resource_info->original_path;
+		}
+	}
+	fake_script->set_original_class(res->get_original_class());
+	if (is_external_resource(res) && p_type != ResourceInfo::LoadType::FAKE_LOAD && p_type != ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
+		fake_script->load_source_code(path);
+	} else {
+		set_real_from_missing_resource(res, fake_script, p_type);
+	}
+	// ResourceFormatGDScriptLoader::_set_resource_info(resource_info, path);
+	resource_info->set_on_resource(fake_script);
+	return fake_script;
+}
+
+bool FakeScriptConverterCompat::handles_type(const String &p_type, int ver_major) const {
+	return p_type == "Script" || p_type == "GDScript" || p_type == "CSharpScript";
 }
