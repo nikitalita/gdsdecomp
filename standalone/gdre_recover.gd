@@ -104,6 +104,12 @@ enum DirStructure {
 	ABSOLUTE_HIERARCHICAL,
 }
 
+const DIR_STRUCTURE_NAMES: PackedStringArray = [
+	"Flat",
+	"Relative Hierarchical",
+	"Absolute Hierarchical",
+]
+
 func get_output_file_name(src: String, output_folder: String, dir_structure_option: DirStructure, new_ext: String = "", rel_base: String = "") -> String:
 	var new_name = ""
 	if dir_structure_option == DirStructure.FLAT:
@@ -126,9 +132,14 @@ func _export_scene(file: String, output_dir: String, dir_structure: DirStructure
 	var res_ext = file.get_extension().to_lower()
 	var ext = source_file.get_extension().to_lower()
 
-	var exporting_glb = (export_glb or (ext == "glb" or ext == "gltf")) and (res_ext == "scn" or res_ext == "tscn")
-	if exporting_glb and ext != "glb" and ext != "gltf":
-		ext = "glb"
+	if export_glb:
+		if ext != "glb" and ext != "gltf":
+			ext = "glb"
+	else:
+		if not is_instance_valid(iinfo):
+			if res_ext == "scn":
+				ext = "tscn"
+
 
 	var export_dest = get_output_file_name(source_file, output_dir, dir_structure, ext, rel_base)
 	return SceneExporter.export_file_with_options(export_dest, file, {
@@ -146,15 +157,26 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 		if file.get_file() == "project.binary" || file.get_file() == "engine.cfb":
 			var ret = GDREGlobals.convert_pcfg_to_text(file, output_dir)
 			if ret[0] != OK:
-				errs.append("Failed to convert project config: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+				errs.append("Failed to convert project config: " + file + "\n" + GDREGlobals.get_recent_error_string())
 			continue
+
+		GDRESettings.get_errors()
 		var _ret = GDRESettings.get_import_info_by_dest(file)
-		if export_glb and (file.get_extension().to_lower() == "scn" or file.get_extension().to_lower() == "tscn"):
+		var file_ext = file.get_extension().to_lower()
+		if file_ext == "scn" or file_ext == "tscn":
+			if not export_glb and file_ext == "tscn":
+				var src = file if not is_instance_valid(_ret) else _ret.source_file
+				if src.get_extension().to_lower() == file_ext:
+					# just extract the file
+						var err = extract_file(file, output_dir, dir_structure, rel_base)
+						if not err.is_empty():
+							errs.append(err)
+						continue
 			var report: ExportReport = _export_scene(file, output_dir, dir_structure, rel_base, export_glb)
 			if not report:
 				errs.append("Failed to export resource: " + file)
 			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
-				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n".join(report.get_error_messages()))
+				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n" + GDREGlobals.parse_log_errors(report.get_error_messages()))
 		elif _ret:
 			var iinfo: ImportInfo = ImportInfo.copy(_ret)
 			iinfo.export_dest = get_output_file_name(iinfo.source_file, "res://", dir_structure, iinfo.source_file.get_extension().to_lower(), rel_base)
@@ -162,7 +184,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			if not report:
 				errs.append("Failed to export resource: " + file)
 			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
-				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n".join(report.get_error_messages()))
+				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n" + GDREGlobals.parse_log_errors(report.get_error_messages()))
 			else:
 				var actual_output_path = report.saved_path
 				var rel_path = actual_output_path.simplify_path().trim_prefix(output_dir).trim_prefix("/")
@@ -176,14 +198,14 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			var dest_file = get_output_file_name(file, output_dir, dir_structure, ext, rel_base)
 			var err = Exporter.export_file(dest_file, file)
 			if err:
-				errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+				errs.append("Failed to export file: " + file + "\n" + GDREGlobals.get_recent_error_string())
 		elif ResourceFormatLoaderCompatBinary.is_binary_resource(file):
 			var new_ext = "tres"
 			if file.get_extension().to_lower() == "scn":
 				new_ext = "tscn"
 			var err = ResourceCompatLoader.to_text(file, get_output_file_name(file, output_dir, dir_structure, new_ext, rel_base))
 			if err:
-				errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
+				errs.append("Failed to export file: " + file + "\n" + GDREGlobals.get_recent_error_string())
 		else:
 			# extract the file
 			var err = extract_file(file, output_dir, dir_structure, rel_base)
@@ -200,11 +222,8 @@ func _on_export_resources_confirmed(output_dir: String):
 	var rel_base = REL_BASE_DIR
 	REL_BASE_DIR = "res://"
 	var options = %ExportResDirDialog.get_selected_options()
-	var dir_structure = DirStructure.FLAT
-	var export_glb = false
-	if options.size() > 0:
-		dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
-		export_glb = options.get(EXPORT_GLB_OPTION_NAME, false)
+	var dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
+	var export_glb = options.get(EXPORT_GLB_OPTION_NAME, false)
 
 	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
 
@@ -218,10 +237,7 @@ func _on_export_resources_confirmed(output_dir: String):
 
 func _on_extract_resources_dir_selected(path: String):
 	var options = %ExtractResDirDialog.get_selected_options()
-	print("OPTIONS: ", options)
-	var dir_structure = DirStructure.FLAT
-	if options.size() > 0:
-		dir_structure = options[DIR_STRUCTURE_OPTION_NAME]
+	var dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
 	var files: PackedStringArray = []
 	var errs: PackedStringArray = []
 	for item in prev_items:
@@ -310,19 +326,28 @@ func _set_current_dir_if_default(file_dialog: FileDialog, dir: String):
 			file_dialog.set_current_dir(dir)
 
 
+func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: DirStructure, include_glb: bool):
+	var options = file_dialog.get_selected_options()
+	include_glb = include_glb and GDRESettings.get_ver_major() >= GDREGlobals.MINIMUM_GLB_VERSION
+	var glb_default = options.get(EXPORT_GLB_OPTION_NAME, 0)
+	file_dialog.set_option_count(0)
+	file_dialog.add_option(DIR_STRUCTURE_OPTION_NAME, DIR_STRUCTURE_NAMES, int(default_dir_structure))
+	#file_dialog.set_option_default(0, int(default_dir_structure))
+	if include_glb:
+		file_dialog.add_option(EXPORT_GLB_OPTION_NAME, ["False", "True"], glb_default)
+
 func open_export_resources_dir_dialog(default_dir_structure: DirStructure):
+	# remove all the current options
+	_set_file_dialog_options(%ExportResDirDialog, default_dir_structure, true)
 	_set_current_dir_if_default(%ExportResDirDialog, DIRECTORY.text.get_base_dir())
 	var _name = %ExportResDirDialog.get_option_name(0)
-	print("NAME: ", _name)
-	%ExportResDirDialog.set_option_default(0, int(default_dir_structure))
 	open_subwindow(%ExportResDirDialog)
 
 func open_extract_resources_dir_dialog(default_dir_structure: DirStructure):
 	var file_dialog: FileDialog = %ExtractResDirDialog
+	_set_file_dialog_options(file_dialog, default_dir_structure, false)
 	var _name = file_dialog.get_option_name(0)
-	print("NAME: ", _name)
 	_set_current_dir_if_default(file_dialog, DIRECTORY.text.get_base_dir())
-	file_dialog.set_option_default(0, int(default_dir_structure))
 	open_subwindow(file_dialog)
 
 func setup_export_resources_dir_dialog():
@@ -364,7 +389,7 @@ func _ready():
 	DIRECTORY.text = DESKTOP_DIR
 	FILE_TREE.add_custom_right_click_item("Extract Selected...", self._on_extract_resources_pressed)
 	FILE_TREE.add_custom_right_click_item("Export Selected...", self._on_export_resources_pressed)
-	# load_test()
+	#load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
