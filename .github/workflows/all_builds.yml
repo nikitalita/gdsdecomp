@@ -170,6 +170,11 @@ jobs:
         run: |
           rustup target add aarch64-apple-darwin
 
+      - name: setup-dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
       - name: Compile Editor
         if: matrix.target == 'editor'
         id: compile-editor
@@ -220,6 +225,7 @@ jobs:
           lipo -create bin/godot.macos.template_release.x86_64 bin/godot.macos.template_release.arm64 -output bin/godot.macos.template_release.universal
           cp "bin/godot.macos.template_release.universal" "bin/macos_template.app/Contents/MacOS/godot_macos_debug.universal"
           cp "bin/godot.macos.template_release.universal" "bin/macos_template.app/Contents/MacOS/godot_macos_release.universal"
+          cp "bin/libGodotMonoDecompNativeAOT.dylib" "bin/macos_template.app/Contents/MacOS/libGodotMonoDecompNativeAOT.dylib"
           cd bin/
           zip -r9 "macos.zip" "macos_template.app/"
           rm -f godot.macos.template_release.universal
@@ -361,6 +367,7 @@ jobs:
           latest: true
           fileName: rcedit-x64.exe
           out-file-path: ${{ runner.tool_cache }}/rcedit
+
       - name: Setup rcedit
         if: matrix.platform == 'windows'
         run: |

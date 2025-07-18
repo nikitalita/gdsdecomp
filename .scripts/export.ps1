@@ -95,7 +95,7 @@ echo "Build number: $build_num"
 
 $export_presets = Get-Content export_presets.cfg
 $export_presets = $export_presets -replace 'application/short_version=".*"', "application/short_version=""$version"""
-$export_presets = $export_presets -replace 'application/version=".*"', "application/version=""$version""" 
+$export_presets = $export_presets -replace 'application/version=".*"', "application/version=""$version"""
 $export_presets = $export_presets -replace 'application/file_version=".*"', "application/file_version=""$number_only_version.$build_num"""
 $export_presets = $export_presets -replace 'application/product_version=".*"', "application/product_version=""$number_only_version.$build_num"""
 
@@ -123,6 +123,14 @@ Set-PSDebug -Trace 1
 $proc = Start-Process -NoNewWindow -PassThru -FilePath "$export_command" -ArgumentList "$export_args"
 Wait-Process -Id $proc.id -Timeout 300
 Set-PSDebug -Trace 0
+
+# if the platform is not macos, we need to copy the *GodotMonoDecompNativeAOT.* libraries to the export_dir
+if ($export_preset -ne "macOS") {
+    Get-ChildItem $godotBinDir -Filter "*GodotMonoDecompNativeAOT.*" -Recurse | ForEach-Object {
+        Copy-Item $_.FullName $export_dir
+    }
+}
+
 # list the exported files in the $export_dir
 echo "Exported files:"
 Get-ChildItem $export_dir -Recurse | ForEach-Object {
