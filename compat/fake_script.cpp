@@ -163,9 +163,9 @@ Error FakeGDScript::reload(bool p_keep_state) {
 		}
 	}
 	err = decomp->get_script_state(binary_buffer, script_state);
-	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing bytecode");
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error loading script state");
 	err = parse_script();
-	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing script");
+	ERR_FAIL_V_MSG(err, decomp->get_error_message());
 
 	if (GDRESettings::get_singleton()->is_pack_loaded()) {
 		ensure_base_and_global_name();
@@ -300,7 +300,8 @@ void FakeGDScript::ensure_base_and_global_name() {
 
 Error FakeGDScript::parse_script() {
 	using GT = GlobalToken;
-	ERR_FAIL_COND_V(script_state.bytecode_version == -1, ERR_PARSE_ERROR);
+
+	FAKEGDSCRIPT_FAIL_COND_V_MSG(script_state.bytecode_version == -1, ERR_INVALID_DATA, "Bytecode version is invalid");
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
@@ -324,6 +325,13 @@ Error FakeGDScript::parse_script() {
 	uint32_t prev_line_start_column = 1;
 	GT prev_token = GT::G_TK_NEWLINE;
 	int tab_size = 1;
+
+	// We should only fail when there's something that the decompiler should have already caught; otherwise we'll just warn.
+#define FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(cond, msg)                                   \
+	if (unlikely(cond)) {                                                               \
+		error_message = "Failed to parse script: Line " + itos(prev_line) + ": " + msg; \
+		return ERR_PARSE_ERROR;                                                         \
+	}
 
 	auto handle_newline = [&](int i, GlobalToken curr_token) {
 		auto curr_line = script_state.get_token_line(i);
@@ -357,12 +365,12 @@ Error FakeGDScript::parse_script() {
 			i++;
 		}
 		if (i >= tokens.size()) {
-			WARN_PRINT("Unexpected end of file while parsing @export");
+			WARN_PRINT(vformat("Line %d: Unexpected end of file while parsing @export", prev_line));
 			return OK;
 		}
 		if (decomp->check_next_token(i, tokens, GT::G_TK_PR_VAR) && decomp->check_next_token(i + 1, tokens, GT::G_TK_IDENTIFIER)) {
 			uint32_t identifier = tokens[i + 2] >> GDScriptDecomp::TOKEN_BITS;
-			ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+			FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "Invalid identifier index");
 			export_vars.push_back(identifiers[identifier]);
 		}
 		return OK;
@@ -396,7 +404,7 @@ Error FakeGDScript::parse_script() {
 				// in GDScript 2.0, the "@tool" annotation has to be the first expression in the file
 				// (i.e. before the class body and 'extends' or 'class_name' keywords)
 				uint32_t a_id = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
-				ERR_FAIL_COND_V(a_id >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+				FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(a_id >= (uint32_t)identifiers.size(), "Invalid annotation index");
 
 				const StringName &annotation = identifiers[a_id];
 				const String annostr = annotation.get_data();
@@ -405,7 +413,9 @@ Error FakeGDScript::parse_script() {
 					tool = true;
 				} else if (annostr.contains("@export") && !annostr.ends_with("group") && !annostr.ends_with("category")) {
 					Error err = get_export_var(i);
-					ERR_FAIL_COND_V(err != OK, err);
+					if (err) {
+						return err;
+					}
 				} else if (annostr == "@abstract") {
 					set_abstract(i);
 				}
@@ -415,7 +425,7 @@ Error FakeGDScript::parse_script() {
 				if (indent == 0) {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 						uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
-						ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "After signal: Invalid identifier index");
 						const StringName &signal_name = identifiers[identifier];
 						int arg_count = 0;
 						if (decomp->check_next_token(i + 1, tokens, GT::G_TK_PARENTHESIS_OPEN)) {
@@ -429,7 +439,7 @@ Error FakeGDScript::parse_script() {
 							}
 							_signals[signal_name] = mi;
 						} else {
-							WARN_PRINT("Failed to parse signal arguments");
+							WARN_PRINT(vformat("Line %d: Failed to parse signal %s arguments", prev_line, signal_name));
 						}
 					}
 				}
@@ -456,7 +466,9 @@ Error FakeGDScript::parse_script() {
 			} break;
 			case GT::G_TK_PR_EXPORT: {
 				Error err = get_export_var(i);
-				ERR_FAIL_COND_V(err != OK, err);
+				if (err) {
+					return err;
+				}
 			} break;
 			case GT::G_TK_PR_TOOL: {
 				// "tool" can be used literally anywhere in GDScript 1, so we only check it if it's actually a reserved word
@@ -482,7 +494,7 @@ Error FakeGDScript::parse_script() {
 				// "class_name" can be used literally anywhere in GDScript 1, so we only check it if it's actually a reserved word
 				if (global_name.is_empty() && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 					uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
-					ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+					FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "After class_name: Invalid identifier index");
 					global_name = identifiers[identifier];
 					local_name = global_name;
 				}
@@ -494,14 +506,14 @@ Error FakeGDScript::parse_script() {
 				if (base_type.is_empty() && !func_used && !class_used && !var_used && !const_used && !extends_used && !is_not_actually_reserved_word(i)) {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_CONSTANT)) {
 						uint32_t constant = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
-						ERR_FAIL_COND_V(constant >= (uint32_t)constants.size(), ERR_INVALID_DATA);
+						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(constant >= (uint32_t)constants.size(), "After extends: Invalid constant index");
 						base_type = constants[constant];
 					} else if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 						uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
-						ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "After extends: Invalid identifier index");
 						base_type = identifiers[identifier];
 					} else {
-						// TODO: something?
+						WARN_PRINT(vformat("Line %d: Invalid extends keyword", prev_line));
 					}
 				}
 			} break;
