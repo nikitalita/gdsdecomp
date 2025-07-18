@@ -1,6 +1,7 @@
 #include "fake_script.h"
 
 #include "compat/resource_loader_compat.h"
+#include "compat/variant_decoder_compat.h"
 #include "core/io/missing_resource.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
@@ -309,6 +310,7 @@ Error FakeGDScript::parse_script() {
 	Vector<StringName> &identifiers = script_state.identifiers;
 	Vector<Variant> &constants = script_state.constants;
 	Vector<uint32_t> &tokens = script_state.tokens;
+	int variant_ver_major = decomp->get_variant_ver_major();
 
 	// reserved words can be used as class members in GDScript. Hooray.
 	auto is_not_actually_reserved_word = [&](int i) {
@@ -516,8 +518,11 @@ Error FakeGDScript::parse_script() {
 						uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "After extends: Invalid identifier index");
 						base_type = identifiers[identifier];
+					} else if (decomp->check_next_token(i, tokens, GT::G_TK_BUILT_IN_TYPE)) {
+						base_type = VariantDecoderCompat::get_variant_type_name(tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS, variant_ver_major);
 					} else {
-						WARN_PRINT(vformat("Line %d: Invalid extends keyword", prev_line));
+						String next_token_name = i + 1 < tokens.size() ? decomp->get_global_token_name(decomp->get_global_token(tokens[i + 1])) : "end of file";
+						WARN_PRINT(vformat("Line %d: Invalid extends keyword, next token is %s", prev_line, next_token_name));
 					}
 				}
 			} break;

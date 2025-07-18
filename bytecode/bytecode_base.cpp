@@ -2225,3 +2225,7 @@ bool GDScriptDecomp::token_is_keyword_called_like_function(GlobalToken p_token) 
 			return false;
 	}
 }
+
+String GDScriptDecomp::get_global_token_name(GlobalToken p_token) {
+	return GDScriptTokenizerTextCompat::get_token_name(p_token);
+}
