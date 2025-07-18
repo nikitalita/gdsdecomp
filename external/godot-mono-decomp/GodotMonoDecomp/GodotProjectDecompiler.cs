@@ -117,7 +117,6 @@ namespace GodotMonoDecomp
 		public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
 
-		public IEnumerable<string> FilesInOriginal { get; set; }
 
 		public IProgress<DecompilationProgress>? ProgressIndicator { get; set; }
 		#endregion
@@ -126,9 +125,8 @@ namespace GodotMonoDecomp
 			GodotMonoDecompSettings settings,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider? debugInfoProvider,
-			IEnumerable<string>? filesInOriginal = null)
-			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider, filesInOriginal)
+			IDebugInfoProvider? debugInfoProvider)
+			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider)
 		{
 		}
 
@@ -137,11 +135,9 @@ namespace GodotMonoDecomp
 			Guid projectGuid,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider? debugInfoProvider,
-			IEnumerable<string>? filesInOriginal = null)
+			IDebugInfoProvider? debugInfoProvider)
 		{
 			TargetDirectory = "";
-			FilesInOriginal = filesInOriginal ?? [];
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			ProjectGuid = projectGuid;
 			AssemblyResolver = assemblyResolver ?? throw new ArgumentNullException(nameof(assemblyResolver));
