@@ -2030,6 +2030,19 @@ bool GDRESettings::loaded_resource_strings() const {
 void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 	String src_ext = tokens[i].path.get_extension().to_lower();
 	// check if script
+	if (src_ext == "cs") {
+		if (has_loaded_dotnet_assembly()) {
+			Ref<GodotMonoDecompWrapper> decompiler = get_dotnet_decompiler();
+			String code = decompiler->decompile_individual_file(tokens[i].path);
+			// get all strings from the code (i.e. everything between quotes)
+			Ref<RegEx> re = RegEx::create_from_string("(?:^|[^\\\\])\"((?:\\\\\"|[^\"])+)\"");
+			TypedArray<RegExMatch> matches = re->search_all(code);
+			for (Ref<RegExMatch> match : matches) {
+				tokens[i].strings.append(match->get_string(1));
+			}
+		}
+		return;
+	}
 	if (src_ext == "gd" || src_ext == "gdc" || src_ext == "gde") {
 		tokens[i].err = GDScriptDecomp::get_script_strings(tokens[i].path, get_bytecode_revision(), tokens[i].strings, true);
 		return;
@@ -2119,6 +2132,7 @@ void GDRESettings::load_all_resource_strings() {
 	}
 	wildcards.push_back("*.csv");
 	wildcards.push_back("*.json");
+	wildcards.push_back("*.cs");
 
 	Vector<String> r_files = get_file_list(wildcards);
 	Vector<StringLoadToken> tokens;
