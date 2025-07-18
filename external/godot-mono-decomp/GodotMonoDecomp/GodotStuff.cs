@@ -620,20 +620,57 @@ public static class GodotStuff
 		return godotSharpReference?.Version;
 	}
 
-	public static string? GetGodotVersionString(MetadataFile file)
+	public static Version? ParseGodotVersionFromString(string versionString)
 	{
-		var version = GetGodotVersion(file);
-		if (version == null)
+		if (string.IsNullOrWhiteSpace(versionString))
 		{
 			return null;
 		}
 
-		if (version.Build == -1)
+		if (Version.TryParse(versionString, out var v))
 		{
-			return $"{version.Major}.{version.Minor}";
+			return v;
+		}
+		// else, split the string by '.' and parse each part
+		var parts = versionString.Split('.');
+		int verMajor = 0;
+		int verMinor = 0;
+		int verBuild = 0;
+		int verRevision = -1;
+		int len = parts.Length > 4 ? 4 : parts.Length;
+		for (int i = 0; i < len; i++)
+		{
+			var part = parts[i];
+			// check if it's a valid integer
+			if (int.TryParse(part, out var intPart))
+			{
+				switch (i)
+				{
+					case 0:
+						verMajor = intPart;
+						break;
+					case 1:
+						verMinor = intPart;
+						break;
+					case 2:
+						verBuild = intPart;
+						break;
+					case 3:
+						verRevision = intPart;
+						break;
+				}
+			}
+			else
+			{
+				break;
+			}
 		}
 
-		return $"{version.Major}.{version.Minor}.{version.Build}";
+		if (verMajor == 0)
+		{
+			return null;
+		}
+		return new Version(verMajor, verMinor, verBuild, verRevision);
 	}
 
 

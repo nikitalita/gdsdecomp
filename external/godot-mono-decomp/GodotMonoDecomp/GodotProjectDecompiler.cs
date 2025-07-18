@@ -48,7 +48,7 @@ namespace GodotMonoDecomp
 	/// <summary>
 	/// Decompiles an assembly into a visual studio project file.
 	/// </summary>
-	public class GodotProjectDecompiler : IProjectInfoProvider
+	public class GodotProjectDecompiler : IGodotProjectWithSettingsProvider
 	{
 		const int maxSegmentLength = 255;
 
@@ -194,7 +194,7 @@ namespace GodotMonoDecomp
 			{
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
-			projectWriter = ProjectFileWriterGodotStyle.Create(Settings.WriteNuGetPackageReferences, Settings.CopyOutOfTreeReferences, Settings.CreateAdditionalProjectsForProjectReferences);
+			projectWriter = ProjectFileWriterGodotStyle.Create();
 			if (projectWriter is ProjectFileWriterGodotStyle writer)
 			{
 				writer.DepInfo = depInfo;

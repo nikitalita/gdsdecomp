@@ -12,13 +12,16 @@ GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
 	}
 }
 
-Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs) {
+Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
 	CharString assembly_path_chrstr = assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
 	String ref_path = assembly_path.get_base_dir();
 	CharString ref_path_chrstr = ref_path.utf8();
 	const char *ref_path_c = ref_path_chrstr.get_data();
 	const char *ref_path_c_array[] = { ref_path_c };
+
+	CharString godotVersionOverride_chrstr = settings.GodotVersionOverride.is_empty() ? "" : settings.GodotVersionOverride.utf8();
+	const char *godotVersionOverride_c = settings.GodotVersionOverride.is_empty() ? nullptr : godotVersionOverride_chrstr.get_data();
 
 	const char **originalProjectFiles_c_array = new const char *[originalProjectFiles.size()];
 	Vector<CharString> originalProjectFiles_chrstrs;
@@ -29,7 +32,7 @@ Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembl
 		originalProjectFiles_c_array[i] = originalProjectFiles_chrstrs[i].get_data();
 	}
 
-	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(assembly_path_c, originalProjectFiles_c_array, originalProjectFiles.size(), ref_path_c_array, 1);
+	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(assembly_path_c, originalProjectFiles_c_array, originalProjectFiles.size(), ref_path_c_array, 1, godotVersionOverride_c);
 	delete[] originalProjectFiles_c_array;
 	if (decompilerHandle == nullptr) {
 		return Ref<GodotMonoDecompWrapper>();
