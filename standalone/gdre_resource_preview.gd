@@ -237,7 +237,7 @@ func is_shader(ext, p_type = ""):
 	return false
 
 func is_code(ext, p_type = ""):
-	if (ext == "gd" || ext == "gdc" || ext == "gde"):
+	if (ext == "gd" || ext == "gdc" || ext == "gde" || ext == "cs"):
 		return true
 	return false
 
