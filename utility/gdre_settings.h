@@ -194,6 +194,7 @@ private:
 
 	Error load_pack_gdscript_cache(bool p_reset = false);
 	Error reset_gdscript_cache();
+	void _ensure_script_cache_complete();
 
 	Error detect_bytecode_revision(bool p_no_valid_version);
 
