@@ -1,7 +1,17 @@
 #include "godot_mono_decomp_wrapper.h"
 #include "godot_mono_decomp.h"
 
-GodotMonoDecompWrapper::GodotMonoDecompWrapper(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs) {
+GodotMonoDecompWrapper::GodotMonoDecompWrapper() {
+	decompilerHandle = nullptr;
+}
+
+GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
+	if (decompilerHandle != nullptr) {
+		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
+	}
+}
+
+Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs) {
 	CharString assembly_path_chrstr = assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
 	String ref_path = assembly_path.get_base_dir();
@@ -11,22 +21,26 @@ GodotMonoDecompWrapper::GodotMonoDecompWrapper(const String &assembly_path, cons
 
 	const char **originalProjectFiles_c_array = new const char *[originalProjectFiles.size()];
 	Vector<CharString> originalProjectFiles_chrstrs;
+	originalProjectFiles_chrstrs.resize(originalProjectFiles.size());
 	for (int i = 0; i < originalProjectFiles.size(); i++) {
-		CharString originalProjectFiles_chrstr = originalProjectFiles[i].utf8();
 		// to keep them from being freed
-		originalProjectFiles_chrstrs.push_back(originalProjectFiles_chrstr);
-		originalProjectFiles_c_array[i] = originalProjectFiles_chrstr.get_data();
+		originalProjectFiles_chrstrs.write[i] = originalProjectFiles[i].utf8();
+		originalProjectFiles_c_array[i] = originalProjectFiles_chrstrs[i].get_data();
 	}
 
-	decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(assembly_path_c, originalProjectFiles_c_array, originalProjectFiles.size(), ref_path_c_array, 1);
+	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(assembly_path_c, originalProjectFiles_c_array, originalProjectFiles.size(), ref_path_c_array, 1);
 	delete[] originalProjectFiles_c_array;
-}
-
-GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
-	GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
+	if (decompilerHandle == nullptr) {
+		return Ref<GodotMonoDecompWrapper>();
+	}
+	auto wrapper = memnew(GodotMonoDecompWrapper);
+	wrapper->decompilerHandle = decompilerHandle;
+	wrapper->assembly_path = assembly_path;
+	return Ref<GodotMonoDecompWrapper>(wrapper);
 }
 
 Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath) {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, ERR_CANT_CREATE, "Decompiler handle is null");
 	CharString outputCSProjectPath_chrstr = outputCSProjectPath.utf8();
 	const char *outputCSProjectPath_c = outputCSProjectPath_chrstr.get_data();
 	if (GodotMonoDecomp_DecompileModule(decompilerHandle, outputCSProjectPath_c) != 0) {
@@ -36,6 +50,7 @@ Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath
 }
 
 String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, "", "Decompiler handle is null");
 	CharString file_chrstr = file.utf8();
 	const char *file_c = file_chrstr.get_data();
 	const char *result = GodotMonoDecomp_DecompileIndividualFile(decompilerHandle, file_c);
@@ -46,6 +61,7 @@ String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
 }
 
 Vector<String> GodotMonoDecompWrapper::get_files_not_present_in_file_map() {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, Vector<String>(), "Decompiler handle is null");
 	int num = GodotMonoDecomp_GetNumberOfFilesNotPresentInFileMap(decompilerHandle);
 	if (num == 0) {
 		return Vector<String>();
@@ -58,4 +74,10 @@ Vector<String> GodotMonoDecompWrapper::get_files_not_present_in_file_map() {
 	}
 	GodotMonoDecomp_FreeArray((void *)files_not_present_in_file_map_c_array, num);
 	return files_not_present_in_file_map_strs;
+}
+
+void GodotMonoDecompWrapper::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath"), &GodotMonoDecompWrapper::decompile_module);
+	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);
+	ClassDB::bind_method(D_METHOD("get_files_not_present_in_file_map"), &GodotMonoDecompWrapper::get_files_not_present_in_file_map);
 }

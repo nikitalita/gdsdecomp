@@ -124,8 +124,6 @@ class ImportExporter : public RefCounted {
 	void recreate_uid_file(const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
 	Error recreate_plugin_config(const String &plugin_dir);
 	Error recreate_plugin_configs(const Vector<String> &plugin_dirs = {});
-	Error decompile_mono_assembly(const String &assembly_path, const String &output_dir);
-	Error decompile_mono_project();
 
 protected:
 	static void _bind_methods();
