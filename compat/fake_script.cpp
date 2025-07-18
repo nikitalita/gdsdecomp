@@ -1,7 +1,9 @@
 #include "fake_script.h"
 
+#include "compat/resource_loader_compat.h"
 #include "core/io/missing_resource.h"
 #include "core/string/ustring.h"
+#include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
 
 #define FAKEGDSCRIPT_FAIL_COND_V_MSG(cond, val, msg) \
@@ -60,13 +62,11 @@ bool FakeGDScript::can_instantiate() const {
 
 Ref<Script> FakeGDScript::get_base_script() const {
 	Ref<FakeGDScript> script;
-	// String path = GDRESettings::get_singleton()->get_path_for_script_class(base_type);
-	// if (path.is_empty()) {
-	// 	return {};
-	// }
-	// script.instantiate();
-	// script->set_path(path);
-	// script->global_name = script->get_global_name();
+	String path = GDRESettings::get_singleton()->get_path_for_script_class(base_type);
+	if (path.is_empty()) {
+		return {};
+	}
+	script = ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type());
 	return script;
 }
 
