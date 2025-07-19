@@ -44,10 +44,17 @@ public class GodotModuleDecompiler
 	public readonly Version godotVersion;
 	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
 
+	private readonly List<Task> packageHashTasks;
+	private readonly CancellationTokenSource packageHashTaskCancelSrc;
+
+
 
 	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null,
 		GodotMonoDecompSettings? settings = default(GodotMonoDecompSettings))
 	{
+		packageHashTasks = [];
+		packageHashTaskCancelSrc = new CancellationTokenSource();
+
 		AdditionalModules = [];
 		this.originalProjectFiles = [.. (originalProjectFiles ?? [])
 			.Where(file => !string.IsNullOrEmpty(file))
@@ -55,8 +62,8 @@ public class GodotModuleDecompiler
 			.Where(file => !string.IsNullOrEmpty(file) && !file.StartsWith(".godot/mono/temp"))
 			.OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		var mod = new PEFile(assemblyPath);
-		var mainDepInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), mod.Name);
-		MainModule = new GodotModule(mod, mainDepInfo);
+		var _mainDepInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), mod.Name);
+		MainModule = new GodotModule(mod, _mainDepInfo);
 		AssemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, MainModule.Metadata.DetectTargetFrameworkId());
 		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
 		{
@@ -66,7 +73,7 @@ public class GodotModuleDecompiler
 		Settings = settings ?? new GodotMonoDecompSettings();
 
 		List<string> names = [];
-		if (Settings.CreateAdditionalProjectsForProjectReferences && mainDepInfo != null)
+		if (Settings.CreateAdditionalProjectsForProjectReferences && MainModule.depInfo != null)
 		{
 			HashSet<string> canonicalSubDirs = GodotStuff.GetCanonicalGodotScriptPaths(MainModule.Module,
 			 	CreateProjectDecompiler(MainModule).GetTypesToDecompile(MainModule.Module), godot3xMetadata)
@@ -74,7 +81,7 @@ public class GodotModuleDecompiler
 				.Select(p => Path.GetDirectoryName(p)!)
 				.ToHashSet();
 
-			foreach (var dep in mainDepInfo.deps.Where(d => d is {Type : "project"}).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+			foreach (var dep in MainModule.depInfo.deps.Where(d => d is { Type: "project" }).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
 			{
 				if (names.Contains(dep.Name))
 				{
@@ -103,6 +110,26 @@ public class GodotModuleDecompiler
 						subdir = "_" + subdir;
 					}
 					AdditionalModules.Add(new GodotModule(module, dep, subdir));
+				}
+
+			}
+
+			if (Settings.VerifyNuGetPackageIsFromNugetOrg)
+			{
+				foreach (var dep in MainModule.depInfo.deps.Where(d => d is { Type: "package" } && !ProjectFileWriterGodotStyle.ImplicitGodotReferences.Contains(d.Name)))
+				{
+					packageHashTasks.Add(
+						Task.Run(async () => await dep.StartResolvePackageAndCheckHash(packageHashTaskCancelSrc.Token), packageHashTaskCancelSrc.Token)
+						);
+				}
+				foreach (var module in AdditionalModules)
+				{
+					foreach (var dep in module.depInfo?.deps.Where(d => d is { Type: "package" } && !ProjectFileWriterGodotStyle.ImplicitGodotReferences.Contains(d.Name)) ?? [])
+					{
+						packageHashTasks.Add(
+							Task.Run(async () => await dep.StartResolvePackageAndCheckHash(packageHashTaskCancelSrc.Token), packageHashTaskCancelSrc.Token)
+							);
+					}
 				}
 
 			}
@@ -193,6 +220,29 @@ public class GodotModuleDecompiler
 
 	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null, IProgress<DecompilationProgress>? progress_reporter = null, CancellationToken token = default(CancellationToken))
 	{
+		if (packageHashTasks.Count > 0)
+		{
+			if (Settings.VerifyNuGetPackageIsFromNugetOrg)
+			{
+				var waitTask = Task.WhenAll(packageHashTasks)
+					.ContinueWith(_ =>
+					{
+						if (token.IsCancellationRequested)
+						{
+							packageHashTaskCancelSrc.Cancel();
+						}
+					}, token);
+				Console.WriteLine("Waiting for package hash tasks to complete...");
+				Task.WaitAll([waitTask], token);
+				Console.WriteLine("Package hash tasks completed.");
+				packageHashTasks.Clear();
+			}
+			else
+			{
+				packageHashTaskCancelSrc.Cancel();
+				packageHashTasks.Clear();
+			}
+		}
 		try
 		{
 			outputCSProjectPath = Path.GetFullPath(outputCSProjectPath);

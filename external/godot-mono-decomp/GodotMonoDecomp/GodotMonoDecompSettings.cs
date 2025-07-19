@@ -13,6 +13,12 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	public bool WriteNuGetPackageReferences { get; set; } = true;
 
 	/// <summary>
+	/// Whether to check the hash of the NuGet package against the hash on nuget.org before writing project references.
+	/// WARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.
+	/// </summary>
+	public bool VerifyNuGetPackageIsFromNugetOrg { get; set; } = false;
+
+	/// <summary>
 	/// Whether to copy out-of-tree references (i.e. references that
 	/// are not within the same directory structure as the project file) to the project file.
 	/// </summary>
@@ -43,8 +49,10 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	{
 		var settings = (GodotMonoDecompSettings) base.Clone();
 		settings.WriteNuGetPackageReferences = WriteNuGetPackageReferences;
+		settings.VerifyNuGetPackageIsFromNugetOrg = VerifyNuGetPackageIsFromNugetOrg;
 		settings.CopyOutOfTreeReferences = CopyOutOfTreeReferences;
 		settings.CreateAdditionalProjectsForProjectReferences = CreateAdditionalProjectsForProjectReferences;
+		settings.GodotVersionOverride = GodotVersionOverride;
 		return settings;
 	}
 
