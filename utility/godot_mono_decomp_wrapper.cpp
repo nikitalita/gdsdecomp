@@ -175,6 +175,18 @@ Vector<String> GodotMonoDecompWrapper::get_files_not_present_in_file_map() {
 	return files_not_present_in_file_map_strs;
 }
 
+Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, Vector<String>(), "Decompiler handle is null");
+	int num_strings = 0;
+	char32_t **strings = GodotMonoDecomp_GetAllUtf32StringsInModule(decompilerHandle, &num_strings);
+	Vector<String> strings_strs;
+	for (int i = 0; i < num_strings; i++) {
+		strings_strs.push_back(String(strings[i]));
+	}
+	GodotMonoDecomp_FreeArray((void *)strings, num_strings);
+	return strings_strs;
+}
+
 void GodotMonoDecompWrapper::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath"), &GodotMonoDecompWrapper::decompile_module_with_progress);
 	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);

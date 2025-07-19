@@ -2047,6 +2047,13 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		}
 		return;
 	}
+	if (src_ext == "dll") {
+		if (has_loaded_dotnet_assembly() && tokens[i].path == get_dotnet_assembly_path()) {
+			Ref<GodotMonoDecompWrapper> decompiler = get_dotnet_decompiler();
+			tokens[i].strings = decompiler->get_all_strings_in_module();
+		}
+		return;
+	}
 	if (src_ext == "gd" || src_ext == "gdc" || src_ext == "gde") {
 		tokens[i].err = GDScriptDecomp::get_script_strings(tokens[i].path, get_bytecode_revision(), tokens[i].strings, true);
 		return;
@@ -2155,13 +2162,16 @@ void GDRESettings::load_all_resource_strings() {
 	}
 	wildcards.push_back("*.csv");
 	wildcards.push_back("*.json");
-	wildcards.push_back("*.cs");
+	// wildcards.push_back("*.cs");
 
 	// just doing this so that the classdb initializes the TranslationPO class before we load the strings
 	{
 		Ref<TranslationPO> translation = memnew(TranslationPO);
 	}
 	Vector<String> r_files = get_file_list(wildcards);
+	if (has_loaded_dotnet_assembly()) {
+		r_files.push_back(get_dotnet_assembly_path());
+	}
 	Vector<StringLoadToken> tokens;
 	tokens.resize(r_files.size());
 	String engine_ver = get_version_string();

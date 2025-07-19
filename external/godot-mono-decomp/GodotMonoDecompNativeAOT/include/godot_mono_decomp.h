@@ -78,6 +78,11 @@ int GodotMonoDecomp_GetNumberOfFilesInFileMap(void* decompilerHandle);
 
 const char** GodotMonoDecomp_GetFilesInFileMap(void* decompilerHandle);
 
+char32_t** GodotMonoDecomp_GetAllUtf32StringsInModule(
+	void* decompilerHandle,
+	int* r_num_strings
+);
+
 void GodotMonoDecomp_FreeObjectHandle(void* handle);
 
 void GodotMonoDecomp_FreeArray(void* array, int length);

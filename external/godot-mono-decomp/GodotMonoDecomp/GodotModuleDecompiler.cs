@@ -1,10 +1,17 @@
 using System.Reflection.Metadata;
+using System.Text;
+using System.Text.RegularExpressions;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
+using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
+using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.CSharp.Syntax.PatternMatching;
 using ICSharpCode.Decompiler.DebugInfo;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Solution;
+using ICSharpCode.Decompiler.TypeSystem;
+using ICSharpCode.Decompiler.Util;
 using ICSharpCode.ILSpyX.PdbProvider;
 
 namespace GodotMonoDecomp;
@@ -376,6 +383,164 @@ public class GodotModuleDecompiler
 		return MainModule.fileMap.Keys
 			.Concat(AdditionalModules.SelectMany(module => module.fileMap.Keys))
 			.ToArray();
+	}
+
+
+	private class StringCollectorVisitor : DepthFirstAstVisitor
+	{
+		private HashSet<string> strings;
+
+		public StringCollectorVisitor(HashSet<string> s)
+		{
+			strings = s;
+		}
+
+		public override void VisitInterpolatedStringText(InterpolatedStringText interpolatedStringText)
+		{
+			if (interpolatedStringText.Text != null)
+			{
+				strings.Add(interpolatedStringText.Text);
+			}
+			base.VisitInterpolatedStringText(interpolatedStringText);
+		}
+
+		public override void VisitPrimitiveExpression(PrimitiveExpression primitiveExpression)
+		{
+			if (primitiveExpression.Value is string str)
+			{
+				strings.Add(str);
+			}
+			else
+			{
+				var bof = false;
+			}
+			base.VisitPrimitiveExpression(primitiveExpression);
+		}
+
+		public override void VisitPrimitiveType(PrimitiveType primitiveType)
+		{
+			if (primitiveType.KnownTypeCode == KnownTypeCode.String)
+			{
+				strings.Add(primitiveType.ToString());
+			}
+			base.VisitPrimitiveType(primitiveType);
+		}
+
+
+		public override void VisitPatternPlaceholder(AstNode placeholder, Pattern pattern)
+		{
+			VisitChildren(placeholder);
+			VisitNodeInPattern(pattern);
+		}
+
+		void VisitAnyNode(AnyNode anyNode)
+		{
+			VisitChildren(anyNode);
+		}
+
+		void VisitBackreference(Backreference backreference)
+		{
+			VisitChildren(backreference);
+		}
+
+		void VisitIdentifierExpressionBackreference(IdentifierExpressionBackreference identifierExpressionBackreference)
+		{
+			VisitChildren(identifierExpressionBackreference);
+		}
+
+		void VisitChoice(Choice choice)
+		{
+			VisitChildren(choice);		}
+
+		void VisitNamedNode(NamedNode namedNode)
+		{
+			VisitChildren(namedNode);
+		}
+
+		void VisitRepeat(Repeat repeat)
+		{
+			VisitChildren(repeat);
+		}
+
+		void VisitOptionalNode(OptionalNode optionalNode)
+		{
+			VisitChildren(optionalNode);
+		}
+
+		void VisitNodeInPattern(INode childNode)
+		{
+			if (childNode is AstNode)
+			{
+				((AstNode)childNode).AcceptVisitor(this);
+			}
+			else if (childNode is IdentifierExpressionBackreference)
+			{
+				VisitIdentifierExpressionBackreference((IdentifierExpressionBackreference)childNode);
+			}
+			else if (childNode is Choice)
+			{
+				VisitChoice((Choice)childNode);
+			}
+			else if (childNode is AnyNode)
+			{
+				VisitAnyNode((AnyNode)childNode);
+			}
+			else if (childNode is Backreference)
+			{
+				VisitBackreference((Backreference)childNode);
+			}
+			else if (childNode is NamedNode)
+			{
+				VisitNamedNode((NamedNode)childNode);
+			}
+			else if (childNode is OptionalNode)
+			{
+				VisitOptionalNode((OptionalNode)childNode);
+			}
+			else if (childNode is Repeat)
+			{
+				VisitRepeat((Repeat)childNode);
+			}
+		}
+	}
+
+	public HashSet<string> GetAllStringsInModule()
+	{
+		var strings = new HashSet<string>();
+		var regex = new Regex(@"(?:^|[^\\\$])""((?:\\""|[^""])*?)""");
+		List<GodotModule> list = [MainModule];
+		foreach (var module in list.Concat(AdditionalModules))
+		{
+			var projectDecompiler = CreateProjectDecompiler(module);
+			var types = projectDecompiler.GetTypesToDecompile(module.Module).ToHashSet();
+			var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, types);
+			var typeDefs = decompiler.TypeSystem.GetAllTypeDefinitions();
+			var visitor = new StringCollectorVisitor(strings);
+			decompiler.DecompileTypes(types).AcceptVisitor(visitor);
+			strings.AddRange(module.fileMap.Keys.Select(f => "res://" + f));
+			strings.AddRange(
+				typeDefs.Where(t =>
+						types.Contains((TypeDefinitionHandle)t.MetadataToken)
+						&& GodotStuff.IsGodotClass(t)
+					)
+					.SelectMany(t =>
+						// only the properties; otherwise there's too much noise
+						t.Properties.Select(f => f.Name)
+							// .Concat(t.Fields.Select(p => p.Name))
+							// .Concat(t.Methods.Select(m => m.Name))
+							// .Concat(t.Events.Select(e => e.Name))
+							// .Concat(t.NestedTypes.Select(nt => nt.Name))
+							.Concat([t.Name])));
+
+		}
+		return strings;
+	}
+
+	public IEnumerable<byte[]> GetAllUtf32StringsInModule()
+	{
+		var allstrs = GetAllStringsInModule();
+		return allstrs.Select(s => Encoding.UTF32.GetBytes(s))
+			.Where(b => b.Length > 0);
 	}
 
 
