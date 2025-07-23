@@ -705,7 +705,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
-	if (gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
+	if (project_requires_dotnet_assembly()) {
 		if (!csharp_assembly_override.is_empty()) {
 			err = reload_dotnet_assembly(csharp_assembly_override);
 		} else {
@@ -718,7 +718,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
-	if (bytecode_revision > 0) {
+	if (bytecode_revision != 0) {
 		auto decomp = GDScriptDecomp::create_decomp_for_commit(bytecode_revision);
 		if (decomp.is_valid()) {
 			print_line(vformat("Detected Bytecode Revision: %s (%07x)", decomp->get_engine_version(), bytecode_revision));
@@ -2296,6 +2296,11 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 }
 
 void GDRESettings::set_dotnet_assembly_path(const String &p_path) {
+	if (p_path.is_empty()) {
+		return;
+	} else if (p_path == current_project->assembly_path && current_project->decompiler.is_valid()) {
+		return;
+	}
 	reload_dotnet_assembly(p_path);
 }
 
@@ -2335,14 +2340,15 @@ bool GDRESettings::project_requires_dotnet_assembly() const {
 	if (!is_pack_loaded()) {
 		return false;
 	}
+	bool has_assembly_setting = true;
 	if (is_project_config_loaded()) {
-		return !get_project_setting("dotnet/project/assembly_name", String()).operator String().is_empty() ||
+		has_assembly_setting = !get_project_setting("dotnet/project/assembly_name", String()).operator String().is_empty() ||
 				!get_project_setting("mono/project/assembly_name", String()).operator String().is_empty() ||
 				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
 				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
 	}
 	// fallback in case this is a add-on pck
-	return gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+	return has_assembly_setting && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
 }
 
 String GDRESettings::get_temp_dotnet_assembly_dir() const {
@@ -2419,6 +2425,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_loaded_dotnet_assembly"), &GDRESettings::has_loaded_dotnet_assembly);
 	ClassDB::bind_method(D_METHOD("get_project_dotnet_assembly_name"), &GDRESettings::get_project_dotnet_assembly_name);
 	ClassDB::bind_method(D_METHOD("project_requires_dotnet_assembly"), &GDRESettings::project_requires_dotnet_assembly);
+	ClassDB::bind_method(D_METHOD("get_temp_dotnet_assembly_dir"), &GDRESettings::get_temp_dotnet_assembly_dir);
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues

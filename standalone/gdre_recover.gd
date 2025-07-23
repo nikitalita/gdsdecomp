@@ -412,11 +412,16 @@ func add_project(paths: PackedStringArray) -> int:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
 	DIRECTORY.text = DESKTOP_DIR.path_join(paths[0].get_file().get_basename())
 
-	# don't show the assembly picker for Godot 3.x projects because they're in the PCK and not pickable by the user
-	if GDRESettings.project_requires_dotnet_assembly() and GDRESettings.get_ver_major() >= 4:
-		%Assembly.text = GDRESettings.get_dotnet_assembly_path()
-		set_assembly_good(GDRESettings.has_loaded_dotnet_assembly())
-		%AssemblyPickerHBox.visible = true
+	if GDRESettings.project_requires_dotnet_assembly():
+		# don't show the assembly picker if the assembly is loaded from a temp directory
+		# It's either loaded from an APK or the PCK and it's not pickable by the user
+		if (not GDRESettings.get_temp_dotnet_assembly_dir().is_empty() and GDRESettings.has_loaded_dotnet_assembly()):
+			%AssemblyPickerHBox.visible = false
+		else:
+			%Assembly.text = GDRESettings.get_dotnet_assembly_path()
+			changed_assembly = false
+			set_assembly_good(GDRESettings.has_loaded_dotnet_assembly())
+			%AssemblyPickerHBox.visible = true
 	else:
 		%AssemblyPickerHBox.visible = false
 	return OK
