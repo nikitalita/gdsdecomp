@@ -79,6 +79,17 @@ public class GodotModuleDecompiler
 
 		Settings = settings ?? new GodotMonoDecompSettings();
 
+		godotVersion = Settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
+		if (godotVersion.Major <= 3)
+		{
+			// check for "script_metadata.{release,debug}" files
+			var godot3xMetadataFile = GodotScriptMetadataLoader.FindGodotScriptMetadataFile(assemblyPath);
+			if (godot3xMetadataFile != null && File.Exists(godot3xMetadataFile))
+			{
+				godot3xMetadata = GodotScriptMetadataLoader.LoadFromFile(godot3xMetadataFile);
+			}
+		}
+
 		List<string> names = [];
 		if (Settings.CreateAdditionalProjectsForProjectReferences && MainModule.depInfo != null)
 		{
@@ -142,17 +153,6 @@ public class GodotModuleDecompiler
 			}
 		}
 
-
-		godotVersion = Settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
-		if (godotVersion.Major <= 3)
-		{
-			// check for "script_metadata.{release,debug}" files
-			var godot3xMetadataFile = GodotScriptMetadataLoader.FindGodotScriptMetadataFile(assemblyPath);
-			if (godot3xMetadataFile != null && File.Exists(godot3xMetadataFile))
-			{
-				godot3xMetadata = GodotScriptMetadataLoader.LoadFromFile(godot3xMetadataFile);
-			}
-		}
 
 		HashSet<string> excludeSubdirs = AdditionalModules.Select(module => module.Name).ToHashSet();
 
