@@ -19,6 +19,7 @@
 using System.Reflection.PortableExecutable;
 using System.Xml;
 using GodotMonoDecomp;
+using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Util;
@@ -297,7 +298,11 @@ namespace GodotMonoDecomp
 				xml.WriteElementString("GenerateTargetFrameworkAttribute", FalseString);
 			}
 			xml.WriteElementString("EnableDynamicLoading", TrueString);
-			xml.WriteElementString("Nullable", EnableString);
+			// This is only supported in C# 8.0 and above
+			if (project.LanguageVersion >= LanguageVersion.CSharp8_0)
+			{
+				xml.WriteElementString("Nullable", EnableString);
+			}
 
 
 			string platformName;
