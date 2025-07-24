@@ -117,7 +117,7 @@ public:
 	static Resource *make_fakescript_or_mising_resource(const String &path, const String &type, const String &scene_id = "", bool no_fake_script = false) {
 		Resource *ret;
 		if (!no_fake_script && (type == "Script" || type == "GDScript" || type == "CSharpScript")) {
-			FakeEmbeddedScript *res{ memnew(FakeEmbeddedScript) };
+			FakeScript *res{ memnew(FakeScript) };
 			res->set_original_class(type);
 			res->set_can_instantiate(false);
 			ret = res;

@@ -800,7 +800,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			if ((info.type == "Script" && info.dep.get_extension().to_lower() == "cs" && !GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) || (info.type == "Shader" && !loading_shaders)) {
 				auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
 				if (info.type == "Script") {
-					Ref<FakeEmbeddedScript> script = texture;
+					Ref<FakeScript> script = texture;
 					script->set_can_instantiate(true);
 				}
 				set_cache_res(info, texture, false);

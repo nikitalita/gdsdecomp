@@ -10,7 +10,7 @@
 
 // FakeEmbeddedScript
 
-String FakeEmbeddedScript::_get_normalized_path() const {
+String FakeScript::_get_normalized_path() const {
 	String path = get_path();
 	if (path.is_empty() || !path.is_resource_file()) {
 		return "";
@@ -22,7 +22,11 @@ String FakeEmbeddedScript::_get_normalized_path() const {
 	return path;
 }
 
-bool FakeEmbeddedScript::_get(const StringName &p_name, Variant &r_ret) const {
+bool FakeScript::_get(const StringName &p_name, Variant &r_ret) const {
+	if (p_name == "script/source") {
+		r_ret = get_source_code();
+		return true;
+	}
 	if (!properties.has(p_name)) {
 		return false;
 	}
@@ -30,7 +34,12 @@ bool FakeEmbeddedScript::_get(const StringName &p_name, Variant &r_ret) const {
 	return true;
 }
 
-bool FakeEmbeddedScript::_set(const StringName &p_name, const Variant &p_value) {
+bool FakeScript::_set(const StringName &p_name, const Variant &p_value) {
+	if (p_name == "script/source") {
+		set_source_code(p_value);
+		return true;
+	}
+
 	if (!properties.has(p_name)) {
 		properties.insert(p_name, p_value);
 		return true;
@@ -40,73 +49,96 @@ bool FakeEmbeddedScript::_set(const StringName &p_name, const Variant &p_value) 
 	return true;
 }
 
-void FakeEmbeddedScript::_get_property_list(List<PropertyInfo> *p_list) const {
+void FakeScript::_get_property_list(List<PropertyInfo> *p_list) const {
+	p_list->push_back(PropertyInfo(Variant::STRING, "script/source", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL));
 	for (const KeyValue<StringName, Variant> &E : properties) {
 		p_list->push_back(PropertyInfo(E.value.get_type(), E.key));
 	}
 }
 
-StringName FakeEmbeddedScript::get_global_name() const {
+StringName FakeScript::get_global_name() const {
 	return GDRESettings::get_singleton()->get_cached_script_class(_get_normalized_path());
 }
 
-bool FakeEmbeddedScript::inherits_script(const Ref<Script> &p_script) const {
+bool FakeScript::inherits_script(const Ref<Script> &p_script) const {
 	return true;
 }
 
-StringName FakeEmbeddedScript::get_instance_base_type() const {
+StringName FakeScript::get_instance_base_type() const {
 	return GDRESettings::get_singleton()->get_cached_script_base(_get_normalized_path());
 }
 
-bool FakeEmbeddedScript::can_instantiate() const {
+bool FakeScript::can_instantiate() const {
 	return can_instantiate_instance && GDRESettings::get_singleton()->get_ver_major() >= 4;
 }
 
-void FakeEmbeddedScript::set_can_instantiate(bool p_can_instantiate) {
+void FakeScript::set_can_instantiate(bool p_can_instantiate) {
 	can_instantiate_instance = p_can_instantiate;
 }
 
-ScriptInstance *FakeEmbeddedScript::instance_create(Object *p_this) {
+ScriptInstance *FakeScript::instance_create(Object *p_this) {
 	if (!can_instantiate()) {
 		return nullptr;
 	}
 	auto instance = memnew(FakeScriptInstance());
-	instance->script = Ref<FakeEmbeddedScript>(this);
+	instance->script = Ref<FakeScript>(this);
 	instance->owner = p_this;
 	instance->is_fake_embedded = true;
 	return instance;
 }
 
-PlaceHolderScriptInstance *FakeEmbeddedScript::placeholder_instance_create(Object *p_this) {
+PlaceHolderScriptInstance *FakeScript::placeholder_instance_create(Object *p_this) {
 	PlaceHolderScriptInstance *si = memnew(PlaceHolderScriptInstance(/*GDScriptLanguage::get_singleton()*/ nullptr, Ref<Script>(this), p_this));
 	return si;
 }
 
-bool FakeEmbeddedScript::instance_has(const Object *p_this) const {
+bool FakeScript::instance_has(const Object *p_this) const {
 	return true;
 }
 
-bool FakeEmbeddedScript::has_source_code() const {
-	return properties.has("script/source");
+bool FakeScript::has_source_code() const {
+	return !source.is_empty();
 }
 
-void FakeEmbeddedScript::set_source_code(const String &p_code) {
-	properties["script/source"] = p_code;
+void FakeScript::set_source_code(const String &p_code) {
+	source = p_code;
 }
 
-String FakeEmbeddedScript::get_source_code() const {
-	if (!properties.has("script/source")) {
-		return "";
-	}
-	return properties["script/source"];
+String FakeScript::get_source_code() const {
+	return source;
 }
 
-void FakeEmbeddedScript::set_original_class(const String &p_class) {
+String FakeScript::get_script_path() const {
+	return get_path();
+}
+
+Error FakeScript::load_source_code(const String &p_path) {
+	// should never be called on FakeScript
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Not implemented!!!!");
+}
+
+String FakeScript::get_error_message() const {
+	return error_message;
+}
+
+bool FakeScript::is_loaded() const {
+	return false;
+}
+
+void FakeScript::set_original_class(const String &p_class) {
 	original_class = p_class;
 }
 
-String FakeEmbeddedScript::get_original_class() const {
+String FakeScript::get_original_class() const {
 	return original_class;
+}
+
+void FakeScript::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeScript::get_script_path);
+	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeScript::load_source_code);
+	ClassDB::bind_method(D_METHOD("is_loaded"), &FakeScript::is_loaded);
+	ClassDB::bind_method(D_METHOD("set_original_class", "class_name"), &FakeScript::set_original_class);
+	ClassDB::bind_method(D_METHOD("get_original_class"), &FakeScript::get_original_class);
 }
 
 #undef FAKEGDSCRIPT_FAIL_COND_V_MSG

@@ -365,7 +365,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ImageTextureConverterCompat>();
 	ClassDB::register_class<OggStreamConverterCompat>();
 	ClassDB::register_class<FakeScriptConverterCompat>();
-	ClassDB::register_class<FakeEmbeddedScript>();
+	ClassDB::register_class<FakeScript>();
 	ClassDB::register_class<FakeGDScript>();
 	ClassDB::register_class<FakeCSharpScript>();
 	ClassDB::register_class<FakeMesh>();

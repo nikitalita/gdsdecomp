@@ -59,7 +59,7 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 			*r_error = csharp_script->load_source_code(load_path);
 			ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + load_path + " (CSharpScript): " + csharp_script->get_error_message());
 		} else {
-			Ref<FakeEmbeddedScript> csharp_script;
+			Ref<FakeScript> csharp_script;
 			csharp_script.instantiate();
 			csharp_script->set_original_class("CSharpScript");
 		}
@@ -127,7 +127,7 @@ Error ResourceFormatGDScriptLoader::_set_resource_info(Ref<ResourceInfo> &info, 
 // for embedded scripts
 Ref<Resource> FakeScriptConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
 	if (res->get_original_class() != "GDScript") {
-		Ref<FakeEmbeddedScript> fake_embedded_script;
+		Ref<FakeScript> fake_embedded_script;
 		fake_embedded_script.instantiate();
 		fake_embedded_script->set_original_class(res->get_original_class());
 		set_real_from_missing_resource(res, fake_embedded_script, p_type);
