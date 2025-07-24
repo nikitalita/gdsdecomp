@@ -159,6 +159,19 @@ struct PluginVersion {
 		return is_compatible(ver);
 	}
 
+	bool bin_hashes_match(const Vector<String> &hashes) const {
+		for (const auto &gdext : gdexts) {
+			for (const auto &bin : gdext.bins) {
+				for (const auto &hash : hashes) {
+					if (bin.md5 == hash) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
+
 	Dictionary to_json() const {
 		Dictionary d;
 		d["cache_version"] = cache_version;
