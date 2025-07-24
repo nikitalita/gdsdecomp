@@ -114,7 +114,7 @@ void GodotREEditorStandalone::tree_set_edit_checkbox_cell_only_when_checkbox_is_
 }
 
 void GodotREEditorStandalone::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("write_log_message"), &GodotREEditorStandalone::write_log_message);
+	ClassDB::bind_method(D_METHOD("write_log_message", "message"), &GodotREEditorStandalone::write_log_message);
 	ClassDB::bind_method(D_METHOD("pck_select_request", "path"), &GodotREEditorStandalone::pck_select_request);
 	ClassDB::bind_method(D_METHOD("get_version"), &GodotREEditorStandalone::get_version);
 	ClassDB::bind_method(D_METHOD("show_about_dialog"), &GodotREEditorStandalone::show_about_dialog);

@@ -203,7 +203,7 @@ Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 }
 
 void GodotMonoDecompWrapper::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath"), &GodotMonoDecompWrapper::decompile_module_with_progress);
+	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath", "excludeFiles"), &GodotMonoDecompWrapper::decompile_module_with_progress, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);
 	ClassDB::bind_method(D_METHOD("get_script_info", "file"), &GodotMonoDecompWrapper::get_script_info);
 	ClassDB::bind_method(D_METHOD("get_files_not_present_in_file_map"), &GodotMonoDecompWrapper::get_files_not_present_in_file_map);
