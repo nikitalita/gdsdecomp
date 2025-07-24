@@ -251,6 +251,16 @@ void FakeGDScript::get_script_method_list(List<MethodInfo> *p_list) const {
 }
 
 void FakeGDScript::get_script_property_list(List<PropertyInfo> *p_list) const {
+	// TODO: Parse types, default values, etc.
+	Ref<FakeGDScript> parent_ref;
+	auto *parent = this;
+	while (parent) {
+		for (const auto &E : members) {
+			p_list->push_back(PropertyInfo(Variant::NIL, E));
+			parent_ref = parent->get_base_script();
+			parent = parent_ref.is_valid() ? parent_ref.ptr() : nullptr;
+		}
+	}
 }
 
 int FakeGDScript::get_member_line(const StringName &p_member) const {
@@ -756,10 +766,24 @@ String FakeEmbeddedScript::get_original_class() const {
 
 void FakeScriptInstance::update_cached_prop_names() {
 	if (!_cached_prop_names_valid) {
-		_cached_prop_names.clear();
+		_cached_prop_info.clear();
+		List<PropertyInfo> members;
+		script->get_script_property_list(&members);
+		for (const PropertyInfo &E : members) {
+			Variant def;
+			_cached_prop_info.insert(E.name, E);
+		}
 		Ref<Script> script_parent = script;
 		while (script_parent.is_valid()) {
-			script_parent->get_members(&_cached_prop_names);
+			for (const auto &E : _cached_prop_info) {
+				if (properties.has(E.key)) {
+					continue;
+				}
+				Variant def;
+				if (script_parent->get_property_default_value(E.key, def)) {
+					properties.insert(E.key, def);
+				}
+			}
 			script_parent = script_parent->get_base_script();
 		}
 		_cached_prop_names_valid = true;
@@ -767,7 +791,7 @@ void FakeScriptInstance::update_cached_prop_names() {
 }
 
 bool FakeScriptInstance::has_cached_prop_name(const StringName &p_name) const {
-	return _cached_prop_names.has(p_name);
+	return _cached_prop_info.has(p_name);
 }
 
 bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
@@ -813,32 +837,33 @@ bool FakeScriptInstance::get(const StringName &p_name, Variant &r_ret) const {
 }
 
 void FakeScriptInstance::get_property_list(List<PropertyInfo> *p_properties) const {
+	for (const auto &E : _cached_prop_info) {
+		p_properties->push_back(E.value);
+	}
 	for (const KeyValue<StringName, Variant> &E : properties) {
-		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
-	}
-	if (is_fake_embedded) {
-		return;
-	}
-	for (const StringName &E : _cached_prop_names) {
-		if (properties.has(E)) {
-			continue;
+		if (!_cached_prop_info.has(E.key)) {
+			p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
 		}
-		// TODO: get types
-		p_properties->push_back(PropertyInfo(Variant::NIL, E));
 	}
 }
 
 Variant::Type FakeScriptInstance::get_property_type(const StringName &p_name, bool *r_is_valid) const {
-	if (!properties.has(p_name)) {
+	if (_cached_prop_info.has(p_name)) {
 		if (r_is_valid) {
-			*r_is_valid = false;
+			*r_is_valid = true;
 		}
-		return Variant::NIL;
+		return _cached_prop_info[p_name].type;
+	}
+	if (properties.has(p_name)) {
+		if (r_is_valid) {
+			*r_is_valid = true;
+		}
+		return properties[p_name].get_type();
 	}
 	if (r_is_valid) {
-		*r_is_valid = true;
+		*r_is_valid = false;
 	}
-	return properties[p_name].get_type();
+	return Variant::NIL;
 }
 
 void FakeScriptInstance::validate_property(PropertyInfo &p_property) const {
@@ -858,24 +883,41 @@ Object *FakeScriptInstance::get_owner() {
 }
 
 void FakeScriptInstance::get_property_state(List<Pair<StringName, Variant>> &state) {
+	for (const auto &E : _cached_prop_info) {
+		if (!properties.has(E.key)) {
+			state.push_back(Pair<StringName, Variant>(E.key, Variant()));
+		} else {
+			state.push_back(Pair<StringName, Variant>(E.key, properties[E.key]));
+		}
+	}
+
 	for (const KeyValue<StringName, Variant> &E : properties) {
-		state.push_back(Pair<StringName, Variant>(E.key, E.value));
+		if (!_cached_prop_info.has(E.key)) {
+			state.push_back(Pair<StringName, Variant>(E.key, E.value));
+		}
 	}
 }
 
 void FakeScriptInstance::get_method_list(List<MethodInfo> *p_list) const {
-	// No methods in fake script
+	script->get_script_method_list(p_list);
 }
 
 bool FakeScriptInstance::has_method(const StringName &p_method) const {
-	return false;
+	return script->has_method(p_method);
 }
 
 int FakeScriptInstance::get_method_argument_count(const StringName &p_method, bool *r_is_valid) const {
+	MethodInfo mi = script->get_method_info(p_method);
+	if (mi.name.is_empty()) {
+		if (r_is_valid) {
+			*r_is_valid = false;
+		}
+		return 0;
+	}
 	if (r_is_valid) {
 		*r_is_valid = false;
 	}
-	return 0;
+	return mi.arguments.size();
 }
 
 Variant FakeScriptInstance::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
