@@ -9,6 +9,7 @@
 #include "modules/gdscript/gdscript_tokenizer.h"
 #include "test_common.h"
 #include "tests/test_macros.h"
+#include <compat/fake_gdscript.h>
 #include <compat/resource_compat_text.h>
 #include <compat/resource_loader_compat.h>
 

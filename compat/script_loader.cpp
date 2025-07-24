@@ -9,6 +9,7 @@
 
 #include "bytecode/bytecode_base.h"
 #include "compat/fake_csharp_script.h"
+#include "compat/fake_gdscript.h"
 #include "compat/fake_script.h"
 #include "utility/gdre_settings.h"
 

@@ -2,6 +2,7 @@
 #include "import_exporter.h"
 
 #include "bytecode/bytecode_base.h"
+#include "compat/fake_gdscript.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"

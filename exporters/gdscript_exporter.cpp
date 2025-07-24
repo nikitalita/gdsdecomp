@@ -1,4 +1,6 @@
 #include "gdscript_exporter.h"
+
+#include "compat/fake_gdscript.h"
 #include "compat/fake_script.h"
 #include "core/error/error_list.h"
 #include "core/io/file_access.h"
