@@ -4,7 +4,9 @@
 #include <core/object/script_language.h>
 #include <core/templates/rb_set.h>
 
+#include "utility/resource_info.h"
 #include <bytecode/bytecode_base.h>
+
 class FakeGDScript;
 
 class FakeScript : public Script {
@@ -16,6 +18,7 @@ protected:
 	bool can_instantiate_instance = true;
 	String source;
 	String error_message;
+	ResourceInfo::LoadType load_type = ResourceInfo::LoadType::NON_GLOBAL_LOAD;
 
 	String _get_normalized_path() const;
 	bool _get(const StringName &p_name, Variant &r_ret) const;
@@ -94,6 +97,9 @@ public:
 	// FakeScript extra methods
 	void set_original_class(const String &p_class);
 	String get_original_class() const;
+
+	void set_load_type(ResourceInfo::LoadType p_load_type);
+	ResourceInfo::LoadType get_load_type() const;
 
 	void set_can_instantiate(bool p_can_instantiate);
 };

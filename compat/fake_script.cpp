@@ -133,6 +133,14 @@ String FakeScript::get_original_class() const {
 	return original_class;
 }
 
+void FakeScript::set_load_type(ResourceInfo::LoadType p_load_type) {
+	load_type = p_load_type;
+}
+
+ResourceInfo::LoadType FakeScript::get_load_type() const {
+	return load_type;
+}
+
 void FakeScript::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeScript::get_script_path);
 	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeScript::load_source_code);
