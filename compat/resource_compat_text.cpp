@@ -792,8 +792,8 @@ Error ResourceLoaderCompatText::load() {
 		bool fake_script = false;
 		MissingResource *missing_resource = nullptr;
 		Ref<ResourceCompatConverter> converter;
-		auto init_missing_main_resource([&]() {
-			auto res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid);
+		auto init_missing_main_resource([&](bool no_fake_script) {
+			auto res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid, no_fake_script);
 			resource = Ref<Resource>(res);
 			if (resource->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(resource.ptr());
@@ -815,11 +815,11 @@ Error ResourceLoaderCompatText::load() {
 			}
 			// clang-format on
 			if (load_type == ResourceInfo::FAKE_LOAD) {
-				init_missing_main_resource();
+				init_missing_main_resource(false);
 			} else if (resource.is_null()) {
 				converter = ResourceCompatLoader::get_converter_for_type(res_type, ver_major);
 				if (converter.is_valid()) {
-					init_missing_main_resource();
+					init_missing_main_resource(true);
 				} // else, we will create a new resource
 			}
 

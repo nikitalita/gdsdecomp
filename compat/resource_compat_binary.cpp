@@ -807,7 +807,7 @@ Error ResourceLoaderCompatBinary::load() {
 		bool is_scene = false;
 		bool fake_script = false;
 		auto init_missing_resource([&](bool no_fake_script) {
-			auto nres = main ? CompatFormatLoader::create_missing_main_resource(path, t, uid) : CompatFormatLoader::create_missing_internal_resource(path, t, id);
+			auto nres = main ? CompatFormatLoader::create_missing_main_resource(path, t, uid, no_fake_script) : CompatFormatLoader::create_missing_internal_resource(path, t, id, no_fake_script);
 			res = Ref<Resource>(nres);
 			if (res->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(res.ptr());
