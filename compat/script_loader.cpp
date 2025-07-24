@@ -8,6 +8,7 @@
 #include "core/variant/variant_parser.h"
 
 #include "bytecode/bytecode_base.h"
+#include "compat/fake_csharp_script.h"
 #include "compat/fake_script.h"
 #include "utility/gdre_settings.h"
 
@@ -45,10 +46,22 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 	String load_path = p_original_path.is_empty() ? p_path : p_original_path;
 	Ref<Script> fake_script;
 	if (p_path.get_extension().to_lower() == "cs") {
-		Ref<FakeEmbeddedScript> csharp_script;
-		csharp_script.instantiate();
-		csharp_script->set_original_class("CSharpScript");
-		fake_script = csharp_script;
+		if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+			Ref<FakeCSharpScript> csharp_script;
+			csharp_script.instantiate();
+			csharp_script->set_original_class("CSharpScript");
+			fake_script = csharp_script;
+			Error err;
+			if (!r_error) {
+				r_error = &err;
+			}
+			*r_error = csharp_script->load_source_code(load_path);
+			ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + load_path + " (CSharpScript): " + csharp_script->get_error_message());
+		} else {
+			Ref<FakeEmbeddedScript> csharp_script;
+			csharp_script.instantiate();
+			csharp_script->set_original_class("CSharpScript");
+		}
 	} else {
 		Ref<FakeGDScript> fake_gd_script;
 		fake_gd_script.instantiate();

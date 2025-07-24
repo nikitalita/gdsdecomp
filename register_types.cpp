@@ -17,6 +17,7 @@
 #endif
 
 #include "bytecode/bytecode_versions.h"
+#include "compat/fake_csharp_script.h"
 #include "compat/fake_mesh.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_compat_binary.h"
@@ -365,6 +366,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<FakeScriptConverterCompat>();
 	ClassDB::register_class<FakeEmbeddedScript>();
 	ClassDB::register_class<FakeGDScript>();
+	ClassDB::register_class<FakeCSharpScript>();
 	ClassDB::register_class<FakeMesh>();
 	ClassDB::register_class<ImportInfoModern>();
 	ClassDB::register_class<ImportInfov2>();
