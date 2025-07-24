@@ -274,6 +274,27 @@ static public class Lib
 		return arrayPtr;
 	}
 
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetScriptInfo")]
+	public static IntPtr AOTGetScriptInfo(
+		IntPtr decompilerHandle,
+		IntPtr file
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return IntPtr.Zero;
+		}
+		var fileStr = Marshal.PtrToStringAnsi(file) ?? string.Empty;
+		var scriptInfo = decompiler.GetScriptInfo(fileStr);
+		if (scriptInfo == null)
+		{
+			return IntPtr.Zero;
+		}
+		var jsons = scriptInfo.ToJson(false);
+		return Marshal.StringToHGlobalAnsi(jsons);
+	}
+
 
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_FreeArray")]
 	public static void FreeArray(IntPtr v, int length)
