@@ -32,7 +32,10 @@
 
 Error FakeCSharpScript::_reload_from_file() {
 	error_message.clear();
+	script_info.clear();
 	source.clear();
+	valid = false;
+	loaded = false;
 	if (!GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
 		error_message = "No dotnet assembly loaded";
 		return ERR_CANT_RESOLVE;
@@ -58,7 +61,7 @@ Error FakeCSharpScript::_reload_from_file() {
 
 void FakeCSharpScript::reload_from_file() {
 	Error err = _reload_from_file();
-	FAKECSHARPSCRIPT_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
+	ERR_FAIL_COND_MSG(err != OK, vformat("Error reloading script %s: %s", script_path, error_message));
 }
 
 bool FakeCSharpScript::can_instantiate() const {
@@ -111,18 +114,6 @@ PlaceHolderScriptInstance *FakeCSharpScript::placeholder_instance_create(Object 
 bool FakeCSharpScript::instance_has(const Object *p_this) const {
 	// For now, return false as we don't track instances
 	return false;
-}
-
-bool FakeCSharpScript::has_source_code() const {
-	return !source.is_empty();
-}
-
-String FakeCSharpScript::get_source_code() const {
-	return source;
-}
-
-void FakeCSharpScript::set_source_code(const String &p_code) {
-	source = p_code;
 }
 
 PropertyHint string_to_property_hint(const String &p_string) {
@@ -373,7 +364,6 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 		_methods.insert(name, dict_to_method_info(method));
 	}
 
-	// For now, just mark as valid and loaded
 	valid = true;
 	loaded = true;
 
@@ -507,18 +497,6 @@ Error FakeCSharpScript::load_source_code(const String &p_path) {
 	return _reload_from_file();
 }
 
-String FakeCSharpScript::get_error_message() const {
-	return error_message;
-}
-
-void FakeCSharpScript::set_override_bytecode_revision(int p_revision) {
-	override_bytecode_revision = p_revision;
-}
-
-int FakeCSharpScript::get_override_bytecode_revision() const {
-	return override_bytecode_revision;
-}
-
 void FakeCSharpScript::set_autoload(bool p_autoload) {
 	autoload = p_autoload;
 }
@@ -531,42 +509,6 @@ bool FakeCSharpScript::is_loaded() const {
 	return loaded;
 }
 
-void FakeCSharpScript::set_original_class(const String &p_class) {
-	original_class = p_class;
-}
-
-String FakeCSharpScript::get_original_class() const {
-	return original_class;
-}
-
-bool FakeCSharpScript::_get(const StringName &p_name, Variant &r_ret) const {
-	if (p_name == "script/source") {
-		r_ret = get_source_code();
-		return true;
-	}
-	if (properties.has(p_name)) {
-		r_ret = properties[p_name];
-		return true;
-	}
-	return false;
-}
-
-bool FakeCSharpScript::_set(const StringName &p_name, const Variant &p_value) {
-	if (p_name == "script/source") {
-		set_source_code(p_value);
-		return true;
-	}
-	properties[p_name] = p_value;
-	return true;
-}
-
-void FakeCSharpScript::_get_property_list(List<PropertyInfo> *p_properties) const {
-	p_properties->push_back(PropertyInfo(Variant::STRING, "script/source", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL));
-	for (const KeyValue<StringName, Variant> &E : properties) {
-		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
-	}
-}
-
 Variant FakeCSharpScript::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
 	// For now, return empty variant as we don't support method calls
 	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
@@ -574,14 +516,6 @@ Variant FakeCSharpScript::callp(const StringName &p_method, const Variant **p_ar
 }
 
 void FakeCSharpScript::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeCSharpScript::get_script_path);
-	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeCSharpScript::load_source_code);
-	ClassDB::bind_method(D_METHOD("get_error_message"), &FakeCSharpScript::get_error_message);
-	ClassDB::bind_method(D_METHOD("set_override_bytecode_revision", "revision"), &FakeCSharpScript::set_override_bytecode_revision);
-	ClassDB::bind_method(D_METHOD("get_override_bytecode_revision"), &FakeCSharpScript::get_override_bytecode_revision);
 	ClassDB::bind_method(D_METHOD("set_autoload", "autoload"), &FakeCSharpScript::set_autoload);
 	ClassDB::bind_method(D_METHOD("is_autoload"), &FakeCSharpScript::is_autoload);
-	ClassDB::bind_method(D_METHOD("is_loaded"), &FakeCSharpScript::is_loaded);
-	ClassDB::bind_method(D_METHOD("set_original_class", "class_name"), &FakeCSharpScript::set_original_class);
-	ClassDB::bind_method(D_METHOD("get_original_class"), &FakeCSharpScript::get_original_class);
 }
