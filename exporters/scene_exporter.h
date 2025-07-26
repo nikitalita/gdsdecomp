@@ -26,9 +26,10 @@ public:
 
 class SceneExporterInstance {
 	Dictionary options;
+	String output_dir;
 
 public:
-	SceneExporterInstance(Dictionary curr_options = {});
+	SceneExporterInstance(String p_output_dir, Dictionary curr_options = {});
 
 	int get_ver_major(const String &res_path);
 	void rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info);
