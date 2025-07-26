@@ -467,6 +467,51 @@ Error gdre::unzip_file_to_dir(const String &zip_path, const String &output_dir) 
 	}
 	return OK;
 }
+namespace {
+String get_sha256_for_dir(const String &dir) {
+	auto p_file = Glob::rglob(dir.path_join("**/*"), true);
+
+	CryptoCore::SHA256Context ctx;
+	ctx.start();
+
+	for (int i = 0; i < p_file.size(); i++) {
+		Ref<FileAccess> f = FileAccess::open(p_file[i], FileAccess::READ);
+		if (f.is_null()) {
+			continue;
+		}
+
+		unsigned char step[32768];
+
+		while (true) {
+			uint64_t br = f->get_buffer(step, 32768);
+			if (br > 0) {
+				ctx.update(step, br);
+			}
+			if (br < 4096) {
+				break;
+			}
+		}
+	}
+
+	unsigned char hash[32];
+	ctx.finish(hash);
+
+	return String::hex_encode_buffer(hash, 32);
+}
+} //namespace
+
+String gdre::get_sha256(const String &dir) {
+	if (dir.is_empty()) {
+		return "";
+	}
+	auto da = DirAccess::create_for_path(dir);
+	if (da->dir_exists(dir)) {
+		return get_sha256_for_dir(dir);
+	} else if (da->file_exists(dir)) {
+		return FileAccess::get_sha256(dir);
+	}
+	return "";
+}
 
 String gdre::get_md5(const String &dir, bool ignore_code_signature) {
 	if (dir.is_empty()) {
