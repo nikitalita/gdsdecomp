@@ -1,27 +1,27 @@
 #include "fake_csharp_script.h"
 
+#include "compat/fake_script.h"
 #include "compat/resource_loader_compat.h"
 #include "compat/variant_decoder_compat.h"
+#include "compat/variant_writer_compat.h"
 #include "core/error/error_list.h"
 #include "core/io/missing_resource.h"
+#include "core/math/expression.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
 #include "modules/regex/regex.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
-#include "utility/godot_mono_decomp_wrapper.h"
-#include "compat/fake_script.h"
-#include "compat/variant_writer_compat.h"
-#include "core/math/expression.h"
 
 #define FAKECSHARPSCRIPT_FAIL_COND_V_MSG(cond, val, msg) \
-	if (unlikely(cond)) {                                 \
-		error_message = msg;                              \
-		ERR_FAIL_V_MSG(val, msg);                         \
+	if (unlikely(cond)) {                                \
+		error_message = msg;                             \
+		ERR_FAIL_V_MSG(val, msg);                        \
 	}
 
 #define FAKECSHARPSCRIPT_FAIL_V_MSG(val, msg) \
-	error_message = msg;                       \
+	error_message = msg;                      \
 	ERR_FAIL_V_MSG(val, msg);
 
 #define FAKECSHARPSCRIPT_FAIL_COND_MSG(cond, msg) \
@@ -118,60 +118,108 @@ bool FakeCSharpScript::instance_has(const Object *p_this) const {
 
 PropertyHint string_to_property_hint(const String &p_string) {
 	String name = p_string.to_upper();
-	if (name == "NONE") return PROPERTY_HINT_NONE; ///< no hint provided.
-	if (name == "RANGE") return PROPERTY_HINT_RANGE; ///< hint_text = "min,max[,step][,or_greater][,or_less][,hide_slider][,radians_as_degrees][,degrees][,exp][,suffix:<keyword>] range.
-	if (name == "ENUM") return PROPERTY_HINT_ENUM; ///< hint_text= "val1,val2,val3,etc"
-	if (name == "ENUM_SUGGESTION") return PROPERTY_HINT_ENUM_SUGGESTION; ///< hint_text= "val1,val2,val3,etc"
-	if (name == "EXP_EASING") return PROPERTY_HINT_EXP_EASING; /// exponential easing function (Math::ease) use "attenuation" hint string to revert (flip h), "positive_only" to exclude in-out and out-in. (ie: "attenuation,positive_only")
-	if (name == "LINK") return PROPERTY_HINT_LINK;
-	if (name == "FLAGS") return PROPERTY_HINT_FLAGS; ///< hint_text= "flag1,flag2,etc" (as bit flags)
-	if (name == "LAYERS_2D_RENDER") return PROPERTY_HINT_LAYERS_2D_RENDER;
-	if (name == "LAYERS_2D_PHYSICS") return PROPERTY_HINT_LAYERS_2D_PHYSICS;
-	if (name == "LAYERS_2D_NAVIGATION") return PROPERTY_HINT_LAYERS_2D_NAVIGATION;
-	if (name == "LAYERS_3D_RENDER") return PROPERTY_HINT_LAYERS_3D_RENDER;
-	if (name == "LAYERS_3D_PHYSICS") return PROPERTY_HINT_LAYERS_3D_PHYSICS;
-	if (name == "LAYERS_3D_NAVIGATION") return PROPERTY_HINT_LAYERS_3D_NAVIGATION;
-	if (name == "FILE") return PROPERTY_HINT_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
-	if (name == "DIR") return PROPERTY_HINT_DIR; ///< a directory path must be passed
-	if (name == "GLOBAL_FILE") return PROPERTY_HINT_GLOBAL_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
-	if (name == "GLOBAL_DIR") return PROPERTY_HINT_GLOBAL_DIR; ///< a directory path must be passed
-	if (name == "RESOURCE_TYPE") return PROPERTY_HINT_RESOURCE_TYPE; ///< a comma-separated resource object type, e.g. "NoiseTexture,GradientTexture2D". Subclasses can be excluded with a "-" prefix if placed *after* the base class, e.g. "Texture2D,-MeshTexture".
-	if (name == "MULTILINE_TEXT") return PROPERTY_HINT_MULTILINE_TEXT; ///< used for string properties that can contain multiple lines
-	if (name == "EXPRESSION") return PROPERTY_HINT_EXPRESSION; ///< used for string properties that can contain multiple lines
-	if (name == "PLACEHOLDER_TEXT") return PROPERTY_HINT_PLACEHOLDER_TEXT; ///< used to set a placeholder text for string properties
-	if (name == "COLOR_NO_ALPHA") return PROPERTY_HINT_COLOR_NO_ALPHA; ///< used for ignoring alpha component when editing a color
-	if (name == "OBJECT_ID") return PROPERTY_HINT_OBJECT_ID;
-	if (name == "TYPE_STRING") return PROPERTY_HINT_TYPE_STRING; ///< a type string, the hint is the base type to choose
-	if (name == "NODE_PATH_TO_EDITED_NODE") return PROPERTY_HINT_NODE_PATH_TO_EDITED_NODE; // Deprecated.
-	if (name == "OBJECT_TOO_BIG") return PROPERTY_HINT_OBJECT_TOO_BIG; ///< object is too big to send
-	if (name == "NODE_PATH_VALID_TYPES") return PROPERTY_HINT_NODE_PATH_VALID_TYPES;
-	if (name == "SAVE_FILE") return PROPERTY_HINT_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
-	if (name == "GLOBAL_SAVE_FILE") return PROPERTY_HINT_GLOBAL_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
-	if (name == "INT_IS_OBJECTID") return PROPERTY_HINT_INT_IS_OBJECTID; // Deprecated.
-	if (name == "INT_IS_POINTER") return PROPERTY_HINT_INT_IS_POINTER;
-	if (name == "ARRAY_TYPE") return PROPERTY_HINT_ARRAY_TYPE;
-	if (name == "LOCALE_ID") return PROPERTY_HINT_LOCALE_ID;
-	if (name == "LOCALIZABLE_STRING") return PROPERTY_HINT_LOCALIZABLE_STRING;
-	if (name == "NODE_TYPE") return PROPERTY_HINT_NODE_TYPE; ///< a node object type
-	if (name == "HIDE_QUATERNION_EDIT") return PROPERTY_HINT_HIDE_QUATERNION_EDIT; /// Only Node3D::transform should hide the quaternion editor.
-	if (name == "PASSWORD") return PROPERTY_HINT_PASSWORD;
-	if (name == "LAYERS_AVOIDANCE") return PROPERTY_HINT_LAYERS_AVOIDANCE;
-	if (name == "DICTIONARY_TYPE") return PROPERTY_HINT_DICTIONARY_TYPE;
-	if (name == "TOOL_BUTTON") return PROPERTY_HINT_TOOL_BUTTON;
-	if (name == "ONESHOT") return PROPERTY_HINT_ONESHOT; ///< the property will be changed by self after setting, such as AudioStreamPlayer.playing, Particles.emitting.
-	if (name == "NO_NODEPATH") return PROPERTY_HINT_NO_NODEPATH; /// < this property will not contain a NodePath, regardless of type (Array, Dictionary, List, etc.). Needed for SceneTreeDock.
-	if (name == "GROUP_ENABLE") return PROPERTY_HINT_GROUP_ENABLE; ///< used to make the property's group checkable. Only use for boolean types.
-	if (name == "INPUT_NAME") return PROPERTY_HINT_INPUT_NAME;
-	if (name == "FILE_PATH") return PROPERTY_HINT_FILE_PATH;
-	if (name == "MAX") return PROPERTY_HINT_MAX;
+	if (name == "NONE")
+		return PROPERTY_HINT_NONE; ///< no hint provided.
+	if (name == "RANGE")
+		return PROPERTY_HINT_RANGE; ///< hint_text = "min,max[,step][,or_greater][,or_less][,hide_slider][,radians_as_degrees][,degrees][,exp][,suffix:<keyword>] range.
+	if (name == "ENUM")
+		return PROPERTY_HINT_ENUM; ///< hint_text= "val1,val2,val3,etc"
+	if (name == "ENUM_SUGGESTION")
+		return PROPERTY_HINT_ENUM_SUGGESTION; ///< hint_text= "val1,val2,val3,etc"
+	if (name == "EXP_EASING")
+		return PROPERTY_HINT_EXP_EASING; /// exponential easing function (Math::ease) use "attenuation" hint string to revert (flip h), "positive_only" to exclude in-out and out-in. (ie: "attenuation,positive_only")
+	if (name == "LINK")
+		return PROPERTY_HINT_LINK;
+	if (name == "FLAGS")
+		return PROPERTY_HINT_FLAGS; ///< hint_text= "flag1,flag2,etc" (as bit flags)
+	if (name == "LAYERS_2D_RENDER")
+		return PROPERTY_HINT_LAYERS_2D_RENDER;
+	if (name == "LAYERS_2D_PHYSICS")
+		return PROPERTY_HINT_LAYERS_2D_PHYSICS;
+	if (name == "LAYERS_2D_NAVIGATION")
+		return PROPERTY_HINT_LAYERS_2D_NAVIGATION;
+	if (name == "LAYERS_3D_RENDER")
+		return PROPERTY_HINT_LAYERS_3D_RENDER;
+	if (name == "LAYERS_3D_PHYSICS")
+		return PROPERTY_HINT_LAYERS_3D_PHYSICS;
+	if (name == "LAYERS_3D_NAVIGATION")
+		return PROPERTY_HINT_LAYERS_3D_NAVIGATION;
+	if (name == "FILE")
+		return PROPERTY_HINT_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
+	if (name == "DIR")
+		return PROPERTY_HINT_DIR; ///< a directory path must be passed
+	if (name == "GLOBAL_FILE")
+		return PROPERTY_HINT_GLOBAL_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
+	if (name == "GLOBAL_DIR")
+		return PROPERTY_HINT_GLOBAL_DIR; ///< a directory path must be passed
+	if (name == "RESOURCE_TYPE")
+		return PROPERTY_HINT_RESOURCE_TYPE; ///< a comma-separated resource object type, e.g. "NoiseTexture,GradientTexture2D". Subclasses can be excluded with a "-" prefix if placed *after* the base class, e.g. "Texture2D,-MeshTexture".
+	if (name == "MULTILINE_TEXT")
+		return PROPERTY_HINT_MULTILINE_TEXT; ///< used for string properties that can contain multiple lines
+	if (name == "EXPRESSION")
+		return PROPERTY_HINT_EXPRESSION; ///< used for string properties that can contain multiple lines
+	if (name == "PLACEHOLDER_TEXT")
+		return PROPERTY_HINT_PLACEHOLDER_TEXT; ///< used to set a placeholder text for string properties
+	if (name == "COLOR_NO_ALPHA")
+		return PROPERTY_HINT_COLOR_NO_ALPHA; ///< used for ignoring alpha component when editing a color
+	if (name == "OBJECT_ID")
+		return PROPERTY_HINT_OBJECT_ID;
+	if (name == "TYPE_STRING")
+		return PROPERTY_HINT_TYPE_STRING; ///< a type string, the hint is the base type to choose
+	if (name == "NODE_PATH_TO_EDITED_NODE")
+		return PROPERTY_HINT_NODE_PATH_TO_EDITED_NODE; // Deprecated.
+	if (name == "OBJECT_TOO_BIG")
+		return PROPERTY_HINT_OBJECT_TOO_BIG; ///< object is too big to send
+	if (name == "NODE_PATH_VALID_TYPES")
+		return PROPERTY_HINT_NODE_PATH_VALID_TYPES;
+	if (name == "SAVE_FILE")
+		return PROPERTY_HINT_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
+	if (name == "GLOBAL_SAVE_FILE")
+		return PROPERTY_HINT_GLOBAL_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
+	if (name == "INT_IS_OBJECTID")
+		return PROPERTY_HINT_INT_IS_OBJECTID; // Deprecated.
+	if (name == "INT_IS_POINTER")
+		return PROPERTY_HINT_INT_IS_POINTER;
+	if (name == "ARRAY_TYPE")
+		return PROPERTY_HINT_ARRAY_TYPE;
+	if (name == "LOCALE_ID")
+		return PROPERTY_HINT_LOCALE_ID;
+	if (name == "LOCALIZABLE_STRING")
+		return PROPERTY_HINT_LOCALIZABLE_STRING;
+	if (name == "NODE_TYPE")
+		return PROPERTY_HINT_NODE_TYPE; ///< a node object type
+	if (name == "HIDE_QUATERNION_EDIT")
+		return PROPERTY_HINT_HIDE_QUATERNION_EDIT; /// Only Node3D::transform should hide the quaternion editor.
+	if (name == "PASSWORD")
+		return PROPERTY_HINT_PASSWORD;
+	if (name == "LAYERS_AVOIDANCE")
+		return PROPERTY_HINT_LAYERS_AVOIDANCE;
+	if (name == "DICTIONARY_TYPE")
+		return PROPERTY_HINT_DICTIONARY_TYPE;
+	if (name == "TOOL_BUTTON")
+		return PROPERTY_HINT_TOOL_BUTTON;
+	if (name == "ONESHOT")
+		return PROPERTY_HINT_ONESHOT; ///< the property will be changed by self after setting, such as AudioStreamPlayer.playing, Particles.emitting.
+	if (name == "NO_NODEPATH")
+		return PROPERTY_HINT_NO_NODEPATH; /// < this property will not contain a NodePath, regardless of type (Array, Dictionary, List, etc.). Needed for SceneTreeDock.
+	if (name == "GROUP_ENABLE")
+		return PROPERTY_HINT_GROUP_ENABLE; ///< used to make the property's group checkable. Only use for boolean types.
+	if (name == "INPUT_NAME")
+		return PROPERTY_HINT_INPUT_NAME;
+	if (name == "FILE_PATH")
+		return PROPERTY_HINT_FILE_PATH;
+	if (name == "MAX")
+		return PROPERTY_HINT_MAX;
 	return PROPERTY_HINT_NONE;
 }
 
 Variant::Type string_to_variant_type(const String &name) {
-	if (name == "Variant") return Variant::NIL;
-	if (name == "Nil" || name == "null" || name == "None" || name == "void") return Variant::NIL;
+	if (name == "Variant")
+		return Variant::NIL;
+	if (name == "Nil" || name == "null" || name == "None" || name == "void")
+		return Variant::NIL;
 	auto tp = Variant::get_type_by_name(name);
-	if (tp == Variant::VARIANT_MAX){
+	if (tp == Variant::VARIANT_MAX) {
 		if (name.begins_with("Array")) {
 			return Variant::ARRAY;
 		}
@@ -186,12 +234,11 @@ String parasable_class_or_none(const String &p_type) {
 	if (p_type.is_empty()) {
 		return "";
 	}
-	if (p_type.contains("<") || !p_type.is_valid_identifier()){
+	if (p_type.contains("<") || !p_type.is_valid_identifier()) {
 		return "";
 	}
 	return p_type;
 }
-
 
 PropertyInfo get_pi_from_type(const String &p_type, const String &p_name = {}) {
 	Variant::Type return_type = string_to_variant_type(p_type);
@@ -233,7 +280,6 @@ MethodInfo dict_to_method_info(const Dictionary &p_dict) {
 	// }
 	return info;
 }
-
 
 PropertyInfo dict_to_property_info(const Dictionary &p_dict) {
 	PropertyInfo info = get_pi_from_type(p_dict.get("type", "void"), p_dict.get("name", ""));
@@ -342,7 +388,7 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 					member_default_values.insert(name, v);
 				} else {
 					default_value = replace_variant_constants(default_value);
-					if (parse_expression(default_value, v)){
+					if (parse_expression(default_value, v)) {
 						member_default_values.insert(name, v);
 					}
 				}

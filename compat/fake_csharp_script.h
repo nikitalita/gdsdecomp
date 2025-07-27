@@ -1,8 +1,8 @@
-#include <core/templates/rb_set.h>
-#include <core/templates/rb_map.h>
 #include <core/object/object.h>
-#include <core/object/script_language.h>
 #include <core/object/script_instance.h>
+#include <core/object/script_language.h>
+#include <core/templates/rb_map.h>
+#include <core/templates/rb_set.h>
 
 #include "fake_script.h"
 
