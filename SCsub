@@ -7,6 +7,16 @@ import shutil
 from subprocess import Popen, PIPE, check_output
 import os
 import glob
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from SCons.Environment import Environment
+    from SCons.Builder import Builder
+    from SCons import Import
+
+env: Environment = None
+env_modules: Environment = None
+env_gdsdecomp: Environment = None
 
 Import("env")
 Import("env_modules")
@@ -520,6 +530,7 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
                 "-output",
                 copy_path,
             ]
+            print("LIPOING LIB TO ", copy_path)
             lipo_output = check_output(lipo_cmd, cwd=lib_dir)
         else:
             shutil.copy(lib, copy_path)
@@ -545,22 +556,24 @@ def build_godot_mono_decomp(module_obj):
         suffix=lib_suffix,
         src_suffix=src_suffixes,
     )
+    depends_libs = []
     # if the library doesn't exist in BUILD_DIR, remove the libs from disk to force a rebuild
     for lib in libs:
-        if not os.path.exists(os.path.join(BUILD_DIR, os.path.basename(lib))):
-            print("LIB DOES NOT EXIST", lib)
-            try:
-                os.remove(lib)
-            except:
-                pass
+        new_lib = os.path.join(BUILD_DIR, os.path.basename(lib))
+        if env.msvc:
+            new_lib = new_lib.replace(".lib", ".dll")
+        depends_libs.append(new_lib)
+
+    all_libs = libs + depends_libs
 
     godot_mono_decomp_sources = get_sources(GODOT_MONO_DECOMP_PARENT, src_suffixes, ["obj/", "bin/", "obj\\", "bin\\"])
     env_gdsdecomp.Alias(
         "godotMonoDecomp",
-        [env_gdsdecomp.godotMonoDecompBuilder(libs, godot_mono_decomp_sources)],
+        [env_gdsdecomp.godotMonoDecompBuilder(all_libs, godot_mono_decomp_sources)],
     )
 
     add_libs_to_env(module_obj, libs, godot_mono_decomp_sources)
+    env.Depends(module_obj, depends_libs)
 
     if env["platform"] == "linuxbsd":
         # add -Wl,-rpath,'$ORIGIN'
