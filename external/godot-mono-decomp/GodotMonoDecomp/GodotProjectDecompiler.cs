@@ -264,10 +264,6 @@ namespace GodotMonoDecomp
 			List<IGrouping<string, TypeDefinitionHandle>> files,
 			DecompilerTypeSystem ts)
 		{
-			// if (!Settings.GodotMode)
-			// {
-			// 	return new List<PartialTypeInfo>();
-			// }
 
 			var partialTypes = new List<PartialTypeInfo>();
 
@@ -312,11 +308,19 @@ namespace GodotMonoDecomp
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
 			var metadata = module.Metadata;
+			var paths_found_in_attributes = new HashSet<string>();
+			if (GodotProjectDirectory == null)
+			{
+				GodotProjectDirectory = TargetDirectory;
+			}
+			var filesInOriginal = GodotStuff.ListCSharpFiles(GodotProjectDirectory, false);
+
+			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
+			var allTypeDefs = ts.GetAllTypeDefinitions();
 			var files = module.Metadata.GetTopLevelTypeDefinitions().Where(td => IncludeTypeWhenDecompilingProject(module, td))
 				.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
 			var progressReporter = ProgressIndicator;
 			var progress = new DecompilationProgress { TotalUnits = files.Count, Title = "Exporting project..." };
-			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
 			var workList = new HashSet<TypeDefinitionHandle>();
 			var processedTypes = new HashSet<TypeDefinitionHandle>();
 			partialTypes = partialTypes.Concat(GetPartialGodotTypes(module, files, ts)).ToList();
@@ -336,34 +340,52 @@ namespace GodotMonoDecomp
 			string GetFileFileNameForHandle(TypeDefinitionHandle h)
 			{
 				var type = metadata.GetTypeDefinition(h);
+				var typeDef = allTypeDefs
+					.Select(td => td)
+					.FirstOrDefault(td => td.MetadataToken.Equals(h));
+
+				foreach (var attr in typeDef.GetAttributes())
+				{
+					if (attr.AttributeType.Name == "ScriptPathAttribute" && attr.FixedArguments.Length > 0)
+					{
+						var p = attr.FixedArguments[0].Value as string;
+						// remove "res://" prefix if it exists
+						if (p != null && p.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+						{
+							p = p.Substring(6);
+						}
+						if (!string.IsNullOrEmpty(p))
+						{
+							// replace '/' with Path.DirectorySeparatorChar
+							p = p.Replace('/', Path.DirectorySeparatorChar);
+							paths_found_in_attributes.Add(p);
+							return p;
+						}
+					}
+				}
+
 				string file = CleanUpFileName(metadata.GetString(type.Name), ".cs");
 				string ns = metadata.GetString(type.Namespace);
+				string path;
 				if (string.IsNullOrEmpty(ns))
 				{
-					return file;
+					path = file;
 				}
 				else
 				{
 					string dir = Settings.UseNestedDirectoriesForNamespaces ? CleanUpPath(ns) : CleanUpDirectoryName(ns);
 					if (directories.Add(dir))
 					{
-						var path = Path.Combine(TargetDirectory, dir);
-						CreateDirectory(path);
+						CreateDirectory(Path.Combine(TargetDirectory, dir));
 					}
-					return Path.Combine(dir, file);
+					path = Path.Combine(dir, file);
 				}
+				return path;
 			}
 
 			void ProcessFiles(List<IGrouping<string, TypeDefinitionHandle>> files)
 			{
 				var toProcess = new ConcurrentDictionary<IGrouping<string, TypeDefinitionHandle>, SyntaxTree>();
-				if (GodotProjectDirectory == null)
-				{
-					GodotProjectDirectory = TargetDirectory;
-				}
-
-				var filesInOriginal =
-					GodotStuff.ListCSharpFiles(GodotProjectDirectory, false);
 
 				var processed = new ConcurrentDictionary<string, SyntaxTree>();
 
@@ -408,17 +430,14 @@ namespace GodotMonoDecomp
 							}
 
 							var path = Path.Combine(TargetDirectory, file.Key);
-							// if (Settings.GodotMode)
 							{
-								var scriptPath = GodotStuff.FindScriptPathInChildren(syntaxTree.Children);
-								if (scriptPath == "")
+								if (!paths_found_in_attributes.Contains(file.Key))
 								{
 									toProcess.TryAdd(file, syntaxTree);
 									return;
 								}
-
-								processed.TryAdd(scriptPath, syntaxTree);
-								path = Path.Combine(TargetDirectory, scriptPath);
+								GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
+								processed.TryAdd(file.Key, syntaxTree);
 								GodotStuff.EnsureDir(Path.GetDirectoryName(path));
 							}
 							using StreamWriter w = new StreamWriter(path);
