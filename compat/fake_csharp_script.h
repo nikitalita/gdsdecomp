@@ -4,8 +4,10 @@
 #include <core/object/script_language.h>
 #include <core/object/script_instance.h>
 
-class FakeCSharpScript : public Script {
-	GDCLASS(FakeCSharpScript, Script);
+#include "fake_script.h"
+
+class FakeCSharpScript : public FakeScript {
+	GDCLASS(FakeCSharpScript, FakeScript);
 	bool tool = false;
 	bool abstract = false;
 	bool valid = false;
@@ -13,7 +15,6 @@ class FakeCSharpScript : public Script {
 	bool autoload = true;
 	bool reloading = false;
 	bool is_binary = false;
-	String original_class = "CSharpScript";
 
 	// Ref<GDScriptNativeClass> native;
 	// Ref<Script> base;
@@ -30,7 +31,6 @@ class FakeCSharpScript : public Script {
 	// HashMap<StringName, MemberInfo> static_variables_indices;
 	Vector<Variant> static_variables; // Static variable values.
 
-	String source;
 	int override_bytecode_revision = 0;
 	String script_path;
 	bool path_valid = false; // False if using default path.
@@ -45,17 +45,7 @@ class FakeCSharpScript : public Script {
 	HashMap<StringName, Pair<int, int>> subclasses;
 	Vector<StringName> export_vars;
 
-	String error_message;
-
-	HashMap<StringName, Variant> properties;
-
 protected:
-	bool _get(const StringName &p_name, Variant &r_ret) const;
-	bool _set(const StringName &p_name, const Variant &p_value);
-	void _get_property_list(List<PropertyInfo> *p_properties) const;
-	Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount,
-			Callable::CallError &r_error) override;
-
 	static void _bind_methods();
 
 public:
@@ -74,9 +64,9 @@ public:
 	virtual PlaceHolderScriptInstance *placeholder_instance_create(Object *p_this) override;
 	virtual bool instance_has(const Object *p_this) const override;
 
-	virtual bool has_source_code() const override;
-	virtual String get_source_code() const override;
-	virtual void set_source_code(const String &p_code) override;
+	// virtual bool has_source_code() const override;
+	// virtual String get_source_code() const override;
+	// virtual void set_source_code(const String &p_code) override;
 	virtual Error reload(bool p_keep_state = false) override;
 
 #ifdef TOOLS_ENABLED
@@ -91,6 +81,8 @@ public:
 	virtual bool has_static_method(const StringName &p_method) const override;
 
 	virtual int get_script_method_argument_count(const StringName &p_method, bool *r_is_valid = nullptr) const override;
+
+	virtual Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override;
 
 	virtual MethodInfo get_method_info(const StringName &p_method) const override;
 
@@ -118,20 +110,11 @@ public:
 	virtual bool is_placeholder_fallback_enabled() const override;
 
 	virtual const Variant get_rpc_config() const override;
-	virtual String get_save_class() const override { return original_class; }
 
-	String get_script_path() const;
-	Error load_source_code(const String &p_path);
+	virtual String get_script_path() const override;
+	virtual Error load_source_code(const String &p_path) override;
+	virtual bool is_loaded() const override;
 
-	String get_error_message() const;
-
-	void set_override_bytecode_revision(int p_revision);
-	int get_override_bytecode_revision() const;
 	void set_autoload(bool p_autoload);
 	bool is_autoload() const;
-
-	bool is_loaded() const;
-
-	void set_original_class(const String &p_class);
-	String get_original_class() const;
 };
