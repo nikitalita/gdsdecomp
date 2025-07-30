@@ -96,6 +96,7 @@ func _get_all_files(files: PackedStringArray) -> PackedStringArray:
 	return PackedStringArray(new_files.keys())
 
 const DIR_STRUCTURE_OPTION_NAME = "Directory Structure"
+const EXPORT_GLB_OPTION_NAME = "Export Scenes as GLB"
 
 enum DirStructure {
 	FLAT,
@@ -115,7 +116,26 @@ func get_output_file_name(src: String, output_folder: String, dir_structure_opti
 		new_name = new_name.get_basename() + "." + new_ext
 	return new_name
 
-func _export_files(files: PackedStringArray, output_dir: String, dir_structure: DirStructure, rel_base: String) -> PackedStringArray:
+
+func _export_scene(file: String, output_dir: String, dir_structure: DirStructure, rel_base: String, export_glb: bool) -> ExportReport:
+	var source_file = file
+	var iinfo = GDRESettings.get_import_info_by_dest(file)
+	if iinfo:
+		source_file = iinfo.source_file
+
+	var res_ext = file.get_extension().to_lower()
+	var ext = source_file.get_extension().to_lower()
+
+	var exporting_glb = (export_glb or (ext == "glb" or ext == "gltf")) and (res_ext == "scn" or res_ext == "tscn")
+	if exporting_glb and ext != "glb" and ext != "gltf":
+		ext = "glb"
+
+	var export_dest = get_output_file_name(source_file, output_dir, dir_structure, ext, rel_base)
+	return SceneExporter.export_file_with_options(export_dest, file, {
+		"Exporter/Scene/GLTF/replace_shader_materials": true,
+	})
+
+func _export_files(files: PackedStringArray, output_dir: String, dir_structure: DirStructure, rel_base: String, export_glb: bool) -> PackedStringArray:
 	var errs: PackedStringArray = []
 	files = _get_all_files(files)
 
@@ -129,25 +149,23 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 				errs.append("Failed to convert project config: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
 			continue
 		var _ret = GDRESettings.get_import_info_by_dest(file)
-		if _ret:
-			var iinfo: ImportInfo = ImportInfo.copy(_ret)
-			var report: ExportReport = null
-			# if file.get_extension().to_lower() == "scn" and iinfo.get_importer() == "autoconverted":
-			# 	var exporter = Exporter.get_exporter_from_path(file)
-			# 	if exporter:
-			# 		report = exporter.export_resource(output_dir, iinfo)
-			# 	else:
-			# 		errs.append("Failed to export file: " + file + "\n" + "\n".join(GDRESettings.get_errors()))
-			# else:
-			iinfo.export_dest = get_output_file_name(iinfo.source_file, "res://", dir_structure, iinfo.source_file.get_extension(), rel_base)
-			report = Exporter.export_resource(output_dir, iinfo)
+		if export_glb and (file.get_extension().to_lower() == "scn" or file.get_extension().to_lower() == "tscn"):
+			var report: ExportReport = _export_scene(file, output_dir, dir_structure, rel_base, export_glb)
 			if not report:
 				errs.append("Failed to export resource: " + file)
-			elif report.error != OK:
-				errs.append("Failed to export resource: " + file + "\n" + "\n".join(report.get_error_messages()))
+			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
+				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n".join(report.get_error_messages()))
+		elif _ret:
+			var iinfo: ImportInfo = ImportInfo.copy(_ret)
+			iinfo.export_dest = get_output_file_name(iinfo.source_file, "res://", dir_structure, iinfo.source_file.get_extension().to_lower(), rel_base)
+			var report: ExportReport = Exporter.export_resource(output_dir, iinfo)
+			if not report:
+				errs.append("Failed to export resource: " + file)
+			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
+				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n".join(report.get_error_messages()))
 			else:
 				var actual_output_path = report.saved_path
-				var rel_path = actual_output_path.trim_prefix(output_dir)
+				var rel_path = actual_output_path.simplify_path().trim_prefix(output_dir).trim_prefix("/")
 				if rel_path.begins_with(".assets"):
 					var new_path = output_dir.path_join(rel_path.trim_prefix(".assets"))
 					GDRECommon.ensure_dir(new_path.get_base_dir())
@@ -183,10 +201,12 @@ func _on_export_resources_confirmed(output_dir: String):
 	REL_BASE_DIR = "res://"
 	var options = %ExportResDirDialog.get_selected_options()
 	var dir_structure = DirStructure.FLAT
+	var export_glb = false
 	if options.size() > 0:
-		dir_structure = options[DIR_STRUCTURE_OPTION_NAME]
+		dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
+		export_glb = options.get(EXPORT_GLB_OPTION_NAME, false)
 
-	errs = _export_files(files, output_dir, dir_structure, rel_base)
+	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
 
 	if errs.size() > 0:
 		popup_error_box("\n".join(errs), "Error")
@@ -283,8 +303,15 @@ func _on_extract_resources_pressed(_selected_items):
 	open_extract_resources_dir_dialog(default_dir_structure)
 
 
+func _set_current_dir_if_default(file_dialog: FileDialog, dir: String):
+	var cur_dir = file_dialog.get_current_dir();
+	if cur_dir.is_empty() || cur_dir == GDRESettings.get_cwd():
+		if (!dir.is_empty()):
+			file_dialog.set_current_dir(dir)
+
+
 func open_export_resources_dir_dialog(default_dir_structure: DirStructure):
-	%ExportResDirDialog.set_current_dir(DIRECTORY.text.get_base_dir())
+	_set_current_dir_if_default(%ExportResDirDialog, DIRECTORY.text.get_base_dir())
 	var _name = %ExportResDirDialog.get_option_name(0)
 	print("NAME: ", _name)
 	%ExportResDirDialog.set_option_default(0, int(default_dir_structure))
@@ -294,7 +321,7 @@ func open_extract_resources_dir_dialog(default_dir_structure: DirStructure):
 	var file_dialog: FileDialog = %ExtractResDirDialog
 	var _name = file_dialog.get_option_name(0)
 	print("NAME: ", _name)
-	file_dialog.set_current_dir(DIRECTORY.text.get_base_dir())
+	_set_current_dir_if_default(file_dialog, DIRECTORY.text.get_base_dir())
 	file_dialog.set_option_default(0, int(default_dir_structure))
 	open_subwindow(file_dialog)
 

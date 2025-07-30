@@ -50,6 +50,7 @@ ok_button_text = "Yes"
 cancel_button_text = "No"
 
 [node name="VBoxContainer" type="VBoxContainer" parent="DownloadConfirmDialog"]
+anchors_preset = -1
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 418.0
@@ -261,9 +262,11 @@ position = Vector2i(0, 24)
 file_mode = 2
 display_mode = 1
 access = 2
-option_count = 1
+option_count = 2
 option_0/name = "Directory Structure"
 option_0/values = PackedStringArray("Flat", "Relative Hierarchical", "Matching Project")
+option_1/name = "Export Scenes as GLB"
+option_1/values = PackedStringArray("False", "True")
 
 [node name="ExtractResDirDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
