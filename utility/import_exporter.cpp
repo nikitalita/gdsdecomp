@@ -16,7 +16,7 @@
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
 
-#include "godot_mono_decomp.h"
+#include "godot_mono_decomp_wrapper.h"
 
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
@@ -1556,24 +1556,17 @@ void ImportExporterReport::_bind_methods() {
 }
 
 Error ImportExporter::decompile_mono_assembly(const String &assembly_path, const String &output_dir) {
-	CharString assembly_path_chrstr = assembly_path.utf8();
-	const char *assembly_path_c = assembly_path_chrstr.get_data();
-	CharString output_dir_chrstr = output_dir.utf8();
-	const char *output_dir_c = output_dir_chrstr.get_data();
+	auto cs_files = gdre::get_recursive_dir_list("res://", { "*.cs" });
 	String assembly_name = assembly_path.get_file().get_basename();
 	String project_file = assembly_name + ".csproj";
 	String project_path = output_dir.path_join(project_file);
-	CharString project_path_chrstr = project_path.utf8();
-	const char *project_path_c = project_path_chrstr.get_data();
-	String ref_path = assembly_path.get_base_dir();
-	CharString ref_path_chrstr = ref_path.utf8();
-	const char *ref_path_c = ref_path_chrstr.get_data();
-	const char *ref_path_c_array[] = { ref_path_c };
-	int result = GodotMonoDecomp_DecompileProject(assembly_path_c, project_path_c, ref_path_c, ref_path_c_array, 1);
-	if (result != 0) {
-		return ERR_CANT_CREATE;
+	GodotMonoDecompWrapper decompiler(assembly_path, cs_files, { assembly_path.get_base_dir() });
+	Error err = decompiler.decompile_module(project_path);
+	Vector<String> files_not_present_in_file_map = decompiler.get_files_not_present_in_file_map();
+	for (String file : files_not_present_in_file_map) {
+		print_line("File not present in file map: " + file);
 	}
-	return OK;
+	return err;
 }
 
 Error ImportExporter::decompile_mono_project() {
