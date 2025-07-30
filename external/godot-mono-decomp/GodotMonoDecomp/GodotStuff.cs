@@ -98,8 +98,9 @@ public static class GodotStuff
 
 	public static Dictionary<string, TypeDefinitionHandle> CreateFileMap(MetadataFile module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile,
-		IEnumerable<string> filesInOriginal,
+		List<string> filesInOriginal,
 		Dictionary<string, GodotScriptMetadata>? scriptMetadata,
+		IEnumerable<string>? excludedSubdirectories,
 		bool useNestedDirectoriesForNamespaces)
 	{
 		var fileMap = new Dictionary<string, TypeDefinitionHandle>();
@@ -112,6 +113,37 @@ public static class GodotStuff
 				pair => pair.Value.Class.GetFullClassName(),
 				pair => pair.Key,
 				StringComparer.OrdinalIgnoreCase);
+		}
+
+		excludedSubdirectories = excludedSubdirectories?.Select(e => {
+			if (e.EndsWith('\\'))
+			{
+				// replace it
+				return e.Substring(0, e.Length - 1) + '/';
+			} else if (e.EndsWith('/')) {
+				return e;
+			}
+			return e + '/';
+		}).ToList();
+
+		bool nosubdirs = excludedSubdirectories == null || !excludedSubdirectories.Any();
+
+		bool IsExcludedSubdir(string? dir)
+		{
+			if (nosubdirs || string.IsNullOrEmpty(dir))
+			{
+				return false;
+			}
+			return excludedSubdirectories!.Any(e => dir.StartsWith(e, StringComparison.OrdinalIgnoreCase));
+		}
+
+		bool IsInExcludedSubdir(string? file)
+		{
+			if (nosubdirs || string.IsNullOrEmpty(file))
+			{
+				return false;
+			}
+			return IsExcludedSubdir(Path.GetDirectoryName(file));
 		}
 
 		var processAgain = new HashSet<TypeDefinitionHandle>();
@@ -134,15 +166,18 @@ public static class GodotStuff
 		foreach (var h in typesToDecompile)
 		{
 			var type = metadata.GetTypeDefinition(h);
-			var scriptPath = GetScriptPathAttributeValue(metadata, h);
+			var scriptPath = Common.TrimPrefix(GetScriptPathAttributeValue(metadata, h) ?? "", "res://");
+
+			// we explicitly don't check if it's in an excluded subdirectory here because a script path attribute means
+			// that the file is referenced by other files in the project, so the path MUST match.
 			if (!string.IsNullOrEmpty(scriptPath))
 			{
-				scriptPath = Common.TrimPrefix(scriptPath, "res://");
 				addToNamespaceToFile(metadata.GetString(type.Namespace),scriptPath);
 				fileMap[scriptPath] = h;
 			}
 			else
 			{
+				// Same here.
 				if (metadataFQNToFileMap != null)
 				{
 					// check if the type has a metadata FQN in the script metadata
@@ -174,6 +209,17 @@ public static class GodotStuff
 			else
 			{
 				string dir = useNestedDirectoriesForNamespaces ? GodotProjectDecompiler.CleanUpPath(ns) : GodotProjectDecompiler.CleanUpDirectoryName(ns);
+				// ensure dir separator is '/'
+				dir = dir.Replace(Path.DirectorySeparatorChar, '/');
+				// TODO: come back to this
+				if (IsExcludedSubdir(dir) /*|| dir == ""*/)
+				{
+					string default_dir = "src";
+					while (IsExcludedSubdir(default_dir)){
+						default_dir = "_" + default_dir;
+					}
+					dir = default_dir;
+				}
 				return Path.Combine(dir, file).Replace(Path.DirectorySeparatorChar, '/');
 			}
 		}
@@ -186,6 +232,7 @@ public static class GodotStuff
 			var possibles = filesInOriginal.Where(f =>
 					!fileMap.ContainsKey(f) &&
 					Path.GetFileName(f) == Path.GetFileName(file_path)
+					&& !IsInExcludedSubdir(f)
 				)
 				.ToList();
 
@@ -194,6 +241,7 @@ public static class GodotStuff
 				possibles = filesInOriginal.Where(f =>
 					!fileMap.ContainsKey(f) &&
 					Path.GetFileName(f).ToLower() == Path.GetFileName(file_path).ToLower()
+					&& !IsInExcludedSubdir(f)
 				).ToList();
 			}
 
@@ -203,13 +251,13 @@ public static class GodotStuff
 			}
 			else if (possibles.Count > 1)
 			{
-				possibles = possibles.Where(f => f.EndsWith(file_path)).ToList();
+				possibles = possibles.Where(f => f.EndsWith(file_path, StringComparison.OrdinalIgnoreCase)).ToList();
 				if (possibles.Count == 1)
 				{
 					scriptPath = possibles[0];
 				}
 			}
-			if (scriptPath == "" && possibles.Count > 1){
+			if (string.IsNullOrEmpty(scriptPath) && possibles.Count > 1){
 				return "<multiple>";
 			}
 			return scriptPath;
@@ -225,7 +273,7 @@ public static class GodotStuff
 		{
 			var path = GetAutoFileNameForHandle(h);
 			var real_path = GetPathFromOriginalFiles(path);
-			if (real_path != "" && real_path != "<multiple>")
+			if (real_path != "" && real_path != "<multiple>" && !IsInExcludedSubdir(real_path))
 			{
 				if (!potentialMap.ContainsKey(real_path))
 				{
@@ -259,37 +307,40 @@ public static class GodotStuff
 			}
 		}
 
+
+		HashSet<string> GetNamespaceDirectories(string ns)
+		{
+			return namespaceToDirectory.TryGetValue(ns, out var v1)
+				? v1
+				: [];
+		}
+
 		foreach (var h in processAgainAgain)
 		{
 			var type = metadata.GetTypeDefinition(h);
 			var ns = metadata.GetString(type.Namespace);
 			var auto_path = GetAutoFileNameForHandle(h);
-			string p = "";
+			string? p = null;
 			var namespaceParts = ns.Split('.');
 			var parentNamespace = ns.Contains('.') ? ns.Split('.')[0] : "";
 			if (ns != "" && ns != null)
 			{
 				// pop off the first part of the path, if necessary
 				var fileStem = Common.RemoveNamespacePartOfPath(auto_path, ns);
-				var directories = namespaceToDirectory.TryGetValue(ns, out var v1)
-					? v1
-					: [];
+				var directories = GetNamespaceDirectories(ns).Where(d => !string.IsNullOrEmpty(d) && !IsInExcludedSubdir(d)).ToHashSet();
 
-				if (directories.Count == 1 && (directories.First() != "" && directories.First() != null))
+				if (directories.Count == 1)
 				{
 					p = Path.Combine(directories.First(), fileStem);
 				}
 				// check if the namespace has a parent
-				else if (directories.Count == 0 && parentNamespace.Length != 0 &&
+				else if (string.IsNullOrEmpty(p) && directories.Count <= 1 && parentNamespace.Length != 0 &&
 						namespaceToFile.ContainsKey(parentNamespace))
 				{
-					var parentDirectories = namespaceToDirectory.TryGetValue(parentNamespace, out var v2)
-						? v2
-						: [];
+					var parentDirectories = GetNamespaceDirectories(parentNamespace).Where(d => !string.IsNullOrEmpty(d) && !IsInExcludedSubdir(d)).ToHashSet();
 					var child = ns.Substring(parentNamespace.Length + 1).Replace('.', '/');
 					fileStem = Path.Combine(child, Path.GetFileName(auto_path));
-					if (parentDirectories.Count == 1 && (parentDirectories.First() != "" &&
-														parentDirectories.First() != null))
+					if (parentDirectories.Count == 1)
 					{
 						p = Path.Combine(parentDirectories.First(), fileStem);
 					}
@@ -297,16 +348,16 @@ public static class GodotStuff
 					directories = parentDirectories;
 				}
 
-				if (p == "" && directories.Count > 1)
+				else if (string.IsNullOrEmpty(p) && directories.Count > 1)
 				{
 					var commonRoot = Common.FindCommonRoot(directories);
-					if (commonRoot != "")
+					if (!string.IsNullOrEmpty(commonRoot))
 					{
 						p = Path.Combine(commonRoot, fileStem);
 					}
 				}
 			}
-			if (p == "" || fileMap.ContainsKey(p))
+			if (string.IsNullOrEmpty(p) || fileMap.ContainsKey(p))
 			{
 				p = auto_path;
 			}

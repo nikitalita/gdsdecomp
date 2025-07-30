@@ -104,8 +104,10 @@ public class GodotModuleDecompiler
 			}
 		}
 
+		HashSet<string> excludeSubdirs = AdditionalModules.Select(module => module.Name).ToHashSet();
+
 		var typesToDecompile = CreateProjectDecompiler(MainModule).GetTypesToDecompile(MainModule.Module).ToHashSet();
-		MainModule.fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+		MainModule.fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, excludeSubdirs, true);
 		var additionalModuleCount = 0;
 		var dupeCount = 0;
 		var alreadyExistsCount = 0;
@@ -119,7 +121,7 @@ public class GodotModuleDecompiler
 			// TODO: make CreateFileMap() work with multiple modules
 			typesToDecompile = CreateProjectDecompiler(MainModule).GetTypesToDecompile(module.Module).ToHashSet();
 
-			var nfileMap = GodotStuff.CreateFileMap(module.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+			var nfileMap = GodotStuff.CreateFileMap(module.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, null, true);
 			additionalModuleCount += nfileMap.Count;
 
 			string moduleName = module.Module.FileName;
