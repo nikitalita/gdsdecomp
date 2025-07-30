@@ -717,6 +717,50 @@ public static class GodotStuff
 					return true;
 				}
 
+				// if the method name is EmitSignal<SignalName> and it's a protected or private void method, then it's an auto-generated signal emitter
+				if (
+					method is { IsVirtual: false, Accessibility: Accessibility.Internal or Accessibility.Protected or Accessibility.ProtectedOrInternal or Accessibility.ProtectedAndInternal or Accessibility.Private } &&
+					method.Name.StartsWith("EmitSignal") && method.ReturnType.FullName == "System.Void")
+				{
+					return true;
+				}
+				if (method.IsVirtual)
+				{
+					break;
+				}
+
+				// auto-generated getter methods for properties of parent classes
+				bool isGetter = method.Name.Contains(".get_");
+				bool isSetter = method.Name.Contains(".set_");
+				if (isGetter || isSetter)
+				{
+					var parts = method.Name.Split(isGetter ? ".get_" : ".set_");
+					if (parts.Length <= 1)
+					{
+						break;
+					}
+					var parentClass = parts[0].Split("<")[0];
+					var memberName = parts[1];
+					var baseTypes = method.DeclaringType.GetAllBaseTypes();
+					var baseType = baseTypes.FirstOrDefault(t => t.Name == parentClass);
+					if (baseType == null)
+					{
+						break;
+					}
+					IMember member = baseType.GetMembers().FirstOrDefault(m => m.Name == memberName);
+					if (member != null && member is IProperty prop)
+					{
+						var memberAccessorName = isGetter ? prop.Getter?.Name : prop.Setter?.Name;
+
+						if (memberAccessorName == method.Name.Split('.').Last())
+						{
+							return true;
+						}
+
+						break;
+					}
+				}
+
 				break;
 			case IEvent @event:
 				if (@event.DeclaringTypeDefinition != null && GetSignalsInClass(@event.DeclaringTypeDefinition).Contains(@event.ReturnType.GetDefinition()) &&
