@@ -1585,24 +1585,35 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	if (err == ERR_BUG && has_external_animation && animation_deps_updated.size() == animation_deps_needed.size()) {
 		err = OK;
 		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
-		for (auto &msg : error_messages) {
-			auto message = msg.strip_edges();
+		Vector<int64_t> error_messages_to_remove;
+		for (int64_t i = 0; i < error_messages.size(); i++) {
+			auto message = error_messages[i].strip_edges();
 
 			if (message.begins_with("at:") ||
-					message.begins_with("GDScript backtrace") ||
-					message.begins_with("WARNING:")) {
+					message.begins_with("GDScript backtrace")) {
+				error_messages_to_remove.push_back(i);
+				continue;
+			}
+			if (message.begins_with("WARNING:")) {
 				continue;
 			}
 			if (message.contains("glTF:")) {
 				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("Cannot get node for animated track")) {
 					NodePath path = message.substr(message.find("ath:") + 4).strip_edges();
 					if (!path.is_empty() && external_animation_nodepaths.has(path)) {
+						// pop off the error message and the stack traces
+						error_messages_to_remove.push_back(i);
 						continue;
 					}
 				}
 			}
 			err = ERR_BUG;
 			break;
+		}
+		if (err == OK) {
+			for (int64_t i = error_messages_to_remove.size() - 1; i >= 0; i--) {
+				error_messages.remove_at(error_messages_to_remove[i]);
+			}
 		}
 	}
 	if (!set_all_externals) {
@@ -1623,6 +1634,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		} else {
 			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 		}
+	} else {
+		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
 	if (has_script) {
 		if (p_report.is_valid()) {
@@ -1631,8 +1644,6 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		if (err == OK) {
 			err = ERR_DATABASE_CANT_READ;
 		}
-	} else {
-		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
 
 	return err;
