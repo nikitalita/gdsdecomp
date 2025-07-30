@@ -19,7 +19,26 @@ public class DotNetCoreDepInfo
 	public readonly DotNetCoreDepInfo[] deps;
 	public readonly string[] runtimeComponents;
 
-	public DotNetCoreDepInfo(string fullName, string version, string type, bool serviceable, string path,
+
+	public static string GetCorrectVersion(string ver)
+	{
+		// if it contains less than 4 parts, add ".0" to the end
+		var parts = ver.Split('.').ToList();
+		while (parts.Count < 4)
+		{
+			parts.Add("0");
+		}
+		return string.Join(".", parts);
+	}
+
+	public AssemblyNameReference AssemblyRef => AssemblyNameReference.Parse($"{Name}, Version={GetCorrectVersion(Version)}, Culture=neutral, PublicKeyToken=null");
+
+	public DotNetCoreDepInfo(
+		string fullName,
+		string version,
+		string type,
+		bool serviceable,
+		string path,
 		string sha512,
 		DotNetCoreDepInfo[] deps, string[] runtimeComponents)
 	{
@@ -45,11 +64,11 @@ public class DotNetCoreDepInfo
 
 	static DotNetCoreDepInfo CreateFromJson(string fullName, string version, string target, JsonObject blob)
 	{
-		return Create(fullName, version, target, blob, new HashSet<string>());
+		return Create(fullName, version, target, blob, []);
 	}
 
 	static DotNetCoreDepInfo Create(string fullName, string version, string target, JsonObject blob,
-		HashSet<string> _deps)
+		Dictionary<string, DotNetCoreDepInfo> _deps)
 	{
 		var parts = fullName.Split('/');
 		var Name = parts[0];
@@ -96,11 +115,11 @@ public class DotNetCoreDepInfo
 
 
 	static DotNetCoreDepInfo[] getDeps(string Name, string Version, string target, JsonObject blob,
-		HashSet<string>? _deps = null)
+		Dictionary<string, DotNetCoreDepInfo>? _deps = null)
 	{
 		if (_deps == null)
 		{
-			_deps = new HashSet<string>();
+			_deps = [];
 		}
 
 		var targetBlob = blob["targets"][target].AsJsonObject;
@@ -122,20 +141,18 @@ public class DotNetCoreDepInfo
 		{
 			foreach (var dep in depsBlob)
 			{
-				if (!_deps.Add(dep.Key + "/" + dep.Value.AsString))
+				var dep_key = dep.Key + "/" + dep.Value.AsString;
+				if (_deps.ContainsKey(dep_key))
 				{
-					continue;
+					result.Add(_deps[dep_key]);
 				}
-
-				deps.Add(dep.Key, dep.Value.AsString);
+				else
+				{
+					var new_dep = Create(dep.Key, dep.Value.AsString, target, blob, _deps);
+					_deps.Add(dep_key, new_dep);
+					result.Add(new_dep);
+				}
 			}
-		}
-
-		for (int i = 0; i < deps.Count; i++)
-		{
-			var dep = deps.ElementAt(i);
-			var new_dep = Create(dep.Key, dep.Value, target, blob, _deps);
-			result.Add(new_dep);
 		}
 
 		return result.ToArray();
