@@ -128,11 +128,19 @@ public static class GodotStuff
 				)
 				.ToList();
 
-			if (scriptPath == "" && possibles.Count == 1)
+			if (possibles.Count == 0)
+			{
+				possibles = filesInOriginal.Where(f =>
+					!fileMap.ContainsKey(f) &&
+					Path.GetFileName(f).ToLower() == Path.GetFileName(file_path).ToLower()
+				).ToList();
+			}
+
+			if (possibles.Count == 1)
 			{
 				scriptPath = possibles[0];
 			}
-			else if (scriptPath == "" && possibles.Count > 1)
+			else if (possibles.Count > 1)
 			{
 				possibles = possibles.Where(f => f.EndsWith(file_path)).ToList();
 				if (possibles.Count == 1)
@@ -249,7 +257,7 @@ public static class GodotStuff
 			var auto_path = GetAutoFileNameForHandle(h);
 			var scriptPath = GetPathFromOriginalFiles(auto_path);
 
-			if (scriptPath == "" || fileMap.ContainsKey(scriptPath))
+			if (scriptPath == "" || scriptPath == "<multiple>" || fileMap.ContainsKey(scriptPath))
 			{
 				scriptPath = auto_path;
 			}
