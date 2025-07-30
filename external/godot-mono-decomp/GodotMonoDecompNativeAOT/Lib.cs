@@ -51,17 +51,24 @@ static public class Lib
 		IntPtr originalProjectFiles,
 		int originalProjectFilesCount,
 		IntPtr referencePaths,
-		int referencePathsCount
+		int referencePathsCount,
+		IntPtr GodotVersionOverride
 	)
 	{
 		string assemblyFileNameStr = Marshal.PtrToStringAnsi(assemblyPath) ?? string.Empty;
 		var originalProjectFilesStrs = GetStringArray(originalProjectFiles, originalProjectFilesCount);
 		var referencePathsStrs = GetStringArray(referencePaths, referencePathsCount);
+		var godotVersionOverrideStr = GodotVersionOverride == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(GodotVersionOverride) ?? null;
+		var settings = new GodotMonoDecompSettings
+		{
+			GodotVersionOverride = godotVersionOverrideStr == null ? null : GodotStuff.ParseGodotVersionFromString(godotVersionOverrideStr)
+		};
 		try {
-			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs);
+			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs, settings);
 			var handle = GCHandle.Alloc(decompiler);
 			return GCHandle.ToIntPtr(handle);
 		}
+
 		catch (Exception e)
 		{
 			Console.Error.WriteLine("Failed to create GodotModuleDecompiler: " + e.Message);

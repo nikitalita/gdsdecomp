@@ -20,7 +20,8 @@ void* GodotMonoDecomp_CreateGodotModuleDecompiler(
     const char** originalProjectFiles,
     int originalProjectFilesCount,
     const char** referencePaths,
-    int referencePathsCount
+    int referencePathsCount,
+	const char* godotVersionOverride
 );
 
 int GodotMonoDecomp_DecompileModule(

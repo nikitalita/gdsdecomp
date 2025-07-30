@@ -14,10 +14,17 @@ protected:
 	friend struct DecompileModuleTaskData;
 
 public:
+	struct GodotMonoDecompSettings {
+		bool WriteNuGetPackageReferences = true;
+		bool CopyOutOfTreeReferences = true;
+		bool CreateAdditionalProjectsForProjectReferences = true;
+		String GodotVersionOverride;
+	};
+
 	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	~GodotMonoDecompWrapper();
 
-	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs);
+	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings);
 
 	bool is_valid() const;
 

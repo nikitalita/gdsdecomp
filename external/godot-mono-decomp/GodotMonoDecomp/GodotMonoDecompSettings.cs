@@ -23,9 +23,20 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// </summary>
 	public bool CreateAdditionalProjectsForProjectReferences { get; set; } = true;
 
-	public GodotMonoDecompSettings(){}
+	/// <summary>
+	/// Godot version override for writing the SDK string in the project file.
+	/// </summary>
+	public Version? GodotVersionOverride { get; set; } = null;
 
-	public GodotMonoDecompSettings(LanguageVersion languageVersion) : base(languageVersion){}
+	public GodotMonoDecompSettings() : base()
+	{
+		UseNestedDirectoriesForNamespaces = true;
+	}
+
+	public GodotMonoDecompSettings(LanguageVersion languageVersion) : base(languageVersion)
+	{
+		UseNestedDirectoriesForNamespaces = true;
+	}
 
 
 	public new GodotMonoDecompSettings Clone()

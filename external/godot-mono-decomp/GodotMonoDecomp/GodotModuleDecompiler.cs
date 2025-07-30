@@ -114,7 +114,8 @@ public class GodotModuleDecompiler
 	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
 
 
-	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null)
+	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null,
+		GodotMonoDecompSettings? settings = default(GodotMonoDecompSettings))
 	{
 		AdditionalModules = [];
 		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => GodotStuff.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
@@ -127,8 +128,7 @@ public class GodotModuleDecompiler
 			AssemblyResolver.AddSearchDirectory(path);
 		}
 
-		Settings = new GodotMonoDecompSettings();
-		Settings.UseNestedDirectoriesForNamespaces = true;
+		Settings = settings ?? new GodotMonoDecompSettings();
 
 		if (Settings.CreateAdditionalProjectsForProjectReferences && mainDepInfo != null)
 		{
@@ -152,7 +152,7 @@ public class GodotModuleDecompiler
 		}
 
 
-		godotVersion = GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
+		godotVersion = Settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
 		if (godotVersion.Major <= 3)
 		{
 			// check for "script_metadata.{release,debug}" files

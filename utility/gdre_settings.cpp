@@ -2240,7 +2240,9 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
 	}
 	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
-	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() });
+	GodotMonoDecompWrapper::GodotMonoDecompSettings settings;
+	settings.GodotVersionOverride = current_project->version.is_valid() ? current_project->version->as_text() : "";
+	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() }, settings);
 	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
 	current_project->decompiler = decompiler;
 	return OK;

@@ -18,12 +18,24 @@
 
 using System.Reflection.PortableExecutable;
 using System.Xml;
+using GodotMonoDecomp;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Util;
 
 using LightJson;
 using LightJson.Serialization;
+
+
+public interface IGodotProjectWithSettingsProvider : IProjectInfoProvider
+{
+	/// <summary>
+	/// Gets the settings for the project.
+	/// </summary>
+	GodotMonoDecompSettings Settings { get; }
+
+	// DotNetCoreDepInfo? DepInfo { get; }
+}
 
 namespace GodotMonoDecomp
 {
@@ -64,32 +76,17 @@ namespace GodotMonoDecomp
 		enum ProjectType { Default, WinForms, Wpf, Web, Godot }
 
 
-		class ProjectFileWriterGodotStyleSettings
-		{
-			public bool writePackageReferences = true;
-			public bool copyOutOfTreeRefsToOutputDir = true;
-			public bool writeProjectReferences = true;
-		}
-
-		readonly ProjectFileWriterGodotStyleSettings settings;
-
 		public DotNetCoreDepInfo? DepInfo;
 
-		public ProjectFileWriterGodotStyle(bool writePackageReferences, bool copyRelativePackageRefsToOutputDir, bool createAdditionalProjectsForProjectReferences)
+		public ProjectFileWriterGodotStyle()
 		{
-			this.settings = new ProjectFileWriterGodotStyleSettings() {
-				writePackageReferences = writePackageReferences,
-				copyOutOfTreeRefsToOutputDir = copyRelativePackageRefsToOutputDir,
-				writeProjectReferences = createAdditionalProjectsForProjectReferences
-			};
 		}
 
 		/// <summary>
-		/// Creates a new instance of the <see cref="ProjectFileWriterSdkStyle"/> class.
+		/// Creates a new instance of the <see cref="ProjectFileWriterGodotStyle"/> class.
 		/// </summary>
-		/// <returns>A new instance of the <see cref="ProjectFileWriterSdkStyle"/> class.</returns>
-		public static IProjectFileWriter Create(bool writeNugetRefs = true, bool copyRelativePackageRefsToOutputDir = true, bool createAdditionalProjectsForProjectReferences = true) =>
-			new ProjectFileWriterGodotStyle(writeNugetRefs, copyRelativePackageRefsToOutputDir, createAdditionalProjectsForProjectReferences);
+		/// <returns>A new instance of the <see cref="ProjectFileWriterGodotStyle"/> class.</returns>
+		public static IProjectFileWriter Create() => new ProjectFileWriterGodotStyle();
 
 		/// <inheritdoc />
 		public void Write(
@@ -98,37 +95,39 @@ namespace GodotMonoDecomp
 			IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
 			MetadataFile module)
 		{
+
+			var actualProject = project as IGodotProjectWithSettingsProvider;
+			if (actualProject == null)
+			{
+				throw new ArgumentException("Project must implement IGodotProjectWithSettingsProvider to use ProjectFileWriterGodotStyle.");
+			}
 			using (XmlTextWriter xmlWriter = new XmlTextWriter(target))
 			{
 				xmlWriter.Formatting = Formatting.Indented;
-				Write(xmlWriter, project, files, module, DepInfo, settings);
+				Write(xmlWriter, project, files, module, DepInfo, actualProject.Settings);
 			}
 		}
 
 		static void Write(XmlTextWriter xml, IProjectInfoProvider project, IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
-			MetadataFile module, DotNetCoreDepInfo? depInfo, ProjectFileWriterGodotStyleSettings settings)
+			MetadataFile module, DotNetCoreDepInfo? depInfo, GodotMonoDecompSettings settings)
 		{
 			xml.WriteStartElement("Project");
 			var projectType = GetProjectType(module);
 			var sdkString = GetSdkString(projectType);
 			if (projectType == ProjectType.Godot)
 			{
-				var gdver = GodotStuff.GetGodotVersion(module);
+				var gdver = settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(module);
 				if (gdver == null)
 				{
 					Console.Error.WriteLine($"Could not determine Godot version for module {module.FileName}, assuming 3.0");
 					gdver = new Version(3, 0, 0);
 				}
-				var godotVersion = gdver?.ToString();
+				var godotVersion = gdver?.ToString(3);
 				// GodotSharp for 3.x always wrote the version number as "1.0.0" in the project file
 				if (gdver == null || gdver.Major < 3)
 				{
 					// we'll indicate that this is a Godot 3.x project but use an invalid version number to force the editor to rewrite the project file
 					godotVersion = "3.x.x";
-				}
-				if (godotVersion?.Count(f => f == '.') >= 3)
-				{
-					godotVersion = godotVersion.Substring(0, godotVersion.LastIndexOf('.'));
 				}
 				sdkString = sdkString + "/" + godotVersion;
 			}
@@ -139,11 +138,11 @@ namespace GodotMonoDecomp
 			PlaceIntoTag("PropertyGroup", xml, () => WriteProjectInfo(xml, project));
 			PlaceIntoTag("PropertyGroup", xml, () => WriteMiscellaneousPropertyGroup(xml, files));
 			PlaceIntoTag("ItemGroup", xml, () => WriteResources(xml, files));
-			if (settings.writeProjectReferences && depInfo != null)
+			if (settings.WriteNuGetPackageReferences && depInfo != null)
 			{
 				PlaceIntoTag("ItemGroup", xml, () => WriteProjectReferences(xml, module, project, projectType, depInfo, settings));
 			}
-			if (settings.writePackageReferences && depInfo != null){
+			if (settings.WriteNuGetPackageReferences && depInfo != null){
 				PlaceIntoTag("ItemGroup", xml,
 					() => WritePackageReferences(xml, module, project, projectType, depInfo, settings));
 			}
@@ -162,7 +161,7 @@ namespace GodotMonoDecomp
 		}
 
 		static void WritePackageReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo? deps, ProjectFileWriterGodotStyleSettings settings)
+			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
 			void WritePackageRefs(XmlTextWriter xml)
 			{
@@ -185,7 +184,7 @@ namespace GodotMonoDecomp
 				return;
 			}
 
-			if (settings.writePackageReferences)
+			if (settings.WriteNuGetPackageReferences)
 			{
 				WritePackageRefs(xml);
 			}
@@ -391,7 +390,7 @@ namespace GodotMonoDecomp
 		}
 
 		static void WriteProjectReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo? deps, ProjectFileWriterGodotStyleSettings settings)
+			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
 			if (deps == null)
 			{
@@ -411,7 +410,7 @@ namespace GodotMonoDecomp
 		}
 
 		static void WriteReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo? deps, ProjectFileWriterGodotStyleSettings settings)
+			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
 			bool isNetCoreApp = TargetServices.DetectTargetFramework(module).Identifier == ".NETCoreApp";
 			var targetPacks = new HashSet<string>();
@@ -505,12 +504,12 @@ namespace GodotMonoDecomp
 
 			bool IsProjectReference(AssemblyReference reference)
 			{
-				return settings.writeProjectReferences && deps != null && deps.HasDep(reference.Name, "project", false);
+				return settings.CreateAdditionalProjectsForProjectReferences && deps != null && deps.HasDep(reference.Name, "project", false);
 			}
 
 			bool DepExistsInPackages(AssemblyReference reference)
 			{
-				return settings.writePackageReferences && deps != null && deps.HasDep(reference.Name, "package", true);
+				return settings.WriteNuGetPackageReferences && deps != null && deps.HasDep(reference.Name, "package", true);
 			}
 
 			string GetNewRefOutputPath(string path)
@@ -604,7 +603,7 @@ namespace GodotMonoDecomp
 				if (asembly != null && !project.AssemblyReferenceClassifier.IsGacAssembly(reference))
 				{
 					var path = FileUtility.GetRelativePath(project.TargetDirectory, asembly.FileName);
-					if (realRef && settings.copyOutOfTreeRefsToOutputDir && path.StartsWith(".."))
+					if (realRef && settings.CopyOutOfTreeReferences && path.StartsWith(".."))
 					{
 						// we need to copy the file to the output directory
 						// check if one of the directories in the path is ".mono"
