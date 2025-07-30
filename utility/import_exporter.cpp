@@ -992,18 +992,42 @@ Error ImportExporter::recreate_plugin_configs() {
 
 	Error err;
 	print_line("Recreating plugin configs...");
-	Vector<String> dirs;
+	Vector<String> addons_dirs;
+	Ref<DirAccess> dir = DirAccess::open("res://addons/");
+	if (!dir.is_null()) {
+		addons_dirs = dir->get_directories();
+	}
 	for (int i = 0; i < enabled_plugins.size(); i++) {
-		const String &path = enabled_plugins[i];
+		String &path = enabled_plugins.write[i];
+		String dir = path.get_base_dir();
+		if (dir.is_empty()) {
+			bool found = false;
+			for (int j = 0; j < addons_dirs.size(); j++) {
+				if (addons_dirs[j].filenocasecmp_to(path) == 0) {
+					path = "res://addons/" + addons_dirs[j];
+					found = true;
+					break;
+				}
+			}
+			if (found) {
+				if (!path.ends_with("plugin.cfg")) {
+					path = path.path_join("plugin.cfg");
+				}
+				dir = path.get_base_dir();
+			} else {
+				report->failed_plugin_cfg_create.push_back(path);
+				continue;
+			}
+		}
 		// plugin was not included in the project
-		if (!DirAccess::dir_exists_absolute(path.get_base_dir())) {
+		if (!DirAccess::dir_exists_absolute(dir)) {
+			report->failed_plugin_cfg_create.push_back(path.get_base_dir().get_file());
 			continue;
 		}
 		err = recreate_plugin_config(path);
 		if (err) {
-			String dir = path.trim_prefix("res://addons/").trim_suffix("/plugin.cfg");
 			WARN_PRINT("Failed to recreate plugin.cfg for " + dir);
-			report->failed_plugin_cfg_create.push_back(dir);
+			report->failed_plugin_cfg_create.push_back(path.get_base_dir().get_file());
 		}
 	}
 	return OK;
