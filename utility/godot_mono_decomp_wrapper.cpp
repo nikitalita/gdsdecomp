@@ -81,8 +81,9 @@ struct DecompileModuleTaskData : public TaskRunnerStruct {
 		if (cancelled) {
 			return 1;
 		}
+		current_step++;
 		// compare and exchange if p_current is greater than current_step
-		current_step = p_current;
+		// current_step = p_current;
 		// total_steps = p_total;
 		String description = String::utf8(p_description);
 		queue.push(description);
