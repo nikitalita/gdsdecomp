@@ -49,6 +49,7 @@ namespace GodotMonoDecomp
 		const string WindowsFormsName = "System.Windows.Forms";
 		const string TrueString = "True";
 		const string FalseString = "False";
+		const string EnableString = "enable";
 		const string AnyCpuString = "AnyCPU";
 
 		static readonly HashSet<string> ImplicitReferences = new HashSet<string> {
@@ -104,11 +105,11 @@ namespace GodotMonoDecomp
 			using (XmlTextWriter xmlWriter = new XmlTextWriter(target))
 			{
 				xmlWriter.Formatting = Formatting.Indented;
-				Write(xmlWriter, project, files, module, DepInfo, actualProject.Settings);
+				Write(xmlWriter, actualProject, files, module, DepInfo, actualProject.Settings);
 			}
 		}
 
-		static void Write(XmlTextWriter xml, IProjectInfoProvider project, IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
+		static void Write(XmlTextWriter xml, IGodotProjectWithSettingsProvider project, IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
 			MetadataFile module, DotNetCoreDepInfo? depInfo, GodotMonoDecompSettings settings)
 		{
 			xml.WriteStartElement("Project");
@@ -225,9 +226,14 @@ namespace GodotMonoDecomp
 			xml.WriteElementString("AssemblyName", module.Name);
 
 			// Since we create AssemblyInfo.cs manually, we need to disable the auto-generation
-			// Actually, we don't.
-			// xml.WriteElementString("GenerateAssemblyInfo", FalseString);
+			// We only write this for non-Godot projects
+			if (projectType != ProjectType.Godot)
+			{
+				xml.WriteElementString("GenerateAssemblyInfo", FalseString);
+				xml.WriteElementString("GenerateTargetFrameworkAttribute", FalseString);
+			}
 			xml.WriteElementString("EnableDynamicLoading", TrueString);
+			xml.WriteElementString("Nullable", EnableString);
 
 
 			string platformName;
