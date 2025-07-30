@@ -453,6 +453,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	// check if the pack has .cs files
 	auto cs_files = GDRESettings::get_singleton()->get_file_list({ "*.cs" });
 	if (cs_files.size() > 0) {
+		report->mono_detected = true;
 		Vector<String> exclude_files;
 		for (int i = 0; i < cs_files.size(); i++) {
 			if (!files_to_export_set.has(cs_files[i])) {
@@ -1422,7 +1423,17 @@ String ImportExporterReport::get_report_string() {
 }
 String ImportExporterReport::get_editor_message_string() {
 	String report = "";
-	report += "Use Godot editor version " + ver->as_text() + String(godotsteam_detected ? " (steam version)" : "") + " to edit the project." + String("\n");
+	String version_text = ver->as_text();
+	if (godotsteam_detected) {
+		if (mono_detected) {
+			version_text += " (Steam Mono edition)";
+		} else {
+			version_text += " (Steam edition)";
+		}
+	} else if (mono_detected) {
+		version_text += " (Mono)";
+	}
+	report += "Use Godot editor version " + version_text + " to edit the project." + String("\n");
 	if (godotsteam_detected) {
 		report += "GodotSteam can be found here: https://github.com/CoaguCo-Industries/GodotSteam/releases \n";
 	}
@@ -1532,6 +1543,10 @@ bool ImportExporterReport::is_steam_detected() const {
 	return godotsteam_detected;
 }
 
+bool ImportExporterReport::is_mono_detected() const {
+	return mono_detected;
+}
+
 void ImportExporterReport::print_report() {
 	print_line("\n\n********************************EXPORT REPORT********************************" + String("\n"));
 	print_line(get_report_string());
@@ -1572,4 +1587,5 @@ void ImportExporterReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ver", "ver"), &ImportExporterReport::set_ver);
 	ClassDB::bind_method(D_METHOD("get_ver"), &ImportExporterReport::get_ver);
 	ClassDB::bind_method(D_METHOD("is_steam_detected"), &ImportExporterReport::is_steam_detected);
+	ClassDB::bind_method(D_METHOD("is_mono_detected"), &ImportExporterReport::is_mono_detected);
 }

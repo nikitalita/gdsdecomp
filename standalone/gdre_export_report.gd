@@ -98,8 +98,13 @@ func add_ver_string(ver_string: String):
 	var ver = GodotVer.parse_godotver(ver_string)
 	var tag = ver_to_tag(ver)
 	if report.is_steam_detected():
-		ver_string += " (Steam edition)"
-	EDITOR_MESSAGE_LABEL.text = EDITOR_MESSAGE_LABEL.text.replace("<GODOT_VER>", "[url=" + get_url_for_tag(tag) + "]"+ ver_string + "[/url]")
+		if report.is_mono_detected():
+			ver_string += " (Steam Mono edition)"
+		else:
+			ver_string += " (Steam edition)"
+	elif report.is_mono_detected():
+		ver_string += " (Mono)"
+	EDITOR_MESSAGE_LABEL.text = EDITOR_MESSAGE_LABEL.text.replace("<GODOT_VER>", "[url=" + get_url_for_tag(tag, report.is_steam_detected()) + "]"+ ver_string + "[/url]")
 
 func add_log_file(log_path: String):
 	recovery_folder = log_path.get_base_dir()
