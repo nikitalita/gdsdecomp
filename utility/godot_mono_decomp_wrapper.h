@@ -30,6 +30,7 @@ public:
 
 	Error decompile_module_with_progress(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	String decompile_individual_file(const String &file);
+	Dictionary get_script_info(const String &file);
 	Vector<String> get_files_not_present_in_file_map();
 	Vector<String> get_all_strings_in_module();
 

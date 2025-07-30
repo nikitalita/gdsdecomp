@@ -222,9 +222,11 @@ public:
 	void set_can_instantiate(bool p_can_instantiate);
 };
 
+class FakeCSharpScript;
 class FakeScriptInstance : public ScriptInstance {
 	friend class FakeGDScript;
 	friend class FakeEmbeddedScript;
+	friend class FakeCSharpScript;
 
 private:
 	Object *owner = nullptr;

@@ -1,4 +1,5 @@
 #include "godot_mono_decomp_wrapper.h"
+#include "core/io/json.h"
 #include "core/templates/vector.h"
 #include "godot_mono_decomp.h"
 
@@ -159,6 +160,20 @@ String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
 	return result_str;
 }
 
+Dictionary GodotMonoDecompWrapper::get_script_info(const String &file) {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, Dictionary(), "Decompiler handle is null");
+	CharString file_chrstr = file.utf8();
+	const char *file_c = file_chrstr.get_data();
+	const char *result = GodotMonoDecomp_GetScriptInfo(decompilerHandle, file_c);
+	if (result == nullptr) {
+		return Dictionary();
+	}
+	String result_str = String::utf8(result);
+	GodotMonoDecomp_FreeString((void *)result);
+	Dictionary dict = JSON::parse_string(result_str);
+	return dict;
+}
+
 Vector<String> GodotMonoDecompWrapper::get_files_not_present_in_file_map() {
 	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, Vector<String>(), "Decompiler handle is null");
 	int num = GodotMonoDecomp_GetNumberOfFilesNotPresentInFileMap(decompilerHandle);
@@ -190,5 +205,6 @@ Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 void GodotMonoDecompWrapper::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath"), &GodotMonoDecompWrapper::decompile_module_with_progress);
 	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);
+	ClassDB::bind_method(D_METHOD("get_script_info", "file"), &GodotMonoDecompWrapper::get_script_info);
 	ClassDB::bind_method(D_METHOD("get_files_not_present_in_file_map"), &GodotMonoDecompWrapper::get_files_not_present_in_file_map);
 }

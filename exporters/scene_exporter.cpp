@@ -796,8 +796,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		};
 		for (auto &E : get_deps_map) {
 			dep_info &info = E.value;
-			// Never set Script or Shader, they're not used by the GLTF writer and cause errors
-			if ((info.type == "Script" && info.dep.get_extension().to_lower() != "gd") || (info.type == "Shader" && !loading_shaders)) {
+			// Never set a Shader, they're not used by the GLTF writer and cause errors
+			if ((info.type == "Script" && info.dep.get_extension().to_lower() == "cs" && !GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) || (info.type == "Shader" && !loading_shaders)) {
 				auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
 				if (info.type == "Script") {
 					Ref<FakeEmbeddedScript> script = texture;

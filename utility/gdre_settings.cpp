@@ -701,8 +701,6 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	err = load_import_files();
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
 
-	_ensure_script_cache_complete();
-
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
 	if (project_requires_dotnet_assembly()) {
@@ -715,6 +713,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 			WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
 		}
 	}
+	_ensure_script_cache_complete();
 
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
@@ -1810,14 +1809,23 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 }
 
 void GDRESettings::_ensure_script_cache_complete() {
-	auto script_paths = get_file_list({ "*.gd", "*.gdc", "*.gde" });
+	Vector<String> filters = { "*.gd", "*.gdc", "*.gde" };
+	// We don't really need this for C# scripts, and it's a significant performance hit loading them.
+	// if (has_loaded_dotnet_assembly()) {
+	// 	filters.push_back("*.cs");
+	// }
+	auto script_paths = get_file_list(filters);
 	int bytecode_revision = get_bytecode_revision();
+	GDRELogger::set_silent_errors(true);
 	for (auto &path : script_paths) {
+		auto ext = path.get_extension().to_lower();
+		bool bytecode_script = ext == "gdc" || ext == "gde";
+		bool is_gdscript = ext == "gd" || bytecode_script;
 		// Don't attempt to load compiled scripts if we don't have a valid version.
-		if (path.get_extension().to_lower() != "gd" && bytecode_revision == 0) {
+		if (bytecode_script && bytecode_revision == 0) {
 			continue;
 		}
-		String orig_path = path.ends_with(".gd") ? path : path.get_basename() + ".gd";
+		String orig_path = bytecode_script ? path.get_basename() + ".gd" : path;
 		if (!script_cache.has(orig_path)) {
 			Ref<Script> script = ResourceCompatLoader::custom_load(orig_path, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 			if (script.is_valid()) {
@@ -1836,12 +1844,13 @@ void GDRESettings::_ensure_script_cache_complete() {
 				d["icon"] = "";
 				d["is_abstract"] = script->is_abstract();
 				d["is_tool"] = script->is_tool();
-				d["language"] = SNAME("GDScript");
+				d["language"] = is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript");
 				d["path"] = orig_path;
 				script_cache[orig_path] = d;
 			}
 		}
 	}
+	GDRELogger::set_silent_errors(false);
 }
 
 Error GDRESettings::reset_gdscript_cache() {
