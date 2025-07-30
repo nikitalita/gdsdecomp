@@ -52,6 +52,14 @@ var text_size_minus_id: int = 0
 	get:
 		return json_highlighter
 
+@export var csharp_highlighter: CodeHighlighter = preload("res://gdre_csharp_highlighter.tres"):
+	set(val):
+		if CODE_VIEWER.syntax_highlighter == csharp_highlighter:
+			CODE_VIEWER.syntax_highlighter = val
+		csharp_highlighter = val
+	get:
+		return csharp_highlighter
+
 
 func reset():
 	set_text_viewer_props()
@@ -98,7 +106,20 @@ func set_viewer_text(text: String):
 
 func load_code(path, override_bytecode_revision: int = 0):
 	var code_text = ""
-	if path.get_extension().to_lower() == "gd":
+	if path.get_extension().to_lower() == "cs":
+		# try to load the literal file first; if it's empty, try to decompile it from the assembly
+		code_text = FileAccess.get_file_as_string(path)
+		if code_text.strip_edges().is_empty():
+			if GDRESettings.has_loaded_dotnet_assembly():
+				var decompiler = GDRESettings.get_dotnet_decompiler()
+				code_text = decompiler.decompile_individual_file(path)
+				set_csharp_viewer_props()
+			else:
+				code_text = "Error loading script:\nNo .NET assembly loaded"
+				set_text_viewer_props()
+		else:
+			set_csharp_viewer_props()
+	elif path.get_extension().to_lower() == "gd":
 		code_text = FileAccess.get_file_as_string(path)
 		set_code_viewer_props()
 	else:
@@ -150,6 +171,17 @@ func set_shader_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdshader_highlighter
 	CODE_VIEWER.line_folding = true
 	CODE_VIEWER.gutters_draw_fold_gutter = true
+	CODE_VIEWER.gutters_draw_line_numbers = true
+	CODE_VIEWER.auto_brace_completion_highlight_matching = true
+	CODE_VIEWER.highlight_all_occurrences = true
+	CODE_VIEWER.highlight_current_line = true
+	CODE_VIEWER.draw_control_chars = true
+	CODE_VIEWER.draw_tabs = true
+	CODE_VIEWER.draw_spaces = true
+	CODE_VIEWER.delimiter_comments = GDSHADER_COMMENTS
+
+func set_csharp_viewer_props():
+	CODE_VIEWER.syntax_highlighter = csharp_highlighter
 	CODE_VIEWER.gutters_draw_line_numbers = true
 	CODE_VIEWER.auto_brace_completion_highlight_matching = true
 	CODE_VIEWER.highlight_all_occurrences = true
