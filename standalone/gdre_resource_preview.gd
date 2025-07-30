@@ -159,29 +159,19 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		%TextView.visible = true
 	elif is_binary_project_settings(path):
 		pass
-		var loader = ProjectConfigLoader.new()
-		var ver_major = GDRESettings.get_ver_major()
-		var text_file = "project.godot"
-		if (ver_major > 0):
-			loader.load_cfb(path, ver_major, 0)
-		else:
-			if (path.get_file() == "engine.cfb"):
-				ver_major = 2
-				loader.load_cfb(path, ver_major, 0)
-			else:
-				var err = loader.load_cfb(path, 4, 3)
-				if (err == OK):
-					ver_major = 4
-				else:
-					loader.load_cfb(path, 3, 3)
-					ver_major = 3
-		if ver_major == 2:
-			text_file = "engine.cfg"
+		var ret = GDREGlobals.convert_pcfg_to_text(path, OS.get_temp_dir())
+		var err = ret[0]
+		if err != OK:
+			error_opening = true
+			%TextView.load_text_string("Error opening resource")
+			%TextView.visible = true
+			%ResourceInfo.text = path
+			return
+		var text_file = ret[1]
 		var temp_path = OS.get_temp_dir().path_join(text_file)
-		var config = loader.save_cfb(OS.get_temp_dir(), ver_major, 0)
 		%TextView.load_text_resource(temp_path)
 		%TextView.visible = true
-		var da = DirAccess.open(OS.get_temp_dir())
+		var da = DirAccess.open(OS.get_temp_dir()) if err == OK else null
 		if da:
 			da.remove(temp_path)
 	elif ResourceCompatLoader.handles_resource(path, ""):
