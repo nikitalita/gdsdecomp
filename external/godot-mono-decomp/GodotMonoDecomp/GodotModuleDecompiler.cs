@@ -284,10 +284,11 @@ public class GodotModuleDecompiler
 		var path = GodotStuff.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path) && fileMap.TryGetValue(path, out var type))
 		{
-			GodotModule? module = null;
+			GodotModule? module = MainModule;
 			var projectDecompiler = CreateProjectDecompiler(module);
 			if (!projectDecompiler.GetTypesToDecompile(module.Module).Contains(type))
 			{
+				module = null;
 				foreach (var m in AdditionalModules)
 				{
 					if (projectDecompiler.GetTypesToDecompile(module.Module).Contains(type))
