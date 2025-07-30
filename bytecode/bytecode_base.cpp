@@ -1109,7 +1109,8 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			} break;
 			case G_TK_PR_SUPER: {
 				ensure_space_func();
-				line += "super ";
+				line += "super";
+				ensure_ending_space_func(i, G_TK_PERIOD);
 			} break;
 			case G_TK_PR_TRAIT: {
 				ensure_space_func();
