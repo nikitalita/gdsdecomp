@@ -45,13 +45,22 @@ void ScenePreviewer3D::gui_input(const Ref<InputEvent> &p_event) {
 	ERR_FAIL_COND(p_event.is_null());
 
 	Ref<InputEventMouseMotion> mm = p_event;
-	if (mm.is_valid() && (mm->get_button_mask().has_flag(MouseButtonMask::LEFT))) {
-		rot_x -= mm->get_relative().y * 0.01;
-		rot_y -= mm->get_relative().x * 0.01;
+	if (mm.is_valid()) {
+		if ((mm->get_button_mask().has_flag(MouseButtonMask::LEFT))) {
+			rot_x -= mm->get_relative().y * 0.01;
+			rot_y -= mm->get_relative().x * 0.01;
 
-		rot_x = CLAMP(rot_x, -Math::PI / 2, Math::PI / 2);
+			rot_x = CLAMP(rot_x, -Math::PI / 2, Math::PI / 2);
+			_update_rotation();
+		}
+	}
+
+	Ref<InputEventMagnifyGesture> mg = p_event;
+	if (mg.is_valid()) {
+		scale *= mg->get_factor();
 		_update_rotation();
 	}
+
 	Ref<InputEventMouseButton> mb = p_event;
 	if (mb.is_valid() && mb->is_pressed() && mb->get_button_index() == MouseButton::WHEEL_UP) {
 		scale *= 1.1;
