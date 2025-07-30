@@ -184,13 +184,21 @@ void ResourceCompatLoader::get_base_extensions_for_type(const String &p_type, Li
 Ref<Resource> ResourceCompatLoader::fake_load(const String &p_path, const String &p_type_hint, Error *r_error) {
 	auto loadr = get_loader_for_path(p_path, p_type_hint);
 	FAIL_LOADER_NOT_FOUND(loadr);
-	return loadr->custom_load(p_path, {}, ResourceInfo::LoadType::FAKE_LOAD, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+	Ref<Resource> res = loadr->custom_load(p_path, {}, ResourceInfo::LoadType::FAKE_LOAD, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+	if (res.is_valid() && res->get_path().is_empty()) {
+		res->set_path_cache(p_path);
+	}
+	return res;
 }
 
 Ref<Resource> ResourceCompatLoader::non_global_load(const String &p_path, const String &p_type_hint, Error *r_error) {
 	auto loader = get_loader_for_path(p_path, p_type_hint);
 	FAIL_LOADER_NOT_FOUND(loader);
-	return loader->custom_load(p_path, {}, ResourceInfo::LoadType::NON_GLOBAL_LOAD, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+	Ref<Resource> res = loader->custom_load(p_path, {}, ResourceInfo::LoadType::NON_GLOBAL_LOAD, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+	if (res.is_valid() && res->get_path().is_empty()) {
+		res->set_path_cache(p_path);
+	}
+	return res;
 }
 
 Ref<Resource> ResourceCompatLoader::gltf_load(const String &p_path, const String &p_type_hint, Error *r_error) {
@@ -260,6 +268,14 @@ Ref<Resource> ResourceCompatLoader::load_with_real_resource_loader(const String 
 	}
 
 	Ref<Resource> res = ResourceLoader::_load_complete(*load_token.ptr(), r_error);
+	if (res.is_valid() && res->get_path().is_empty()) {
+		if (p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE) {
+			res->set_path(local_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
+		} else {
+			res->set_path_cache(local_path);
+		}
+	}
+
 	return res;
 }
 
