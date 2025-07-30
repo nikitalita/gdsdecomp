@@ -49,7 +49,11 @@ public class GodotModuleDecompiler
 		GodotMonoDecompSettings? settings = default(GodotMonoDecompSettings))
 	{
 		AdditionalModules = [];
-		this.originalProjectFiles = [.. (originalProjectFiles ?? []).Where(file => !string.IsNullOrEmpty(file)).Select(file => Common.TrimPrefix(file, "res://")).OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
+		this.originalProjectFiles = [.. (originalProjectFiles ?? [])
+			.Where(file => !string.IsNullOrEmpty(file))
+			.Select(file => Common.TrimPrefix(file, "res://").Replace('\\', '/'))
+			.Where(file => !string.IsNullOrEmpty(file) && !file.StartsWith(".godot/mono/temp"))
+			.OrderBy(file => file, StringComparer.OrdinalIgnoreCase)];
 		var mod = new PEFile(assemblyPath);
 		var mainDepInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), mod.Name);
 		MainModule = new GodotModule(mod, mainDepInfo);
