@@ -608,6 +608,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	bool has_external_images = false;
 	bool has_external_meshes = false;
 	bool had_images = false;
+	// Need to load the shaders to get the shader parameters if we're replacing shader materials
+	bool loading_shaders = options.get("Exporter/Scene/GLTF/replace_shader_materials", false);
 	Vector<CompressedTexture2D::DataFormat> image_formats;
 	const bool after_4_1 = (ver_major > 4 || (ver_major == 4 && ver_minor > 1));
 	const bool after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
@@ -795,7 +797,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		for (auto &E : get_deps_map) {
 			dep_info &info = E.value;
 			// Never set Script or Shader, they're not used by the GLTF writer and cause errors
-			if ((info.type == "Script" && info.dep.get_extension().to_lower() != "gd") || (info.type == "Shader")) {
+			if ((info.type == "Script" && info.dep.get_extension().to_lower() != "gd") || (info.type == "Shader" && !loading_shaders)) {
 				auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
 				if (info.type == "Script") {
 					Ref<FakeEmbeddedScript> script = texture;
@@ -1098,6 +1100,41 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					memdelete(root);
 					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
 				}
+
+				// remove shader materials from meshes in the state before serializing
+				if (options.get("Exporter/Scene/GLTF/replace_shader_materials", false)) {
+					for (auto &E : state->get_meshes()) {
+						Ref<GLTFMesh> mesh = E;
+						if (mesh.is_valid()) {
+							auto instance_materials = mesh->get_instance_materials();
+							for (int i = instance_materials.size() - 1; i >= 0; i--) {
+								Ref<ShaderMaterial> shader_material = instance_materials[i];
+								if (shader_material.is_valid()) {
+									// List<PropertyInfo> list;
+									// shader_material->get_property_list(&list);
+									// Vector<PropertyInfo> shader_params;
+									// for (auto &E : list) {
+									// 	if (E.name.begins_with("shader_parameter/")) {
+									// 		shader_params.push_back(E);
+									// 	}
+									// }
+									Ref<Material> new_mat;
+									auto im = mesh->get_mesh();
+									if (im.is_valid() && im->get_surface_count() > i) {
+										new_mat = im->get_surface_material(i);
+									}
+									if (new_mat.is_valid()) {
+										instance_materials[i] = new_mat;
+									} else {
+										instance_materials.remove_at(i);
+									}
+								}
+							}
+							mesh->set_instance_materials(instance_materials);
+						}
+					}
+				}
+
 				Vector<String> original_mesh_names;
 				Vector<String> original_image_names;
 
@@ -1725,6 +1762,9 @@ SceneExporterInstance::SceneExporterInstance(Dictionary curr_options) {
 	}
 	if (!options.has("Exporter/Scene/GLTF/force_export_multi_root")) {
 		options["Exporter/Scene/GLTF/force_export_multi_root"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_export_multi_root", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/replace_shader_materials")) {
+		options["Exporter/Scene/GLTF/replace_shader_materials"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/replace_shader_materials", false);
 	}
 }
 

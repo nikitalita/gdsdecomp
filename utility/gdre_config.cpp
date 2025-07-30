@@ -52,6 +52,12 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Force export multi root",
 				"Forces the export to export in multi-root mode, even if the scene is a single root",
 				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/replace_shader_materials",
+				"Replace shader materials",
+				"Replaces shader materials with their referenced materials when exporting the scene (this may result in inaccurate exports)",
+				false,
+				true)), // TODO: Currently only used by the standalone exporter, maybe we should expose it?
 	};
 }
 
