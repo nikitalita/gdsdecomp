@@ -233,7 +233,17 @@ Ref<Resource> ResourceCompatLoader::custom_load(const String &p_path, const Stri
 	if (!is_real_load) {
 		local_path = "";
 	}
-	return loader->custom_load(res_path, local_path, p_type, r_error, use_threads, p_cache_mode);
+	Ref<Resource> res = loader->custom_load(res_path, local_path, p_type, r_error, use_threads, p_cache_mode);
+	if (res.is_valid()) {
+		if (res->get_path().is_empty()) {
+			if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE) {
+				res->set_path(local_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
+			} else {
+				res->set_path_cache(local_path);
+			}
+		}
+	}
+	return res;
 }
 
 Ref<Resource> ResourceCompatLoader::load_with_real_resource_loader(const String &p_path, const String &p_type_hint, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
