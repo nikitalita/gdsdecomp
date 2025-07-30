@@ -530,7 +530,7 @@ String GDRESettings::sanitize_home_in_path(const String &p_path) {
 	return p_path;
 }
 
-Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract) {
+Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract, const String &csharp_assembly_override) {
 	GDRELogger::clear_error_queues();
 	if (is_pack_loaded()) {
 		return ERR_ALREADY_IN_USE;
@@ -699,15 +699,15 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
-	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
-	if (get_ver_major() >= 4 && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
+	if (!csharp_assembly_override.is_empty()) {
+		err = reload_dotnet_assembly(csharp_assembly_override);
+	} else {
 		err = load_project_dotnet_assembly();
-		if (err) {
-			err = OK;
-			WARN_PRINT("Could not load .NET assembly!");
-		} else {
-			print_line(vformat("Loaded .NET assembly: %s", get_dotnet_assembly_path()));
-		}
+	}
+	if (err) {
+		WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
+	} else {
+		print_line(vformat("Loaded .NET assembly: %s", get_dotnet_assembly_path()));
 	}
 
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
@@ -2259,7 +2259,7 @@ bool GDRESettings::project_requires_dotnet_assembly() const {
 }
 
 void GDRESettings::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract", "csharp_assembly_override"), &GDRESettings::load_project, DEFVAL(false), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
 	ClassDB::bind_method(D_METHOD("get_gdre_resource_path"), &GDRESettings::get_gdre_resource_path);
 	ClassDB::bind_method(D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);

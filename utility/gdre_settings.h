@@ -217,7 +217,7 @@ protected:
 	static void _bind_methods();
 
 public:
-	Error load_project(const Vector<String> &p_paths, bool cmd_line_extract = false);
+	Error load_project(const Vector<String> &p_paths, bool cmd_line_extract = false, const String &csharp_assembly_override = "");
 	Error load_pck(const String &p_path);
 
 	Error unload_project();

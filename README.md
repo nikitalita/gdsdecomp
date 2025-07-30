@@ -68,6 +68,7 @@ Recover/Extract Options:
 --include=<GLOB>                         Include files matching the glob pattern (can be repeated)
 --exclude=<GLOB>                         Exclude files matching the glob pattern (can be repeated)
 --ignore-checksum-errors                 Ignore MD5 checksum errors when extracting/recovering
+--csharp-assembly=<PATH>                 Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
 
 Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>           Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')

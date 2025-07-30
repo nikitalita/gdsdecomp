@@ -708,6 +708,7 @@ var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 --include=<GLOB>            Include files matching the glob pattern (can be repeated)
 --exclude=<GLOB>            Exclude files matching the glob pattern (can be repeated)
 --ignore-checksum-errors    Ignore MD5 checksum errors when extracting/recovering
+--csharp-assembly=<PATH>    Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
 """
 # todo: handle --key option
 var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
@@ -793,7 +794,8 @@ func recovery(  input_files:PackedStringArray,
 				extract_only: bool,
 				ignore_checksum_errors: bool = false,
 				excludes: PackedStringArray = [],
-				includes: PackedStringArray = []):
+				includes: PackedStringArray = [],
+				csharp_assembly: String = ""):
 	var _new_files = []
 	for file in input_files:
 		file = get_cli_abs_path(file)
@@ -856,7 +858,7 @@ func recovery(  input_files:PackedStringArray,
 			print("Error: failed to set key!")
 			return
 
-	err = GDRESettings.load_project(input_files, extract_only)
+	err = GDRESettings.load_project(input_files, extract_only, csharp_assembly)
 	if (err != OK):
 		print_usage()
 		print("Error: failed to open ", (GDREGlobals.get_files_for_paths(input_files)))
@@ -1260,6 +1262,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var excludes: PackedStringArray = []
 	var includes: PackedStringArray = []
 	var prepop: PackedStringArray = []
+	var csharp_assembly: String = ""
 	var set_setting: bool = false
 	if (args.size() == 0):
 		return false
@@ -1361,6 +1364,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 				print(patch_files)
 				return true
 			patch_map[get_cli_abs_path(dequote(patch_files[0]).strip_edges())] = dequote(patch_files[1]).strip_edges()
+		elif arg.begins_with("--csharp-assembly"):
+			csharp_assembly = get_arg_value(arg)
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
@@ -1385,7 +1390,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 	elif decompile_files.size() > 0:
 		decompile(decompile_files, bytecode_version, output_dir, enc_key)
 	elif not input_file.is_empty():
-		recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes)
+		recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, csharp_assembly)
 		GDRESettings.unload_project()
 		close_log()
 	elif not input_extract_file.is_empty():
