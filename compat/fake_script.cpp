@@ -356,6 +356,10 @@ Error FakeGDScript::parse_script() {
 	if (base_type.is_empty()) {
 		base_type = decomp->get_variant_ver_major() < 4 ? "Reference" : "RefCounted";
 	}
+	if (global_name.is_empty() && !script_path.is_empty()) {
+		global_name = script_path.get_file().get_basename();
+		local_name = global_name;
+	}
 
 	return OK;
 }
