@@ -711,6 +711,9 @@ bool ResourceCompatConverter::is_external_resource(Ref<MissingResource> mr) {
 Ref<Resource> ResourceCompatConverter::get_real_from_missing_resource(Ref<MissingResource> mr, ResourceInfo::LoadType load_type) {
 	auto resource_info = ResourceInfo::get_info_from_resource(mr);
 	if (is_external_resource(mr)) {
+		if (load_type == ResourceInfo::LoadType::FAKE_LOAD || load_type == ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
+			return mr;
+		}
 		if (load_type == ResourceInfo::LoadType::ERR) {
 			load_type = resource_info.is_valid() ? resource_info->load_type : ResourceCompatLoader::get_default_load_type();
 		}
