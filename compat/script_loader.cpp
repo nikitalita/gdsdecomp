@@ -47,7 +47,6 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 		Ref<FakeEmbeddedScript> csharp_script;
 		csharp_script.instantiate();
 		csharp_script->set_original_class("CSharpScript");
-		csharp_script->set_path_cache(p_path);
 		fake_script = csharp_script;
 	} else {
 		Ref<FakeGDScript> fake_gd_script;
