@@ -42,23 +42,13 @@ int Main(string[] args)
 	settings.CopyOutOfTreeReferences = !result.Value.NoCopyOutOfTreeReferences;
 	settings.CreateAdditionalProjectsForProjectReferences = !result.Value.NoCreateAdditionalProjectsForProjectReferences;
 	settings.GodotVersionOverride = result.Value.GodotVersion == null ? null : GodotStuff.ParseGodotVersionFromString(result.Value.GodotVersion);
-	{
-		// get the current time
-		var startTime = DateTime.Now;
-		var files = Common.ListCSharpFiles(projectPath, false);
-		GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], referencePaths, settings);
-		// return decompiler.DecompileModule(outputCSProj);
-		var utf32_strings = decompiler.GetAllUtf32StringsInModule();
-		var strings = utf32_strings.Select(s => Encoding.UTF32.GetString(s));
-		var timeTaken = DateTime.Now - startTime;
-		Console.WriteLine($"Decompilation completed in {timeTaken.TotalSeconds} seconds.");
-		return 0;
-
-	}
+	// get the current time
+	var startTime = DateTime.Now;
     // call the DecompileProject function
-    // int resultCode = Lib.DecompileProject(assemblyPath, outputCSProj, projectPath, referencePaths, settings);
-
-    // return resultCode;
+    int resultCode = Lib.DecompileProject(assemblyPath, outputCSProj, projectPath, referencePaths, settings);
+    var timeTaken = DateTime.Now - startTime;
+    Console.WriteLine($"Decompilation completed in {timeTaken.TotalSeconds} seconds.");
+    return resultCode;
 }
 
 return Main(args);
