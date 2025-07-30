@@ -1,5 +1,6 @@
 #include "fake_gdscript.h"
 #include "fake_script.h"
+
 #include "compat/resource_loader_compat.h"
 #include "compat/variant_decoder_compat.h"
 #include "core/io/missing_resource.h"
