@@ -276,7 +276,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 	}
 }
 
-bool SceneExporter::using_threaded_load() const {
+bool SceneExporterInstance::using_threaded_load() const {
 	// If the scenes are being exported using the worker task pool, we can't use threaded load
 	return !supports_multithread();
 }
@@ -313,7 +313,7 @@ inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<R
 	}
 }
 
-void SceneExporter::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
+void SceneExporterInstance::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
 	auto ver_major = p_import_info->get_ver_major();
 	auto ver_minor = p_import_info->get_ver_minor();
 	if (ver_major == 4) {
@@ -557,7 +557,14 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_
 	return err;
 }
 
-Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
+int SceneExporterInstance::get_ver_major(const String &res_path) {
+	Error err;
+	auto info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
+	ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to get resource info for " + res_path);
+	return info->ver_major; // Placeholder return value
+}
+
+Error SceneExporterInstance::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
 	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
@@ -888,7 +895,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
 			HashSet<Node *> skinned_mesh_instances;
 			for (auto &E : mesh_instances) {
-				MeshInstance3D *mesh_instance = cast_to<MeshInstance3D>(E);
+				MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
 				ERR_CONTINUE(!mesh_instance);
 				auto skin = mesh_instance->get_skin();
 				if (skin.is_valid()) {
@@ -899,7 +906,7 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 			for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
 				// Force re-compute animation tracks.
 				Vector<Ref<AnimationLibrary>> anim_libs;
-				AnimationPlayer *player = cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
+				AnimationPlayer *player = Object::cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
 				List<StringName> anim_lib_names;
 				player->get_animation_library_list(&anim_lib_names);
 				for (auto &lib_name : anim_lib_names) {
@@ -1587,14 +1594,15 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		int ver_major = get_ver_major(p_src_path);
 		ERR_FAIL_COND_V_MSG(ver_major != 4, ERR_UNAVAILABLE, "Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 	}
-	Error err = _export_file(p_dest_path, p_src_path, nullptr);
+	SceneExporterInstance instance;
+	Error err = instance._export_file(p_dest_path, p_src_path, nullptr);
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		err = OK;
 	}
 	return err;
 }
 
-Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info) {
+Error SceneExporterInstance::export_file_to_obj(const String &p_dest_path, const String &p_src_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info) {
 	Error err;
 	Ref<PackedScene> scene;
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
@@ -1659,7 +1667,8 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		report->set_unsupported_format_type(itos(iinfo->get_ver_major()) + ".x PackedScene");
 	} else {
 		report->set_new_source_path(new_path);
-		err = _export_file(dest_path, iinfo->get_path(), report);
+		SceneExporterInstance instance;
+		err = instance._export_file(dest_path, iinfo->get_path(), report);
 	}
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		report->set_saved_path(dest_path);
