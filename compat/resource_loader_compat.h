@@ -152,8 +152,8 @@ public:
 		return res;
 	}
 
-	static Resource *create_missing_main_resource(const String &path, const String &type, const ResourceUID::ID uid) {
-		Resource *res{ make_fakescript_or_mising_resource(path, type) };
+	static Resource *create_missing_main_resource(const String &path, const String &type, const ResourceUID::ID uid, bool no_fake_script = false) {
+		Resource *res{ make_fakescript_or_mising_resource(path, type, "", no_fake_script) };
 		Ref<ResourceInfo> compat;
 		compat.instantiate();
 		compat->uid = uid;
