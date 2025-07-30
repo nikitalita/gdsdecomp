@@ -139,19 +139,6 @@ public class GodotModuleDecompiler
 					fixedPath = module.Name + "/" + pair.Key;
 				}
 
-				// var dupe = fileToModuleMap.FirstOrDefault(p => pair.Value.GetHashCode() == p.Value.GetHashCode());
-				// if (dupe.Key != null){
-				// 	dupeCount++;
-				// 	// if (this.originalProjectFiles.Contains(dupe.Key, StringComparer.OrdinalIgnoreCase)) {
-				// 	// 	// don't add it to the file map
-				// 	// 	continue;
-				// 	// }
-				// 	// // check if the original files are in the file map
-				// 	// if (fileMap.ContainsKey(fixedPath)) {
-				// 	// 	continue;
-				// 	// }
-				// 	// fileMap.Remove(dupe.Key);
-				// }
 				// only append it if it doesn't already have a module name
 				if (!fileToModuleMap.ContainsKey(fixedPath))
 				{
@@ -183,20 +170,6 @@ public class GodotModuleDecompiler
 		}
 
 	}
-
-	// Dictionary<TypeDefinitionHandle, string> MakeHandleToFileMap(MetadataFile module)
-	// {
-	// 	Version godotVersion = GodotStuff.GetGodotVersion(module) ?? new Version(0, 0, 0, 0);
-	// 	Dictionary<string, GodotScriptMetadata>? metadata = null;
-	// 	if (godotVersion.Major <= 3)
-	// 	{
-	// 		metadata = GodotScriptMetadataLoader.LoadFromFile(GodotScriptMetadataLoader.FindGodotScriptMetadataFile(module.FileName));
-	// 	}
-	// 	return GodotStuff.CreateFileMap(module, GetTypesToDecompile(module), FilesInOriginal, metadata, Settings.UseNestedDirectoriesForNamespaces).ToDictionary(
-	// 		pair => pair.Value,
-	// 		pair => pair.Key,
-	// 		null);
-	// }
 
 	GodotProjectDecompiler CreateProjectDecompiler(GodotModule module, IProgress<DecompilationProgress>? progress_reporter = null)
 	{
