@@ -95,7 +95,6 @@ public static class GodotStuff
 		return null;
 	}
 
-	// change this to a generator that yields the script paths
 	public static IEnumerable<string> GetCanonicalGodotScriptPaths(MetadataFile module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile,
 		Dictionary<string, GodotScriptMetadata>? scriptMetadata)
