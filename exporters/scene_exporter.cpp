@@ -567,7 +567,22 @@ int SceneExporterInstance::get_ver_major(const String &res_path) {
 Error SceneExporterInstance::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
-	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
+	auto res_info = ResourceCompatLoader::get_resource_info(p_src_path, "");
+	int ver_major = 0;
+	int ver_minor = 0;
+	if (iinfo.is_valid()) {
+		ver_major = iinfo->get_ver_major();
+		ver_minor = iinfo->get_ver_minor();
+	} else {
+		if (res_info.is_valid()) {
+			ver_major = res_info->ver_major;
+			ver_minor = res_info->ver_minor;
+		} else {
+			ver_major = GDRESettings::get_singleton()->get_ver_major();
+			ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+		}
+	}
+
 	if (dest_ext == "escn" || dest_ext == "tscn") {
 		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
 	} else if (dest_ext == "obj") {
@@ -594,9 +609,9 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	bool has_external_meshes = false;
 	bool had_images = false;
 	Vector<CompressedTexture2D::DataFormat> image_formats;
-	const bool after_4_1 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1)));
-	const bool after_4_3 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3)));
-	const bool after_4_4 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 4)));
+	const bool after_4_1 = (ver_major > 4 || (ver_major == 4 && ver_minor > 1));
+	const bool after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
+	const bool after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
 
 	String game_name = GDRESettings::get_singleton()->get_game_name();
 	String copyright_string = vformat("The Creators of '%s'", game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
@@ -709,6 +724,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	};
 
 	bool no_threaded_load = false;
+	bool updating_import_info = false;
 	{
 		get_deps_recursive(p_src_path, get_deps_map);
 
@@ -852,10 +868,10 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		bool lossy = false;
 		if (export_image_format == "WEBP") {
 			// Only 3.4 and above supports lossless WebP
-			if (iinfo.is_valid() && (iinfo->get_ver_major() > 3 || (iinfo->get_ver_major() == 3 && iinfo->get_ver_minor() >= 4))) {
+			if (ver_major > 3 || (ver_major == 3 && ver_minor >= 4)) {
 				export_image_format = "Lossless WebP";
 			} else {
-				if (GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false)) {
+				if (options.get("Exporter/Scene/GLTF/force_lossless_images", false)) {
 					export_image_format = "PNG";
 				} else {
 					export_image_format = "Lossy WebP";
@@ -864,7 +880,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			}
 			// TODO: add setting to force PNG?
 		} else if (export_image_format == "JPEG") {
-			if (GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false)) {
+			if (options.get("Exporter/Scene/GLTF/force_lossless_images", false)) {
 				export_image_format = "PNG";
 			} else {
 				lossy = true;
@@ -1020,10 +1036,14 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			}
 
 			String scene_name;
-			if (p_report.is_valid()) {
+			if (iinfo.is_valid()) {
 				scene_name = iinfo->get_source_file().get_file().get_basename();
 			} else {
-				scene_name = p_src_path.get_file().get_slice(".", 0);
+				if (res_info.is_valid()) {
+					scene_name = res_info->resource_name;
+				} else {
+					scene_name = p_src_path.get_file().get_slice(".", 0);
+				}
 			}
 			auto pop_res_path_vec = [](Array arr, Vector<String> &paths) {
 				paths.clear();
@@ -1054,7 +1074,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				doc->set_image_format(export_image_format);
 				doc->set_lossy_quality(1.0f);
 
-				if (has_non_skeleton_transforms && has_skinned_meshes) {
+				if (options.get("Exporter/Scene/GLTF/force_export_multi_root", false) || (has_non_skeleton_transforms && has_skinned_meshes)) {
 					// WARN_PRINT("Skinned meshes have non-skeleton transforms, exporting as non-single-root.");
 					doc->set_root_node_mode(GLTFDocument::RootNodeMode::ROOT_NODE_MODE_MULTI_ROOT);
 					TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
@@ -1370,10 +1390,10 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					// save a gltf copy for debugging
 					auto gltf_path = p_dest_path.get_base_dir().path_join("GLTF/" + p_dest_path.get_file().get_basename() + ".gltf");
 					gdre::ensure_dir(gltf_path.get_base_dir());
-					_serialize_file(state, gltf_path, !GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false));
+					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 				}
 #endif
-				p_err = _serialize_file(state, p_dest_path, !GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false));
+				p_err = _serialize_file(state, p_dest_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 			}
 			memdelete(root);
 			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
@@ -1392,7 +1412,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			err = ERR_BUG;
 		}
 		auto iinfo = p_report.is_valid() ? p_report->get_import_info() : Ref<ImportInfo>();
-		if (iinfo.is_valid() && iinfo->get_ver_major() >= 4) {
+		updating_import_info = iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+		if (updating_import_info) {
 			ObjExporter::MeshInfo global_mesh_info;
 			Vector<bool> global_has_tangents;
 			Vector<bool> global_has_lods;
@@ -1582,7 +1603,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	// GLTF Exporter has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
-	if (err == ERR_BUG && has_external_animation && animation_deps_updated.size() == animation_deps_needed.size()) {
+	if (err == ERR_BUG && has_external_animation && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
 		err = OK;
 		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
 		Vector<int64_t> error_messages_to_remove;
@@ -1694,6 +1715,41 @@ Error SceneExporterInstance::export_file_to_obj(const String &p_dest_path, const
 	return ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
 }
 
+SceneExporterInstance::SceneExporterInstance(Dictionary curr_options) {
+	options = curr_options;
+	if (!options.has("Exporter/Scene/GLTF/force_lossless_images")) {
+		options["Exporter/Scene/GLTF/force_lossless_images"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/use_double_precision")) {
+		options["Exporter/Scene/GLTF/use_double_precision"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/force_export_multi_root")) {
+		options["Exporter/Scene/GLTF/force_export_multi_root"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_export_multi_root", false);
+	}
+}
+
+Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options) {
+	Ref<ExportReport> report = memnew(ExportReport());
+	SceneExporterInstance instance(options);
+	String ext = out_path.get_extension().to_lower();
+	if (ext != "escn" && ext != "tscn") {
+		int ver_major = get_ver_major(res_path);
+		if (ver_major < 4) {
+			report->set_message("Scene export for engine version " + itos(ver_major) + " is not currently supported.");
+			report->set_error(ERR_UNAVAILABLE);
+			return report;
+		}
+	}
+	Error err = instance._export_file(out_path, res_path, report);
+	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
+		err = OK;
+	}
+	if (err == OK) {
+		report->set_saved_path(out_path);
+	}
+	return report;
+}
+
 Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
 
@@ -1784,4 +1840,8 @@ String SceneExporter::get_name() const {
 
 String SceneExporter::get_default_export_extension(const String &res_path) const {
 	return "glb";
+}
+
+void SceneExporter::_bind_methods() {
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file_with_options", "out_path", "res_path", "options"), &SceneExporter::export_file_with_options);
 }
