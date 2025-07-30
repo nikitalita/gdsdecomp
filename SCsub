@@ -12,7 +12,8 @@ Import("env")
 Import("env_modules")
 
 
-MODULE_DIR: str = os.path.realpath(".")
+MODULE_DIR: str = env.Dir("#modules/gdsdecomp").abspath
+BUILD_DIR: str = env.Dir("#bin").abspath
 EXTERNAL_STEM: str = "external_install"
 EXTERNAL_DIR: str = os.path.join(MODULE_DIR, EXTERNAL_STEM)
 
@@ -23,6 +24,7 @@ liboggthirdparty_dir = "#thirdparty/libogg/"
 libvorbisthirdparty_dir = "#thirdparty/libvorbis/"
 webpthirdparty_dir = "#thirdparty/libwebp/"
 vtracer_dir_include_dir = "#modules/gdsdecomp/external/vtracer/include"
+godot_mono_decomp_include_dir = "#modules/gdsdecomp/external/godot-mono-decomp/GodotMonoDecompNativeAOT/include"
 
 # hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13 in the macos/detect.py script
 # TODO: remove this hack once the minimum macOS version is updated to 10.15
@@ -44,10 +46,12 @@ env_gdsdecomp = env_modules.Clone()
 # TODO: Figure out a way to not have to do this
 if env["tests"]:
     env.Append(CPPPATH=[vtracer_dir_include_dir])
+    env.Append(CPPPATH=[godot_mono_decomp_include_dir])
     env.Append(CPPPATH=["#modules/gdsdecomp/"])
     env.Append(CPPPATH=[liboggthirdparty_dir])
     env.Append(CPPPATH=[libvorbisthirdparty_dir])
 env_gdsdecomp.Append(CPPPATH=[vtracer_dir_include_dir])
+env_gdsdecomp.Append(CPPPATH=[godot_mono_decomp_include_dir])
 env_gdsdecomp.Append(CPPPATH=["#modules/gdsdecomp/"])
 env_gdsdecomp.Append(CPPPATH=["#thirdparty/thorsvg/"])
 if env["disable_exceptions"]:
@@ -292,11 +296,16 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
 
 def add_libs_to_env(module_obj, libs, sources):
     for lib in libs:
+        env_gdsdecomp.Depends(lib, sources)
         if env.msvc:
+            # ensure the lib ends with .lib
+            if not lib.endswith(".lib"):
+                # remove the current extension, add .lib
+                lib_base = lib.rsplit(".", 1)[0]
+                lib = lib_base + ".lib"
             env.Append(LINKFLAGS=[lib])
             continue
-        env_gdsdecomp.Depends(lib, sources)
-        env_gdsdecomp.Depends(lib, sources)
+
         # get the basename of the library minus the extension
         lib_name = os.path.basename(lib).split(".")[0]
         # if env.msvc:
@@ -311,6 +320,10 @@ VTRACER_DIR = os.path.join(MODULE_DIR, VTRACER_PREFIX)
 VTRACER_BUILD_DIR = os.path.join(VTRACER_DIR, "target")
 VTRACER_LIBS = ["vtracer"]
 
+# Godot Mono Decomp configuration
+GODOT_MONO_DECOMP_PREFIX = "external/godot-mono-decomp/GodotMonoDecompNativeAOT"
+GODOT_MONO_DECOMP_DIR = os.path.join(MODULE_DIR, GODOT_MONO_DECOMP_PREFIX)
+GODOT_MONO_DECOMP_LIBS = ["GodotMonoDecompNativeAOT"]
 
 def get_vtracer_libs():
     lib_prefix: str = "lib" if not env.msvc else ""
@@ -367,7 +380,167 @@ def build_vtracer(module_obj):
         pass
 
 
-# link against external/libvtracer.a
+def get_godot_mono_decomp_libs(static_lib: bool, _env=env):
+    if static_lib:
+        lib_prefix: str = "lib" if not _env.msvc else ""
+        lib_suffix: Literal[".a", ".lib"] = ".a" if not _env.msvc else ".lib"
+    else:
+        lib_prefix: str = "lib" if not _env.msvc else ""
+        if _env["platform"] == "macos":
+            lib_suffix = ".dylib"
+        elif _env.msvc:
+            # lib_suffix = ".dll"
+            # we can't link against .dll on windows
+            lib_suffix = ".lib"
+        else:
+            lib_suffix = ".so"
+    return [lib_prefix + lib + lib_suffix for lib in GODOT_MONO_DECOMP_LIBS]
+
+
+def get_godot_mono_triplet(platform: str, arch: str):
+    if platform == "macos":
+        platform_part = "osx"
+        arch_part = "arm64" if arch == "arm64" else "x64"
+    elif platform == "linuxbsd":
+        platform_part = "linux"
+        arch_part = "arm64" if arch == "arm64" else "x64"
+    elif platform == "windows":
+        platform_part = "win"
+        arch_part = "arm64" if arch == "arm64" else "x64"
+    else:
+        raise Exception(f"Unsupported platform: {platform}")
+    return f"{platform_part}-{arch_part}"
+
+
+def get_godot_mono_decomp_lib_dir(platform: str, arch: str):
+    # Determine the platform and architecture for the library path
+    triplet = get_godot_mono_triplet(platform, arch)
+    target_framework = "net9.0"
+    # cat the modules/gdsdecomp/external/godot-mono-decomp/GodotMonoDecompNativeAOT/GodotMonoDecompNativeAOT.csproj file to see what runtime is used
+    with open(os.path.join(GODOT_MONO_DECOMP_DIR, "GodotMonoDecompNativeAOT.csproj"), "r") as f:
+        for line in f:
+            if "TargetFramework" in line:
+                target_framework = line.split(">")[1].split("<")[0].strip()
+                print("TARGET FRAMEWORK", target_framework)
+                break
+
+    return os.path.join(GODOT_MONO_DECOMP_DIR, "bin", "Release", target_framework, triplet, "publish")
+
+
+def get_godot_mono_decomp_lib_paths(_env=env) -> list[Any]:
+    libs = get_godot_mono_decomp_libs(False, _env)
+    lib_paths = []
+    build_dir = get_godot_mono_decomp_lib_dir(_env["platform"], _env["arch"])
+    for lib in libs:
+        lib_path = os.path.join(build_dir, lib)
+        lib_paths.append(lib_path)
+    print("GODOT MONO DECOMP LIB PATHS", lib_paths)
+    return lib_paths
+
+
+
+env.Append(LIBPATH=[BUILD_DIR])
+env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir(env["platform"], env["arch"])])
+
+def godot_mono_builder(target, source, env: dict[str, Any]):
+    print("GODOT MONO DECOMP BUILD: ", target)
+    libs = get_godot_mono_decomp_lib_paths(env)
+    native_lib_type = "Shared"
+    BASE_CMD = [
+        "dotnet",
+        "publish",
+        f"/p:NativeLib={native_lib_type}",
+        "/p:PublishProfile=AOT",
+        "-c",
+        "Release",
+    ]
+    dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], env["arch"])]
+    lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"])
+    cwd = GODOT_MONO_DECOMP_DIR
+    print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
+    dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd)
+    print("DOTNET PUBLISH OUTPUT", dotnet_publish_output)
+    other_lib_dir = ""
+    if env["platform"] == "macos":
+        # run it again for the opposite architecture
+        new_arch = "x86_64" if env["arch"] == "arm64" else "arm64"
+        new_triplet = get_godot_mono_triplet(env["platform"], new_arch)
+        dotnet_publish_cmd = BASE_CMD + ["-r", new_triplet]
+        other_lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], new_arch)
+        cwd = GODOT_MONO_DECOMP_DIR
+        print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
+        dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd)
+        print("DOTNET PUBLISH OUTPUT", dotnet_publish_output)
+        # lipo them together
+
+    # if the platform is macos or linux, we need to make a copy with a "lib" prefix
+
+    bin_paths = []
+    # ensure the BUILD_DIR exists
+    if not os.path.exists(BUILD_DIR):
+        os.makedirs(BUILD_DIR)
+    for lib in libs:
+        # copy it to the godot build directory
+        if env.msvc:
+            lib = lib.replace(".lib", ".dll")
+        copy_path: str = os.path.abspath(os.path.join(BUILD_DIR, os.path.basename(lib)))
+        print("LIB PATH", lib)
+        print("COPY PATH", copy_path)
+        if env["platform"] == "macos":
+            # lipo them together
+            lipo_cmd = [
+                "lipo",
+                "-create",
+                lib,
+                os.path.join(other_lib_dir, os.path.basename(lib)),
+                "-output",
+                copy_path,
+            ]
+            lipo_output = check_output(lipo_cmd, cwd=lib_dir)
+        else:
+            shutil.copy(lib, copy_path)
+            # if env.msvc:
+            #     shutil.copy(lib.replace(".lib", ".dll"), copy_path.replace(".lib", ".dll"))
+
+
+def build_godot_mono_decomp(module_obj):
+    # For pre-built .NET NativeAOT libraries, we just need to link them
+    libs = get_godot_mono_decomp_lib_paths()
+    # Create empty sources list since we're linking pre-built libraries
+    godot_mono_decomp_sources = glob.glob(os.path.join(GODOT_MONO_DECOMP_DIR, "**", "*.cs"), recursive=True)
+    # add the get_godot_mono_decomp_lib_dir() to the LIBPATH
+    lib_suffix = ".so"
+    if env.msvc:
+        lib_suffix = ".lib"  # not .dll
+    elif env["platform"] == "macos":
+        lib_suffix = ".dylib"
+
+    src_suffixes = ["*.h", "*.cs", "*.csproj", "*.sln", "*.props", "*.targets", "*.pubxml"]
+    env_gdsdecomp["BUILDERS"]["godotMonoDecompBuilder"] = Builder(
+        action=godot_mono_builder,
+        suffix=lib_suffix,
+        src_suffix=src_suffixes,
+    )
+    godot_mono_decomp_sources = get_sources(
+        GODOT_MONO_DECOMP_PREFIX,
+        src_suffixes,
+    )
+    env_gdsdecomp.Alias(
+        "godotMonoDecomp",
+        [env_gdsdecomp.godotMonoDecompBuilder(libs, godot_mono_decomp_sources)],
+    )
+
+    add_libs_to_env(module_obj, libs, godot_mono_decomp_sources)
+    
+    if env["platform"] == "linuxbsd":
+        # add -Wl,-rpath,'$ORIGIN'
+        # env.Append(LINKFLAGS=["-Wl,-rpath,'$ORIGIN'"])
+        env.Append( LINKFLAGS = Split('-z origin') )
+        env.Append( RPATH = env.Literal('\\$$ORIGIN'))
+    # env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir()])
+
+
+# link against external/libvtracer.a and godot-mono-decomp libraries
 
 module_obj = []
 env_gdsdecomp.add_source_files(module_obj, "*.cpp")
@@ -384,4 +557,5 @@ env_gdsdecomp.add_source_files(module_obj, "external/tinygltf/tiny_gltf.cc")
 env_gdsdecomp.add_source_files(module_obj, "module_etc_decompress/*.cpp")
 
 build_vtracer(module_obj)
+build_godot_mono_decomp(module_obj)
 env.modules_sources += module_obj

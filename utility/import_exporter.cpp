@@ -16,6 +16,8 @@
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
 
+#include "godot_mono_decomp.h"
+
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/os/os.h"
@@ -429,7 +431,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
-	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {
@@ -447,6 +448,26 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			}
 		}
 	}
+
+	// check if the pack has .cs files
+	auto cs_files = gdre::get_recursive_dir_list("res://", { "*.cs" });
+	if (cs_files.size() > 0) {
+		Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("decompile_cs", "Decompiling C# scripts...", -1, true));
+		if (get_ver_major() >= 4) {
+			err = decompile_mono_project();
+			if (err != OK) {
+				ERR_PRINT("Failed to decompile C# scripts!");
+				report->failed_scripts.append_array(cs_files);
+			} else {
+				report->decompiled_scripts.append_array(cs_files);
+			}
+		} else {
+			report_unsupported_resource("CSharpScript", "3.x C# scripts", cs_files[0]);
+			report->failed_scripts.append_array(cs_files);
+		}
+	}
+
+	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
 
 	Ref<DirAccess> dir = DirAccess::open(output_dir);
 	Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
@@ -1532,4 +1553,46 @@ void ImportExporterReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ver", "ver"), &ImportExporterReport::set_ver);
 	ClassDB::bind_method(D_METHOD("get_ver"), &ImportExporterReport::get_ver);
 	ClassDB::bind_method(D_METHOD("is_steam_detected"), &ImportExporterReport::is_steam_detected);
+}
+
+Error ImportExporter::decompile_mono_assembly(const String &assembly_path, const String &output_dir) {
+	CharString assembly_path_chrstr = assembly_path.utf8();
+	const char *assembly_path_c = assembly_path_chrstr.get_data();
+	CharString output_dir_chrstr = output_dir.utf8();
+	const char *output_dir_c = output_dir_chrstr.get_data();
+	String assembly_name = assembly_path.get_file().get_basename();
+	String project_file = assembly_name + ".csproj";
+	String project_path = output_dir.path_join(project_file);
+	CharString project_path_chrstr = project_path.utf8();
+	const char *project_path_c = project_path_chrstr.get_data();
+	String ref_path = assembly_path.get_base_dir();
+	CharString ref_path_chrstr = ref_path.utf8();
+	const char *ref_path_c = ref_path_chrstr.get_data();
+	const char *ref_path_c_array[] = { ref_path_c };
+	int result = GodotMonoDecomp_DecompileProject(assembly_path_c, project_path_c, ref_path_c, ref_path_c_array, 1);
+	if (result != 0) {
+		return ERR_CANT_CREATE;
+	}
+	return OK;
+}
+
+Error ImportExporter::decompile_mono_project() {
+	String assembly_name = GDRESettings::get_singleton()->get_project_setting("dotnet/project/assembly_name");
+	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not decompile C# scripts: dotnet/project/assembly_name is empty");
+	String project_dir = GDRESettings::get_singleton()->get_pack_path().get_base_dir();
+	if (project_dir.is_empty()) {
+		project_dir = GDRESettings::get_singleton()->get_project_path();
+	}
+	String assembly_file = assembly_name + ".dll";
+	Vector<String> directories = DirAccess::get_directories_at(project_dir);
+	for (String directory : directories) {
+		if (!directory.begins_with("data_")) {
+			continue;
+		}
+		String assembly_path = project_dir.path_join(directory).path_join(assembly_file);
+		if (FileAccess::exists(assembly_path)) {
+			return decompile_mono_assembly(assembly_path, output_dir);
+		}
+	}
+	ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not decompile C# scripts: Assembly file not found in any directory in " + project_dir);
 }

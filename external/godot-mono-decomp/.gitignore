@@ -1,0 +1,9 @@
+.cache
+.idea
+.vscode
+build/
+**/bin/
+**/obj/
+.DS_Store
+*.DotSettings.user
+.gitbak/
