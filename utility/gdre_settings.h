@@ -214,6 +214,9 @@ private:
 	Error reload_dotnet_assembly(const String &p_path);
 	Error load_project_dotnet_assembly();
 
+	void _set_shader_globals();
+	void _clear_shader_globals();
+
 protected:
 	static void _bind_methods();
 

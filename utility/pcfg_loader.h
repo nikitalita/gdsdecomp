@@ -73,6 +73,7 @@ public:
 	String get_cfg_path() const { return cfb_path; }
 	int get_config_version() const { return config_version; }
 	Variant g_set(const String &p_var, const Variant &p_default, bool p_restart_if_changed = false);
+	Dictionary get_section(const String &p_var) const;
 	ProjectConfigLoader();
 	~ProjectConfigLoader();
 };

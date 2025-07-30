@@ -715,6 +715,8 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	}
 	_ensure_script_cache_complete();
 
+	_set_shader_globals();
+
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
 	if (bytecode_revision != 0) {
@@ -979,6 +981,7 @@ Error GDRESettings::unload_project() {
 		return ERR_DOES_NOT_EXIST;
 	}
 	logger->stop_prebuffering();
+	_clear_shader_globals();
 	error_encryption = false;
 	reset_uid_cache();
 	reset_gdscript_cache();
@@ -1839,14 +1842,14 @@ void GDRESettings::_ensure_script_cache_complete() {
 				// 	"path": "res://source/audio/audio_manager.gd"
 				// 	}
 				Dictionary d;
-				d["base"] = script->get_instance_base_type();
-				d["class"] = script->get_global_name();
-				d["icon"] = "";
-				d["is_abstract"] = script->is_abstract();
-				d["is_tool"] = script->is_tool();
-				d["language"] = is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript");
-				d["path"] = orig_path;
-				script_cache[orig_path] = d;
+				d.set("base", script->get_instance_base_type());
+				d.set("class", script->get_global_name());
+				d.set("icon", "");
+				d.set("is_abstract", script->is_abstract());
+				d.set("is_tool", script->is_tool());
+				d.set("language", is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
+				d.set("path", orig_path);
+				script_cache.insert(orig_path, d);
 			}
 		}
 	}
@@ -2513,4 +2516,42 @@ void GDRESettings::add_logger() {
 	loggers.push_back(logger);
 	GDREOS<PLATFORM_OS>::do_set_logger(_gdre_os, memnew(CompositeLogger(loggers)));
 	// GDREOS<PLATFORM_OS>::do_add_logger(_gdre_os, logger);
+}
+
+void GDRESettings::_set_shader_globals() {
+	if (is_project_config_loaded() && ProjectSettings::get_singleton()) {
+		Dictionary shader_globals = current_project->pcfg->get_section("shader_globals");
+		if (!shader_globals.is_empty()) {
+			for (const auto &E : shader_globals) {
+				String key = "shader_globals/" + String(E.key);
+				ProjectSettings::get_singleton()->set_setting(key, E.value);
+			}
+
+			bool previous = ResourceCompatLoader::is_globally_available();
+			if (!previous) {
+				ResourceCompatLoader::make_globally_available();
+			}
+			if (RenderingServer::get_singleton()) {
+				RenderingServer::get_singleton()->global_shader_parameters_load_settings(true);
+			}
+			if (!previous) {
+				ResourceCompatLoader::unmake_globally_available();
+			}
+		}
+	}
+}
+
+void GDRESettings::_clear_shader_globals() {
+	if (is_project_config_loaded() && ProjectSettings::get_singleton()) {
+		Dictionary shader_globals = current_project->pcfg->get_section("shader_globals");
+		if (!shader_globals.is_empty()) {
+			for (const auto &E : shader_globals) {
+				String key = "shader_globals/" + String(E.key);
+				ProjectSettings::get_singleton()->clear(key);
+			}
+			if (RenderingServer::get_singleton()) {
+				RenderingServer::get_singleton()->global_shader_parameters_load_settings(true);
+			}
+		}
+	}
 }

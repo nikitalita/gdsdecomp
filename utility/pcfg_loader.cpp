@@ -64,6 +64,21 @@ Variant ProjectConfigLoader::get_setting(String p_var, Variant default_value) co
 	return default_value;
 }
 
+Dictionary ProjectConfigLoader::get_section(const String &p_var) const {
+	Dictionary section;
+	String section_name = p_var;
+	if (!section_name.ends_with("/")) {
+		section_name += "/";
+	}
+	for (const auto &E : props) {
+		String key = E.key;
+		if (key.begins_with(section_name)) {
+			section[key.trim_prefix(section_name)] = E.value.variant;
+		}
+	}
+	return section;
+}
+
 Error ProjectConfigLoader::remove_setting(String p_var) {
 	if (props.has(p_var)) {
 		props.erase(p_var);
