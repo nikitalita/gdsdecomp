@@ -15,6 +15,8 @@ public class GodotModule
 	public readonly DotNetCoreDepInfo? depInfo;
 	public readonly LanguageVersion languageVersion;
 	public readonly IDebugInfoProvider? debugInfoProvider;
+	public Dictionary<string, TypeDefinitionHandle> fileMap;
+
 
 
 // Target 	Version 	C# language version default
@@ -108,7 +110,6 @@ public class GodotModuleDecompiler
 	public readonly List<GodotModule> AdditionalModules;
 	public readonly UniversalAssemblyResolver AssemblyResolver;
 	public readonly GodotMonoDecompSettings Settings;
-	public readonly Dictionary<string, TypeDefinitionHandle> fileMap;
 	public readonly List<string> originalProjectFiles;
 	public readonly Version godotVersion;
 	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
@@ -130,24 +131,36 @@ public class GodotModuleDecompiler
 
 		Settings = settings ?? new GodotMonoDecompSettings();
 
+		List<string> names = [];
 		if (Settings.CreateAdditionalProjectsForProjectReferences && mainDepInfo != null)
 		{
-			foreach (var reference in MainModule.Module.AssemblyReferences)
+			foreach (var dep in mainDepInfo.deps.Where(d => d is {Type : "project"}).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
 			{
-				var dep = mainDepInfo.deps.ToList().Find(dep => dep.Name == reference.Name);
-				if (dep is { Type: "project" })
+				if (names.Contains(dep.Name))
 				{
-					var depModule = AssemblyResolver.Resolve(reference);
-					if (depModule == null)
-					{
-						Console.Error.WriteLine($"Warning: Could not resolve project reference '{dep.Name}' for assembly '{MainModule.Name}'.");
-						continue;
-					}
-					if (depModule is PEFile module)
-					{
-						AdditionalModules.Add(new GodotModule(module, dep));
-					}
+					Console.Error.WriteLine($"Warning: Duplicate project reference '{dep.Name}' found in assembly '{MainModule.Name}'.");
+					continue;
 				}
+
+				var assemblynameRef = dep.AssemblyRef;
+				var supposedPath = Path.Combine(Path.GetDirectoryName(assemblyPath) ?? "", assemblynameRef.Name + ".dll");
+				MetadataFile reference = File.Exists(supposedPath) ? new PEFile(supposedPath) : null;
+
+				if (reference == null)
+				{
+					reference = AssemblyResolver.Resolve(assemblynameRef);
+				}
+				if (reference == null)
+				{
+					Console.Error.WriteLine($"Warning: Could not resolve project reference '{dep.Name}' for assembly '{MainModule.Name}'.");
+					continue;
+				}
+				if (reference is PEFile module)
+				{
+					var fullName = module.FullName;;
+					AdditionalModules.Add(new GodotModule(module, dep));
+				}
+
 			}
 		}
 
@@ -163,23 +176,81 @@ public class GodotModuleDecompiler
 			}
 		}
 
-		var godotProjectDecompiler = new GodotProjectDecompiler(Settings, AssemblyResolver, AssemblyResolver, MainModule.debugInfoProvider);
-		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(MainModule.Module).ToHashSet();
-		fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+		var typesToDecompile = CreateProjectDecompiler(MainModule).GetTypesToDecompile(MainModule.Module).ToHashSet();
+		MainModule.fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+		var additionalModuleCount = 0;
+		var dupeCount = 0;
+		var alreadyExistsCount = 0;
+		var fileToModuleMap = MainModule.fileMap.ToDictionary(
+			pair => pair.Key,
+			pair => MainModule,//.Module.FileName,
+			StringComparer.OrdinalIgnoreCase);
+		// var moduleFileNameToMouduleMap = new Dictionary<string, GodotModule>(StringComparer.OrdinalIgnoreCase);
 		foreach (var module in AdditionalModules)
 		{
 			// TODO: make CreateFileMap() work with multiple modules
-			typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module.Module).ToHashSet();
+			typesToDecompile = CreateProjectDecompiler(MainModule).GetTypesToDecompile(module.Module).ToHashSet();
 
-			var addtlFileMap = GodotStuff.CreateFileMap(module.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
-			foreach (var pair in addtlFileMap)
+			var nfileMap = GodotStuff.CreateFileMap(module.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
+			additionalModuleCount += nfileMap.Count;
+
+			string moduleName = module.Module.FileName;
+			module.fileMap = [];
+
+			foreach (var pair in nfileMap.ToList())
 			{
-				// TODO: right now we're force appending module name to the file path
-				string path = module.Name + "/" + pair.Key;
-				if (!fileMap.ContainsKey(path))
+				if (module.Name == "ThirdParty")
 				{
-					fileMap.Add(path, pair.Value);
+					var fdsagdas = "";
 				}
+				// TODO: right now we're force appending module name to the file path
+				string path = pair.Key;
+				string fixedPath = path;
+				if (!path.StartsWith(module.Name + "/", StringComparison.CurrentCultureIgnoreCase))
+				{
+					fixedPath = module.Name + "/" + pair.Key;
+				}
+
+				// var dupe = fileToModuleMap.FirstOrDefault(p => pair.Value.GetHashCode() == p.Value.GetHashCode());
+				// if (dupe.Key != null){
+				// 	dupeCount++;
+				// 	// if (this.originalProjectFiles.Contains(dupe.Key, StringComparer.OrdinalIgnoreCase)) {
+				// 	// 	// don't add it to the file map
+				// 	// 	continue;
+				// 	// }
+				// 	// // check if the original files are in the file map
+				// 	// if (fileMap.ContainsKey(fixedPath)) {
+				// 	// 	continue;
+				// 	// }
+				// 	// fileMap.Remove(dupe.Key);
+				// }
+				// only append it if it doesn't already have a module name
+				if (!fileToModuleMap.ContainsKey(fixedPath))
+				{
+					fileToModuleMap.Add(fixedPath, module);
+					module.fileMap.Add(fixedPath, pair.Value);
+				}
+				else
+				{
+					if (path == fixedPath || originalProjectFiles.Contains(fixedPath) )
+					{
+						// remove it from the previous module's file map
+						var prevmod = fileToModuleMap[fixedPath];
+						prevmod.fileMap.Remove(fixedPath);
+						module.fileMap.Add(fixedPath, pair.Value);
+					} // otherwise don't add it
+					alreadyExistsCount++;
+					var far = "";
+				}
+			}
+
+			if (module.fileMap.Count == 0)
+			{
+				Console.Error.WriteLine($"Warning: Module '{moduleName}' has no files to decompile. It may not be a Godot module or it may not contain any scripts.");
+			}
+			else
+			{
+				Console.WriteLine($"Module '{moduleName}' has {module.fileMap.Count} files to decompile.");
 			}
 		}
 
@@ -237,19 +308,20 @@ public class GodotModuleDecompiler
 			}
 			GodotStuff.EnsureDir(targetDirectory);
 
-			var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(fileMap.ContainsKey).Select(file => fileMap[file]).ToHashSet() ?? [];
 			ProjectItem decompileFile(GodotModule module, string csprojPath)
 			{
 				var godotProjectDecompiler = CreateProjectDecompiler(module, progress_reporter);
+				GodotStuff.EnsureDir(Path.GetDirectoryName(csprojPath));
 
 				removeIfExists(csprojPath);
 
 				ProjectId projectId;
+				var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(module.fileMap.ContainsKey).Select(file => module.fileMap[file]).ToHashSet() ?? [];
 
 				using (var projectFileWriter = new StreamWriter(File.OpenWrite(csprojPath)))
 				{
 					projectId = godotProjectDecompiler.DecompileGodotProject(
-						module.Module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), module.depInfo, token);
+						module.Module, targetDirectory, projectFileWriter, typesToExclude, module.fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), module.depInfo, token);
 				}
 
 				ProjectItem item = new ProjectItem(csprojPath, projectId.PlatformName, projectId.Guid, projectId.TypeGuid);
@@ -261,7 +333,7 @@ public class GodotModuleDecompiler
 			projectIDs.Add(decompileFile(MainModule, outputCSProjectPath));
 			foreach (var module in AdditionalModules)
 			{
-				var csProjPath = Path.Combine(targetDirectory, module.Name + ".csproj");
+				var csProjPath = Path.Combine(targetDirectory, module.Name, module.Name + ".csproj");
 				projectIDs.Add(decompileFile(module, csProjPath));
 			}
 			var solutionPath = Path.ChangeExtension(outputCSProjectPath, ".sln");
@@ -282,53 +354,82 @@ public class GodotModuleDecompiler
 	public string DecompileIndividualFile(string file)
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
-		if (!string.IsNullOrEmpty(path) && fileMap.TryGetValue(path, out var type))
+		if (!string.IsNullOrEmpty(path))
 		{
 			GodotModule? module = MainModule;
-			var projectDecompiler = CreateProjectDecompiler(module);
-			if (!projectDecompiler.GetTypesToDecompile(module.Module).Contains(type))
+			TypeDefinitionHandle foundType;
+
+			if (!module.fileMap.TryGetValue(path, out foundType))
 			{
 				module = null;
 				foreach (var m in AdditionalModules)
 				{
-					if (projectDecompiler.GetTypesToDecompile(module.Module).Contains(type))
+					if (m.fileMap.TryGetValue(path, out foundType))
 					{
 						module = m;
 						break;
 					}
 				}
 			}
+
 			if (module != null)
 			{
-				var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [type]);
-				return decompiler.DecompileTypesAsString([type]);
-			} else {
-				return string.Format(error_message, file, MainModule.Name) + "\n// We screwed up somewhere.";
+				var projectDecompiler = CreateProjectDecompiler(module);
+
+				if (foundType == null)
+				{
+					return string.Format(error_message, file, MainModule.Name) + "\n// We screwed up somewhere.";
+				}
+				var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [foundType]);
+				return decompiler.DecompileTypesAsString([foundType]);
 			}
 		}
 		return string.Format(error_message, file, MainModule.Name) + (
-			originalProjectFiles.Contains(file) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
+			originalProjectFiles.Contains(path) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
 		);
+	}
+
+
+	public bool anyFileMapsContainsFile(string file)
+	{
+		var path = GodotStuff.TrimPrefix(file, "res://");
+		if (!string.IsNullOrEmpty(path))
+		{
+			if (MainModule.fileMap.ContainsKey(path))
+			{
+				return true;
+			}
+			foreach (var module in AdditionalModules)
+			{
+				if (module.fileMap.ContainsKey(path))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public int GetNumberOfFilesNotPresentInFileMap()
 	{
-		return this.originalProjectFiles.Count(file => !fileMap.ContainsKey(file));
+		return this.originalProjectFiles.Count(file => !anyFileMapsContainsFile(file));
 	}
 
 	public string[] GetFilesNotPresentInFileMap()
 	{
-		return this.originalProjectFiles.Where(file => !fileMap.ContainsKey(file)).ToArray();
+		return this.originalProjectFiles.Where(file => !anyFileMapsContainsFile(file)).ToArray();
 	}
 
 	public int GetNumberOfFilesInFileMap()
 	{
-		return fileMap.Count;
+		return MainModule.fileMap.Count + AdditionalModules.Sum(module => module.fileMap.Count);
 	}
 
 	public string[] GetFilesInFileMap()
 	{
-		return fileMap.Keys.ToArray();
+		return MainModule.fileMap.Keys
+			.Concat(AdditionalModules.SelectMany(module => module.fileMap.Keys))
+			.ToArray();
 	}
 
 
