@@ -125,11 +125,10 @@ namespace GodotMonoDecomp
 		public GodotProjectDecompiler(
 			DecompilerSettings settings,
 			IAssemblyResolver assemblyResolver,
-			IProjectFileWriter? projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
 			IDebugInfoProvider? debugInfoProvider,
 			IEnumerable<string>? filesInOriginal = null)
-			: this(settings, Guid.NewGuid(), assemblyResolver, projectWriter, assemblyReferenceClassifier, debugInfoProvider, filesInOriginal)
+			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider, filesInOriginal)
 		{
 		}
 
@@ -137,7 +136,6 @@ namespace GodotMonoDecomp
 			DecompilerSettings settings,
 			Guid projectGuid,
 			IAssemblyResolver assemblyResolver,
-			IProjectFileWriter? projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
 			IDebugInfoProvider? debugInfoProvider,
 			IEnumerable<string>? filesInOriginal = null)
@@ -150,12 +148,11 @@ namespace GodotMonoDecomp
 			AssemblyReferenceClassifier = assemblyReferenceClassifier ?? new AssemblyReferenceClassifier();
 			DebugInfoProvider = debugInfoProvider;
 			Settings.UseNestedDirectoriesForNamespaces = true;
-			this.projectWriter = projectWriter ?? ProjectFileWriterGodotStyle.Create();
 		}
 
 		// per-run members
 		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
-		readonly IProjectFileWriter projectWriter;
+		IProjectFileWriter projectWriter;
 		HashSet<TypeDefinitionHandle> excludeTypes = [];
 		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
 		DotNetCoreDepInfo? depInfo;
@@ -199,7 +196,7 @@ namespace GodotMonoDecomp
 			{
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
-
+			projectWriter = ProjectFileWriterGodotStyle.Create();
 			if (projectWriter is ProjectFileWriterGodotStyle writer)
 			{
 				writer.DepInfo = depInfo;

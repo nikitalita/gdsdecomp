@@ -41,7 +41,7 @@ public class GodotModuleDecompiler
 			}
 		}
 
-		godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, ProjectFileWriterGodotStyle.Create(), assemblyResolver, debugInfoProvider, this.originalProjectFiles);
+		godotProjectDecompiler = new GodotProjectDecompiler(decompilerSettings, assemblyResolver, assemblyResolver, debugInfoProvider, this.originalProjectFiles);
 		var typesToDecompile = godotProjectDecompiler.GetTypesToDecompile(module);
 		fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, true);
 	}
