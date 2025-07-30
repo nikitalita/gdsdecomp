@@ -127,7 +127,7 @@ func load_code(path, override_bytecode_revision: int = 0):
 		if (override_bytecode_revision > 0):
 			script.set_override_bytecode_revision(override_bytecode_revision)
 		script.load_source_code(path)
-		if (script.get_error_message() != ""):
+		if script.get_error_message().is_empty():
 			code_text = "Error loading script:\n" + script.get_error_message()
 			set_text_viewer_props()
 		else:

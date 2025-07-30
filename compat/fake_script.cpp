@@ -147,6 +147,7 @@ void FakeScript::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_loaded"), &FakeScript::is_loaded);
 	ClassDB::bind_method(D_METHOD("set_original_class", "class_name"), &FakeScript::set_original_class);
 	ClassDB::bind_method(D_METHOD("get_original_class"), &FakeScript::get_original_class);
+	ClassDB::bind_method(D_METHOD("get_error_message"), &FakeScript::get_error_message);
 }
 
 #undef FAKEGDSCRIPT_FAIL_COND_V_MSG
