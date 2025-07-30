@@ -108,10 +108,20 @@ public static class GodotStuff
 	public static Dictionary<string, TypeDefinitionHandle> CreateFileMap(MetadataFile module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile,
 		IEnumerable<string> filesInOriginal,
+		Dictionary<string, GodotScriptMetadata>? scriptMetadata,
 		bool useNestedDirectoriesForNamespaces)
 	{
 		var fileMap = new Dictionary<string, TypeDefinitionHandle>();
 		var metadata = module.Metadata;
+		Dictionary<string, string> metadataFQNToFileMap = null;
+		if (scriptMetadata != null)
+		{
+			// create a map of metadata FQN to file path
+			metadataFQNToFileMap = scriptMetadata.ToDictionary(
+				pair => pair.Value.Class.GetFullClassName(),
+				pair => pair.Key,
+				StringComparer.OrdinalIgnoreCase);
+		}
 
 		var processAgain = new HashSet<TypeDefinitionHandle>();
 		var namespaceToFile = new Dictionary<string, List<string>>();
@@ -142,9 +152,22 @@ public static class GodotStuff
 			}
 			else
 			{
+				if (metadataFQNToFileMap != null)
+				{
+					// check if the type has a metadata FQN in the script metadata
+					var fqn = type.GetFullTypeName(metadata).ToString();
+					if (metadataFQNToFileMap.TryGetValue(fqn, out var filePath))
+					{
+						filePath = TrimPrefix(filePath, "res://");
+						addToNamespaceToFile(metadata.GetString(type.Namespace), filePath);
+						fileMap[filePath] = h;
+						continue;
+					}
+				}
 				processAgain.Add(h);
 			}
 		}
+
 
 
 		string GetAutoFileNameForHandle(TypeDefinitionHandle h)
@@ -403,8 +426,20 @@ public static class GodotStuff
 
 	public static bool IsGodotPartialClass(ITypeDefinition entity)
 	{
+		if (entity == null)
+		{
+			return false;
+		}
 		// check if the entity is a member of a type that derives from GodotObject
-		return entity != null && entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject");
+		if (!entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject")) return false;
+
+		// check if it's version 3 or lower; version 3 had no partial classes
+		if (entity.ParentModule?.MetadataFile != null && GetGodotVersion(entity.ParentModule.MetadataFile)?.Major <= 3)
+		{
+			return false;
+		}
+
+		return true;
 	}
 
 	public static string FindScriptNamespaceInChildren(IEnumerable<AstNode> children)
@@ -573,6 +608,34 @@ public static class GodotStuff
 	{
 		return GetBackingSignalDelegateFieldsInClass(entity).Select(f => f.Name);
 	}
+
+	public static Version? GetGodotVersion(MetadataFile file)
+	{
+		if (file == null)
+		{
+			return null;
+		}
+		// look through all the assembly references in the file until we find one named "GodotSharp"
+		var godotSharpReference = file.AssemblyReferences.FirstOrDefault(r => r.Name == "GodotSharp");
+		return godotSharpReference?.Version;
+	}
+
+	public static string? GetGodotVersionString(MetadataFile file)
+	{
+		var version = GetGodotVersion(file);
+		if (version == null)
+		{
+			return null;
+		}
+
+		if (version.Build == -1)
+		{
+			return $"{version.Major}.{version.Minor}";
+		}
+
+		return $"{version.Major}.{version.Minor}.{version.Build}";
+	}
+
 
 	public static bool IsBannedGodotTypeMember(IEntity entity)
 	{

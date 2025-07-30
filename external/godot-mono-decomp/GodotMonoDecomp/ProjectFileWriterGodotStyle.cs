@@ -87,9 +87,26 @@ namespace GodotMonoDecomp
 			MetadataFile module, bool writePackageReferences)
 		{
 			xml.WriteStartElement("Project");
-			var deps = LoadDeps(module);
+			var gdver = GodotStuff.GetGodotVersion(module);
+			if (gdver == null)
+			{
+				Console.Error.WriteLine($"Could not determine Godot version for module {module.FileName}, assuming 3.0");
+				gdver = new Version(3, 0, 0);
+			}
+			var godotVersion = gdver?.ToString();
+			if (godotVersion?.Count(f => f == '.') >= 3)
+			{
+				godotVersion = godotVersion.Substring(0, godotVersion.LastIndexOf('.'));
+			}
+
+			var deps =  gdver?.Major > 3 ? LoadDeps(module) : null;
+			// GodotSharp for 3.x always wrote the version number as "1.0.0" in the project file
+			if (gdver.Major < 3)
+			{
+				// we'll indicate that this is a Godot 3.x project but use an invalid version number to force the editor to rewrite the project file
+				godotVersion = "3.x.x";
+			}
 			var projectType = GetProjectType(module);
-			var godotVersion = GetGodotVersion(deps);
 			var sdkString = GetSdkString(projectType);
 			if (godotVersion != "")
 			{
@@ -498,23 +515,6 @@ namespace GodotMonoDecomp
 				newXml.WriteEndElement();
 			}
 			return;
-		}
-
-		static string GetGodotVersion(DotNetCoreDepInfo? deps)
-		{
-			if (deps == null)
-			{
-				return "";
-			}
-			foreach (var reference in deps.deps)
-			{
-				if (reference.Name == "GodotSharp")
-				{
-					return reference.Version;
-				}
-			}
-
-			return "";
 		}
 
 		static string GetSdkString(ProjectType projectType)

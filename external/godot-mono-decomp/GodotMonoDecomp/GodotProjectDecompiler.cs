@@ -334,7 +334,13 @@ namespace GodotMonoDecomp
 
 		Dictionary<TypeDefinitionHandle, string> MakeHandleToFileMap(MetadataFile module)
 		{
-			return GodotStuff.CreateFileMap(module, GetTypesToDecompile(module), FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces).ToDictionary(
+			Version godotVersion = GodotStuff.GetGodotVersion(module) ?? new Version(0, 0, 0, 0);
+			Dictionary<string, GodotScriptMetadata>? metadata = null;
+			if (godotVersion.Major <= 3)
+			{
+				metadata = GodotScriptMetadataLoader.LoadFromFile(GodotScriptMetadataLoader.FindGodotScriptMetadataFile(module.FileName));
+			}
+			return GodotStuff.CreateFileMap(module, GetTypesToDecompile(module), FilesInOriginal, metadata, Settings.UseNestedDirectoriesForNamespaces).ToDictionary(
 				pair => pair.Value,
 				pair => pair.Key,
 				null);
