@@ -231,7 +231,7 @@ private:
 	Ref<Script> script;
 	bool is_fake_embedded = false;
 	HashMap<StringName, Variant> properties;
-	HashSet<StringName> _cached_prop_names;
+	HashMap<StringName, PropertyInfo> _cached_prop_info;
 	bool _cached_prop_names_valid = false;
 
 	void update_cached_prop_names();
