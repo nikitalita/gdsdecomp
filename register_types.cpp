@@ -18,6 +18,7 @@
 
 #include "bytecode/bytecode_versions.h"
 #include "compat/fake_csharp_script.h"
+#include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_compat_binary.h"
