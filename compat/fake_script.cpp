@@ -2,6 +2,7 @@
 
 #include "compat/resource_loader_compat.h"
 #include "core/io/missing_resource.h"
+#include "core/object/object.h"
 #include "core/string/ustring.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
@@ -220,10 +221,13 @@ ScriptLanguage *FakeGDScript::get_language() const {
 }
 
 bool FakeGDScript::has_script_signal(const StringName &p_signal) const {
-	return false;
+	return _signals.has(p_signal);
 }
 
 void FakeGDScript::get_script_signal_list(List<MethodInfo> *r_signals) const {
+	for (const KeyValue<StringName, MethodInfo> &E : _signals) {
+		r_signals->push_back(E.value);
+	}
 }
 
 bool FakeGDScript::get_property_default_value(const StringName &p_property, Variant &r_value) const {
@@ -284,6 +288,38 @@ Error FakeGDScript::parse_script() {
 	bool extends_used = false;
 	bool class_name_used = false;
 	export_vars.clear();
+	int indent = 0;
+	uint32_t prev_line = 1;
+	uint32_t prev_line_start_column = 1;
+	GT prev_token = GT::G_TK_NEWLINE;
+	int tab_size = 1;
+
+	auto handle_newline = [&](int i, GlobalToken curr_token) {
+		auto curr_line = script_state.get_token_line(i);
+		auto curr_column = script_state.get_token_column(i);
+		if (curr_line <= prev_line) {
+			curr_line = prev_line + 1; // force new line
+		}
+		while (curr_line > prev_line) {
+			prev_line++;
+		}
+		if (curr_token == GT::G_TK_NEWLINE) {
+			indent = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
+		} else if (script_state.bytecode_version >= GDScriptDecomp::GDSCRIPT_2_0_VERSION) {
+			prev_token = GT::G_TK_NEWLINE;
+			int col_diff = (int)curr_column - (int)prev_line_start_column;
+			if (col_diff != 0) {
+				int tabs = col_diff / tab_size;
+				if (tabs == 0) {
+					indent += (col_diff > 0 ? 1 : -1);
+				} else {
+					indent += tabs;
+				}
+			}
+			prev_line_start_column = curr_column;
+		}
+		prev_token = GT::G_TK_NEWLINE;
+	};
 
 	auto get_export_var = [&](int i) {
 		while (!decomp->check_next_token(i, tokens, GT::G_TK_PR_VAR) && i < tokens.size()) {
@@ -307,11 +343,24 @@ Error FakeGDScript::parse_script() {
 			abstract = true;
 		}
 	};
+	auto check_new_line = [&](int i) {
+		auto ln = script_state.get_token_line(i);
+		if (ln != prev_line && ln != 0) {
+			return true;
+		}
+		return false;
+	};
 
 	for (int i = 0; i < tokens.size(); i++) {
 		uint32_t local_token = tokens[i] & GDScriptDecomp::TOKEN_MASK;
 		GlobalToken curr_token = decomp->get_global_token(local_token);
+		if (curr_token != GT::G_TK_NEWLINE && check_new_line(i)) {
+			handle_newline(i, curr_token);
+		}
 		switch (curr_token) {
+			case GT::G_TK_NEWLINE: {
+				handle_newline(i, curr_token);
+			} break;
 			case GT::G_TK_ANNOTATION: {
 				// in GDScript 2.0, the "@tool" annotation has to be the first expression in the file
 				// (i.e. before the class body and 'extends' or 'class_name' keywords)
@@ -328,6 +377,30 @@ Error FakeGDScript::parse_script() {
 					ERR_FAIL_COND_V(err != OK, err);
 				} else if (annostr == "@abstract") {
 					set_abstract(i);
+				}
+			} break;
+			case GT::G_TK_PR_SIGNAL: {
+				// only signals at the top level
+				if (indent == 0) {
+					if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
+						uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
+						ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+						const StringName &signal_name = identifiers[identifier];
+						int arg_count = 0;
+						if (decomp->check_next_token(i + 1, tokens, GT::G_TK_PARENTHESIS_OPEN)) {
+							Vector<Vector<uint32_t>> args;
+							arg_count = decomp->get_func_arg_count_and_params(i + 1, tokens, args);
+						}
+						if (arg_count >= 0) {
+							MethodInfo mi = MethodInfo(signal_name);
+							for (size_t j = 0; j < arg_count; j++) {
+								mi.arguments.push_back(PropertyInfo(Variant::NIL, "arg" + itos(j)));
+							}
+							_signals[signal_name] = mi;
+						} else {
+							WARN_PRINT("Failed to parse signal arguments");
+						}
+					}
 				}
 			} break;
 			case GT::G_TK_ABSTRACT: {
