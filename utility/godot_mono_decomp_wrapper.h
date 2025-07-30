@@ -18,7 +18,7 @@ public:
 
 	bool is_valid() const;
 
-	Error decompile_module(const String &outputCSProjectPath);
+	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	String decompile_individual_file(const String &file);
 	Vector<String> get_files_not_present_in_file_map();
 

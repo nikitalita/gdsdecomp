@@ -5,6 +5,18 @@ namespace GodotMonoDecomp.NativeLibrary;
 
 static public class Lib
 {
+	static string[]? GetStringArray(IntPtr ptr, int count)
+	{
+		if (count == 0 || ptr == IntPtr.Zero) return null;
+		string[] strs = new string[count];
+		for (int i = 0; i < count; i++)
+		{
+			IntPtr pathPtr = Marshal.ReadIntPtr(ptr, i * IntPtr.Size);
+			strs[i] = Marshal.PtrToStringAnsi(pathPtr) ?? string.Empty;
+		}
+		return strs;
+	}
+
     // nativeAOT function; oneshot, intended to be used by a CLI
 
     [UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileProject")]
@@ -19,14 +31,7 @@ static public class Lib
         string assemblyFileNameStr = Marshal.PtrToStringAnsi(assemblyPath) ?? string.Empty;
         string outputPathStr = Marshal.PtrToStringAnsi(outputCSProjectPath) ?? string.Empty;
         string  projectFileNameStr = Marshal.PtrToStringAnsi(projectPath) ?? string.Empty;
-        string[] referencePathsStrs =  referencePathsCount == 0
-            ? Array.Empty<string>()
-            : new string[referencePathsCount];
-        for (int i = 0; i < referencePathsCount; i++)
-        {
-            IntPtr pathPtr = Marshal.ReadIntPtr(AssemblyReferenceDirs, i * IntPtr.Size);
-            referencePathsStrs[i] = Marshal.PtrToStringAnsi(pathPtr) ?? string.Empty;
-        }
+        string[]? referencePathsStrs = GetStringArray(AssemblyReferenceDirs, referencePathsCount);
         return GodotMonoDecomp.Lib.DecompileProject(assemblyFileNameStr, outputPathStr,projectFileNameStr, referencePathsStrs);
     }
 
@@ -49,21 +54,9 @@ static public class Lib
 	)
 	{
 		string assemblyFileNameStr = Marshal.PtrToStringAnsi(assemblyPath) ?? string.Empty;
-		string[] originalProjectFilesStrs = new string[originalProjectFilesCount];
-		for (int i = 0; i < originalProjectFilesCount; i++)
-		{
-			IntPtr pathPtr = Marshal.ReadIntPtr(originalProjectFiles, i * IntPtr.Size);
-			originalProjectFilesStrs[i] = Marshal.PtrToStringAnsi(pathPtr) ?? string.Empty;
-		}
-		string[] referencePathsStrs = referencePathsCount == 0
-			? Array.Empty<string>()
-			: new string[referencePathsCount];
-		for (int i = 0; i < referencePathsCount; i++)
-		{
-			IntPtr pathPtr = Marshal.ReadIntPtr(referencePaths, i * IntPtr.Size);
-			referencePathsStrs[i] = Marshal.PtrToStringAnsi(pathPtr) ?? string.Empty;
-		}
-		try{
+		var originalProjectFilesStrs = GetStringArray(originalProjectFiles, originalProjectFilesCount);
+		var referencePathsStrs = GetStringArray(referencePaths, referencePathsCount);
+		try {
 			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs);
 			var handle = GCHandle.Alloc(decompiler);
 			return GCHandle.ToIntPtr(handle);
@@ -78,7 +71,9 @@ static public class Lib
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileModule")]
 	public static int AOTDecompileModule(
 		IntPtr decompilerHandle,
-		IntPtr outputCSProjectPath
+		IntPtr outputCSProjectPath,
+		IntPtr excludeFiles,
+		int excludeFilesCount
 	)
 	{
 		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
@@ -87,7 +82,8 @@ static public class Lib
 			return -1;
 		}
 		var outputCSProjectPathStr = Marshal.PtrToStringAnsi(outputCSProjectPath) ?? string.Empty;
-		return decompiler.DecompileModule(outputCSProjectPathStr);
+		var excludeFilesStrs = GetStringArray(excludeFiles, excludeFilesCount);
+		return decompiler.DecompileModule(outputCSProjectPathStr, excludeFilesStrs);
 	}
 
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileIndividualFile")]

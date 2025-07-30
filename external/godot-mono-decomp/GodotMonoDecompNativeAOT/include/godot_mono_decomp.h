@@ -25,7 +25,9 @@ void* GodotMonoDecomp_CreateGodotModuleDecompiler(
 
 int GodotMonoDecomp_DecompileModule(
     void* decompilerHandle,
-    const char* outputCSProjectPath
+    const char* outputCSProjectPath,
+	const char** excludeFiles,
+	int excludeFilesCount
 );
 
 const char* GodotMonoDecomp_DecompileIndividualFile(

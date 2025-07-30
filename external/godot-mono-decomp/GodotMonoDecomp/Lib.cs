@@ -9,13 +9,13 @@ namespace GodotMonoDecomp
 {
     public static class Lib
     {
-        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, string[]? ReferencePaths = null)
+        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, string[]? ReferencePaths = null, string[]? excludeFiles = null)
         {
             try
             {
                 var files = GodotStuff.ListCSharpFiles(projectPath, false);
 				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], ReferencePaths);
-                return decompiler.DecompileModule(outputCSProjectPath);
+                return decompiler.DecompileModule(outputCSProjectPath, excludeFiles);
             }
             catch (Exception e)
             {

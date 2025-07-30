@@ -156,9 +156,27 @@ namespace GodotMonoDecomp
 		// per-run members
 		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
 		readonly IProjectFileWriter projectWriter;
+		HashSet<TypeDefinitionHandle> excludeTypes = [];
 		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
 
-		public void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
+		public void DecompileGodotProject(MetadataFile file, string targetDirectory, TextWriter? projectFileWriter = null, IEnumerable<TypeDefinitionHandle>? excludeTypes = null, Dictionary<TypeDefinitionHandle, string>? handleToFileMap = null, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
+			this.handleToFileMap = handleToFileMap ?? MakeHandleToFileMap(file);
+
+			if (projectFileWriter == null)
+			{
+				using (var writer = CreateFile(Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj")))){
+					DecompileProject(file, targetDirectory, writer, cancellationToken);
+				}
+			} else {
+				DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);
+			}
+			this.excludeTypes.Clear();
+			this.handleToFileMap.Clear();
+		}
+
+		protected void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			string projectFileName = Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj"));
 			using (var writer = CreateFile(projectFileName))
@@ -167,14 +185,13 @@ namespace GodotMonoDecomp
 			}
 		}
 
-		public ProjectId DecompileProject(MetadataFile file, string targetDirectory, TextWriter projectFileWriter, CancellationToken cancellationToken = default(CancellationToken))
+		protected ProjectId DecompileProject(MetadataFile file, string targetDirectory, TextWriter projectFileWriter, CancellationToken cancellationToken = default(CancellationToken))
 		{
 			if (string.IsNullOrEmpty(targetDirectory))
 			{
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
 			TargetDirectory = targetDirectory;
-			handleToFileMap.Clear();
 			directories.Clear();
 			var resources = WriteResourceFilesInProject(file).ToList();
 			var files = WriteCodeFilesInProject(file, resources.SelectMany(r => r.PartialTypes ?? Enumerable.Empty<PartialTypeInfo>()).ToList(), cancellationToken).ToList();
@@ -196,7 +213,7 @@ namespace GodotMonoDecomp
 		}
 
 		#region WriteCodeFilesInProject
-		protected virtual bool IncludeTypeWhenDecompilingProject(MetadataFile module, TypeDefinitionHandle type)
+		private bool IncludeTypeWhenDecompilingProject(MetadataFile module, TypeDefinitionHandle type)
 		{
 			var metadata = module.Metadata;
 			var typeDef = metadata.GetTypeDefinition(type);
@@ -210,6 +227,10 @@ namespace GodotMonoDecomp
 				return false;
 			// Godot stuff
 			if (GodotStuff.IsGodotGameMainClass(module, type))
+			{
+				return false;
+			}
+			if (excludeTypes.Contains(type))
 			{
 				return false;
 			}
@@ -311,6 +332,14 @@ namespace GodotMonoDecomp
 			return path;
 		}
 
+		Dictionary<TypeDefinitionHandle, string> MakeHandleToFileMap(MetadataFile module)
+		{
+			return GodotStuff.CreateFileMap(module, GetTypesToDecompile(module), FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces).ToDictionary(
+				pair => pair.Value,
+				pair => pair.Key,
+				null);
+		}
+
 
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
@@ -318,12 +347,6 @@ namespace GodotMonoDecomp
 			var paths_found_in_attributes = new HashSet<string>();
 			var typesToDecompile = GetTypesToDecompile(module);
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
-			var fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces);
-			handleToFileMap = fileMap.ToDictionary<KeyValuePair<string, TypeDefinitionHandle>, TypeDefinitionHandle, string>(
-				pair => pair.Value,
-				pair => pair.Key,
-				null);
-
 			var files = typesToDecompile.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
 			var progressReporter = ProgressIndicator;
 			var progress = new DecompilationProgress { TotalUnits = files.Count, Title = "Exporting project..." };
@@ -332,9 +355,13 @@ namespace GodotMonoDecomp
 			ProcessFiles(files);
 			while (workList.Count > 0)
 			{
-				var additionalFiles = workList
-					.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
+				var additionalTypes = workList.Where(h => !excludeTypes.Contains(h)).ToList();
 				workList.Clear();
+				if (!additionalTypes.Any())
+					break;
+				partialTypes = partialTypes.Concat(GodotStuff.GetPartialGodotTypes(ts, additionalTypes)).ToList();
+				var additionalFiles = additionalTypes
+					.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
 				ProcessFiles(additionalFiles);
 				files.AddRange(additionalFiles);
 				progress.TotalUnits = files.Count;
@@ -355,9 +382,8 @@ namespace GodotMonoDecomp
 
 			void ProcessFiles(List<IGrouping<string, TypeDefinitionHandle>> files)
 			{
-				var toProcess = new ConcurrentDictionary<IGrouping<string, TypeDefinitionHandle>, SyntaxTree>();
-
-				var processed = new ConcurrentDictionary<string, SyntaxTree>();
+				if (files.Count == 0)
+					return;
 
 				processedTypes.AddRange(files.SelectMany(f => f));
 				Parallel.ForEach(
