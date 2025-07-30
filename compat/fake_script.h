@@ -7,18 +7,22 @@
 #include <bytecode/bytecode_base.h>
 class FakeGDScript;
 
-class FakeEmbeddedScript : public Script {
-	GDCLASS(FakeEmbeddedScript, Script);
+class FakeScript : public Script {
+	GDCLASS(FakeScript, Script);
+
+protected:
 	String original_class;
 	HashMap<StringName, Variant> properties;
 	bool can_instantiate_instance = true;
+	String source;
+	String error_message;
 
 	String _get_normalized_path() const;
-
-protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	bool _set(const StringName &p_name, const Variant &p_value);
 	void _get_property_list(List<PropertyInfo> *p_list) const;
+
+	static void _bind_methods();
 
 public:
 	virtual void reload_from_file() override {}
@@ -77,8 +81,17 @@ public:
 	virtual bool is_placeholder_fallback_enabled() const override { return false; }
 
 	virtual const Variant get_rpc_config() const override { return {}; }
+
 	virtual String get_save_class() const override { return original_class; }
 
+	// FakeScript virtual methods, not in Script
+	virtual String get_script_path() const;
+	virtual Error load_source_code(const String &p_path);
+
+	virtual String get_error_message() const;
+	virtual bool is_loaded() const;
+
+	// FakeScript extra methods
 	void set_original_class(const String &p_class);
 	String get_original_class() const;
 
@@ -88,7 +101,7 @@ public:
 class FakeCSharpScript;
 class FakeScriptInstance : public ScriptInstance {
 	friend class FakeGDScript;
-	friend class FakeEmbeddedScript;
+	friend class FakeScript;
 	friend class FakeCSharpScript;
 
 private:

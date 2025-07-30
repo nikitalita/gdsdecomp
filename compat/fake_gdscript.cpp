@@ -123,14 +123,6 @@ bool FakeGDScript::instance_has(const Object *p_this) const {
 	return true;
 }
 
-bool FakeGDScript::has_source_code() const {
-	return !source.is_empty();
-}
-
-String FakeGDScript::get_source_code() const {
-	return source;
-}
-
 void FakeGDScript::set_source_code(const String &p_code) {
 	is_binary = false;
 	source = p_code;
@@ -555,49 +547,12 @@ Error FakeGDScript::parse_script() {
 	return OK;
 }
 
-bool FakeGDScript::_get(const StringName &p_name, Variant &r_ret) const {
-	if (p_name == "script/source") {
-		r_ret = get_source_code();
-		return true;
-	}
-	if (!properties.has(p_name)) {
-		return false;
-	}
-	r_ret = properties[p_name];
-	return true;
-}
-
-bool FakeGDScript::_set(const StringName &p_name, const Variant &p_value) {
-	if (p_name == "script/source") {
-		set_source_code(p_value);
-		return true;
-	}
-
-	if (!properties.has(p_name)) {
-		properties.insert(p_name, p_value);
-		return true;
-	}
-
-	properties[p_name] = p_value;
-	return true;
-}
-
-void FakeGDScript::_get_property_list(List<PropertyInfo> *p_properties) const {
-	p_properties->push_back(PropertyInfo(Variant::STRING, "script/source", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR | PROPERTY_USAGE_INTERNAL));
-	for (const KeyValue<StringName, Variant> &E : properties) {
-		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
-	}
-}
-
 Variant FakeGDScript::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
 	return {};
 }
 
 void FakeGDScript::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeGDScript::get_script_path);
 	ClassDB::bind_method(D_METHOD("load_binary_tokens", "binary_tokens"), &FakeGDScript::load_binary_tokens);
-	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeGDScript::load_source_code);
-	ClassDB::bind_method(D_METHOD("get_error_message"), &FakeGDScript::get_error_message);
 	ClassDB::bind_method(D_METHOD("set_override_bytecode_revision", "revision"), &FakeGDScript::set_override_bytecode_revision);
 	ClassDB::bind_method(D_METHOD("get_override_bytecode_revision"), &FakeGDScript::get_override_bytecode_revision);
 }
@@ -625,10 +580,6 @@ Error FakeGDScript::load_binary_tokens(const Vector<uint8_t> &p_binary_tokens) {
 	return OK;
 }
 
-String FakeGDScript::get_error_message() const {
-	return error_message;
-}
-
 int FakeGDScript::get_override_bytecode_revision() const {
 	return override_bytecode_revision;
 }
@@ -649,10 +600,7 @@ bool FakeGDScript::is_loaded() const {
 	return loaded;
 }
 
-void FakeGDScript::set_original_class(const String &p_class) {
-	original_class = p_class;
-}
-
-String FakeGDScript::get_original_class() const {
-	return original_class;
+FakeGDScript::FakeGDScript() {
+	set_original_class("GDScript");
+	set_can_instantiate(true);
 }

@@ -6,8 +6,8 @@
 #include <core/templates/rb_set.h>
 
 #include <bytecode/bytecode_base.h>
-class FakeGDScript : public Script {
-	GDCLASS(FakeGDScript, Script);
+class FakeGDScript : public FakeScript {
+	GDCLASS(FakeGDScript, FakeScript);
 	bool tool = false;
 	bool abstract = false;
 	bool valid = false;
@@ -15,7 +15,6 @@ class FakeGDScript : public Script {
 	bool autoload = true;
 	bool reloading = false;
 	bool is_binary = false;
-	String original_class = "GDScript";
 
 	using GlobalToken = GDScriptDecomp::GlobalToken;
 	// Ref<GDScriptNativeClass> native;
@@ -30,7 +29,6 @@ class FakeGDScript : public Script {
 	// HashMap<StringName, MemberInfo> static_variables_indices;
 	Vector<Variant> static_variables; // Static variable values.
 
-	String source;
 	int override_bytecode_revision = 0;
 	// Vector<uint8_t> binary_tokens;
 	GDScriptDecomp::ScriptState script_state;
@@ -49,24 +47,18 @@ class FakeGDScript : public Script {
 	Vector<uint8_t> binary_buffer;
 	Vector<StringName> export_vars;
 
-	String error_message;
-
-	HashMap<StringName, Variant> properties;
-
 	Error parse_script();
 	void ensure_base_and_global_name();
 
 protected:
-	bool _get(const StringName &p_name, Variant &r_ret) const;
-	bool _set(const StringName &p_name, const Variant &p_value);
-	void _get_property_list(List<PropertyInfo> *p_properties) const;
 	Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount,
 			Callable::CallError &r_error) override;
 
 	static void _bind_methods();
+	Error _reload_from_file();
 
 public:
-	Error _reload_from_file();
+	FakeGDScript();
 	virtual void reload_from_file() override;
 
 	virtual bool can_instantiate() const override;
@@ -81,8 +73,8 @@ public:
 	virtual PlaceHolderScriptInstance *placeholder_instance_create(Object *p_this) override;
 	virtual bool instance_has(const Object *p_this) const override;
 
-	virtual bool has_source_code() const override;
-	virtual String get_source_code() const override;
+	// virtual bool has_source_code() const override;
+	// virtual String get_source_code() const override;
 	virtual void set_source_code(const String &p_code) override;
 	virtual Error reload(bool p_keep_state = false) override;
 
@@ -125,21 +117,18 @@ public:
 	virtual bool is_placeholder_fallback_enabled() const override;
 
 	virtual const Variant get_rpc_config() const override;
-	virtual String get_save_class() const override { return original_class; }
 
-	String get_script_path() const;
-	Error load_source_code(const String &p_path);
+	// FakeScript overrides
+	virtual String get_script_path() const override;
+	virtual Error load_source_code(const String &p_path) override;
+
+	virtual bool is_loaded() const override;
+
+	// GDScript specific, not implemented in FakeScript
 	Error load_binary_tokens(const Vector<uint8_t> &p_binary_tokens);
-
-	String get_error_message() const;
 
 	void set_override_bytecode_revision(int p_revision);
 	int get_override_bytecode_revision() const;
 	void set_autoload(bool p_autoload);
 	bool is_autoload() const;
-
-	bool is_loaded() const;
-
-	void set_original_class(const String &p_class);
-	String get_original_class() const;
 };
