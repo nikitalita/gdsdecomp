@@ -429,7 +429,6 @@ public static class GodotStuff
 
 		var partialTypes = new List<PartialTypeInfo>();
 
-		var allTypeDefs = ts.GetAllTypeDefinitions();
 		void addPartialTypeInfo(ITypeDefinition typeDef)
 		{
 			if (GodotStuff.IsGodotPartialClass(typeDef))
@@ -465,8 +464,7 @@ public static class GodotStuff
 		foreach (var type in typesToDecompile)
 		{
 			// get the type definition from allTypeDefs where the metadata token matches
-			var typeDef = allTypeDefs
-				.Select(td => td)
+			var typeDef = ts.GetAllTypeDefinitions()
 				.FirstOrDefault(td => td.MetadataToken.Equals(type));
 			if (typeDef == null)
 			{
@@ -489,14 +487,19 @@ public static class GodotStuff
 		return module.AssemblyReferences.Any(r => r.Name == "Godot.SourceGenerators");
 	}
 
-	public static bool IsGodotPartialClass(ITypeDefinition entity)
+	public static bool IsGodotClass(ITypeDefinition entity)
 	{
 		if (entity == null)
 		{
 			return false;
 		}
+		return entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject");
+	}
+
+	public static bool IsGodotPartialClass(ITypeDefinition entity)
+	{
 		// check if the entity is a member of a type that derives from GodotObject
-		if (!entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject")) return false;
+		if (!IsGodotClass(entity)) return false;
 
 		// check if it's version 3 or lower; version 3 had no partial classes
 		if (entity.ParentModule?.MetadataFile != null)

@@ -249,6 +249,32 @@ static public class Lib
 		return arrayPtr;
 	}
 
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetAllUtf32StringsInModule")]
+	public static IntPtr AOTGetAllUtf32StringsInModule(
+		IntPtr decompilerHandle,
+		IntPtr r_num_strings // pointer to an integer
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return IntPtr.Zero;
+		}
+		IEnumerable<byte[]> strings = decompiler.GetAllUtf32StringsInModule();
+		Marshal.WriteInt32(r_num_strings, strings.Count());
+		var arrayPtr = Marshal.AllocHGlobal(strings.Count() * IntPtr.Size);
+		int i = 0;
+		foreach (var u32strAsByteArray in strings)
+		{
+			Marshal.WriteIntPtr(arrayPtr + i * IntPtr.Size, Marshal.AllocHGlobal(u32strAsByteArray.Length + 4)); // +4 for the null terminator
+			Marshal.Copy(u32strAsByteArray, 0, Marshal.ReadIntPtr(arrayPtr + i * IntPtr.Size), u32strAsByteArray.Length);
+			Marshal.WriteInt32(Marshal.ReadIntPtr(arrayPtr + i * IntPtr.Size) + u32strAsByteArray.Length, 0);
+			i++;
+		}
+		return arrayPtr;
+	}
+
+
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_FreeArray")]
 	public static void FreeArray(IntPtr v, int length)
 	{
