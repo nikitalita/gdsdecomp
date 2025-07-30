@@ -34,14 +34,22 @@ public class GodotModuleDecompiler
 		this.fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, this.originalProjectFiles, true);
 	}
 
-	public void DecompileModule(string outputCSProjectPath)
+	public int DecompileModule(string outputCSProjectPath)
 	{
-		var targetDirectory = Path.GetDirectoryName(outputCSProjectPath);
-		GodotStuff.EnsureDir(targetDirectory);
+		try{
+			var targetDirectory = Path.GetDirectoryName(outputCSProjectPath);
+			GodotStuff.EnsureDir(targetDirectory);
 
-		using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
-			godotProjectDecompiler.DecompileProject(module, targetDirectory, projectFileWriter);
+			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath)))
+				godotProjectDecompiler.DecompileProject(module, targetDirectory, projectFileWriter);
+		}
+		catch (Exception e)
+		{
+			Console.WriteLine("Decompilation failed: " + e.Message);
+			return -1;
 
+		}
+		return 0;
 	}
 
 	public string DecompileIndividualFile(string file)

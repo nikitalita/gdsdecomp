@@ -15,8 +15,41 @@ int GodotMonoDecomp_DecompileProject(
     int referencePathsCount
 );
 
+void* GodotMonoDecomp_CreateGodotModuleDecompiler(
+    const char* assemblyPath,
+    const char** originalProjectFiles,
+    int originalProjectFilesCount,
+    const char** referencePaths,
+    int referencePathsCount
+);
+
+int GodotMonoDecomp_DecompileModule(
+    void* decompilerHandle,
+    const char* outputCSProjectPath
+);
+
+const char* GodotMonoDecomp_DecompileIndividualFile(
+	void* decompilerHandle,
+	const char* file
+);
+
+int GodotMonoDecomp_GetNumberOfFilesNotPresentInFileMap(
+	void* decompilerHandle
+);
+
+const char** GodotMonoDecomp_GetFilesNotPresentInFileMap(
+	void* decompilerHandle
+);
+
+void GodotMonoDecomp_FreeObjectHandle(void* handle);
+
+void GodotMonoDecomp_FreeArray(void* array, int length);
+
+void GodotMonoDecomp_FreeString(void* str);
+
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif // GODOT_MONO_DECOMP_H 
+#endif // GODOT_MONO_DECOMP_H
