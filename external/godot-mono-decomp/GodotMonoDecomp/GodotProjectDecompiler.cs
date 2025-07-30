@@ -117,7 +117,7 @@ namespace GodotMonoDecomp
 		public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
 
-		public string GodotProjectDirectory { get; set; }
+		public IEnumerable<string> FilesInOriginal { get; set; }
 
 		public IProgress<DecompilationProgress> ProgressIndicator { get; set; }
 		#endregion
@@ -132,8 +132,9 @@ namespace GodotMonoDecomp
 			IAssemblyResolver assemblyResolver,
 			IProjectFileWriter projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider debugInfoProvider)
-			: this(settings, Guid.NewGuid(), assemblyResolver, projectWriter, assemblyReferenceClassifier, debugInfoProvider)
+			IDebugInfoProvider debugInfoProvider,
+			IEnumerable<string> filesInOriginal = null)
+			: this(settings, Guid.NewGuid(), assemblyResolver, projectWriter, assemblyReferenceClassifier, debugInfoProvider, filesInOriginal)
 		{
 		}
 
@@ -143,8 +144,10 @@ namespace GodotMonoDecomp
 			IAssemblyResolver assemblyResolver,
 			IProjectFileWriter projectWriter,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider debugInfoProvider)
+			IDebugInfoProvider debugInfoProvider,
+			IEnumerable<string> filesInOriginal = null)
 		{
+			FilesInOriginal = filesInOriginal ?? Enumerable.Empty<string>();
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
 			ProjectGuid = projectGuid;
 			AssemblyResolver = assemblyResolver ?? throw new ArgumentNullException(nameof(assemblyResolver));
@@ -309,11 +312,6 @@ namespace GodotMonoDecomp
 		{
 			var metadata = module.Metadata;
 			var paths_found_in_attributes = new HashSet<string>();
-			if (GodotProjectDirectory == null)
-			{
-				GodotProjectDirectory = TargetDirectory;
-			}
-			var filesInOriginal = GodotStuff.ListCSharpFiles(GodotProjectDirectory, false);
 
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
 			var allTypeDefs = ts.GetAllTypeDefinitions();
@@ -455,7 +453,7 @@ namespace GodotMonoDecomp
 				// if (Settings.GodotMode)
 				{
 					GodotStuff.ProcessUnprocessedFiles(toProcess,
-						TargetDirectory, filesInOriginal,
+						TargetDirectory, FilesInOriginal,
 						this.MaxDegreeOfParallelism, cancellationToken, Settings, processed);
 				}
 			}
