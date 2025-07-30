@@ -4,6 +4,8 @@
 
 #include "core/io/file_access.h"
 #include "core/variant/variant_parser.h"
+#include "utility/file_access_buffer.h"
+#include "utility/gdre_settings.h"
 #include <core/config/project_settings.h>
 #include <core/templates/rb_set.h>
 
@@ -21,6 +23,8 @@ Error ProjectConfigLoader::load_cfb(const String path, const uint32_t ver_major,
 		err = _load_settings_binary(f, path, ver_major);
 	}
 	ERR_FAIL_COND_V(err, err);
+	major = ver_major;
+	minor = ver_minor;
 	loaded = true;
 	return OK;
 }
@@ -172,9 +176,7 @@ struct _VCSort {
 	bool operator<(const _VCSort &p_vcs) const { return order == p_vcs.order ? name < p_vcs.name : order < p_vcs.order; }
 };
 
-Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor) {
-	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
-
+RBMap<String, List<String>> ProjectConfigLoader::get_save_proops() const {
 	RBSet<_VCSort> vclist;
 
 	for (RBMap<StringName, VariantContainer>::Element *G = props.front(); G; G = G->next()) {
@@ -209,7 +211,13 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 		}
 		proops[category].push_back(name);
 	}
+	return proops;
+}
 
+Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor) {
+	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
+
+	RBMap<String, List<String>> proops = get_save_proops();
 	String ext = p_path.get_extension().to_lower();
 
 	if (ext == "godot" || ext == "cfg") {
@@ -224,6 +232,11 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
 	Error err;
 	Ref<FileAccess> file = FileAccess::open(p_file, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Couldn't save project.godot - " + p_file + ".");
+	return _save_settings_text_file(file, proops, ver_major, ver_minor);
+}
+
+Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
 	uint32_t config_version = 2;
 	if (ver_major > 2) {
 		if (ver_major == 3 && ver_minor == 0) {
@@ -236,8 +249,6 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 	} else {
 		config_version = 2;
 	}
-
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Couldn't save project.godot - " + p_file + ".");
 
 	if (config_version > 2) {
 		file->store_line("; Engine configuration file.");
@@ -342,6 +353,48 @@ Error ProjectConfigLoader::_save_settings_binary(const String &p_file, const RBM
 	}
 
 	return OK;
+}
+
+String ProjectConfigLoader::get_as_text(bool p_skip_cr) {
+	RBMap<String, List<String>> proops = get_save_proops();
+	Ref<FileAccessBuffer> f;
+	f.instantiate();
+	f->open_new();
+
+	Error err = _save_settings_text_file(f, proops, major, minor);
+	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save project.godot");
+	return f->get_as_text(p_skip_cr);
+}
+
+String ProjectConfigLoader::get_project_settings_as_string(const String &p_path) {
+	int ver_major = GDRESettings::get_singleton()->get_ver_major();
+	int ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+	Error err;
+	Ref<ProjectConfigLoader> loader = Ref<ProjectConfigLoader>(memnew(ProjectConfigLoader));
+	if (ver_major > 0) {
+		err = loader->load_cfb(p_path, ver_major, ver_minor);
+		ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to load project.godot");
+	} else {
+		if (p_path.get_file() == "engine.cfb") {
+			ver_major = 2;
+			err = loader->load_cfb(p_path, ver_major, ver_minor);
+			if (err != OK) {
+				return "";
+			}
+		} else {
+			err = loader->load_cfb(p_path, 4, 3);
+			if (err == OK) {
+				ver_major = 4;
+			} else {
+				err = loader->load_cfb(p_path, 3, 3);
+				if (err != OK) {
+					return "";
+				}
+				ver_major = 3;
+			}
+		}
+	}
+	return loader->get_as_text();
 }
 
 ProjectConfigLoader::ProjectConfigLoader() {

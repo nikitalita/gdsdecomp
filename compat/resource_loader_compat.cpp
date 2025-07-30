@@ -432,6 +432,9 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		path = GDRESettings::get_singleton()->get_mapped_path(path);
 		ERR_FAIL_COND_V_MSG(!FileAccess::exists(path), "", "File does not exist: " + path);
 	}
+	if (path.get_file().to_lower() == "engine.cfb" || path.get_file().to_lower() == "project.binary") {
+		return ProjectConfigLoader::get_project_settings_as_string(path);
+	}
 	String ext = path.get_extension().to_lower();
 	if (ext == "tres" || ext == "tscn" || !handles_resource(path, "")) {
 		auto buf = FileAccess::get_file_as_bytes(path);
