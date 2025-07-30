@@ -53,21 +53,43 @@ namespace GodotMonoDecomp
 			"System.Xaml",
 		};
 
+		static readonly HashSet<string> ImplicitGodotReferences = new HashSet<string> {
+			"Godot",
+			"GodotSharp",
+			"Godot.SourceGenerators",
+			"GodotSharpEditor",
+			"Godot.NET.Sdk",
+			"Godot.NET.Sdk.Editor",
+			"GodotSharp",
+			"Godot.SourceGenerators",
+			"GodotSharpEditor"
+		};
+
 		enum ProjectType { Default, WinForms, Wpf, Web }
 
-		readonly bool writePackageReferences = true;
 
-		public ProjectFileWriterGodotStyle(bool writePackageReferences)
+		class ProjectFileWriterGodotStyleSettings
 		{
-			this.writePackageReferences = writePackageReferences;
+			public bool writePackageReferences = true;
+			public bool copyOutOfTreeRefsToOutputDir = true;
+		}
+
+		readonly ProjectFileWriterGodotStyleSettings settings;
+
+		public ProjectFileWriterGodotStyle(bool writePackageReferences, bool copyRelativePackageRefsToOutputDir)
+		{
+			this.settings = new ProjectFileWriterGodotStyleSettings() {
+				writePackageReferences = writePackageReferences,
+				copyOutOfTreeRefsToOutputDir = copyRelativePackageRefsToOutputDir
+			};
 		}
 
 		/// <summary>
 		/// Creates a new instance of the <see cref="ProjectFileWriterSdkStyle"/> class.
 		/// </summary>
 		/// <returns>A new instance of the <see cref="ProjectFileWriterSdkStyle"/> class.</returns>
-		public static IProjectFileWriter Create(bool writeNugetRefs = true) =>
-			new ProjectFileWriterGodotStyle(writeNugetRefs);
+		public static IProjectFileWriter Create(bool writeNugetRefs = true, bool copyRelativePackageRefsToOutputDir = true) =>
+			new ProjectFileWriterGodotStyle(writeNugetRefs, copyRelativePackageRefsToOutputDir);
 
 		/// <inheritdoc />
 		public void Write(
@@ -79,12 +101,12 @@ namespace GodotMonoDecomp
 			using (XmlTextWriter xmlWriter = new XmlTextWriter(target))
 			{
 				xmlWriter.Formatting = Formatting.Indented;
-				Write(xmlWriter, project, files, module, this.writePackageReferences);
+				Write(xmlWriter, project, files, module, settings);
 			}
 		}
 
 		static void Write(XmlTextWriter xml, IProjectInfoProvider project, IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
-			MetadataFile module, bool writePackageReferences)
+			MetadataFile module, ProjectFileWriterGodotStyleSettings settings)
 		{
 			xml.WriteStartElement("Project");
 			var gdver = GodotStuff.GetGodotVersion(module);
@@ -120,10 +142,10 @@ namespace GodotMonoDecomp
 			PlaceIntoTag("PropertyGroup", xml, () => WriteMiscellaneousPropertyGroup(xml, files));
 			PlaceIntoTag("ItemGroup", xml, () => WriteResources(xml, files));
 			PlaceIntoTag("ItemGroup", xml,
-				() => WritePackageReferences(xml, module, project, projectType, deps, writePackageReferences));
+				() => WritePackageReferences(xml, module, project, projectType, deps, settings));
 
 			PlaceIntoTag("ItemGroup", xml,
-				() => WriteReferences(xml, module, project, projectType, deps, writePackageReferences));
+				() => WriteReferences(xml, module, project, projectType, deps, settings));
 
 			xml.WriteEndElement();
 		}
@@ -203,15 +225,21 @@ namespace GodotMonoDecomp
 			return depInfo;
 		}
 
+		static bool IsImplicitReference(string name)
+		{
+
+			return ImplicitReferences.Contains(name) || name.StartsWith("runtimepack") ||
+			       ImplicitGodotReferences.Contains(name);
+		}
+
 		static void WritePackageReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo? deps, bool writePackageReferences)
+			ProjectType projectType, DotNetCoreDepInfo? deps, ProjectFileWriterGodotStyleSettings settings)
 		{
 			void WritePackageRefs(XmlTextWriter xml)
 			{
 				foreach (var dep in deps.deps)
 				{
-					if (dep.Name == "GodotSharp" || dep.Name == "Godot.SourceGenerators" ||
-					    dep.Name.StartsWith("runtimepack") || dep.Serviceable == false || dep.Type != "package")
+					if (IsImplicitReference(dep.Name) || dep.Serviceable == false || dep.Type != "package")
 					{
 						continue;
 					}
@@ -228,7 +256,7 @@ namespace GodotMonoDecomp
 				return;
 			}
 
-			if (writePackageReferences)
+			if (settings.writePackageReferences)
 			{
 				WritePackageRefs(xml);
 			}
@@ -430,7 +458,7 @@ namespace GodotMonoDecomp
 
 
 		static void WriteReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
-			ProjectType projectType, DotNetCoreDepInfo? deps, bool writePackageReferences = false)
+			ProjectType projectType, DotNetCoreDepInfo? deps, ProjectFileWriterGodotStyleSettings settings)
 		{
 			bool isNetCoreApp = TargetServices.DetectTargetFramework(module).Identifier == ".NETCoreApp";
 			var targetPacks = new HashSet<string>();
@@ -454,6 +482,9 @@ namespace GodotMonoDecomp
 
 			List<AssemblyReference> commentedReferences = new List<AssemblyReference>();
 
+			HashSet<string> seenRefs = new HashSet<string>();
+
+
 			foreach (var reference in module.AssemblyReferences.Where(r => !ImplicitReferences.Contains(r.Name)))
 			{
 				if (isNetCoreApp &&
@@ -463,19 +494,19 @@ namespace GodotMonoDecomp
 					continue;
 				}
 
-				if (reference.Name is "GodotSharp" or "Godot.SourceGenerators" or "GodotSharpEditor")
+				if (ImplicitGodotReferences.Contains(reference.Name))
 				{
 					godotSharpRefs.Add(reference);
 					continue;
 				}
 
-				if (writePackageReferences && deps != null && deps.HasDep(reference.Name, true))
+				if (DepExistsInPackages(reference))
 				{
 					commentedReferences.Add(reference);
 					continue;
 				}
 
-				WriteRef(xml, reference);
+				WriteRef(xml, reference, true);
 			}
 
 			if (godotSharpRefs.Count > 0)
@@ -483,7 +514,7 @@ namespace GodotMonoDecomp
 				writeBlockComment(xml, (newXml) => {
 						foreach (var reference in godotSharpRefs)
 						{
-							WriteRef(newXml, reference);
+							WriteRef(newXml, reference, false);
 						}
 					},
 					"The following references were not added to the project file because they are automatically added by the Godot SDK.");
@@ -494,13 +525,94 @@ namespace GodotMonoDecomp
 				writeBlockComment(xml, (newXml) => {
 						foreach (var reference in commentedReferences)
 						{
-							WriteRef(newXml, reference);
+							WriteRef(newXml, reference, false);
 						}
 					},
 					"The following references were not added to the project file because they are part of the package references above.");
 			}
 
-			void WriteRef(XmlTextWriter newXml, AssemblyReference reference)
+			bool DepExistsInPackages(AssemblyReference reference)
+			{
+				return settings.writePackageReferences && deps != null && deps.HasDep(reference.Name, true, true);
+			}
+
+			string GetNewRefOutputPath(string path)
+			{
+				string monoPart;
+				if (path.Contains("/.mono"))
+				{
+					// get the part of the path that begins with ".mono"
+					monoPart = path.Substring(path.IndexOf("/.mono") + 1);
+					// copy the file to the output directory
+				}
+				else if (path.Contains("\\.mono")) {
+					monoPart = path.Substring(path.IndexOf("\\.mono") + 1);
+				}
+				else
+				{
+					monoPart = Path.Combine(".mono", "referenced_assemblies", Path.GetFileName(path));
+				}
+				return Path.Combine(project.TargetDirectory, monoPart);
+			}
+
+			void CopyRef(MetadataFile asembly, string outputPath)
+			{
+				if (!seenRefs.Add(outputPath))
+				{
+					// we already copied this reference
+					return;
+				}
+
+				// if it already exists, we don't need to copy it
+				if (!File.Exists(outputPath)) {
+					try
+					{
+						_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+					}
+					catch (Exception e)
+					{
+						Console.Error.WriteLine($"Error creating directory {Path.GetDirectoryName(outputPath)}: {e.Message}");
+					}
+					// copy the file to the output directory
+					try
+					{
+						File.Copy(asembly.FileName, outputPath, true);
+					}
+					catch (Exception e)
+					{
+						Console.Error.WriteLine($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
+					}
+					// use the relative path to the output directory
+				}
+				// check if a pdb exists at the original path
+				var pdbPath = Path.ChangeExtension(asembly.FileName, ".pdb");
+				var pdbOutputPath = Path.ChangeExtension(outputPath, ".pdb");
+				if (File.Exists(pdbPath) && !File.Exists(pdbOutputPath))
+				{
+					// copy the pdb file to the output directory
+					try
+					{
+						File.Copy(pdbPath, pdbOutputPath);
+					}
+					catch (Exception e)
+					{
+						Console.Error.WriteLine($"Error copying pdb file {pdbPath} to {pdbOutputPath}: {e.Message}");
+					}
+				}
+				// we need to copy the dependencies too
+				var asemblyDeps = asembly.AssemblyReferences.Where(r => !IsImplicitReference(r.Name) && !DepExistsInPackages(r) && !project.AssemblyReferenceClassifier.IsGacAssembly(r));
+				foreach (var dep in asemblyDeps)
+				{
+					var depAssembly = project.AssemblyResolver.Resolve(dep);
+					if (depAssembly != null)
+					{
+						var depOutputPath = GetNewRefOutputPath(depAssembly.FileName);
+						CopyRef(depAssembly, depOutputPath);
+					}
+				}
+			}
+
+			void WriteRef(XmlTextWriter newXml, AssemblyReference reference, bool realRef)
 			{
 				newXml.WriteStartElement("Reference");
 				newXml.WriteAttributeString("Include", reference.Name);
@@ -508,13 +620,22 @@ namespace GodotMonoDecomp
 				var asembly = project.AssemblyResolver.Resolve(reference);
 				if (asembly != null && !project.AssemblyReferenceClassifier.IsGacAssembly(reference))
 				{
-					newXml.WriteElementString("HintPath",
-						FileUtility.GetRelativePath(project.TargetDirectory, asembly.FileName));
+					var path = FileUtility.GetRelativePath(project.TargetDirectory, asembly.FileName);
+					if (realRef && settings.copyOutOfTreeRefsToOutputDir && path.StartsWith(".."))
+					{
+						// we need to copy the file to the output directory
+						// check if one of the directories in the path is ".mono"
+						var outputPath = GetNewRefOutputPath(asembly.FileName);
+						CopyRef(asembly, outputPath);
+
+						path = FileUtility.GetRelativePath(project.TargetDirectory, outputPath);
+
+					}
+					newXml.WriteElementString("HintPath", path);
 				}
 
 				newXml.WriteEndElement();
 			}
-			return;
 		}
 
 		static string GetSdkString(ProjectType projectType)

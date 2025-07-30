@@ -141,16 +141,17 @@ class DotNetCoreDepInfo
 		return result.ToArray();
 	}
 
-	public bool HasDep(string name, bool parentIsPackage)
+	public bool HasDep(string name, bool parentIsPackage, bool serviceableOnly = false)
 	{
-		if (this.runtimeComponents.Contains(name))
+		if (runtimeComponents.Contains(name) && !((parentIsPackage && Type != "package") || (serviceableOnly && !Serviceable)))
 		{
 			return true;
 		}
 		for (int i = 0; i < deps.Length; i++)
 		{
-			if (parentIsPackage && (deps[i].Type != "package"))
+			if ((parentIsPackage && deps[i].Type != "package") || (serviceableOnly && !deps[i].Serviceable))
 			{
+				// skip non-package dependencies if parent is a package
 				continue;
 			}
 
@@ -159,7 +160,7 @@ class DotNetCoreDepInfo
 				return true;
 			}
 
-			if (deps[i].HasDep(name, false))
+			if (deps[i].HasDep(name, false, false))
 			{
 				return true;
 			}

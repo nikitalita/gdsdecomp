@@ -464,29 +464,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (exclude_files.size() == cs_files.size()) {
 			// nothing to do
 		} else if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
-			String assembly_path = GDRESettings::get_singleton()->get_dotnet_assembly_path();
-			String temp_dir = GDRESettings::get_singleton()->get_temp_dotnet_assembly_dir();
 			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
-			if (get_ver_major() <= 3 || !temp_dir.is_empty()) {
-				auto num_mono_files = gdre::get_recursive_dir_list("res://.mono").size();
-				if (num_mono_files > 0) {
-					// we want to create a new decompiler that points to the assembly in the output_dir/.mono directory to ensure that the
-					// decompiled project points to references relative to the output_dir
-					// ensure that .mono directory exists in the output_dir and that it has all the files in res://.mono
-					String mono_dir = output_dir.path_join(".mono");
-					if (!DirAccess::exists(mono_dir) || num_mono_files > gdre::get_recursive_dir_list(mono_dir).size()) {
-						err = gdre::copy_dir("res://.mono", mono_dir);
-						ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to copy .mono directory to " + mono_dir);
-					}
-					assembly_path = output_dir.path_join(assembly_path.trim_prefix(temp_dir));
-					decompiler = GodotMonoDecompWrapper::create(assembly_path, cs_files, { assembly_path.get_base_dir() });
-					if (decompiler.is_null()) {
-						ERR_PRINT("Failed to create decompiler for " + assembly_path);
-						// just use the default decompiler
-						decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
-					}
-				}
-			}
 
 			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
 			err = decompiler->decompile_module_with_progress(csproj_path, exclude_files);
