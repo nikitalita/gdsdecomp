@@ -158,12 +158,19 @@ namespace GodotMonoDecomp
 		readonly IProjectFileWriter projectWriter;
 		HashSet<TypeDefinitionHandle> excludeTypes = [];
 		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
+		DotNetCoreDepInfo? depInfo;
 
-		public void DecompileGodotProject(MetadataFile file, string targetDirectory, TextWriter? projectFileWriter = null, IEnumerable<TypeDefinitionHandle>? excludeTypes = null, Dictionary<TypeDefinitionHandle, string>? handleToFileMap = null, CancellationToken cancellationToken = default(CancellationToken))
+		public void DecompileGodotProject(MetadataFile file,
+											string targetDirectory,
+											TextWriter? projectFileWriter = null,
+											IEnumerable<TypeDefinitionHandle>? excludeTypes = null,
+											Dictionary<TypeDefinitionHandle, string>? handleToFileMap = null,
+											DotNetCoreDepInfo? depInfo = null,
+											CancellationToken cancellationToken = default(CancellationToken))
 		{
 			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
 			this.handleToFileMap = handleToFileMap ?? MakeHandleToFileMap(file);
-
+			this.depInfo = depInfo;
 			if (projectFileWriter == null)
 			{
 				using (var writer = CreateFile(Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj")))){
@@ -174,6 +181,7 @@ namespace GodotMonoDecomp
 			}
 			this.excludeTypes.Clear();
 			this.handleToFileMap.Clear();
+			this.depInfo = null;
 		}
 
 		protected void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
@@ -191,6 +199,12 @@ namespace GodotMonoDecomp
 			{
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
+
+			if (projectWriter is ProjectFileWriterGodotStyle writer)
+			{
+				writer.DepInfo = depInfo;
+			}
+
 			TargetDirectory = targetDirectory;
 			directories.Clear();
 			var resources = WriteResourceFilesInProject(file).ToList();

@@ -76,6 +76,8 @@ namespace GodotMonoDecomp
 
 		readonly ProjectFileWriterGodotStyleSettings settings;
 
+		public DotNetCoreDepInfo? DepInfo;
+
 		public ProjectFileWriterGodotStyle(bool writePackageReferences, bool copyRelativePackageRefsToOutputDir)
 		{
 			this.settings = new ProjectFileWriterGodotStyleSettings() {
@@ -101,12 +103,12 @@ namespace GodotMonoDecomp
 			using (XmlTextWriter xmlWriter = new XmlTextWriter(target))
 			{
 				xmlWriter.Formatting = Formatting.Indented;
-				Write(xmlWriter, project, files, module, settings);
+				Write(xmlWriter, project, files, module, DepInfo, settings);
 			}
 		}
 
 		static void Write(XmlTextWriter xml, IProjectInfoProvider project, IEnumerable<ICSharpCode.Decompiler.CSharp.ProjectDecompiler.ProjectItemInfo> files,
-			MetadataFile module, ProjectFileWriterGodotStyleSettings settings)
+			MetadataFile module, DotNetCoreDepInfo? depInfo, ProjectFileWriterGodotStyleSettings settings)
 		{
 			xml.WriteStartElement("Project");
 			var gdver = GodotStuff.GetGodotVersion(module);
@@ -121,7 +123,6 @@ namespace GodotMonoDecomp
 				godotVersion = godotVersion.Substring(0, godotVersion.LastIndexOf('.'));
 			}
 
-			var deps =  gdver?.Major > 3 ? LoadDeps(module) : null;
 			// GodotSharp for 3.x always wrote the version number as "1.0.0" in the project file
 			if (gdver.Major < 3)
 			{
@@ -142,87 +143,12 @@ namespace GodotMonoDecomp
 			PlaceIntoTag("PropertyGroup", xml, () => WriteMiscellaneousPropertyGroup(xml, files));
 			PlaceIntoTag("ItemGroup", xml, () => WriteResources(xml, files));
 			PlaceIntoTag("ItemGroup", xml,
-				() => WritePackageReferences(xml, module, project, projectType, deps, settings));
+				() => WritePackageReferences(xml, module, project, projectType, depInfo, settings));
 
 			PlaceIntoTag("ItemGroup", xml,
-				() => WriteReferences(xml, module, project, projectType, deps, settings));
+				() => WriteReferences(xml, module, project, projectType, depInfo, settings));
 
 			xml.WriteEndElement();
-		}
-
-		class DotNetCorePackageInfo
-		{
-			public readonly string Name;
-			public readonly string Version;
-			public readonly string Type;
-			public readonly string Path;
-			public readonly string[] RuntimeComponents;
-
-			public DotNetCorePackageInfo(string fullName, string type, string path, string[] runtimeComponents)
-			{
-				var parts = fullName.Split('/');
-				this.Name = parts[0];
-				if (parts.Length > 1)
-				{
-					this.Version = parts[1];
-				}
-				else
-				{
-					this.Version = "<UNKNOWN>";
-				}
-
-				this.Type = type;
-				this.Path = path;
-				this.RuntimeComponents = runtimeComponents ?? Empty<string>.Array;
-			}
-		}
-
-		static IEnumerable<DotNetCorePackageInfo> LoadPackageInfos(string depsJsonFileName, string targetFramework)
-		{
-			var dependencies = JsonReader.Parse(File.ReadAllText(depsJsonFileName));
-			var runtimeInfos = dependencies["targets"][targetFramework].AsJsonObject;
-			var libraries = dependencies["libraries"].AsJsonObject;
-			if (runtimeInfos == null || libraries == null)
-				yield break;
-			foreach (var library in libraries)
-			{
-				var type = library.Value["type"].AsString;
-				var path = library.Value["path"].AsString;
-				var runtimeInfo = runtimeInfos[library.Key].AsJsonObject?["runtime"].AsJsonObject;
-				string[] components = new string[runtimeInfo?.Count ?? 0];
-				if (runtimeInfo != null)
-				{
-					int i = 0;
-					foreach (var component in runtimeInfo)
-					{
-						components[i] = component.Key;
-						i++;
-					}
-				}
-
-				yield return new DotNetCorePackageInfo(library.Key, type, path, components);
-			}
-		}
-
-		static DotNetCoreDepInfo? LoadDeps(MetadataFile module)
-		{
-			// remove the .dll extension
-			var depsJsonFileName = module.FileName.Substring(0, module.FileName.Length - 4) + ".deps.json";
-			DotNetCoreDepInfo? depInfo = null;
-			try
-			{
-				depInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(depsJsonFileName, module.Name);
-			}
-			catch (Exception e)
-			{
-				Console.Error.WriteLine($"Error reading {depsJsonFileName}: {e.Message}");
-			}
-			if (depInfo == null)
-			{
-				Console.Error.WriteLine($"Could not load dependency information for module {module.FileName}");
-			}
-
-			return depInfo;
 		}
 
 		static bool IsImplicitReference(string name)
