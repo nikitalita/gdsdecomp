@@ -18,9 +18,7 @@ class FakeGDScript : public Script {
 
 	using GlobalToken = GDScriptDecomp::GlobalToken;
 	// Ref<GDScriptNativeClass> native;
-	Ref<FakeGDScript> base;
-	FakeGDScript *_base = nullptr; //fast pointer access
-	FakeGDScript *_owner = nullptr; //for subclasses
+	// Ref<Script> base;
 
 	// Members are just indices to the instantiated script.
 	// HashMap<StringName, MemberInfo> member_indices; // Includes member info of all base GDScript classes.
