@@ -214,9 +214,6 @@ private:
 	Error reload_dotnet_assembly(const String &p_path);
 	Error load_project_dotnet_assembly();
 
-	void load_encryption_key();
-	void unload_encryption_key();
-
 protected:
 	static void _bind_methods();
 
