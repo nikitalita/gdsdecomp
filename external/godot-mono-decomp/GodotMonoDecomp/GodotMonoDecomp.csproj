@@ -10,6 +10,7 @@
     </PropertyGroup>
     <ItemGroup>
       <PackageReference Include="ICSharpCode.Decompiler" Version="9.1.0.7988" />
+      <PackageReference Include="ICSharpCode.ILSpyX" Version="9.1.0.7988" />
     </ItemGroup>
 
 </Project>
