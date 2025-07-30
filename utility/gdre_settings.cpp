@@ -2200,6 +2200,7 @@ Error GDRESettings::load_project_dotnet_assembly() {
 
 Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "Pack is not loaded");
+	current_project->decompiler = Ref<GodotMonoDecompWrapper>();
 	current_project->assembly_path = p_path;
 	ERR_FAIL_COND_V_MSG(current_project->assembly_path.is_empty(), ERR_INVALID_PARAMETER, "Assembly path is empty");
 	ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
