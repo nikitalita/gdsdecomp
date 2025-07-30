@@ -1114,7 +1114,7 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 
 	auto convert_image = [&](const Ref<Resource> &image_res) -> Ref<Image> {
 		Ref<Image> img = image_res;
-		if (img.is_null() && image_res->get_class() == "MissingResource") {
+		if (img.is_null() && !image_res.is_null() && image_res->get_class() == "MissingResource") {
 			ImageConverterCompat ic;
 			if (ic.handles_type("Image", ver_major)) {
 				img = ic.convert(image_res, p_type, ver_major, r_error);
