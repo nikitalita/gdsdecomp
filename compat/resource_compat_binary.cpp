@@ -2389,7 +2389,6 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
 		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
 	}
-	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
 
 	Error err;
 
@@ -2397,7 +2396,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	ResourceUID::ID uid = res_uid;
 
 	Ref<FileAccess> f;
-	bool using_compression = p_flags & ResourceSaver::FLAG_COMPRESS || compat->is_compressed;
+	using_compression = using_compression || p_flags & ResourceSaver::FLAG_COMPRESS;
 	if (using_compression) {
 		Ref<FileAccessCompressed> fac;
 		fac.instantiate();
@@ -3455,6 +3454,7 @@ Error ResourceFormatSaverCompatBinaryInstance::set_save_settings(const Ref<Resou
 		String format = compat->resource_format;
 		script_class = compat->script_class;
 		using_script_class = compat->using_script_class();
+		using_compression = compat->is_compressed;
 		big_endian = compat->stored_big_endian;
 		using_uids = compat->using_uids;
 		using_named_scene_ids = compat->using_named_scene_ids;

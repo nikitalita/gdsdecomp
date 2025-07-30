@@ -246,6 +246,7 @@ class ResourceFormatSaverCompatTextInstance {
 	Error set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags);
 
 public:
+	Error save_to_file(const Ref<FileAccess> &f, const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags = 0);
 	Error save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags = 0);
 };
 
