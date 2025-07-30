@@ -210,7 +210,7 @@ bool FakeGDScript::is_valid() const {
 }
 
 bool FakeGDScript::is_abstract() const {
-	return false;
+	return abstract;
 }
 
 ScriptLanguage *FakeGDScript::get_language() const {
@@ -299,6 +299,13 @@ Error FakeGDScript::parse_script() {
 		return OK;
 	};
 
+	auto set_abstract = [&](int i) {
+		// has to be before the script body and not annotating an inner class
+		if (!class_name_used && !extends_used && !func_used && !var_used && !const_used && !decomp->check_next_token(i, tokens, GT::G_TK_PR_CLASS)) {
+			abstract = true;
+		}
+	};
+
 	for (int i = 0; i < tokens.size(); i++) {
 		uint32_t local_token = tokens[i] & GDScriptDecomp::TOKEN_MASK;
 		GlobalToken curr_token = decomp->get_global_token(local_token);
@@ -317,6 +324,13 @@ Error FakeGDScript::parse_script() {
 				} else if (annostr.contains("@export") && !annostr.ends_with("group") && !annostr.ends_with("category")) {
 					Error err = get_export_var(i);
 					ERR_FAIL_COND_V(err != OK, err);
+				} else if (annostr == "@abstract") {
+					set_abstract(i);
+				}
+			} break;
+			case GT::G_TK_ABSTRACT: {
+				if (!is_not_actually_reserved_word(i)) {
+					set_abstract(i);
 				}
 			} break;
 			case GT::G_TK_PR_FUNCTION: {
@@ -356,14 +370,17 @@ Error FakeGDScript::parse_script() {
 				// }
 			} break;
 			case GT::G_TK_PR_CLASS_NAME: {
+				if (is_not_actually_reserved_word(i)) {
+					break;
+				}
 				// "class_name" can be used literally anywhere in GDScript 1, so we only check it if it's actually a reserved word
-				class_name_used = true;
-				if (global_name.is_empty() && !is_not_actually_reserved_word(i) && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
+				if (global_name.is_empty() && decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
 					uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
 					ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 					global_name = identifiers[identifier];
 					local_name = global_name;
 				}
+				class_name_used = true;
 			} break;
 			case GT::G_TK_PR_EXTENDS: {
 				// "extends" is only valid for the global class if it's not in the body (class_name and tool can be used before it)
