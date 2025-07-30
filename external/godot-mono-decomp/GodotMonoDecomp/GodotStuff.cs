@@ -138,7 +138,8 @@ public static class GodotStuff
 			var scriptPath = GetScriptPathAttributeValue(metadata, h);
 			if (!string.IsNullOrEmpty(scriptPath))
 			{
-				addToNamespaceToFile(metadata.GetString(type.Namespace), TrimPrefix(scriptPath, "res://"));
+				scriptPath = TrimPrefix(scriptPath, "res://");
+				addToNamespaceToFile(metadata.GetString(type.Namespace),scriptPath);
 				fileMap[scriptPath] = h;
 			}
 			else
@@ -317,9 +318,8 @@ public static class GodotStuff
 	}
 
 
-	public static List<PartialTypeInfo> GetPartialGodotTypes(MetadataFile module,
-		IEnumerable<TypeDefinitionHandle> typesToDecompile,
-		DecompilerTypeSystem ts)
+	public static List<PartialTypeInfo> GetPartialGodotTypes(DecompilerTypeSystem ts,
+		IEnumerable<TypeDefinitionHandle> typesToDecompile)
 	{
 
 		var partialTypes = new List<PartialTypeInfo>();
