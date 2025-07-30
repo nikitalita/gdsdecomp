@@ -706,6 +706,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		}
 	}
 
+	_ensure_script_cache_complete();
 	return OK;
 }
 
