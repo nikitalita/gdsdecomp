@@ -277,7 +277,6 @@ namespace GodotMonoDecomp
 			var paths_found_in_attributes = new HashSet<string>();
 			var typesToDecompile = GetTypesToDecompile(module);
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
-			partialTypes = partialTypes.Concat(GodotStuff.GetPartialGodotTypes(module, typesToDecompile, ts)).ToList();
 			var fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces);
 			var handle_to_file_map = fileMap.ToDictionary<KeyValuePair<string, TypeDefinitionHandle>, TypeDefinitionHandle, string>(
 				pair => pair.Value,
@@ -478,6 +477,9 @@ namespace GodotMonoDecomp
 					yield return new ProjectItemInfo("EmbeddedResource", fileName).With("LogicalName", r.Name);
 				}
 			}
+			var dummy = new ProjectItemInfo("DummyGodotPartials", "");
+			dummy.PartialTypes = GodotStuff.GetPartialGodotTypes(module, GetTypesToDecompile(module), new DecompilerTypeSystem(module, AssemblyResolver, Settings));
+			yield return dummy;
 		}
 
 		protected virtual IEnumerable<ProjectItemInfo> WriteResourceToFile(string fileName, string resourceName, Stream entryStream)
