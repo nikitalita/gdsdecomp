@@ -130,6 +130,18 @@ namespace GodotMonoDecomp
 					// we'll indicate that this is a Godot 3.x project but use an invalid version number to force the editor to rewrite the project file
 					godotVersion = "3.x.x";
 				}
+				else if (gdver.Major == 3)
+				{
+					// There were only two versions of the 3.x SDK; 3.2.3 and 3.3.0
+					if (gdver.Minor < 3) // Godot 3.2.x and earlier
+					{
+						godotVersion = "3.2.3";
+					}
+					else // Godot 3.3.x and later
+					{
+						godotVersion = "3.3.0";
+					}
+				}
 				sdkString = sdkString + "/" + godotVersion;
 			}
 
