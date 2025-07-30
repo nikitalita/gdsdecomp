@@ -59,6 +59,16 @@ public class GodotModuleDecompiler
 			var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(fileMap.ContainsKey).Select(file => fileMap[file]).ToHashSet() ?? [];
 
 			godotProjectDecompiler.ProgressIndicator = progress_reporter;
+			if (File.Exists(outputCSProjectPath))
+			{
+				try {
+					File.Delete(outputCSProjectPath);
+				}
+				catch (Exception e)
+				{
+					Console.Error.WriteLine($"Error: Failed to delete existing project file: {e.Message}");
+				}
+			}
 			using (var projectFileWriter = new StreamWriter(File.OpenWrite(outputCSProjectPath))) {
 				godotProjectDecompiler.DecompileGodotProject(module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), token);
 			}
