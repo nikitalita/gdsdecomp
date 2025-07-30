@@ -348,14 +348,9 @@ public static class GodotStuff
 		var partialTypes = new List<PartialTypeInfo>();
 
 		var allTypeDefs = ts.GetAllTypeDefinitions();
-		foreach (var type in typesToDecompile)
+		void addPartialTypeInfo(ITypeDefinition typeDef)
 		{
-			// get the type definition from allTypeDefs where the metadata token matches
-			var typeDef = allTypeDefs
-				.Select(td => td)
-				.FirstOrDefault(td => td.MetadataToken.Equals(type));
-
-			if (typeDef != null && GodotStuff.IsGodotPartialClass(typeDef))
+			if (GodotStuff.IsGodotPartialClass(typeDef))
 			{
 				IEnumerable<IMember> fieldsAndProperties = typeDef.Fields.Concat<IMember>(typeDef.Properties);
 
@@ -375,6 +370,28 @@ public static class GodotStuff
 
 				partialTypes.Add(partialTypeInfo);
 			}
+			// embedded types, too
+			for (int i = 0; i < typeDef.NestedTypes.Count; i++)
+			{
+				var nestedType = typeDef.NestedTypes[i];
+				if (GodotStuff.IsGodotPartialClass(nestedType))
+				{
+					addPartialTypeInfo(nestedType);
+				}
+			}
+		}
+		foreach (var type in typesToDecompile)
+		{
+			// get the type definition from allTypeDefs where the metadata token matches
+			var typeDef = allTypeDefs
+				.Select(td => td)
+				.FirstOrDefault(td => td.MetadataToken.Equals(type));
+			if (typeDef == null)
+			{
+				continue;
+			}
+			addPartialTypeInfo(typeDef);
+
 		}
 
 		return partialTypes;
