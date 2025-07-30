@@ -257,8 +257,9 @@ text = "Show Resource Preview..."
 [node name="ExportResDirDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
 oversampling_override = 1.0
-title = "Open a Directory"
+title = "Select Output Directory"
 position = Vector2i(0, 24)
+mode_overrides_title = false
 file_mode = 2
 display_mode = 1
 access = 2
@@ -271,7 +272,8 @@ option_1/values = PackedStringArray("False", "True")
 [node name="ExtractResDirDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
 oversampling_override = 1.0
-title = "Open a Directory"
+title = "Select Output Directory"
+mode_overrides_title = false
 file_mode = 2
 display_mode = 1
 access = 2
