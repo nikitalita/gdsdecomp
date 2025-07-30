@@ -387,7 +387,7 @@ Error FakeGDScript::parse_script() {
 					if (base_type_str.to_lower().ends_with(".gd")) {
 						StringName found_class = GDRESettings::get_singleton()->get_cached_script_class(base_type_str);
 						if (found_class.is_empty()) { // During the initial cache; we'll just have to load it ourselves
-							Ref<Script> base_script = ResourceCompatLoader::non_global_load(base_type_str, "");
+							Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 							if (base_script.is_valid()) {
 								base_type = base_script->get_global_name();
 							}
