@@ -32,7 +32,6 @@
 
 #include "core/io/file_access.h"
 
-
 /** FileAccessMemory with auto-growing buffer */
 class FileAccessBuffer : public FileAccess {
 	GDSOFTCLASS(FileAccessBuffer, FileAccess);

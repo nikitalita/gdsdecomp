@@ -172,7 +172,6 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 	ERR_FAIL_COND_V(!open, false);
 	ERR_FAIL_NULL_V(p_src, false);
 
-
 	// check if data is large enough
 	if (pos + p_length > data.size()) {
 		data.resize((pos + p_length + (MIN(p_length, 16 * 1024))));
@@ -192,7 +191,6 @@ String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
 	return s;
 }
 
-
 String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
 	ERR_FAIL_COND_V(!open, "");
 	uint64_t len = data.size();
@@ -200,4 +198,3 @@ String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
 	s.append_utf8((const char *)data.ptr(), len, p_skip_cr);
 	return s;
 }
-
