@@ -124,6 +124,7 @@ public:
 		bool suspect_version = false;
 		String assembly_path;
 		Ref<GodotMonoDecompWrapper> decompiler;
+		String assembly_temp_dir;
 		ProjectInfo() {
 			pcfg.instantiate();
 		}
@@ -315,6 +316,8 @@ public:
 	String get_project_dotnet_assembly_name() const;
 
 	bool project_requires_dotnet_assembly() const;
+
+	String get_temp_dotnet_assembly_dir() const;
 
 	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
 
