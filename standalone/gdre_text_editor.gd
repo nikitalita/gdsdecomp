@@ -122,7 +122,12 @@ func load_gdshader(path):
 
 func load_text_resource(path):
 	set_resource_viewer_props()
-	set_viewer_text(FileAccess.get_file_as_string(path))
+	set_viewer_text(ResourceCompatLoader.resource_to_string(path))
+	return true
+
+func load_resource_string(text):
+	set_resource_viewer_props()
+	set_viewer_text(text)
 	return true
 
 func load_text(path):
