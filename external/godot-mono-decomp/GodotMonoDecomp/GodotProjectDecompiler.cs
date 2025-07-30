@@ -156,6 +156,7 @@ namespace GodotMonoDecomp
 		// per-run members
 		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
 		readonly IProjectFileWriter projectWriter;
+		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
 
 		public void DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
 		{
@@ -173,6 +174,7 @@ namespace GodotMonoDecomp
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
 			TargetDirectory = targetDirectory;
+			handleToFileMap.Clear();
 			directories.Clear();
 			var resources = WriteResourceFilesInProject(file).ToList();
 			var files = WriteCodeFilesInProject(file, resources.SelectMany(r => r.PartialTypes ?? Enumerable.Empty<PartialTypeInfo>()).ToList(), cancellationToken).ToList();
@@ -280,6 +282,35 @@ namespace GodotMonoDecomp
 				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
 		}
 
+		protected virtual string GetFileNameForHandle(MetadataFile module, TypeDefinitionHandle h)
+		{
+			var metadata = module.Metadata;
+			if (handleToFileMap.TryGetValue(h, out var fileName))
+			{
+				if (fileName.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+				{
+					// remove the "res://" prefix
+					fileName = fileName.Substring(6);
+				}
+				fileName = fileName.Replace('/', Path.DirectorySeparatorChar);
+				return fileName;
+			}
+			var type = metadata.GetTypeDefinition(h);
+			string file = CleanUpFileName(metadata.GetString(type.Name), ".cs");
+			string ns = metadata.GetString(type.Namespace);
+			string path;
+			if (string.IsNullOrEmpty(ns))
+			{
+				path = file;
+			}
+			else
+			{
+				string dir = Settings.UseNestedDirectoriesForNamespaces ? CleanUpPath(ns) : CleanUpDirectoryName(ns);
+				path = Path.Combine(dir, file);
+			}
+			return path;
+		}
+
 
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
@@ -288,7 +319,7 @@ namespace GodotMonoDecomp
 			var typesToDecompile = GetTypesToDecompile(module);
 			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
 			var fileMap = GodotStuff.CreateFileMap(module, typesToDecompile, FilesInOriginal, Settings.UseNestedDirectoriesForNamespaces);
-			var handle_to_file_map = fileMap.ToDictionary<KeyValuePair<string, TypeDefinitionHandle>, TypeDefinitionHandle, string>(
+			handleToFileMap = fileMap.ToDictionary<KeyValuePair<string, TypeDefinitionHandle>, TypeDefinitionHandle, string>(
 				pair => pair.Value,
 				pair => pair.Key,
 				null);
@@ -313,37 +344,11 @@ namespace GodotMonoDecomp
 
 			string GetFileFileNameForHandle(TypeDefinitionHandle h)
 			{
-				if (handle_to_file_map.TryGetValue(h, out var fileName))
+				var path = GetFileNameForHandle(module, h);
+				var dir = Path.GetDirectoryName(path);
+				if (dir != null && directories.Add(dir))
 				{
-					if (fileName.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
-					{
-						// remove the "res://" prefix
-						fileName = fileName.Substring(6);
-					}
-					fileName = fileName.Replace('/', Path.DirectorySeparatorChar);
-					var dir = Path.GetDirectoryName(fileName);
-					if (dir != null && directories.Add(dir))
-					{
-						CreateDirectory(Path.Combine(TargetDirectory, dir));
-					}
-					return fileName;
-				}
-				var type = metadata.GetTypeDefinition(h);
-				string file = CleanUpFileName(metadata.GetString(type.Name), ".cs");
-				string ns = metadata.GetString(type.Namespace);
-				string path;
-				if (string.IsNullOrEmpty(ns))
-				{
-					path = file;
-				}
-				else
-				{
-					string dir = Settings.UseNestedDirectoriesForNamespaces ? CleanUpPath(ns) : CleanUpDirectoryName(ns);
-					if (directories.Add(dir))
-					{
-						CreateDirectory(Path.Combine(TargetDirectory, dir));
-					}
-					path = Path.Combine(dir, file);
+					CreateDirectory(Path.Combine(TargetDirectory, dir));
 				}
 				return path;
 			}
