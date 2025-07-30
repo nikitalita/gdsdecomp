@@ -69,10 +69,10 @@ bool FakeCSharpScript::can_instantiate() const {
 }
 
 Ref<Script> FakeCSharpScript::get_base_script() const {
-	if (base_type_paths.size() > 0 && !base_type_paths[0].is_empty()) {
-		return ResourceCompatLoader::custom_load(base_type_paths[0], "", ResourceCompatLoader::get_default_load_type());
+	if (base.is_null()) {
+		return load_base_script();
 	}
-	return Ref<Script>();
+	return base;
 }
 
 StringName FakeCSharpScript::get_global_name() const {
@@ -107,8 +107,8 @@ ScriptInstance *FakeCSharpScript::instance_create(Object *p_this) {
 }
 
 PlaceHolderScriptInstance *FakeCSharpScript::placeholder_instance_create(Object *p_this) {
-	// For now, return nullptr as we don't have a proper placeholder implementation
-	return nullptr;
+	PlaceHolderScriptInstance *si = memnew(PlaceHolderScriptInstance(/*CSharpLanguage::get_singleton()*/ nullptr, Ref<Script>(this), p_this));
+	return si;
 }
 
 bool FakeCSharpScript::instance_has(const Object *p_this) const {
@@ -284,6 +284,13 @@ bool parse_expression(const String &p_expression, Variant &r_value) {
 	return false;
 }
 
+Ref<Script> FakeCSharpScript::load_base_script() const {
+	if (base_type_paths.size() > 0 && !base_type_paths[0].is_empty()) {
+		return ResourceCompatLoader::custom_load(base_type_paths[0], "", ResourceCompatLoader::get_default_load_type());
+	}
+	return Ref<Script>();
+}
+
 Error FakeCSharpScript::reload(bool p_keep_state) {
 	error_message.clear();
 	valid = false;
@@ -362,6 +369,11 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 			continue;
 		}
 		_methods.insert(name, dict_to_method_info(method));
+	}
+
+	bool is_real_load = get_load_type() == ResourceInfo::LoadType::REAL_LOAD || get_load_type() == ResourceInfo::LoadType::GLTF_LOAD;
+	if (base.is_null() && is_real_load) {
+		base = load_base_script();
 	}
 
 	valid = true;
@@ -456,11 +468,14 @@ void FakeCSharpScript::get_script_method_list(List<MethodInfo> *p_list) const {
 }
 
 void FakeCSharpScript::get_script_property_list(List<PropertyInfo> *p_list) const {
-	Script *parent = (Script *)this;
-	while (parent) {
-		for (auto &E : members) {
-			p_list->push_back(E.value);
-		}
+	// TODO: Parse types, default values, etc.
+
+	for (const auto &E : members) {
+		p_list->push_back(E.value);
+	}
+	auto parent_script = get_base_script();
+	if (parent_script.is_valid()) {
+		parent_script->get_script_property_list(p_list);
 	}
 }
 
@@ -513,6 +528,11 @@ Variant FakeCSharpScript::callp(const StringName &p_method, const Variant **p_ar
 	// For now, return empty variant as we don't support method calls
 	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
 	return Variant();
+}
+
+FakeCSharpScript::FakeCSharpScript() {
+	original_class = "CSharpScript";
+	can_instantiate_instance = true;
 }
 
 void FakeCSharpScript::_bind_methods() {

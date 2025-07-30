@@ -17,7 +17,7 @@ class FakeCSharpScript : public FakeScript {
 	bool is_binary = false;
 
 	// Ref<GDScriptNativeClass> native;
-	// Ref<Script> base;
+	Ref<Script> base;
 
 	// Members are just indices to the instantiated script.
 	// HashMap<StringName, MemberInfo> member_indices; // Includes member info of all base GDScript classes.
@@ -47,6 +47,8 @@ class FakeCSharpScript : public FakeScript {
 
 protected:
 	static void _bind_methods();
+
+	Ref<Script> load_base_script() const;
 
 public:
 	Error _reload_from_file();
@@ -117,4 +119,6 @@ public:
 
 	void set_autoload(bool p_autoload);
 	bool is_autoload() const;
+
+	FakeCSharpScript();
 };

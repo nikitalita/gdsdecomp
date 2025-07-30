@@ -802,6 +802,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				if (info.type == "Script") {
 					Ref<FakeScript> script = texture;
 					script->set_can_instantiate(true);
+					script->set_load_type(ResourceCompatLoader::get_default_load_type());
 				}
 				set_cache_res(info, texture, false);
 				continue;

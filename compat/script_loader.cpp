@@ -45,7 +45,7 @@ String ResourceFormatGDScriptLoader::_get_resource_type(const String &p_path) {
 
 Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
 	String load_path = p_original_path.is_empty() ? p_path : p_original_path;
-	Ref<Script> fake_script;
+	Ref<FakeScript> fake_script;
 	if (p_path.get_extension().to_lower() == "cs") {
 		if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
 			Ref<FakeCSharpScript> csharp_script;
@@ -56,12 +56,13 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 			if (!r_error) {
 				r_error = &err;
 			}
+			fake_script->set_load_type(p_type);
 			*r_error = csharp_script->load_source_code(load_path);
 			ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + load_path + " (CSharpScript): " + csharp_script->get_error_message());
 		} else {
-			Ref<FakeScript> csharp_script;
-			csharp_script.instantiate();
-			csharp_script->set_original_class("CSharpScript");
+			fake_script.instantiate();
+			fake_script->set_original_class("CSharpScript");
+			fake_script->set_load_type(p_type);
 		}
 	} else {
 		Ref<FakeGDScript> fake_gd_script;
@@ -71,6 +72,7 @@ Ref<Resource> ResourceFormatGDScriptLoader::custom_load(const String &p_path, co
 		if (!r_error) {
 			r_error = &err;
 		}
+		fake_script->set_load_type(p_type);
 		*r_error = fake_gd_script->load_source_code(load_path);
 		ERR_FAIL_COND_V_MSG(*r_error != OK, Ref<Resource>(), "Error loading script: " + load_path);
 	}
@@ -126,28 +128,36 @@ Error ResourceFormatGDScriptLoader::_set_resource_info(Ref<ResourceInfo> &info, 
 
 // for embedded scripts
 Ref<Resource> FakeScriptConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
-	if (res->get_original_class() != "GDScript") {
-		Ref<FakeScript> fake_embedded_script;
-		fake_embedded_script.instantiate();
-		fake_embedded_script->set_original_class(res->get_original_class());
-		set_real_from_missing_resource(res, fake_embedded_script, p_type);
-		return fake_embedded_script;
-	}
-	Ref<FakeGDScript> fake_script;
-	fake_script.instantiate();
+	Ref<FakeScript> fake_script;
 	auto resource_info = ResourceInfo::get_info_from_resource(res);
-
-	String path = res->get_path();
-	if (path.is_empty()) {
-		if (resource_info.is_valid()) {
-			path = resource_info->original_path;
-		}
-	}
-	fake_script->set_original_class(res->get_original_class());
-	if (is_external_resource(res) && p_type != ResourceInfo::LoadType::FAKE_LOAD && p_type != ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
-		fake_script->load_source_code(path);
-	} else {
+	if (res->get_original_class() != "GDScript" && res->get_original_class() != "CSharpScript") {
+		fake_script.instantiate();
+		fake_script->set_original_class(res->get_original_class());
+		fake_script->set_load_type(p_type);
 		set_real_from_missing_resource(res, fake_script, p_type);
+	} else {
+		if (res->get_original_class() == "GDScript") {
+			Ref<FakeGDScript> fake_gd_script;
+			fake_gd_script.instantiate();
+			fake_script = fake_gd_script;
+		} else if (res->get_original_class() == "CSharpScript") {
+			Ref<FakeCSharpScript> fake_csharp_script;
+			fake_csharp_script.instantiate();
+			fake_script = fake_csharp_script;
+		}
+		fake_script->set_load_type(p_type);
+		String path = res->get_path();
+		if (path.is_empty()) {
+			if (resource_info.is_valid()) {
+				path = resource_info->original_path;
+			}
+		}
+		fake_script->set_original_class(res->get_original_class());
+		if (is_external_resource(res) && p_type != ResourceInfo::LoadType::FAKE_LOAD && p_type != ResourceInfo::LoadType::NON_GLOBAL_LOAD) {
+			fake_script->load_source_code(path);
+		} else {
+			set_real_from_missing_resource(res, fake_script, p_type);
+		}
 	}
 	// ResourceFormatGDScriptLoader::_set_resource_info(resource_info, path);
 	resource_info->set_on_resource(fake_script);

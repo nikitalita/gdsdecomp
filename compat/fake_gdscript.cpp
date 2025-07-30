@@ -65,7 +65,7 @@ bool FakeGDScript::can_instantiate() const {
 	return true;
 }
 
-Ref<Script> FakeGDScript::get_base_script() const {
+Ref<Script> FakeGDScript::load_base_script() const {
 	Ref<Script> script;
 	size_t len = base_type.length();
 	auto data = base_type.get_data();
@@ -80,6 +80,13 @@ Ref<Script> FakeGDScript::get_base_script() const {
 	}
 	script = ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type());
 	return script;
+}
+
+Ref<Script> FakeGDScript::get_base_script() const {
+	if (base.is_null()) {
+		return load_base_script();
+	}
+	return base;
 }
 
 StringName FakeGDScript::get_global_name() const {
@@ -168,6 +175,11 @@ Error FakeGDScript::reload(bool p_keep_state) {
 		ensure_base_and_global_name();
 	}
 
+	bool is_real_load = get_load_type() == ResourceInfo::LoadType::REAL_LOAD || get_load_type() == ResourceInfo::LoadType::GLTF_LOAD;
+	if (base.is_null() && is_real_load) {
+		base = load_base_script();
+	}
+
 	valid = true;
 	return OK;
 }
@@ -244,14 +256,12 @@ void FakeGDScript::get_script_method_list(List<MethodInfo> *p_list) const {
 
 void FakeGDScript::get_script_property_list(List<PropertyInfo> *p_list) const {
 	// TODO: Parse types, default values, etc.
-	Ref<FakeGDScript> parent_ref;
-	auto *parent = this;
-	while (parent) {
-		for (const auto &E : members) {
-			p_list->push_back(PropertyInfo(Variant::NIL, E));
-			parent_ref = parent->get_base_script();
-			parent = parent_ref.is_valid() ? parent_ref.ptr() : nullptr;
-		}
+	for (const auto &E : members) {
+		p_list->push_back(PropertyInfo(Variant::NIL, E));
+	}
+	auto parent_script = get_base_script();
+	if (parent_script.is_valid()) {
+		parent_script->get_script_property_list(p_list);
 	}
 }
 
@@ -291,6 +301,9 @@ void FakeGDScript::ensure_base_and_global_name() {
 			base_type = found_class;
 		} else if (GDRESettings::get_singleton()->is_pack_loaded()) { // During the initial cache; we'll just have to load it ourselves
 			Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+			if (base.is_null()) {
+				base = base_script;
+			}
 			if (base_script.is_valid()) {
 				base_type = base_script->get_global_name();
 			}
