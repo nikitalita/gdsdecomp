@@ -52,6 +52,7 @@
 #include "utility/pck_creator.h"
 #include "utility/pck_dumper.h"
 #include "utility/plugin_manager.h"
+#include "utility/scene_previewer.h"
 #include "utility/task_manager.h"
 
 #include "module_etc_decompress/register_types.h"
@@ -390,6 +391,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GitLabSource>();
 	ClassDB::register_class<ResourceInfo>();
 	ClassDB::register_class<MeshPreviewer>();
+	ClassDB::register_class<ScenePreviewer3D>();
 
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();
