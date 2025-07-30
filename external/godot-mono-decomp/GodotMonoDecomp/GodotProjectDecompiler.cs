@@ -285,6 +285,7 @@ namespace GodotMonoDecomp
 			decompiler.AstTransforms.Add(new EscapeInvalidIdentifiers());
 			decompiler.AstTransforms.Add(new RemoveCLSCompliantAttribute());
 			decompiler.AstTransforms.Add(new RemoveGodotScriptPathAttribute());
+			decompiler.AstTransforms.Add(new RemoveAutoAccessor());
 			return decompiler;
 		}
 
