@@ -6,6 +6,7 @@
 #include "core/io/missing_resource.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
+#include "modules/gdscript/gdscript.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
 
@@ -100,14 +101,11 @@ bool FakeGDScript::inherits_script(const Ref<Script> &p_script) const {
 }
 
 StringName FakeGDScript::get_instance_base_type() const {
-	if (!base_type.is_empty()) {
-		return base_type;
+	auto s = get_base_script();
+	if (s.is_valid()) {
+		return s->get_instance_base_type();
 	}
-	auto path = script_path.is_empty() ? get_path() : script_path;
-	if (path.is_empty() || !path.is_resource_file()) {
-		return {};
-	}
-	return GDRESettings::get_singleton()->get_cached_script_base(path);
+	return base_type;
 }
 
 ScriptInstance *FakeGDScript::instance_create(Object *p_this) {
@@ -204,18 +202,30 @@ PropertyInfo FakeGDScript::get_class_category() const {
 #endif
 
 bool FakeGDScript::has_method(const StringName &p_method) const {
-	return false;
+	return _methods.has(p_method);
 }
 
 bool FakeGDScript::has_static_method(const StringName &p_method) const {
-	return false;
+	return _methods[p_method].flags & METHOD_FLAG_STATIC;
 }
 
 int FakeGDScript::get_script_method_argument_count(const StringName &p_method, bool *r_is_valid) const {
-	return 0;
+	if (_methods.has(p_method)) {
+		if (r_is_valid) {
+			*r_is_valid = true;
+		}
+		return _methods[p_method].arguments.size();
+	}
+	if (r_is_valid) {
+		*r_is_valid = false;
+	}
+	return -1;
 }
 
 MethodInfo FakeGDScript::get_method_info(const StringName &p_method) const {
+	if (_methods.has(p_method)) {
+		return _methods[p_method];
+	}
 	return {};
 }
 
@@ -236,12 +246,23 @@ ScriptLanguage *FakeGDScript::get_language() const {
 }
 
 bool FakeGDScript::has_script_signal(const StringName &p_signal) const {
-	return _signals.has(p_signal);
+	if (_signals.has(p_signal)) {
+		return true;
+	}
+	auto parent = get_base_script();
+	if (parent.is_valid()) {
+		return parent->has_script_signal(p_signal);
+	}
+	return false;
 }
 
 void FakeGDScript::get_script_signal_list(List<MethodInfo> *r_signals) const {
 	for (const KeyValue<StringName, MethodInfo> &E : _signals) {
 		r_signals->push_back(E.value);
+	}
+	auto parent = get_base_script();
+	if (parent.is_valid()) {
+		parent->get_script_signal_list(r_signals);
 	}
 }
 
@@ -253,11 +274,18 @@ void FakeGDScript::update_exports() {
 }
 
 void FakeGDScript::get_script_method_list(List<MethodInfo> *p_list) const {
+	for (const KeyValue<StringName, MethodInfo> &E : _methods) {
+		p_list->push_back(E.value);
+	}
+	auto parent_script = get_base_script();
+	if (parent_script.is_valid()) {
+		parent_script->get_script_method_list(p_list);
+	}
 }
 
 void FakeGDScript::get_script_property_list(List<PropertyInfo> *p_list) const {
 	// TODO: Parse types, default values, etc.
-	for (const auto &E : members) {
+	for (const auto &E : export_vars) {
 		p_list->push_back(PropertyInfo(Variant::NIL, E));
 	}
 	auto parent_script = get_base_script();
@@ -474,6 +502,79 @@ Error FakeGDScript::parse_script() {
 			case GT::G_TK_PR_FUNCTION: {
 				if (!is_not_actually_reserved_word(i)) {
 					func_used = true;
+
+					// only methods at the top level
+					if (indent == 0) {
+						StringName method_name;
+						if (decomp->check_next_token(i, tokens, GT::G_TK_IDENTIFIER)) {
+							uint32_t identifier = tokens[i + 1] >> GDScriptDecomp::TOKEN_BITS;
+							FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(identifier >= (uint32_t)identifiers.size(), "After method: Invalid identifier index");
+							method_name = identifiers[identifier];
+						} else if (script_state.bytecode_version < GDScriptDecomp::GDSCRIPT_2_0_VERSION) { // method names can be nearly any token in GDScript 1.x
+							String method = decomp->get_token_text(script_state, i + 1);
+							if (method.is_empty() || method.begins_with("ERROR:")) {
+								WARN_PRINT(vformat("Line %d: Failed to parse method", prev_line));
+								continue;
+							}
+							method_name = method;
+						} else {
+							// Only warn if this isn't a lambda
+							if (!decomp->check_next_token(i, tokens, GT::G_TK_PARENTHESIS_OPEN)) {
+								WARN_PRINT(vformat("Line %d: Failed to parse method name", prev_line));
+							}
+							continue;
+						}
+						bool is_static = decomp->check_prev_token(i, tokens, GT::G_TK_PR_STATIC);
+						bool is_abstract = false;
+						if (!is_static && script_state.bytecode_version >= GDScriptDecomp::GDSCRIPT_2_0_VERSION) {
+							int j = i;
+							while (j < tokens.size() && j > 0) {
+								if (decomp->check_prev_token(j, tokens, GT::G_TK_ANNOTATION)) {
+									uint32_t a_id = tokens[j - 1] >> GDScriptDecomp::TOKEN_BITS;
+									FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(a_id >= (uint32_t)identifiers.size(), "Invalid annotation index");
+									const StringName &annotation = identifiers[a_id];
+									if (annotation == "@abstract") {
+										is_abstract = true;
+										break;
+									}
+								} else {
+									break;
+								}
+								j++;
+							}
+						}
+						int arg_count = 0;
+						bool is_var_arg = false;
+						if (decomp->check_next_token(i + 1, tokens, GT::G_TK_PARENTHESIS_OPEN)) {
+							Vector<Vector<uint32_t>> args;
+							arg_count = decomp->get_func_arg_count_and_params(i + 1, tokens, args);
+							if (!args.is_empty() && args[args.size() - 1].size() > 0) {
+								uint32_t first_last_arg_token = args[args.size() - 1].get(0);
+								if (decomp->get_global_token(first_last_arg_token) == GT::G_TK_PERIOD_PERIOD_PERIOD) {
+									is_var_arg = true;
+								}
+							}
+						} else {
+							arg_count = -1;
+						}
+						if (arg_count >= 0) {
+							MethodInfo mi = MethodInfo(method_name);
+							for (size_t j = 0; j < arg_count; j++) {
+								// TODO: parse argument types and names
+								mi.arguments.push_back(PropertyInfo(Variant::NIL, "arg" + itos(j)));
+							}
+							mi.flags = is_static ? METHOD_FLAG_STATIC : 0;
+							if (is_abstract) {
+								mi.flags |= METHOD_FLAG_VIRTUAL_REQUIRED;
+							}
+							if (is_var_arg) {
+								mi.flags |= METHOD_FLAG_VARARG;
+							}
+							_methods[method_name] = mi;
+						} else {
+							WARN_PRINT(vformat("Line %d: Failed to parse method %s arguments", prev_line, method_name));
+						}
+					}
 				}
 			} break;
 			case GT::G_TK_PR_VAR: {

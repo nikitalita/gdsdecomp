@@ -17,13 +17,14 @@ class FakeGDScript : public FakeScript {
 	bool is_binary = false;
 
 	using GlobalToken = GDScriptDecomp::GlobalToken;
-	// Ref<GDScriptNativeClass> native;
+	Ref<GDScriptNativeClass> native;
 	Ref<Script> base;
 
 	// Members are just indices to the instantiated script.
 	// HashMap<StringName, MemberInfo> member_indices; // Includes member info of all base GDScript classes.
-	HashSet<StringName> members; // Only members of the current class.
+	// HashSet<StringName> members; // Only members of the current class.
 	HashMap<StringName, MethodInfo> _signals;
+	HashMap<StringName, MethodInfo> _methods;
 
 	// Only static variables of the current class.
 	// HashMap<StringName, MemberInfo> static_variables_indices;

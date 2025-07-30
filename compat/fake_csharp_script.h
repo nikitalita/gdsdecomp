@@ -16,7 +16,7 @@ class FakeCSharpScript : public FakeScript {
 	bool reloading = false;
 	bool is_binary = false;
 
-	// Ref<GDScriptNativeClass> native;
+	Ref<GDScriptNativeClass> native;
 	Ref<Script> base;
 
 	// Members are just indices to the instantiated script.

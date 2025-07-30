@@ -252,7 +252,7 @@ public:
 	static Error get_buffer_encrypted(const String &p_path, int engine_ver_major, Vector<uint8_t> p_key, Vector<uint8_t> &r_buffer);
 	String get_script_text();
 	String get_error_message();
-	String get_constant_string(Vector<Variant> &constants, uint32_t constId);
+	String get_constant_string(const Vector<Variant> &constants, uint32_t constId);
 	Vector<String> get_compile_errors(const Vector<uint8_t> &p_buffer);
 	Error test_bytecode_match(const Vector<uint8_t> &p_buffer1, const Vector<uint8_t> &p_buffer2);
 
@@ -262,6 +262,10 @@ public:
 	static bool token_is_constant(GlobalToken p_token);
 	static bool token_is_operator_keyword(GlobalToken p_token);
 	static String get_global_token_name(GlobalToken p_token);
+
+	String get_token_text(const ScriptState &p_script_state, uint32_t i);
+
+	static String get_global_token_text(GlobalToken p_token);
 };
 
 VARIANT_ENUM_CAST(GDScriptDecomp::BytecodeTestResult)

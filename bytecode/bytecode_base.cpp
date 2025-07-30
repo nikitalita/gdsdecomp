@@ -152,7 +152,7 @@ String GDScriptDecomp::get_error_message() {
 	return error_message;
 }
 
-String GDScriptDecomp::get_constant_string(Vector<Variant> &constants, uint32_t constId) {
+String GDScriptDecomp::get_constant_string(const Vector<Variant> &constants, uint32_t constId) {
 	String constString;
 	GDSDECOMP_FAIL_COND_V_MSG(constId >= constants.size(), "", "Invalid constant ID.");
 	Error err = VariantWriterCompat::write_to_string_script(constants[constId], constString, get_variant_ver_major());
@@ -2229,4 +2229,436 @@ bool GDScriptDecomp::token_is_keyword_called_like_function(GlobalToken p_token) 
 
 String GDScriptDecomp::get_global_token_name(GlobalToken p_token) {
 	return GDScriptTokenizerTextCompat::get_token_name(p_token);
+}
+
+String GDScriptDecomp::get_token_text(const ScriptState &p_script_state, uint32_t i) {
+	if (i >= p_script_state.tokens.size()) {
+		return "ERROR: Invalid token index";
+	}
+	uint32_t local_token = p_script_state.tokens[i] & TOKEN_MASK;
+	GlobalToken token_id = get_global_token(local_token);
+	uint32_t token_val = p_script_state.tokens[i] >> TOKEN_BITS;
+	switch (token_id) {
+		case G_TK_EMPTY: {
+			return "";
+		} break;
+		case G_TK_ANNOTATION: // fallthrough
+		case G_TK_IDENTIFIER: {
+			if (token_val >= (uint32_t)p_script_state.identifiers.size()) {
+				return "ERROR: Invalid identifier index";
+			}
+			return String(p_script_state.identifiers[token_val]);
+		} break;
+		case G_TK_CONSTANT: {
+			if (token_val >= (uint32_t)p_script_state.constants.size()) {
+				return "ERROR: Invalid constant index";
+			}
+			return get_constant_string(p_script_state.constants, token_val);
+		} break;
+		case G_TK_BUILT_IN_TYPE: {
+			return VariantDecoderCompat::get_variant_type_name(token_val, get_variant_ver_major());
+		} break;
+		case G_TK_BUILT_IN_FUNC: {
+			if (token_val >= get_function_count()) {
+				return "ERROR: Invalid function index";
+			}
+			return get_function_name(token_val);
+		} break;
+		default:
+			break;
+	}
+	return get_global_token_text(token_id);
+}
+
+String GDScriptDecomp::get_global_token_text(GlobalToken p_token_id) {
+	switch (p_token_id) {
+		case G_TK_EMPTY: {
+			//skip
+			return "";
+		} break;
+		case G_TK_ANNOTATION: // fallthrough
+		case G_TK_IDENTIFIER: {
+			// uint32_t identifier = tokens[i] >> TOKEN_BITS;
+			// if (identifier >= (uint32_t)identifiers.size()) {
+			// 	return "ERROR: Invalid identifier index";
+			// }
+			// return String(identifiers[identifier]);
+			return "";
+		} break;
+		case G_TK_CONSTANT: {
+			// uint32_t constant = tokens[i] >> TOKEN_BITS;
+			// if (constant >= (uint32_t)constants.size()) {
+			// 	return "ERROR: Invalid constant index";
+			// }
+			// // TODO: handle GDScript 2.0 multi-line strings: we have to check the number of newlines
+			// // in the string and if the next token has a line number difference >= the number of newlines
+			// return get_constant_string(constants, constant);
+			return "";
+		} break;
+		case G_TK_BUILT_IN_TYPE: {
+			// line += VariantDecoderCompat::get_variant_type_name(tokens[i] >> TOKEN_BITS, variant_ver_major);
+			return "";
+		} break;
+		case G_TK_BUILT_IN_FUNC: {
+			// GDSDECOMP_FAIL_COND_V(tokens[i] >> TOKEN_BITS >= FUNC_MAX, ERR_INVALID_DATA);
+			// line += get_function_name(tokens[i] >> TOKEN_BITS);
+			return "";
+		} break;
+
+		case G_TK_SELF: {
+			return "self";
+		} break;
+		case G_TK_OP_IN: {
+			return "in";
+		} break;
+		case G_TK_OP_EQUAL: {
+			return "==";
+		} break;
+		case G_TK_OP_NOT_EQUAL: {
+			return "!=";
+		} break;
+		case G_TK_OP_LESS: {
+			return "<";
+		} break;
+		case G_TK_OP_LESS_EQUAL: {
+			return "<=";
+		} break;
+		case G_TK_OP_GREATER: {
+			return ">";
+		} break;
+		case G_TK_OP_GREATER_EQUAL: {
+			return ">=";
+		} break;
+		case G_TK_OP_AND: {
+			return "and";
+		} break;
+		case G_TK_OP_OR: {
+			return "or";
+		} break;
+		case G_TK_OP_NOT: {
+			return "not";
+		} break;
+		case G_TK_OP_ADD: {
+			return "+";
+		} break;
+		case G_TK_OP_SUB: {
+			return "-";
+			//TODO: do not add space after unary "-"
+		} break;
+		case G_TK_OP_MUL: {
+			return "*";
+		} break;
+		case G_TK_OP_DIV: {
+			return "/";
+		} break;
+		case G_TK_OP_MOD: {
+			return "%";
+		} break;
+		case G_TK_OP_SHIFT_LEFT: {
+			return "<<";
+		} break;
+		case G_TK_OP_SHIFT_RIGHT: {
+			return ">>";
+		} break;
+		case G_TK_OP_ASSIGN: {
+			return "=";
+		} break;
+		case G_TK_OP_ASSIGN_ADD: {
+			return "+=";
+		} break;
+		case G_TK_OP_ASSIGN_SUB: {
+			return "-=";
+		} break;
+		case G_TK_OP_ASSIGN_MUL: {
+			return "*=";
+		} break;
+		case G_TK_OP_ASSIGN_DIV: {
+			return "/=";
+		} break;
+		case G_TK_OP_ASSIGN_MOD: {
+			return "%=";
+		} break;
+		case G_TK_OP_ASSIGN_SHIFT_LEFT: {
+			return "<<=";
+		} break;
+		case G_TK_OP_ASSIGN_SHIFT_RIGHT: {
+			return ">>=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_AND: {
+			return "&=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_OR: {
+			return "|=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_XOR: {
+			return "^=";
+		} break;
+		case G_TK_OP_BIT_AND: {
+			return "&";
+		} break;
+		case G_TK_OP_BIT_OR: {
+			return "|";
+		} break;
+		case G_TK_OP_BIT_XOR: {
+			return "^";
+		} break;
+		case G_TK_OP_BIT_INVERT: {
+			return "~";
+		} break;
+		//case G_TK_OP_PLUS_PLUS: {
+		//	return "++";
+		//} break;
+		//case G_TK_OP_MINUS_MINUS: {
+		//	return "--";
+		//} break;
+		case G_TK_CF_IF: {
+			return "if";
+		} break;
+		case G_TK_CF_ELIF: {
+			return "elif";
+		} break;
+		case G_TK_CF_ELSE: {
+			return "else";
+		} break;
+		case G_TK_CF_FOR: {
+			return "for";
+		} break;
+		case G_TK_CF_WHILE: {
+			return "while";
+		} break;
+		case G_TK_CF_BREAK: {
+			return "break";
+		} break;
+		case G_TK_CF_CONTINUE: {
+			return "continue";
+		} break;
+		case G_TK_CF_PASS: {
+			return "pass";
+		} break;
+		case G_TK_CF_RETURN: {
+			return "return";
+		} break;
+		case G_TK_CF_MATCH: {
+			return "match";
+		} break;
+		case G_TK_PR_FUNCTION: {
+			return "func";
+		} break;
+		case G_TK_PR_CLASS: {
+			return "class";
+		} break;
+		case G_TK_PR_CLASS_NAME: {
+			return "class_name";
+		} break;
+		case G_TK_PR_EXTENDS: {
+			return "extends";
+		} break;
+		case G_TK_PR_IS: {
+			return "is";
+		} break;
+		case G_TK_PR_ONREADY: {
+			return "onready";
+		} break;
+		case G_TK_PR_TOOL: {
+			return "tool";
+		} break;
+		case G_TK_PR_STATIC: {
+			return "static";
+		} break;
+		case G_TK_PR_EXPORT: {
+			return "export";
+		} break;
+		case G_TK_PR_SETGET: {
+			return " setget";
+		} break;
+		case G_TK_PR_CONST: {
+			return "const";
+		} break;
+		case G_TK_PR_VAR: {
+			return "var";
+		} break;
+		case G_TK_PR_AS: {
+			return "as";
+		} break;
+		case G_TK_PR_VOID: {
+			return "void";
+		} break;
+		case G_TK_PR_ENUM: {
+			return "enum";
+		} break;
+		case G_TK_PR_PRELOAD: {
+			return "preload";
+		} break;
+		case G_TK_PR_ASSERT: {
+			return "assert";
+		} break;
+		case G_TK_PR_YIELD: {
+			return "yield";
+		} break;
+		case G_TK_PR_SIGNAL: {
+			return "signal";
+		} break;
+		case G_TK_PR_BREAKPOINT: {
+			return "breakpoint";
+		} break;
+		case G_TK_PR_REMOTE: {
+			return "remote";
+		} break;
+		case G_TK_PR_SYNC: {
+			return "sync";
+		} break;
+		case G_TK_PR_MASTER: {
+			return "master";
+		} break;
+		case G_TK_PR_SLAVE: {
+			return "slave";
+		} break;
+		case G_TK_PR_PUPPET: {
+			return "puppet";
+		} break;
+		case G_TK_PR_REMOTESYNC: {
+			return "remotesync";
+		} break;
+		case G_TK_PR_MASTERSYNC: {
+			return "mastersync";
+		} break;
+		case G_TK_PR_PUPPETSYNC: {
+			return "puppetsync";
+		} break;
+		case G_TK_BRACKET_OPEN: {
+			return "[";
+		} break;
+		case G_TK_BRACKET_CLOSE: {
+			return "]";
+		} break;
+		case G_TK_CURLY_BRACKET_OPEN: {
+			return "{";
+		} break;
+		case G_TK_CURLY_BRACKET_CLOSE: {
+			return "}";
+		} break;
+		case G_TK_PARENTHESIS_OPEN: {
+			return "(";
+		} break;
+		case G_TK_PARENTHESIS_CLOSE: {
+			return ")";
+		} break;
+		case G_TK_COMMA: {
+			return ",";
+		} break;
+		case G_TK_SEMICOLON: {
+			return ";";
+		} break;
+		case G_TK_PERIOD: {
+			return ".";
+		} break;
+		case G_TK_QUESTION_MARK: {
+			return "?";
+		} break;
+		case G_TK_COLON: {
+			return ":";
+		} break;
+		case G_TK_DOLLAR: {
+			return "$";
+		} break;
+		case G_TK_FORWARD_ARROW: {
+			return "->";
+		} break;
+		case G_TK_INDENT:
+		case G_TK_DEDENT:
+			return "";
+		case G_TK_NEWLINE: {
+			return "\n";
+		} break;
+		case G_TK_CONST_PI: {
+			return "PI";
+		} break;
+		case G_TK_CONST_TAU: {
+			return "TAU";
+		} break;
+		case G_TK_WILDCARD: {
+			return "_";
+		} break;
+		case G_TK_CONST_INF: {
+			return "INF";
+		} break;
+		case G_TK_CONST_NAN: {
+			return "NAN";
+		} break;
+		case G_TK_PR_SLAVESYNC: {
+			return "slavesync";
+		} break;
+		case G_TK_CF_DO: {
+			return "do";
+		} break;
+		case G_TK_CF_CASE: {
+			return "case";
+		} break;
+		case G_TK_CF_SWITCH: {
+			return "switch";
+		} break;
+		case G_TK_AMPERSAND_AMPERSAND: {
+			return "&&";
+		} break;
+		case G_TK_PIPE_PIPE: {
+			return "||";
+		} break;
+		case G_TK_BANG: {
+			return "!";
+		} break;
+		case G_TK_STAR_STAR: {
+			return "**";
+		} break;
+		case G_TK_STAR_STAR_EQUAL: {
+			return "**=";
+		} break;
+		case G_TK_CF_WHEN: {
+			return "when";
+		} break;
+		case G_TK_PR_AWAIT: {
+			return "await";
+		} break;
+		case G_TK_PR_NAMESPACE: {
+			return "namespace";
+		} break;
+		case G_TK_PR_SUPER: {
+			return "super";
+		} break;
+		case G_TK_PR_TRAIT: {
+			return "trait";
+		} break;
+		case G_TK_PERIOD_PERIOD: {
+			return "..";
+		} break;
+		case G_TK_PERIOD_PERIOD_PERIOD: {
+			return "...";
+		} break;
+		case G_TK_UNDERSCORE: {
+			return "_";
+		} break;
+		case G_TK_BACKTICK: {
+			return "`";
+		} break;
+		case G_TK_ABSTRACT: {
+			return "abstract";
+		} break;
+		// case G_TK_ERROR: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_EOF: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_CURSOR: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_VCS_CONFLICT_MARKER: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_MAX: {
+		// 	GDSDECOMP_FAIL_V_MSG(ERR_INVALID_DATA, "Invalid token: TK_MAX (" + itos(local_token) + ")");
+		// } break;
+		default: {
+			return "";
+		}
+	}
 }

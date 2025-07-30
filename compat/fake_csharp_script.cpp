@@ -85,14 +85,11 @@ bool FakeCSharpScript::inherits_script(const Ref<Script> &p_script) const {
 }
 
 StringName FakeCSharpScript::get_instance_base_type() const {
-	if (!base_type.is_empty()) {
-		return base_type;
+	auto s = get_base_script();
+	if (s.is_valid()) {
+		return s->get_instance_base_type();
 	}
-	auto path = script_path.is_empty() ? get_path() : script_path;
-	if (path.is_empty() || !path.is_resource_file()) {
-		return {};
-	}
-	return "CSharpScript";
+	return base_type;
 }
 
 ScriptInstance *FakeCSharpScript::instance_create(Object *p_this) {
@@ -455,6 +452,12 @@ bool FakeCSharpScript::has_static_method(const StringName &p_method) const {
 }
 
 int FakeCSharpScript::get_script_method_argument_count(const StringName &p_method, bool *r_is_valid) const {
+	if (_methods.has(p_method)) {
+		if (r_is_valid) {
+			*r_is_valid = true;
+		}
+		return _methods[p_method].arguments.size();
+	}
 	if (r_is_valid) {
 		*r_is_valid = false;
 	}
@@ -486,12 +489,23 @@ ScriptLanguage *FakeCSharpScript::get_language() const {
 }
 
 bool FakeCSharpScript::has_script_signal(const StringName &p_signal) const {
-	return _signals.has(p_signal);
+	if (_signals.has(p_signal)) {
+		return true;
+	}
+	auto parent = get_base_script();
+	if (parent.is_valid()) {
+		return parent->has_script_signal(p_signal);
+	}
+	return false;
 }
 
 void FakeCSharpScript::get_script_signal_list(List<MethodInfo> *r_signals) const {
 	for (const KeyValue<StringName, MethodInfo> &E : _signals) {
 		r_signals->push_back(E.value);
+	}
+	auto parent_script = get_base_script();
+	if (parent_script.is_valid()) {
+		parent_script->get_script_signal_list(r_signals);
 	}
 }
 
@@ -500,7 +514,15 @@ bool FakeCSharpScript::get_property_default_value(const StringName &p_property, 
 		r_value = member_default_values[p_property];
 		return true;
 	}
-	return false;
+	if (!members.has(p_property)) {
+		auto parent_script = get_base_script();
+		if (parent_script.is_valid()) {
+			return parent_script->get_property_default_value(p_property, r_value);
+		}
+		return false;
+	}
+	r_value = Variant();
+	return true;
 }
 
 void FakeCSharpScript::update_exports() {
@@ -510,6 +532,10 @@ void FakeCSharpScript::update_exports() {
 void FakeCSharpScript::get_script_method_list(List<MethodInfo> *p_list) const {
 	for (auto &E : _methods) {
 		p_list->push_back(E.value);
+	}
+	auto parent_script = get_base_script();
+	if (parent_script.is_valid()) {
+		parent_script->get_script_method_list(p_list);
 	}
 }
 
@@ -571,9 +597,7 @@ bool FakeCSharpScript::is_loaded() const {
 }
 
 Variant FakeCSharpScript::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
-	// For now, return empty variant as we don't support method calls
-	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
-	return Variant();
+	return {};
 }
 
 FakeCSharpScript::FakeCSharpScript() {

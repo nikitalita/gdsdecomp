@@ -7,6 +7,7 @@
 #include "utility/resource_info.h"
 #include <bytecode/bytecode_base.h>
 
+class GDScriptNativeClass;
 class FakeGDScript;
 
 class FakeScript : public Script {
@@ -26,6 +27,8 @@ protected:
 	void _get_property_list(List<PropertyInfo> *p_list) const;
 
 	static void _bind_methods();
+
+	static Ref<GDScriptNativeClass> get_native_script(StringName base_type);
 
 public:
 	virtual void reload_from_file() override {}
@@ -86,6 +89,10 @@ public:
 	virtual const Variant get_rpc_config() const override { return {}; }
 
 	virtual String get_save_class() const override { return original_class; }
+
+	virtual Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override {
+		return {};
+	}
 
 	// FakeScript virtual methods, not in Script
 	virtual String get_script_path() const;

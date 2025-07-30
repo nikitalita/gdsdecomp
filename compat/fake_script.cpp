@@ -5,6 +5,7 @@
 #include "core/io/missing_resource.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
+#include "modules/gdscript/gdscript.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
 
@@ -65,7 +66,15 @@ bool FakeScript::inherits_script(const Ref<Script> &p_script) const {
 }
 
 StringName FakeScript::get_instance_base_type() const {
-	return GDRESettings::get_singleton()->get_cached_script_base(_get_normalized_path());
+	StringName base = GDRESettings::get_singleton()->get_cached_script_base(_get_normalized_path());
+	if (!base.is_empty()) {
+		String path = GDRESettings::get_singleton()->get_path_for_script_class(base);
+		while (!path.is_empty()) {
+			base = GDRESettings::get_singleton()->get_cached_script_class(path);
+			path = GDRESettings::get_singleton()->get_path_for_script_class(base);
+		}
+	}
+	return base;
 }
 
 bool FakeScript::can_instantiate() const {
@@ -141,6 +150,19 @@ ResourceInfo::LoadType FakeScript::get_load_type() const {
 	return load_type;
 }
 
+Ref<GDScriptNativeClass> FakeScript::get_native_script(StringName base_type) {
+	StringName class_name = ClassDB::get_compatibility_remapped_class(base_type);
+	if (!class_name.is_empty()) {
+		if (GDScriptLanguage::get_singleton()->get_global_map().has(class_name)) {
+			int native_idx = GDScriptLanguage::get_singleton()->get_global_map()[class_name];
+			if (native_idx >= 0) {
+				return GDScriptLanguage::get_singleton()->get_global_array()[native_idx];
+			}
+		}
+	}
+	return nullptr;
+}
+
 void FakeScript::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_script_path"), &FakeScript::get_script_path);
 	ClassDB::bind_method(D_METHOD("load_source_code", "path"), &FakeScript::load_source_code);
@@ -165,18 +187,14 @@ void FakeScriptInstance::update_cached_prop_names() {
 			Variant def;
 			_cached_prop_info.insert(E.name, E);
 		}
-		Ref<Script> script_parent = script;
-		while (script_parent.is_valid()) {
-			for (const auto &E : _cached_prop_info) {
-				if (properties.has(E.key)) {
-					continue;
-				}
-				Variant def;
-				if (script_parent->get_property_default_value(E.key, def)) {
-					properties.insert(E.key, def);
-				}
+		for (const auto &E : _cached_prop_info) {
+			if (properties.has(E.key)) {
+				continue;
 			}
-			script_parent = script_parent->get_base_script();
+			Variant def;
+			if (script->get_property_default_value(E.key, def)) {
+				properties.insert(E.key, def);
+			}
 		}
 		_cached_prop_names_valid = true;
 	}
@@ -295,31 +313,47 @@ void FakeScriptInstance::get_method_list(List<MethodInfo> *p_list) const {
 }
 
 bool FakeScriptInstance::has_method(const StringName &p_method) const {
-	return script->has_method(p_method);
+	Ref<Script> s = script;
+	while (s.is_valid()) {
+		if (s->has_method(p_method)) {
+			return true;
+		}
+		s = s->get_base_script();
+	}
+	return false;
 }
 
 int FakeScriptInstance::get_method_argument_count(const StringName &p_method, bool *r_is_valid) const {
-	MethodInfo mi = script->get_method_info(p_method);
-	if (mi.name.is_empty()) {
-		if (r_is_valid) {
-			*r_is_valid = false;
+	Ref<Script> s = script;
+	while (s.is_valid()) {
+		bool valid = false;
+		int ret = s->get_script_method_argument_count(p_method, &valid);
+		if (valid) {
+			if (r_is_valid) {
+				*r_is_valid = true;
+			}
+			return ret;
 		}
-		return 0;
+
+		s = s->get_base_script();
 	}
+
 	if (r_is_valid) {
 		*r_is_valid = false;
 	}
-	return mi.arguments.size();
+	return 0;
 }
 
 Variant FakeScriptInstance::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
+	if (has_method(p_method)) {
+		return script->callp(p_method, p_args, p_argcount, r_error);
+	}
 	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
-	return Variant();
+	return {};
 }
 
 Variant FakeScriptInstance::call_const(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
-	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
-	return Variant();
+	return callp(p_method, p_args, p_argcount, r_error);
 }
 
 void FakeScriptInstance::notification(int p_notification, bool p_reversed) {
