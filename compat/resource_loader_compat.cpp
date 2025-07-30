@@ -3,9 +3,11 @@
 #include "compat/resource_compat_text.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
+#include "core/io/file_access_memory.h"
 #include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
 #include "utility/common.h"
+#include "utility/file_access_buffer.h"
 #include "utility/gdre_settings.h"
 #include "utility/resource_info.h"
 
@@ -383,23 +385,84 @@ Ref<ResourceCompatConverter> ResourceCompatLoader::get_converter_for_type(const 
 	return Ref<ResourceCompatConverter>();
 }
 
-Error ResourceCompatLoader::to_text(const String &p_path, const String &p_dst, uint32_t p_flags, const String &original_path) {
+Ref<Resource> ResourceCompatLoader::_load_for_text_conversion(const String &p_path, const String &original_path, Error *r_error) {
+	Error err = OK;
+	if (!r_error) {
+		r_error = &err;
+	}
+	*r_error = OK;
 	auto loader = get_loader_for_path(p_path, "");
-	ERR_FAIL_COND_V_MSG(loader.is_null(), ERR_FILE_NOT_FOUND, "Failed to load resource '" + p_path + "'. ResourceFormatLoader::load was not implemented for this resource type.");
-	Error err;
+	if (loader.is_null()) {
+		*r_error = ERR_FILE_NOT_FOUND;
+	}
+	ERR_FAIL_COND_V_MSG(loader.is_null(), Ref<Resource>(), "Failed to load resource '" + p_path + "'. ResourceFormatLoader::load was not implemented for this resource type.");
 	String orig_path = original_path;
 	if (orig_path.is_empty() && GDRESettings::get_singleton()->is_pack_loaded()) {
 		auto src_iinfo = GDRESettings::get_singleton()->get_import_info_by_dest(p_path);
-		if (src_iinfo.is_valid() && src_iinfo->get_iitype() == ImportInfo::REMAP) {
+		if (src_iinfo.is_valid()) {
 			orig_path = src_iinfo->get_source_file();
 		}
 	}
 	auto res = loader->custom_load(p_path, orig_path, ResourceInfo::LoadType::FAKE_LOAD, &err);
+	if (err != OK || res.is_null()) {
+		*r_error = err == OK ? ERR_CANT_ACQUIRE_RESOURCE : err;
+	}
+	if (res.is_valid() && res->get_path().is_empty()) {
+		res->set_path_cache(orig_path.is_empty() ? p_path : orig_path);
+	}
+	return res;
+}
+
+Error ResourceCompatLoader::to_text(const String &p_path, const String &p_dst, uint32_t p_flags, const String &original_path) {
+	Error err = OK;
+	auto res = _load_for_text_conversion(p_path, original_path, &err);
 	ERR_FAIL_COND_V_MSG(err != OK || res.is_null(), err, "Failed to load " + p_path);
 	ResourceFormatSaverCompatTextInstance saver;
 	err = gdre::ensure_dir(p_dst.get_base_dir());
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create directory for " + p_dst);
 	return saver.save(p_dst, res, p_flags);
+}
+
+String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_skip_cr) {
+	ERR_FAIL_COND_V_MSG(p_path.is_empty(), "", "Path is empty");
+	String orig_path;
+	String path = p_path;
+	if (!FileAccess::exists(path)) {
+		orig_path = path;
+		path = GDRESettings::get_singleton()->get_mapped_path(path);
+		ERR_FAIL_COND_V_MSG(!FileAccess::exists(path), "", "File does not exist: " + path);
+	}
+	String ext = path.get_extension().to_lower();
+	if (ext == "tres" || ext == "tscn" || !handles_resource(path, "")) {
+		auto buf = FileAccess::get_file_as_bytes(path);
+		if (ext == "tres" || ext == "tscn" || gdre::detect_utf8(buf)) {
+			String str;
+			str.append_utf8((const char *)buf.ptr(), buf.size(), true);
+			return str;
+		}
+		ERR_FAIL_V_MSG("", "Failed to detect UTF-8 encoding for " + path);
+	}
+
+	Error err = OK;
+	Ref<Resource> res = _load_for_text_conversion(path, orig_path, &err);
+	ERR_FAIL_COND_V_MSG(err != OK || res.is_null(), "", "Failed to load " + path);
+
+	int64_t length = FileAccess::get_size(path);
+	Ref<Script> script = res;
+	if (script.is_valid()) {
+		return script->get_source_code();
+	}
+
+	Ref<FileAccessBuffer> f;
+	f.instantiate();
+	f->open_new();
+	f->resize(length * 3);
+
+	ResourceFormatSaverCompatTextInstance saver;
+	String save_path = path.get_basename() + (ext == "scn" ? ".tscn" : ".tres");
+	err = saver.save_to_file(f, save_path, res, 0);
+	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save resource '" + path + "'.");
+	return f->whole_file_as_utf8_string(p_skip_cr);
 }
 
 Error ResourceCompatLoader::to_binary(const String &p_path, const String &p_dst, uint32_t p_flags) {
@@ -580,6 +643,7 @@ void ResourceCompatLoader::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_resource_script_class", "path"), &ResourceCompatLoader::get_resource_script_class);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_resource_type", "path"), &ResourceCompatLoader::get_resource_type);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_custom", "resource", "path", "ver_major", "ver_minor"), &ResourceCompatLoader::save_custom);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("resource_to_string", "path", "skip_cr"), &ResourceCompatLoader::resource_to_string, DEFVAL(true));
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "FAKE_LOAD", ResourceInfo::FAKE_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "NON_GLOBAL_LOAD", ResourceInfo::NON_GLOBAL_LOAD);
 	ClassDB::bind_integer_constant(get_class_static(), "LoadType", "GLTF_LOAD", ResourceInfo::GLTF_LOAD);
