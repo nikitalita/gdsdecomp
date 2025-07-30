@@ -927,7 +927,7 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_cfg_path) {
 	static const Vector<String> wildcards = { "*.gdc", "*.gde", "*.gd" };
 	String abs_plugin_path = plugin_cfg_path.get_base_dir();
 	String rel_plugin_path = abs_plugin_path.trim_prefix("res://");
-	String plugin_dir = abs_plugin_path.trim_prefix("res://addons/");
+	String plugin_dir = rel_plugin_path.trim_prefix("addons/").trim_prefix("Addons/");
 	String plugin_name = plugin_dir.replace("_", " ").replace(".", " ").replace("/", " ");
 
 	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
