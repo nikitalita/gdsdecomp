@@ -494,13 +494,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
 
 	Ref<DirAccess> dir = DirAccess::open(output_dir);
-	Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
-	if (addon_first_level_dirs.size() > 0) {
-		if (partial_export) {
-			addon_first_level_dirs = Glob::dirs_in_names(files_to_export, addon_first_level_dirs);
-		}
-		recreate_plugin_configs(addon_first_level_dirs);
-	}
+
+	recreate_plugin_configs();
 
 	if (pr->step("Exporting resources...", 0, true)) {
 		return ERR_SKIP;
@@ -927,14 +922,15 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	return OK;
 }
 
-Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
+Error ImportExporter::recreate_plugin_config(const String &plugin_cfg_path) {
 	Error err;
-	if (GDRESettings::get_singleton()->get_bytecode_revision() == 0) {
-		return ERR_UNCONFIGURED;
-	}
 	static const Vector<String> wildcards = { "*.gdc", "*.gde", "*.gd" };
-	String rel_plugin_path = String("addons").path_join(plugin_dir);
-	auto gd_scripts = gdre::get_recursive_dir_list(String("res://").path_join(rel_plugin_path), wildcards, false);
+	String abs_plugin_path = plugin_cfg_path.get_base_dir();
+	String rel_plugin_path = abs_plugin_path.trim_prefix("res://");
+	String plugin_dir = abs_plugin_path.trim_prefix("res://addons/");
+	String plugin_name = plugin_dir.replace("_", " ").replace(".", " ").replace("/", " ");
+
+	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
 	String main_script;
 
 	if (gd_scripts.is_empty()) {
@@ -950,7 +946,7 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 			cant_decompile = true;
 			continue;
 		}
-		String gd_script_abs_path = String("res://").path_join(rel_plugin_path).path_join(gd_scripts[j]);
+		String gd_script_abs_path = abs_plugin_path.path_join(gd_scripts[j]);
 		Ref<FakeGDScript> gd_script = ResourceCompatLoader::non_global_load(gd_script_abs_path, "", &err);
 		if (gd_script.is_valid()) {
 			if (gd_script->get_instance_base_type() == "EditorPlugin") {
@@ -963,15 +959,17 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 		}
 	}
 	if (main_script == "") {
-		// No tool scripts found, this is not a plugin
-		if (!tool_scripts_found && !cant_decompile) {
-			return OK;
+		if (cant_decompile) {
+			return ERR_UNCONFIGURED;
+		} else if (!tool_scripts_found) {
+			return ERR_UNAVAILABLE;
+		} else {
+			return ERR_CANT_CREATE;
 		}
-		return ERR_UNAVAILABLE;
 	}
 	String plugin_cfg_text = String("[plugin]\n\n") +
-			"name=\"" + plugin_dir.replace("_", " ").replace(".", " ") + "\"\n" +
-			"description=\"" + plugin_dir.replace("_", " ").replace(".", " ") + " plugin\"\n" +
+			"name=\"" + plugin_name + "\"\n" +
+			"description=\"" + plugin_name + " plugin\"\n" +
 			"author=\"Unknown\"\n" +
 			"version=\"1.0\"\n" +
 			"script=\"" + main_script + "\"";
@@ -980,36 +978,29 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 	Ref<FileAccess> f = FileAccess::open(output_plugin_path.path_join("plugin.cfg"), FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err || f.is_null(), ERR_FILE_CANT_WRITE, "can't open plugin.cfg for writing");
 	ERR_FAIL_COND_V_MSG(!f->store_string(plugin_cfg_text), ERR_FILE_CANT_WRITE, "can't write plugin.cfg");
-	print_verbose("Recreated plugin config for " + plugin_dir);
+	print_verbose("Recreated plugin config for " + plugin_name);
 	return OK;
 }
 
 // Recreates the "plugin.cfg" files for each plugin to avoid loading errors.
-Error ImportExporter::recreate_plugin_configs(const Vector<String> &plugin_dirs) {
-	Error err;
-	if (!DirAccess::exists("res://addons")) {
+Error ImportExporter::recreate_plugin_configs() {
+	Vector<String> enabled_plugins = GDRESettings::get_singleton()->get_project_setting("editor_plugins/enabled");
+	if (enabled_plugins.is_empty()) {
 		return OK;
 	}
+
+	Error err;
 	print_line("Recreating plugin configs...");
 	Vector<String> dirs;
-	if (plugin_dirs.is_empty()) {
-		dirs = Glob::glob("res://addons/*", true);
-	} else {
-		dirs = plugin_dirs;
-		for (int i = 0; i < dirs.size(); i++) {
-			if (!dirs[i].is_absolute_path()) {
-				dirs.write[i] = String("res://addons/").path_join(dirs[i]);
-			}
-		}
-	}
-	for (int i = 0; i < dirs.size(); i++) {
-		String path = dirs[i];
-		if (!DirAccess::dir_exists_absolute(path)) {
+	for (int i = 0; i < enabled_plugins.size(); i++) {
+		const String &path = enabled_plugins[i];
+		// plugin was not included in the project
+		if (!DirAccess::dir_exists_absolute(path.get_base_dir())) {
 			continue;
 		}
-		String dir = dirs[i].get_file();
-		err = recreate_plugin_config(dir);
+		err = recreate_plugin_config(path);
 		if (err) {
+			String dir = path.trim_prefix("res://addons/").trim_suffix("/plugin.cfg");
 			WARN_PRINT("Failed to recreate plugin.cfg for " + dir);
 			report->failed_plugin_cfg_create.push_back(dir);
 		}

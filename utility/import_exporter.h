@@ -124,8 +124,8 @@ class ImportExporter : public RefCounted {
 	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path);
 	Error _reexport_translations(Vector<ExportToken> &non_multithreaded_tokens, size_t token_size, Ref<EditorProgressGDDC> pr);
 	void recreate_uid_file(const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
-	Error recreate_plugin_config(const String &plugin_dir);
-	Error recreate_plugin_configs(const Vector<String> &plugin_dirs = {});
+	Error recreate_plugin_config(const String &plugin_cfg_path);
+	Error recreate_plugin_configs();
 
 protected:
 	static void _bind_methods();
