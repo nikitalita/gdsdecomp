@@ -621,6 +621,10 @@ public static class GodotStuff
 		{
 			return null;
 		}
+		if (verRevision == -1)
+		{
+			return new Version(verMajor, verMinor, verBuild);
+		}
 		return new Version(verMajor, verMinor, verBuild, verRevision);
 	}
 
