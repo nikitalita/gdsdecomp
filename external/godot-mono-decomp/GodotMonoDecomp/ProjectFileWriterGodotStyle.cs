@@ -139,7 +139,7 @@ namespace GodotMonoDecomp
 			PlaceIntoTag("PropertyGroup", xml, () => WriteProjectInfo(xml, project));
 			PlaceIntoTag("PropertyGroup", xml, () => WriteMiscellaneousPropertyGroup(xml, files));
 			PlaceIntoTag("ItemGroup", xml, () => WriteResources(xml, files));
-			if (settings.WriteNuGetPackageReferences && depInfo != null)
+			if (settings.CreateAdditionalProjectsForProjectReferences && depInfo != null)
 			{
 				PlaceIntoTag("ItemGroup", xml, () => WriteProjectReferences(xml, module, project, projectType, depInfo, settings));
 			}
@@ -164,19 +164,53 @@ namespace GodotMonoDecomp
 		static void WritePackageReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
 			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
-			void WritePackageRefs(XmlTextWriter xml)
+			List<DotNetCoreDepInfo> excludedDepsToComment = new List<DotNetCoreDepInfo>();
+			List<DotNetCoreDepInfo> includedDeps = new List<DotNetCoreDepInfo>();
+			HashSet<DotNetCoreDepInfo> includeWarningComment = [];
+
+			foreach (var dep in deps.deps)
 			{
-				foreach (var dep in deps.deps)
+				// not a package reference, skip it
+				if (IsImplicitReference(dep.Name) || dep.Serviceable == false || dep.Type != "package")
 				{
-					if (IsImplicitReference(dep.Name) || dep.Serviceable == false || dep.Type != "package")
+					continue;
+				}
+				// We do not want to include source generator packages in the project file because they will attempt
+				// to generate code which we already have decompiled and create build errors.
+				// Check if it's a possible source generator package; it will have no runtime components
+				if (dep.runtimeComponents == null || dep.runtimeComponents.Length == 0)
+				{
+					// double check to see if the module has a reference to this
+					if (module.AssemblyReferences.Any(r => r.Name == dep.Name))
 					{
+						includeWarningComment.Add(dep);
+						includedDeps.Add(dep);
 						continue;
 					}
+					excludedDepsToComment.Add(dep);
+					continue;
+				}
+				includedDeps.Add(dep);
+			}
 
-					xml.WriteStartElement("PackageReference");
-					xml.WriteAttributeString("Include", dep.Name);
-					xml.WriteAttributeString("Version", dep.Version);
-					xml.WriteEndElement();
+			void WritePackageRef(XmlTextWriter xml, DotNetCoreDepInfo dep)
+			{
+				if (settings.WriteNuGetPackageReferences && includeWarningComment.Contains(dep))
+				{
+					xml.WriteComment(
+						"This package has no listed runtime components, but the module has a reference to it. ");
+				}
+				xml.WriteStartElement("PackageReference");
+				xml.WriteAttributeString("Include", dep.Name);
+				xml.WriteAttributeString("Version", dep.Version);
+				xml.WriteEndElement();
+			}
+
+			void WritePackageRefs(XmlTextWriter xml, IEnumerable<DotNetCoreDepInfo> deps)
+			{
+				foreach (var dep in deps)
+				{
+					WritePackageRef(xml, dep);
 				}
 			}
 
@@ -187,11 +221,17 @@ namespace GodotMonoDecomp
 
 			if (settings.WriteNuGetPackageReferences)
 			{
-				WritePackageRefs(xml);
+				WritePackageRefs(xml, includedDeps);
+
 			}
 			else
 			{
-				writeBlockComment(xml, WritePackageRefs, "Uncomment these to download the nuget packages.");
+				writeBlockComment(xml, (newXml) => WritePackageRefs(newXml, includedDeps), "Uncomment these to download the nuget packages.");
+			}
+			if (excludedDepsToComment.Count > 0)
+			{
+				writeSeriesOfLineComments(xml, (newXml) => WritePackageRefs(newXml, excludedDepsToComment),
+					"The following packages are not referenced by the assembly and may be source generators.");
 			}
 		}
 
@@ -369,6 +409,31 @@ namespace GodotMonoDecomp
 				}
 
 				xml.WriteEndElement();
+			}
+		}
+
+		static void writeSeriesOfLineComments(XmlTextWriter oldXml, Action<XmlTextWriter> write, string? prefixComment = null)
+		{
+			var writer = new StringWriter();
+			var xml = new XmlTextWriter(writer);
+			xml.Indentation = oldXml.Indentation;
+			xml.IndentChar = oldXml.IndentChar;
+			xml.Formatting = oldXml.Formatting;
+			xml.QuoteChar = oldXml.QuoteChar;
+			write(xml);
+			xml.Flush();
+			var text = writer.ToString();
+			if (text?.Length > 0)
+			{
+				if (prefixComment != null)
+				{
+					oldXml.WriteComment(prefixComment);
+				}
+				var lines = text.Split('\n');
+				foreach (var line in lines)
+				{
+					oldXml.WriteComment(line);
+				}
 			}
 		}
 
