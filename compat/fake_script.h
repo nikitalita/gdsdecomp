@@ -47,6 +47,7 @@ class FakeGDScript : public Script {
 	int ver_major = 0;
 	HashMap<StringName, Pair<int, int>> subclasses;
 	Vector<uint8_t> binary_buffer;
+	Vector<StringName> export_vars;
 
 	String error_message;
 

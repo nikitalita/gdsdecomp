@@ -237,6 +237,12 @@ void FakeGDScript::get_constants(HashMap<StringName, Variant> *p_constants) {
 }
 
 void FakeGDScript::get_members(HashSet<StringName> *p_members) {
+	if (!p_members) {
+		return;
+	}
+	for (const StringName &E : export_vars) {
+		p_members->insert(E);
+	}
 }
 
 bool FakeGDScript::is_placeholder_fallback_enabled() const {
@@ -267,6 +273,23 @@ Error FakeGDScript::parse_script() {
 	bool const_used = false;
 	bool extends_used = false;
 	bool class_name_used = false;
+	export_vars.clear();
+
+	auto get_export_var = [&](int i) {
+		while (!decomp->check_next_token(i, tokens, GT::G_TK_PR_VAR) && i < tokens.size()) {
+			i++;
+		}
+		if (i >= tokens.size()) {
+			WARN_PRINT("Unexpected end of file while parsing @export");
+			return OK;
+		}
+		if (decomp->check_next_token(i, tokens, GT::G_TK_PR_VAR) && decomp->check_next_token(i + 1, tokens, GT::G_TK_IDENTIFIER)) {
+			uint32_t identifier = tokens[i + 2] >> GDScriptDecomp::TOKEN_BITS;
+			ERR_FAIL_COND_V(identifier >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+			export_vars.push_back(identifiers[identifier]);
+		}
+		return OK;
+	};
 
 	for (int i = 0; i < tokens.size(); i++) {
 		uint32_t local_token = tokens[i] & GDScriptDecomp::TOKEN_MASK;
@@ -275,14 +298,17 @@ Error FakeGDScript::parse_script() {
 			case GT::G_TK_ANNOTATION: {
 				// in GDScript 2.0, the "@tool" annotation has to be the first expression in the file
 				// (i.e. before the class body and 'extends' or 'class_name' keywords)
-				if (!func_used && !class_used && !var_used && !const_used && !extends_used && !class_name_used) {
-					uint32_t a_id = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
-					ERR_FAIL_COND_V(a_id >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
+				uint32_t a_id = tokens[i] >> GDScriptDecomp::TOKEN_BITS;
+				ERR_FAIL_COND_V(a_id >= (uint32_t)identifiers.size(), ERR_INVALID_DATA);
 
-					const StringName &annotation = identifiers[a_id];
-					if (annotation == "@tool") {
-						tool = true;
-					}
+				const StringName &annotation = identifiers[a_id];
+				const String annostr = annotation.get_data();
+
+				if (!func_used && !class_used && !var_used && !const_used && !extends_used && !class_name_used && annostr == "@tool") {
+					tool = true;
+				} else if (annostr.contains("@export") && !annostr.ends_with("group") && !annostr.ends_with("category")) {
+					Error err = get_export_var(i);
+					ERR_FAIL_COND_V(err != OK, err);
 				}
 			} break;
 			case GT::G_TK_PR_FUNCTION: {
@@ -301,6 +327,8 @@ Error FakeGDScript::parse_script() {
 				}
 			} break;
 			case GT::G_TK_PR_EXPORT: {
+				Error err = get_export_var(i);
+				ERR_FAIL_COND_V(err != OK, err);
 			} break;
 			case GT::G_TK_PR_TOOL: {
 				// "tool" can be used literally anywhere in GDScript 1, so we only check it if it's actually a reserved word
@@ -344,6 +372,11 @@ Error FakeGDScript::parse_script() {
 					} else {
 						// TODO: something?
 					}
+					String base_type_str = base_type.get_data();
+					if (base_type_str.to_lower().ends_with(".gd")) {
+						// TODO: get the base type from the script path
+						base_type = GDRESettings::get_singleton()->get_cached_script_base(base_type_str);
+					}
 				}
 			} break;
 			default: {
@@ -360,6 +393,12 @@ Error FakeGDScript::parse_script() {
 		global_name = script_path.get_file().get_basename();
 		local_name = global_name;
 	}
+#if 0 // debug
+	print_line(vformat("number of export vars for script %s: %d", script_path, export_vars.size()));
+	for (const StringName &E : export_vars) {
+		print_line(vformat("Export var: %s", E));
+	}
+#endif
 
 	return OK;
 }
