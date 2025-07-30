@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Text;
+using ICSharpCode.Decompiler;
 
 namespace GodotMonoDecomp.NativeLibrary;
 
@@ -86,6 +87,81 @@ static public class Lib
 		return decompiler.DecompileModule(outputCSProjectPathStr, excludeFilesStrs);
 	}
 
+	struct AOTGodotModuleDecompilerProgress : IProgress<DecompilationProgress>
+	{
+		private delegate int ProgressFunction(IntPtr userData, int current, int total, IntPtr status);
+
+		private ProgressFunction progressFunction;
+		private IntPtr userData;
+
+		private CancellationTokenSource cancelSource;
+
+		private GCHandle cancelSourceHandle;
+
+		public CancellationToken CancellationToken => cancelSource.Token;
+
+
+		public AOTGodotModuleDecompilerProgress(IntPtr reportFunc, IntPtr userData)
+		{
+			if (reportFunc == IntPtr.Zero) return;
+			this.userData = userData;
+			this.cancelSource = new CancellationTokenSource();
+			this.cancelSourceHandle = GCHandle.Alloc(cancelSource);
+			progressFunction = Marshal.GetDelegateForFunctionPointer<ProgressFunction>(reportFunc);
+		}
+
+		public void Report(DecompilationProgress value)
+		{
+			if (progressFunction == null) return;
+			var statusCStr = Marshal.StringToHGlobalAnsi(value.Status ?? string.Empty);
+			var ret = progressFunction(userData, value.UnitsCompleted, value.TotalUnits, statusCStr);
+			if (ret != 0) {
+				try {
+					cancelSource.Cancel();
+				}
+				catch (Exception e)
+				{
+					Console.Error.WriteLine("Failed to cancel decompilation: " + e.Message);
+				}
+			}
+			// free the string after calling the function
+			Marshal.FreeHGlobal(statusCStr);
+		}
+
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileModuleWithProgress")]
+	public static int AOTDecompileModuleWithProgress(
+		IntPtr decompilerHandle,
+		IntPtr outputCSProjectPath,
+		IntPtr excludeFiles,
+		int excludeFilesCount,
+		IntPtr reportFunc, // function pointer for progress reporting that takes in a void* (userdata), integer (current step), an integer (total steps), a char* (status string), and a void* (cancellation token source) and returns void
+		IntPtr userData
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return -1;
+		}
+		var outputCSProjectPathStr = Marshal.PtrToStringAnsi(outputCSProjectPath) ?? string.Empty;
+		var excludeFilesStrs = GetStringArray(excludeFiles, excludeFilesCount);
+		var progress = new AOTGodotModuleDecompilerProgress(reportFunc, userData);
+		return decompiler.DecompileModule(outputCSProjectPathStr, excludeFilesStrs, progress, progress.CancellationToken);
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_CancelDecompilation")]
+	public static int AOTCancelDecompilation(
+		IntPtr cancellationSourcePtr
+	)
+	{
+		var cancellationToken = GCHandle.FromIntPtr(cancellationSourcePtr).Target as CancellationTokenSource;
+		cancellationToken.Cancel();
+		return 0;
+	}
+
+
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileIndividualFile")]
 	public static IntPtr AOTDecompileIndividualFile(
 		IntPtr decompilerHandle,
@@ -126,6 +202,38 @@ static public class Lib
 			return IntPtr.Zero;
 		}
 		var files = decompiler.GetFilesNotPresentInFileMap();
+		var arrayPtr = Marshal.AllocHGlobal(files.Length * IntPtr.Size);
+		for (int i = 0; i < files.Length; i++)
+		{
+			Marshal.WriteIntPtr(arrayPtr + i * IntPtr.Size, Marshal.StringToHGlobalAnsi(files[i]));
+		}
+		return arrayPtr;
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetNumberOfFilesInFileMap")]
+	public static int AOTGetNumberOfFilesInFileMap(
+		IntPtr decompilerHandle
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return -1;
+		}
+		return decompiler.GetNumberOfFilesInFileMap();
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetFilesInFileMap")]
+	public static IntPtr AOTGetFilesInFileMap(
+		IntPtr decompilerHandle
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return IntPtr.Zero;
+		}
+		var files = decompiler.GetFilesInFileMap();
 		var arrayPtr = Marshal.AllocHGlobal(files.Length * IntPtr.Size);
 		for (int i = 0; i < files.Length; i++)
 		{
