@@ -1426,7 +1426,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 #if DEBUG_ENABLED
 				if (p_dest_path.get_extension() == "glb") {
 					// save a gltf copy for debugging
-					auto gltf_path = p_dest_path.get_base_dir().path_join("GLTF/" + p_dest_path.get_file().get_basename() + ".gltf");
+					auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
+					auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.get_basename() + ".gltf");
 					gdre::ensure_dir(gltf_path.get_base_dir());
 					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 				}
@@ -1714,7 +1715,7 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		int ver_major = get_ver_major(p_src_path);
 		ERR_FAIL_COND_V_MSG(ver_major != 4, ERR_UNAVAILABLE, "Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 	}
-	SceneExporterInstance instance;
+	SceneExporterInstance instance(p_dest_path.get_base_dir());
 	Error err = instance._export_file(p_dest_path, p_src_path, nullptr);
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		err = OK;
@@ -1753,7 +1754,8 @@ Error SceneExporterInstance::export_file_to_obj(const String &p_dest_path, const
 	return ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
 }
 
-SceneExporterInstance::SceneExporterInstance(Dictionary curr_options) {
+SceneExporterInstance::SceneExporterInstance(String p_output_dir, Dictionary curr_options) {
+	output_dir = p_output_dir;
 	options = curr_options;
 	if (!options.has("Exporter/Scene/GLTF/force_lossless_images")) {
 		options["Exporter/Scene/GLTF/force_lossless_images"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false);
@@ -1771,7 +1773,7 @@ SceneExporterInstance::SceneExporterInstance(Dictionary curr_options) {
 
 Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options) {
 	Ref<ExportReport> report = memnew(ExportReport());
-	SceneExporterInstance instance(options);
+	SceneExporterInstance instance(out_path.get_base_dir(), options);
 	String ext = out_path.get_extension().to_lower();
 	if (ext != "escn" && ext != "tscn") {
 		int ver_major = get_ver_major(res_path);
@@ -1825,7 +1827,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		report->set_unsupported_format_type(itos(iinfo->get_ver_major()) + ".x PackedScene");
 	} else {
 		report->set_new_source_path(new_path);
-		SceneExporterInstance instance;
+		SceneExporterInstance instance(output_dir);
 		err = instance._export_file(dest_path, iinfo->get_path(), report);
 	}
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
@@ -1858,7 +1860,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 #if DEBUG_ENABLED
 	// if (err && err != ERR_UNAVAILABLE) {
 	// save it as a text scene so we can see what went wrong
-	auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
+	auto new_new_path = ".tscn_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
 	auto new_dest = output_dir.path_join(new_new_path);
 	ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
 	// }
