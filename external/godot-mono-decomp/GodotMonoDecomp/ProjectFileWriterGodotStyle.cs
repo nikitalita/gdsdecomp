@@ -66,7 +66,7 @@ namespace GodotMonoDecomp
 			"System.Xaml",
 		};
 
-		static readonly HashSet<string> ImplicitGodotReferences = new HashSet<string> {
+		public static readonly HashSet<string> ImplicitGodotReferences = new HashSet<string> {
 			"GodotSharp",
 			"Godot.SourceGenerators",
 			"GodotSharpEditor",
@@ -165,6 +165,7 @@ namespace GodotMonoDecomp
 			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
 			List<DotNetCoreDepInfo> excludedDepsToComment = new List<DotNetCoreDepInfo>();
+			List<DotNetCoreDepInfo> nonNuGetOrgDepsToComment = new List<DotNetCoreDepInfo>();
 			List<DotNetCoreDepInfo> includedDeps = new List<DotNetCoreDepInfo>();
 			HashSet<DotNetCoreDepInfo> includeWarningComment = [];
 
@@ -188,6 +189,12 @@ namespace GodotMonoDecomp
 						continue;
 					}
 					excludedDepsToComment.Add(dep);
+					continue;
+				}
+
+				if (dep.HashMatchesNugetOrgStatus == DotNetCoreDepInfo.HashMatchesNugetOrg.NoMatch)
+				{
+					nonNuGetOrgDepsToComment.Add(dep);
 					continue;
 				}
 				includedDeps.Add(dep);
@@ -232,6 +239,11 @@ namespace GodotMonoDecomp
 			{
 				writeSeriesOfLineComments(xml, (newXml) => WritePackageRefs(newXml, excludedDepsToComment),
 					"The following packages are not referenced by the assembly and may be source generators. Including these may cause build errors.");
+			}
+			if (nonNuGetOrgDepsToComment.Count > 0)
+			{
+				writeSeriesOfLineComments(xml, (newXml) => WritePackageRefs(newXml, nonNuGetOrgDepsToComment),
+					"The following packages are not from nuget.org and may not be available. Including these may cause build errors.");
 			}
 		}
 

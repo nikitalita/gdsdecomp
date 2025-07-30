@@ -10,6 +10,15 @@ namespace GodotMonoDecomp;
 
 public class DotNetCoreDepInfo
 {
+
+	public enum HashMatchesNugetOrg
+	{
+		// This enum is used to determine if the SHA512 hash matches the package downloaded from nuget.org.
+		// If it does, we can use the hash to verify the integrity of the package.
+		Unknown,
+		NoMatch,
+		Match
+	}
 	public readonly string Name;
 	public readonly string Version;
 	public readonly string Type;
@@ -18,9 +27,11 @@ public class DotNetCoreDepInfo
 	public readonly bool Serviceable;
 	public readonly DotNetCoreDepInfo[] deps;
 	public readonly string[] runtimeComponents;
+	public HashMatchesNugetOrg HashMatchesNugetOrgStatus { get; private set; } = HashMatchesNugetOrg.Unknown;
+	public AssemblyNameReference AssemblyRef => AssemblyNameReference.Parse($"{Name}, Version={GetCorrectVersion(Version)}, Culture=neutral, PublicKeyToken=null");
 
 
-	public static string GetCorrectVersion(string ver)
+	static string GetCorrectVersion(string ver)
 	{
 		// if it contains less than 4 parts, add ".0" to the end
 		var parts = ver.Split('.').ToList();
@@ -31,7 +42,6 @@ public class DotNetCoreDepInfo
 		return string.Join(".", parts);
 	}
 
-	public AssemblyNameReference AssemblyRef => AssemblyNameReference.Parse($"{Name}, Version={GetCorrectVersion(Version)}, Culture=neutral, PublicKeyToken=null");
 
 	public DotNetCoreDepInfo(
 		string fullName,
@@ -158,15 +168,16 @@ public class DotNetCoreDepInfo
 		return result.ToArray();
 	}
 
-	public bool HasDep(string name, string? type, bool serviceableOnly = false)
+	public bool HasDep(string name, string? type, bool serviceableAndNuGetOnly = false)
 	{
-		if (runtimeComponents.Contains(name) && !((!string.IsNullOrEmpty(type) && Type != type) || (serviceableOnly && !Serviceable)))
+		if (runtimeComponents.Contains(name) && !((!string.IsNullOrEmpty(type) && Type != type) || (serviceableAndNuGetOnly && (!Serviceable || HashMatchesNugetOrgStatus == HashMatchesNugetOrg.NoMatch))))
 		{
 			return true;
 		}
 		for (int i = 0; i < deps.Length; i++)
 		{
-			if ((!string.IsNullOrEmpty(type) && deps[i].Type != type) || (serviceableOnly && !deps[i].Serviceable))
+			if ((!string.IsNullOrEmpty(type) && deps[i].Type != type) ||
+			    (serviceableAndNuGetOnly && (!deps[i].Serviceable || deps[i].HashMatchesNugetOrgStatus == HashMatchesNugetOrg.NoMatch)))
 			{
 				// skip non-package dependencies if parent is a package
 				continue;
@@ -185,9 +196,6 @@ public class DotNetCoreDepInfo
 
 		return false;
 	}
-
-	public string PathName { get => System.IO.Path.Combine(Name, Version); }
-
 
 	public static string GetDepPath(string assemblyPath)
 	{
@@ -219,5 +227,29 @@ public class DotNetCoreDepInfo
 		return null;
 	}
 
+	public async Task StartResolvePackageAndCheckHash(CancellationToken cancellationToken)
+	{
+		if (!Serviceable || Type != "package" || string.IsNullOrEmpty(Sha512) || !Sha512.StartsWith("sha512-"))
+		{
+			// only resolve packages that are serviceable and of type package
+			HashMatchesNugetOrgStatus = HashMatchesNugetOrg.Unknown;
+			return;
+		}
+
+		var hash = await NugetDetails.ResolvePackageAndGetContentHash(Name, Version, cancellationToken);
+		if (hash == null)
+		{
+			HashMatchesNugetOrgStatus = HashMatchesNugetOrg.Unknown;
+		}
+		else if (hash == Sha512)
+		{
+			HashMatchesNugetOrgStatus = HashMatchesNugetOrg.Match;
+		}
+		else
+		{
+			HashMatchesNugetOrgStatus = HashMatchesNugetOrg.NoMatch;
+		}
+
+	}
 }
 
