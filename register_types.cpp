@@ -392,6 +392,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ResourceInfo>();
 	ClassDB::register_class<MeshPreviewer>();
 	ClassDB::register_class<ScenePreviewer3D>();
+	ClassDB::register_class<ScenePreviewer2D>();
+	ClassDB::register_class<ScenePreviewer>();
 
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();

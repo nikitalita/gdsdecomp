@@ -94,7 +94,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ScenePreviewer3D" type="ScenePreviewer3D" parent="VBoxContainer/ResourceView"]
+[node name="ScenePreviewer3D" type="ScenePreviewer" parent="VBoxContainer/ResourceView"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
