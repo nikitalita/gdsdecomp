@@ -25,6 +25,7 @@
 #include "core/config/project_settings.h"
 #include "core/io/json.h"
 #include "core/object/script_language.h"
+#include "core/string/translation_po.h"
 #include "modules/regex/regex.h"
 #include "servers/rendering_server.h"
 
@@ -2103,6 +2104,23 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 			gdre::get_strings_from_variant(var, tokens[i].strings, tokens[i].engine_version);
 		}
 		return;
+	} else if (src_ext == "po" || src_ext == "mo") {
+		Ref<TranslationPO> res = ResourceCompatLoader::custom_load(tokens[i].path, "", ResourceInfo::LoadType::REAL_LOAD, &tokens[i].err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		if (res.is_null()) {
+			WARN_PRINT("Failed to load resource " + tokens[i].path);
+			return;
+		}
+		List<StringName> keys;
+		res->get_message_list(&keys);
+		for (const StringName &key : keys) {
+			tokens[i].strings.push_back(key);
+		}
+		tokens[i].strings.append_array(res->get_translated_message_list());
+
+		for (const StringName &key : keys) {
+			tokens[i].strings.push_back(res->get_message(key));
+		}
+		return;
 	}
 	auto res = ResourceCompatLoader::fake_load(tokens[i].path, "", &tokens[i].err);
 	if (res.is_null()) {
@@ -2128,6 +2146,8 @@ void GDRESettings::load_all_resource_strings() {
 	}
 	wildcards.push_back("*.tres");
 	wildcards.push_back("*.tscn");
+	wildcards.push_back("*.po");
+	wildcards.push_back("*.mo");
 	wildcards.push_back("*.gd");
 	wildcards.push_back("*.gdc");
 	if (!error_encryption) {
@@ -2137,6 +2157,10 @@ void GDRESettings::load_all_resource_strings() {
 	wildcards.push_back("*.json");
 	wildcards.push_back("*.cs");
 
+	// just doing this so that the classdb initializes the TranslationPO class before we load the strings
+	{
+		Ref<TranslationPO> translation = memnew(TranslationPO);
+	}
 	Vector<String> r_files = get_file_list(wildcards);
 	Vector<StringLoadToken> tokens;
 	tokens.resize(r_files.size());
