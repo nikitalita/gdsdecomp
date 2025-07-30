@@ -364,7 +364,7 @@ func _ready():
 	DIRECTORY.text = DESKTOP_DIR
 	FILE_TREE.add_custom_right_click_item("Extract Selected...", self._on_extract_resources_pressed)
 	FILE_TREE.add_custom_right_click_item("Export Selected...", self._on_export_resources_pressed)
-	load_test()
+	# load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():
