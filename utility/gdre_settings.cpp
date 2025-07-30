@@ -2178,8 +2178,8 @@ Vector<String> GDRESettings::get_errors() {
 }
 
 Error GDRESettings::load_project_dotnet_assembly() {
-	String assembly_name = get_project_setting("dotnet/project/assembly_name");
-	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: dotnet/project/assembly_name is empty");
+	String assembly_name = get_project_dotnet_assembly_name();
+	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: could not determine assembly name");
 	String project_dir = get_pack_path().get_base_dir();
 	if (project_dir.is_empty()) {
 		project_dir = get_project_path();
@@ -2234,9 +2234,10 @@ String GDRESettings::get_project_dotnet_assembly_name() const {
 		return "";
 	}
 	if (!is_project_config_loaded()) {
+		// fallback in case this is a add-on pck
 		return current_project->assembly_path.get_file().get_basename();
 	}
-	return get_project_setting("dotnet/project/assembly_name", current_project->assembly_path.get_file().get_basename());
+	return get_project_setting("dotnet/project/assembly_name", get_game_name());
 }
 
 bool GDRESettings::has_loaded_dotnet_assembly() const {
