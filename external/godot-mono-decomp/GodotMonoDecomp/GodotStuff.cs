@@ -111,9 +111,7 @@ public static class GodotStuff
 		bool useNestedDirectoriesForNamespaces)
 	{
 		var fileMap = new Dictionary<string, TypeDefinitionHandle>();
-		var typeMap = new Dictionary<TypeDefinitionHandle, TypeDefinitionHandle>();
 		var metadata = module.Metadata;
-		var paths_found_in_attributes = new HashSet<string>();
 
 		var processAgain = new HashSet<TypeDefinitionHandle>();
 		var namespaceToFile = new Dictionary<string, List<string>>();
@@ -313,8 +311,10 @@ public static class GodotStuff
 
 			fileMap[scriptPath] = h;
 		}
-
-		return fileMap;
+		return fileMap.ToDictionary(
+			pair => pair.Key,
+			pair => pair.Value,
+			StringComparer.OrdinalIgnoreCase);
 	}
 
 
