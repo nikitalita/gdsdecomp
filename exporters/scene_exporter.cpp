@@ -1838,7 +1838,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		} else if (err == ERR_BUG) {
 			err = ERR_PRINTER_ON_FIRE;
 		}
-	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= 4) {
+	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= minimum_ver) {
 		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
 		// TODO: do real GLTF validation
 		// TODO: fix errors where some models aren't being textured?

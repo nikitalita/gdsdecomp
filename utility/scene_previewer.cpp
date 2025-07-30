@@ -289,6 +289,12 @@ void ScenePreviewer::edit(Ref<PackedScene> p_scene) {
 	reset();
 	scene = p_scene;
 	Node *root = scene->instantiate();
+	root->set_process_mode(Node::PROCESS_MODE_DISABLED);
+	root->set_process(false);
+	root->set_process_internal(false);
+	root->set_physics_process(false);
+	root->set_physics_process_internal(false);
+
 	Node3D *root_3d = Object::cast_to<Node3D>(root);
 	if (root_3d) {
 		previewer_3d->edit(root_3d);
@@ -297,6 +303,11 @@ void ScenePreviewer::edit(Ref<PackedScene> p_scene) {
 		previewer_2d->edit(root);
 		previewer_2d->set_visible(true);
 	}
+	root->set_process_mode(Node::PROCESS_MODE_DISABLED);
+	root->set_process(false);
+	root->set_process_internal(false);
+	root->set_physics_process(false);
+	root->set_physics_process_internal(false);
 }
 
 void ScenePreviewer::reset() {

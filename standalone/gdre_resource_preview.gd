@@ -45,7 +45,13 @@ const IMAGE_FORMAT_NAME = [
 	"ASTC_8x8_HDR",
 ]
 
+var cached_scenes: Array = []
+
 func reset():
+	cached_scenes.clear()
+	_reset()
+
+func _reset():
 	%MediaPlayer.visible = false
 	%MediaPlayer.reset()
 	%TextView.visible = false
@@ -114,7 +120,16 @@ func load_mesh(path):
 	return true
 
 func load_scene(path):
-	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	var res = null
+	var is_cached = false
+	for scene in cached_scenes:
+		if scene.get_path() == path:
+			res = scene
+			is_cached = true
+			break
+	var start_time = Time.get_ticks_msec()
+	if not res:
+		res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_REUSE)
 	if not res:
 		return false
 	# check if the resource is a scene or a descendant of scene
@@ -122,10 +137,16 @@ func load_scene(path):
 		return false
 	%ScenePreviewer3D.edit(res)
 	%ScenePreviewer3D.visible = true
+	var time_to_load = Time.get_ticks_msec() - start_time
+	if time_to_load > 200 and not is_cached:
+		print("Caching scene: ", path)
+		cached_scenes.append(res)
+	else:
+		print("Loaded scene in ", time_to_load, "ms")
 	return true
 
 func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
-	reset()
+	_reset()
 	var ext = path.get_extension().to_lower()
 	var error_opening = false
 	var not_supported = false
