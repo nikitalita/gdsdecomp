@@ -1,5 +1,6 @@
 #include "fake_script.h"
 
+#include "core/io/missing_resource.h"
 #include "core/string/ustring.h"
 #include <utility/gdre_settings.h>
 
@@ -51,11 +52,22 @@ void FakeGDScript::reload_from_file() {
 }
 
 bool FakeGDScript::can_instantiate() const {
-	return false;
+	if (ver_major < 4) {
+		return false;
+	}
+	return true;
 }
 
 Ref<Script> FakeGDScript::get_base_script() const {
-	return nullptr;
+	Ref<FakeGDScript> script;
+	// String path = GDRESettings::get_singleton()->get_path_for_script_class(base_type);
+	// if (path.is_empty()) {
+	// 	return {};
+	// }
+	// script.instantiate();
+	// script->set_path(path);
+	// script->global_name = script->get_global_name();
+	return script;
 }
 
 StringName FakeGDScript::get_global_name() const {
@@ -79,11 +91,18 @@ StringName FakeGDScript::get_instance_base_type() const {
 }
 
 ScriptInstance *FakeGDScript::instance_create(Object *p_this) {
-	return nullptr;
+	if (!can_instantiate()) {
+		return nullptr;
+	}
+	auto instance = memnew(FakeScriptInstance());
+	instance->script = Ref<FakeGDScript>(this);
+	instance->owner = p_this;
+	return instance;
 }
 
 PlaceHolderScriptInstance *FakeGDScript::placeholder_instance_create(Object *p_this) {
-	return nullptr;
+	PlaceHolderScriptInstance *si = memnew(PlaceHolderScriptInstance(/*GDScriptLanguage::get_singleton()*/ nullptr, Ref<Script>(this), p_this));
+	return si;
 }
 
 bool FakeGDScript::instance_has(const Object *p_this) const {
@@ -115,6 +134,7 @@ Error FakeGDScript::reload(bool p_keep_state) {
 
 	decomp = GDScriptDecomp::create_decomp_for_commit(revision);
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(decomp.is_null(), ERR_FILE_UNRECOGNIZED, "Unknown version, failed to decompile");
+	ver_major = decomp->get_engine_ver_major();
 
 	Error err = OK;
 	if (is_binary) {
@@ -473,6 +493,33 @@ StringName FakeEmbeddedScript::get_instance_base_type() const {
 	return GDRESettings::get_singleton()->get_cached_script_base(path);
 }
 
+bool FakeEmbeddedScript::can_instantiate() const {
+	return can_instantiate_instance && GDRESettings::get_singleton()->get_ver_major() >= 4;
+}
+
+void FakeEmbeddedScript::set_can_instantiate(bool p_can_instantiate) {
+	can_instantiate_instance = p_can_instantiate;
+}
+
+ScriptInstance *FakeEmbeddedScript::instance_create(Object *p_this) {
+	if (!can_instantiate()) {
+		return nullptr;
+	}
+	auto instance = memnew(FakeScriptInstance());
+	instance->script = Ref<FakeEmbeddedScript>(this);
+	instance->owner = p_this;
+	return instance;
+}
+
+PlaceHolderScriptInstance *FakeEmbeddedScript::placeholder_instance_create(Object *p_this) {
+	PlaceHolderScriptInstance *si = memnew(PlaceHolderScriptInstance(/*GDScriptLanguage::get_singleton()*/ nullptr, Ref<Script>(this), p_this));
+	return si;
+}
+
+bool FakeEmbeddedScript::instance_has(const Object *p_this) const {
+	return true;
+}
+
 bool FakeEmbeddedScript::has_source_code() const {
 	return properties.has("script/source");
 }
@@ -499,3 +546,137 @@ String FakeEmbeddedScript::get_original_class() const {
 #undef FAKEGDSCRIPT_FAIL_COND_V_MSG
 #undef FAKEGDSCRIPT_FAIL_V_MSG
 #undef FAKEGDSCRIPT_FAIL_COND_MSG
+
+// FakeGDScriptInstance implementations
+
+bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
+	if (!owner) {
+		return false;
+	}
+	MissingResource *mres = Object::cast_to<MissingResource>(owner);
+	if (mres) {
+		// let mres handle it
+		return false;
+	}
+	if (!properties.has(p_name)) {
+		// check if it's a property of the owning object
+		List<PropertyInfo> properties;
+		owner->get_property_list(&properties);
+		for (const PropertyInfo &pi : properties) {
+			if (pi.name == p_name) {
+				return false;
+			}
+		}
+	}
+	properties[p_name] = p_value;
+	return true;
+}
+
+bool FakeScriptInstance::get(const StringName &p_name, Variant &r_ret) const {
+	if (!properties.has(p_name)) {
+		return false;
+	}
+	r_ret = properties[p_name];
+	return true;
+}
+
+void FakeScriptInstance::get_property_list(List<PropertyInfo> *p_properties) const {
+	for (const KeyValue<StringName, Variant> &E : properties) {
+		p_properties->push_back(PropertyInfo(E.value.get_type(), E.key));
+	}
+}
+
+Variant::Type FakeScriptInstance::get_property_type(const StringName &p_name, bool *r_is_valid) const {
+	if (!properties.has(p_name)) {
+		if (r_is_valid) {
+			*r_is_valid = false;
+		}
+		return Variant::NIL;
+	}
+	if (r_is_valid) {
+		*r_is_valid = true;
+	}
+	return properties[p_name].get_type();
+}
+
+void FakeScriptInstance::validate_property(PropertyInfo &p_property) const {
+	// No validation needed for fake script
+}
+
+bool FakeScriptInstance::property_can_revert(const StringName &p_name) const {
+	return false;
+}
+
+bool FakeScriptInstance::property_get_revert(const StringName &p_name, Variant &r_ret) const {
+	return false;
+}
+
+Object *FakeScriptInstance::get_owner() {
+	return owner;
+}
+
+void FakeScriptInstance::get_property_state(List<Pair<StringName, Variant>> &state) {
+	for (const KeyValue<StringName, Variant> &E : properties) {
+		state.push_back(Pair<StringName, Variant>(E.key, E.value));
+	}
+}
+
+void FakeScriptInstance::get_method_list(List<MethodInfo> *p_list) const {
+	// No methods in fake script
+}
+
+bool FakeScriptInstance::has_method(const StringName &p_method) const {
+	return false;
+}
+
+int FakeScriptInstance::get_method_argument_count(const StringName &p_method, bool *r_is_valid) const {
+	if (r_is_valid) {
+		*r_is_valid = false;
+	}
+	return 0;
+}
+
+Variant FakeScriptInstance::callp(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
+	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
+	return Variant();
+}
+
+Variant FakeScriptInstance::call_const(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
+	r_error.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
+	return Variant();
+}
+
+void FakeScriptInstance::notification(int p_notification, bool p_reversed) {
+	// No notifications in fake script
+}
+
+void FakeScriptInstance::property_set_fallback(const StringName &p_name, const Variant &p_value, bool *r_valid) {
+	if (r_valid) {
+		*r_valid = true; // fake it
+	}
+}
+
+Variant FakeScriptInstance::property_get_fallback(const StringName &p_name, bool *r_valid) {
+	Variant ret;
+	bool valid = get(p_name, ret);
+	if (r_valid) {
+		*r_valid = valid;
+	}
+	return ret;
+}
+
+const Variant FakeScriptInstance::get_rpc_config() const {
+	return Variant();
+}
+
+ScriptLanguage *FakeScriptInstance::get_language() {
+	return nullptr;
+}
+
+FakeScriptInstance::~FakeScriptInstance() {
+	// Cleanup if needed
+}
+
+Ref<Script> FakeScriptInstance::get_script() const {
+	return script;
+}

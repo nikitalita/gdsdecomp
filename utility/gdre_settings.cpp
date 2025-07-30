@@ -1025,6 +1025,20 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 	}
 	return "";
 }
+
+String GDRESettings::get_path_for_script_class(const String &p_class) {
+	if (!is_pack_loaded()) {
+		return "";
+	}
+	for (auto kv : script_cache) {
+		auto &dict = kv.value;
+		if (dict.has("class") && dict["class"] == p_class) {
+			return kv.key;
+		}
+	}
+	return "";
+}
+
 bool GDRESettings::had_encryption_error() const {
 	return error_encryption;
 }
