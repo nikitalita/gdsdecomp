@@ -111,6 +111,7 @@ protected:
 
 public:
 	void edit(Ref<PackedScene> p_scene);
+	String get_edited_resource_path() const;
 	void reset();
 	ScenePreviewer();
 };

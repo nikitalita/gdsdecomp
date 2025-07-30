@@ -1,7 +1,7 @@
 class_name GDREResourcePreview
 extends Control
 
-const ENABLE_SCENE_PREVIEW = false # TODO: enable this when we find a way to keep it from freezing
+const ENABLE_SCENE_PREVIEW_BY_DEFAULT = false # TODO: enable this when we find a way to keep it from freezing
 const RESOURCE_INFO_TEXT_FORMAT = "[b]Path:[/b] %s\n[b]Type:[/b] %s\n[b]Format:[/b] %s"
 const IMAGE_FORMAT_NAME = [
 	"Lum8",
@@ -45,24 +45,35 @@ const IMAGE_FORMAT_NAME = [
 	"ASTC_8x8_HDR",
 ]
 
+const SWITCH_TO_SCENE_TEXT = "Switch to Scene View"
+const SWITCH_TO_MESH_TEXT = "Switch to Mesh View"
+const SWITCH_TO_TEXT_TEXT = "Switch to Text View"
+
+
 var cached_scenes: Array = []
+var current_resource_path: String = ""
 
 func reset():
 	cached_scenes.clear()
 	_reset()
 
-func _reset():
+func make_all_views_invisible():
+	%SwitchViewButton.visible = false
 	%MediaPlayer.visible = false
-	%MediaPlayer.reset()
 	%TextView.visible = false
-	%TextView.reset()
 	%TextureView.visible = false
+	%MeshPreviewer.visible = false
+	%ScenePreviewer3D.visible = false
+
+func _reset():
+	current_resource_path = ""
+	make_all_views_invisible()
+	%MediaPlayer.reset()
+	%TextView.reset()
 	%TextureInfo.text = ""
 	%TextureRect.texture = null
 	%ResourceInfo.text = ""
-	%MeshPreviewer.visible = false
 	%MeshPreviewer.reset()
-	%ScenePreviewer3D.visible = false
 	%ScenePreviewer3D.reset()
 
 
@@ -115,6 +126,8 @@ func load_mesh(path):
 	# check if the resource is a mesh or a descendant of mesh
 	if not res.get_class().contains("Mesh"):
 		return false
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	%MeshPreviewer.edit(res)
 	%MeshPreviewer.visible = true
 	return true
@@ -135,6 +148,8 @@ func load_scene(path):
 	# check if the resource is a scene or a descendant of scene
 	if not res.get_class().contains("PackedScene"):
 		return false
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	%ScenePreviewer3D.edit(res)
 	%ScenePreviewer3D.visible = true
 	var time_to_load = Time.get_ticks_msec() - start_time
@@ -145,21 +160,34 @@ func load_scene(path):
 		print("Loaded scene in ", time_to_load, "ms")
 	return true
 
+
+func text_preview_check_button(path):
+	var ext = path.get_extension().to_lower()
+	if (is_mesh(ext)):
+		%SwitchViewButton.text = SWITCH_TO_MESH_TEXT
+		%SwitchViewButton.visible = true
+	elif (is_scene(ext)):
+		%SwitchViewButton.text = SWITCH_TO_SCENE_TEXT
+		%SwitchViewButton.visible = true
+
+
+func handle_error_opening(path):
+	%SwitchViewButton.visible = false
+	%TextView.load_text_string("Error opening resource")
+	%TextView.visible = true
+	%ResourceInfo.text = path
+
+
 func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 	_reset()
+	current_resource_path = path
 	var ext = path.get_extension().to_lower()
 	var error_opening = false
 	var not_supported = false
 	var info: Dictionary = {}
 	if ResourceCompatLoader.handles_resource(path, ""):
 		info = ResourceCompatLoader.get_resource_info(path)
-	if (is_shader(ext)):
-		%TextView.load_gdshader(path)
-		%TextView.visible = true
-	elif (is_code(ext)):
-		error_opening = not %TextView.load_code(path, override_bytecode_revision)
-		%TextView.visible = true
-	elif (is_sample(ext)):
+	if (is_sample(ext)):
 		error_opening = not %MediaPlayer.load_sample(path)
 		if not error_opening:
 			%MediaPlayer.visible = true
@@ -173,52 +201,9 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		error_opening = not load_texture(path)
 	elif (is_mesh(ext)):
 		error_opening = not load_mesh(path)
-	elif (ENABLE_SCENE_PREVIEW and is_scene(ext) and info.get("ver_major", 0) >= 4):
+	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext) and info.get("ver_major", 0) >= 4):
 		error_opening = not load_scene(path)
-	elif (is_text_resource(ext) or is_ini_like(ext)):
-		%TextView.load_text_resource(path)
-		%TextView.visible = true
-	elif is_binary_project_settings(path):
-		pass
-		var ret = GDREGlobals.convert_pcfg_to_text(path, OS.get_temp_dir())
-		var err = ret[0]
-		if err != OK:
-			error_opening = true
-			%TextView.load_text_string("Error opening resource")
-			%TextView.visible = true
-			%ResourceInfo.text = path
-			return
-		var text_file = ret[1]
-		var temp_path = OS.get_temp_dir().path_join(text_file)
-		%TextView.load_text_resource(temp_path)
-		%TextView.visible = true
-		var da = DirAccess.open(OS.get_temp_dir()) if err == OK else null
-		if da:
-			da.remove(temp_path)
-	elif ResourceCompatLoader.handles_resource(path, ""):
-		var tmp_dir = OS.get_temp_dir()
-		var temp_path = tmp_dir.path_join(path.get_file().get_basename() + "." + str(Time.get_ticks_msec()))
-		if (path.get_extension().to_lower() == "scn"):
-			temp_path += ".tscn"
-		else:
-			temp_path += ".tres"
-		if ResourceCompatLoader.to_text(path, temp_path) != OK:
-			error_opening = true
-		else:
-			%TextView.load_text_resource(temp_path)
-			%TextView.visible = true
-			var da = DirAccess.open(tmp_dir)
-			if da:
-				da.remove(temp_path)
-	elif ext == "json":
-		%TextView.load_json(path)
-		%TextView.visible = true
-		%ResourceInfo.text = path
-		return
-	elif (is_text(ext) or is_content_text(path)):
-		%TextView.load_text(path)
-		%TextView.visible = true
-		%ResourceInfo.text = path
+	elif (try_text_preview(path)):
 		return
 	else:
 		not_supported = true
@@ -234,6 +219,17 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		pop_resource_info(path)
 
 
+func try_text_preview(path):
+	var ext = path.get_extension().to_lower()
+	text_preview_check_button(path)
+	var type = %TextView.recognize(path)
+	if type == -1:
+		return false
+	else:
+		if not %TextView.load_path(path, type):
+			return false
+		%TextView.visible = true
+	return true
 
 	# TODO: handle binary resources
 	# var res_info:Dictionary = ResourceCompatLoader.get_resource_info(path)
@@ -355,3 +351,34 @@ func _on_resized() -> void:
 	if current_view:
 		current_view.size = current_view_size
 	pass # Replace with function body.
+
+func _on_switch_view_button_pressed() -> void:
+	var path = current_resource_path
+	var cur_text = %SwitchViewButton.text
+	make_all_views_invisible()
+	current_resource_path = path
+
+	match cur_text:
+		SWITCH_TO_SCENE_TEXT:
+			if %ScenePreviewer3D.get_edited_resource_path() != path:
+				load_scene(path)
+			else:
+				%ScenePreviewer3D.visible = true
+			%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+			%SwitchViewButton.visible = true
+		SWITCH_TO_MESH_TEXT:
+			if %MeshPreviewer.get_edited_resource_path() != path:
+				load_mesh(path)
+			else:
+				%MeshPreviewer.visible = true
+			%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+			%SwitchViewButton.visible = true
+		SWITCH_TO_TEXT_TEXT:
+			if %TextView.current_path != path:
+				try_text_preview(path)
+			else:
+				%TextView.visible = true
+			text_preview_check_button(path)
+		_:
+			print("!!!!!Unknown switch view button text: ", cur_text)
+			pass

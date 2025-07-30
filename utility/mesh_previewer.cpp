@@ -198,7 +198,15 @@ MeshPreviewer::MeshPreviewer() {
 	rot_y = 0;
 }
 
+String MeshPreviewer::get_edited_resource_path() const {
+	if (mesh.is_valid()) {
+		return mesh->get_path();
+	}
+	return "";
+}
+
 void MeshPreviewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("edit", "mesh"), &MeshPreviewer::edit);
 	ClassDB::bind_method(D_METHOD("reset"), &MeshPreviewer::reset);
+	ClassDB::bind_method(D_METHOD("get_edited_resource_path"), &MeshPreviewer::get_edited_resource_path);
 }

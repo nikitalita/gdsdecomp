@@ -326,4 +326,12 @@ void ScenePreviewer2D::_bind_methods() {
 void ScenePreviewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("edit", "scene"), &ScenePreviewer::edit);
 	ClassDB::bind_method(D_METHOD("reset"), &ScenePreviewer::reset);
+	ClassDB::bind_method(D_METHOD("get_edited_resource_path"), &ScenePreviewer::get_edited_resource_path);
+}
+
+String ScenePreviewer::get_edited_resource_path() const {
+	if (scene.is_valid()) {
+		return scene->get_path();
+	}
+	return "";
 }

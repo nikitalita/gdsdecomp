@@ -104,6 +104,22 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="SwitchViewButton" type="Button" parent="VBoxContainer/ResourceView"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -162.0
+offset_top = -31.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "Switch to Scene View"
+
 [node name="ResourceInfoContainer" type="Control" parent="VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -124,3 +140,4 @@ text = "[b]Path:[/b]
 
 [connection signal="drag_ended" from="VBoxContainer" to="." method="_on_v_box_container_drag_ended"]
 [connection signal="drag_started" from="VBoxContainer" to="." method="_on_v_box_container_drag_started"]
+[connection signal="pressed" from="VBoxContainer/ResourceView/SwitchViewButton" to="." method="_on_switch_view_button_pressed"]

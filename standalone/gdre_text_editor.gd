@@ -16,6 +16,19 @@ var word_wrap_popup_id: int = 0
 var text_size_plus_id: int = 0
 var text_size_minus_id: int = 0
 
+var current_path: String = ""
+
+enum HighlightType {
+	UNKNOWN = -1,
+	TEXT = 0,
+	GDSCRIPT,
+	GDRESOURCE,
+	INI_LIKE,
+	GDSHADER,
+	JSON_TEXT,
+	CSHARP
+}
+
 @export var editable: bool = false:
 	set(val):
 		CODE_VIEWER.editable = val
@@ -62,8 +75,9 @@ var text_size_minus_id: int = 0
 
 
 func reset():
-	set_text_viewer_props()
+	current_path = ""
 	set_viewer_text("")
+	set_text_viewer_props()
 	pass
 
 func set_viewer_text(text: String):
@@ -104,9 +118,11 @@ func set_viewer_text(text: String):
 	CODE_VIEWER.scroll_vertical = 0
 	CODE_VIEWER.scroll_horizontal = 0
 
-func load_code(path, override_bytecode_revision: int = 0):
+func load_code(path, override_bytecode_revision: int = 0) -> bool:
 	var code_text = ""
-	if path.get_extension().to_lower() == "cs":
+	current_path = path
+	var ext = path.get_extension().to_lower()
+	if ext == "cs":
 		# try to load the literal file first; if it's empty, try to decompile it from the assembly
 		code_text = FileAccess.get_file_as_string(path)
 		if code_text.strip_edges().is_empty():
@@ -119,12 +135,9 @@ func load_code(path, override_bytecode_revision: int = 0):
 				set_text_viewer_props()
 		else:
 			set_csharp_viewer_props()
-	elif path.get_extension().to_lower() == "gd":
-		code_text = FileAccess.get_file_as_string(path)
-		set_code_viewer_props()
-	else:
+	elif ext == "gde" or ext == "gdc":
 		var script: FakeGDScript = FakeGDScript.new()
-		if (override_bytecode_revision > 0):
+		if (override_bytecode_revision != 0):
 			script.set_override_bytecode_revision(override_bytecode_revision)
 		script.load_source_code(path)
 		if not script.get_error_message().is_empty():
@@ -133,39 +146,123 @@ func load_code(path, override_bytecode_revision: int = 0):
 		else:
 			code_text = script.get_source_code()
 			set_code_viewer_props()
+	else: # ext == "gd"
+		code_text = FileAccess.get_file_as_string(path)
+		set_code_viewer_props()
+
 	set_viewer_text(code_text)
 	return true
 
-func load_gdshader(path):
-	set_shader_viewer_props()
-	set_viewer_text(FileAccess.get_file_as_string(path))
-	return true
-
 func load_text_resource(path):
+	current_path = path
 	set_resource_viewer_props()
 	set_viewer_text(ResourceCompatLoader.resource_to_string(path))
 	return true
 
-func load_resource_string(text):
-	set_resource_viewer_props()
-	set_viewer_text(text)
-	return true
-
-func load_text(path):
-	set_text_viewer_props()
-	set_viewer_text(FileAccess.get_file_as_string(path))
-	return true
-
 func load_text_string(text):
+	current_path = ""
 	set_text_viewer_props()
 	set_viewer_text(text)
 	return true
 
-func load_json(path):
-	set_json_viewer_props()
-	set_viewer_text(FileAccess.get_file_as_string(path))
-	return true
+func is_shader(ext, p_type = ""):
+	if (ext == "shader" || ext == "gdshader"):
+		return true
+	return false
 
+func is_gdscript(ext, p_type = ""):
+	if (ext == "gd" || ext == "gdc" || ext == "gde"):
+		return true
+	return false
+
+func is_csharp_script(ext, p_type = ""):
+	if (ext == "cs"):
+		return true
+	return false
+
+func is_text(ext, p_type = ""):
+	if (ext == "txt" || ext == "xml" || ext == "csv" || ext == "html" || ext == "md" || ext == "yml" || ext == "yaml"):
+		return true
+	return false
+
+func is_text_resource(ext, p_type = ""):
+	return ext == "tscn" || ext == "tres"
+
+func is_ini_like(ext, p_type = ""):
+	return ext == "cfg" || ext == "remap" || ext == "import" || ext == "gdextension" || ext == "gdnative" || ext == "godot"
+
+func is_binary_project_settings(path):
+	return path.get_file().to_lower() == "engine.cfb" || path.get_file().to_lower() == "project.binary"
+
+func is_json(ext, p_type = ""):
+	return ext == "json" || ext == "jsonc"
+
+func is_content_text(path):
+	# load up the first 8000 bytes, check if there are any null bytes
+	var file = FileAccess.open(path, FileAccess.READ)
+	if not file:
+		return false
+	var data = file.get_buffer(8000)
+	if data.find(0) != -1:
+		return false
+	if GDRECommon.detect_utf8(data):
+		return true
+	return false
+
+func recognize(path):
+	var ext = path.get_extension().to_lower()
+	if (is_shader(ext)):
+		return HighlightType.GDSHADER
+	elif (is_gdscript(ext)):
+		return HighlightType.GDSCRIPT
+	elif (is_csharp_script(ext)):
+		return HighlightType.CSHARP
+	elif (is_binary_project_settings(path) or is_text_resource(ext) or ResourceCompatLoader.handles_resource(path, "")):
+		return HighlightType.GDRESOURCE
+	elif (is_ini_like(ext)):
+		return HighlightType.INI_LIKE
+	elif (is_json(ext)):
+		return HighlightType.JSON_TEXT
+	elif (is_text(ext)):
+		return HighlightType.TEXT
+	elif is_content_text(path):
+		return HighlightType.TEXT
+	return HighlightType.UNKNOWN
+
+func set_highlight_type(type: HighlightType):
+	match type:
+		HighlightType.GDSHADER:
+			set_shader_viewer_props()
+		HighlightType.GDSCRIPT:
+			set_code_viewer_props()
+		HighlightType.CSHARP:
+			set_csharp_viewer_props()
+		HighlightType.INI_LIKE:
+			set_resource_viewer_props()
+		HighlightType.GDRESOURCE:
+			set_resource_viewer_props()
+		HighlightType.JSON_TEXT:
+			set_json_viewer_props()
+		HighlightType.TEXT:
+			set_text_viewer_props()
+		_:
+			set_text_viewer_props()
+
+func load_path(path, highlight_type: HighlightType = HighlightType.UNKNOWN):
+	reset()
+	var type = highlight_type if highlight_type != HighlightType.UNKNOWN else recognize(path)
+	if type == HighlightType.UNKNOWN:
+		return false
+	current_path = path
+	set_highlight_type(type)
+	if type == HighlightType.GDSCRIPT or type == HighlightType.CSHARP:
+		load_code(path)
+	elif type == HighlightType.GDRESOURCE:
+		load_text_resource(path)
+	else:
+		var text = FileAccess.get_file_as_string(path)
+		set_viewer_text(text)
+	return true
 
 func set_shader_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdshader_highlighter

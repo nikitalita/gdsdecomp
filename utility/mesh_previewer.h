@@ -75,6 +75,7 @@ protected:
 	static void _bind_methods();
 
 public:
+	String get_edited_resource_path() const;
 	void edit(Ref<Mesh> p_mesh);
 	void reset();
 	MeshPreviewer();
