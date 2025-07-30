@@ -16,6 +16,7 @@
 #include "utility/gdre_logger.h"
 #include "utility/gdre_packed_source.h"
 #include "utility/gdre_version.gen.h"
+#include "utility/glob.h"
 #include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/import_info.h"
 #include "utility/pcfg_loader.h"
@@ -2213,48 +2214,52 @@ void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
 Vector<String> GDRESettings::get_errors() {
 	return GDRELogger::get_errors();
 }
+String GDRESettings::find_dotnet_assembly_path(Vector<String> p_search_dirs) const {
+	String assembly_name = get_project_dotnet_assembly_name();
+	if (assembly_name.is_empty()) {
+		return "";
+	}
+	for (String search_dir : p_search_dirs) {
+		Vector<String> paths = Glob::rglob(search_dir.path_join("**").path_join(assembly_name + ".dll"), true);
+		if (paths.size() > 0) {
+			return paths[0];
+		}
+	}
+	return "";
+}
 
 Error GDRESettings::load_project_dotnet_assembly() {
 	String assembly_name = get_project_dotnet_assembly_name();
-	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: could not determine assembly name");
+	ERR_FAIL_COND_V_MSG(get_project_dotnet_assembly_name().is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: could not determine assembly name");
 	String assembly_file = assembly_name + ".dll";
+	String project_dir = get_pack_path().get_base_dir();
 
+	Vector<String> search_dirs;
 	if (get_ver_major() <= 3) {
 		// Godot 3.x projects have the assembly in the PCK
 		//res://.mono/assemblies/<Debug or Release>/<assembly_name>.dll
-		String base_path = "res://.mono/assemblies";
-		String assembly_path = base_path.path_join("Release").path_join(assembly_file);
-
-		if (!FileAccess::exists(assembly_path)) {
-			assembly_path = base_path.path_join("Debug").path_join(assembly_file);
-		}
-		if (FileAccess::exists(assembly_path)) {
-			return reload_dotnet_assembly(assembly_path);
-		} else {
-			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + base_path);
-		}
-	}
-	String project_dir = get_pack_path().get_base_dir();
-	if (project_dir.is_empty()) {
-		project_dir = get_project_path();
+		search_dirs.push_back("res://.mono/assemblies/Release");
+		search_dirs.push_back("res://.mono/assemblies/Debug");
+	} else if (current_project->type == PackInfo::APK || current_project->type == PackInfo::ZIP || current_project->type == PackInfo::DIR) {
+		search_dirs.push_back("res://.godot/mono");
 	}
 	Vector<String> directories = DirAccess::get_directories_at(project_dir);
-	for (String directory : directories) {
-		if (!directory.begins_with("data_")) {
-			continue;
-		}
-		String assembly_path = project_dir.path_join(directory).path_join(assembly_file);
-		if (FileAccess::exists(assembly_path)) {
-			return reload_dotnet_assembly(assembly_path);
+	for (const String &directory : directories) {
+		if (directory.begins_with("data_")) {
+			search_dirs.push_back(project_dir.path_join(directory));
 		}
 	}
-	ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + project_dir);
+	String assembly_path = find_dotnet_assembly_path(search_dirs);
+	if (assembly_path.is_empty()) {
+		ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + project_dir);
+	}
+	return reload_dotnet_assembly(assembly_path);
 }
 
 Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "Pack is not loaded");
 	if (!current_project->assembly_temp_dir.is_empty()) {
-		DirAccess::remove_absolute(current_project->assembly_temp_dir);
+		gdre::rimraf(current_project->assembly_temp_dir);
 		current_project->assembly_temp_dir = "";
 	}
 	current_project->decompiler = Ref<GodotMonoDecompWrapper>();
@@ -2265,10 +2270,18 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	if (p_path.begins_with("res://")) {
 		// We have to copy the entire .mono folder to a temporary directory
 		// because the decompiler needs to read the assemblies and the metadata files
-		current_project->assembly_temp_dir = GDRESettings::get_singleton()->get_gdre_user_path().path_join(".tmp").path_join(p_path.get_file().get_basename() + "_mono_temp");
-		Error err = gdre::ensure_dir(current_project->assembly_temp_dir.path_join(".mono"));
+		current_project->assembly_temp_dir = GDRESettings::get_singleton()->get_gdre_user_path().path_join(".tmp").path_join(get_game_name() + "_mono_temp");
+		String source_dir = p_path.get_base_dir();
+		Error err = OK;
+		if (p_path.begins_with("res://.mono")) {
+			source_dir = "res://.mono";
+		} else if (p_path.begins_with("res://.godot/mono")) {
+			source_dir = "res://.godot/mono";
+		}
+		String target_dir = current_project->assembly_temp_dir.path_join(source_dir.trim_prefix("res://"));
+		err = gdre::ensure_dir(target_dir);
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create temporary directory for assembly");
-		err = gdre::copy_dir("res://.mono", current_project->assembly_temp_dir.path_join(".mono"));
+		err = gdre::copy_dir(source_dir, target_dir);
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to copy .mono folder to temporary directory");
 		current_project->assembly_path = current_project->assembly_temp_dir.path_join(p_path.trim_prefix("res://"));
 		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");

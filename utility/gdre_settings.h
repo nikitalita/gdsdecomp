@@ -318,6 +318,7 @@ public:
 	bool project_requires_dotnet_assembly() const;
 
 	String get_temp_dotnet_assembly_dir() const;
+	String find_dotnet_assembly_path(Vector<String> p_search_dirs) const;
 
 	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
 
