@@ -146,6 +146,8 @@ class FakeEmbeddedScript : public Script {
 	HashMap<StringName, Variant> properties;
 	bool can_instantiate_instance = true;
 
+	String _get_normalized_path() const;
+
 protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
 	bool _set(const StringName &p_name, const Variant &p_value);
@@ -223,7 +225,13 @@ class FakeScriptInstance : public ScriptInstance {
 private:
 	Object *owner = nullptr;
 	Ref<Script> script;
+	bool is_fake_embedded = false;
 	HashMap<StringName, Variant> properties;
+	HashSet<StringName> _cached_prop_names;
+	bool _cached_prop_names_valid = false;
+
+	void update_cached_prop_names();
+	bool has_cached_prop_name(const StringName &p_name);
 
 public:
 	virtual bool set(const StringName &p_name, const Variant &p_value) override;
