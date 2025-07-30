@@ -166,6 +166,11 @@ Error FakeGDScript::reload(bool p_keep_state) {
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing bytecode");
 	err = parse_script();
 	FAKEGDSCRIPT_FAIL_COND_V_MSG(err != OK, err, "Error parsing script");
+
+	if (GDRESettings::get_singleton()->is_pack_loaded()) {
+		ensure_base_and_global_name();
+	}
+
 	valid = true;
 	return OK;
 }
@@ -265,6 +270,32 @@ bool FakeGDScript::is_placeholder_fallback_enabled() const {
 
 const Variant FakeGDScript::get_rpc_config() const {
 	return {};
+}
+
+void FakeGDScript::ensure_base_and_global_name() {
+	String base_type_str = base_type.get_data();
+	// GDScript 1.x allowed paths to be used with the "extends" keyword
+	if (base_type_str.to_lower().ends_with(".gd")) {
+		if (base_type_str.is_relative_path()) {
+			base_type_str = GDRESettings::get_singleton()->localize_path(script_path.get_base_dir().path_join(base_type_str));
+		}
+		StringName found_class = GDRESettings::get_singleton()->get_cached_script_class(base_type_str);
+		if (!found_class.is_empty()) {
+			base_type = found_class;
+		} else if (GDRESettings::get_singleton()->is_pack_loaded()) { // During the initial cache; we'll just have to load it ourselves
+			Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+			if (base_script.is_valid()) {
+				base_type = base_script->get_global_name();
+			}
+		} else {
+			base_type = base_type_str;
+		}
+	}
+	// If it doesn't use class_name, it's a script without a global identifier; for our sake, we'll just use the path as the global name
+	if (global_name.is_empty() && !script_path.is_empty()) {
+		global_name = GDRESettings::get_singleton()->localize_path(script_path.get_basename() + ".gd");
+		local_name = global_name;
+	}
 }
 
 Error FakeGDScript::parse_script() {
@@ -472,40 +503,16 @@ Error FakeGDScript::parse_script() {
 					} else {
 						// TODO: something?
 					}
-					String base_type_str = base_type.get_data();
-					// GDScript 1.x allowed paths to be used with the "extends" keyword
-					if (base_type_str.to_lower().ends_with(".gd")) {
-						if (base_type_str.is_relative_path()) {
-							base_type_str = GDRESettings::get_singleton()->localize_path(script_path.get_base_dir().path_join(base_type_str));
-						}
-						StringName found_class = GDRESettings::get_singleton()->get_cached_script_class(base_type_str);
-						if (!found_class.is_empty()) {
-							base_type = found_class;
-						} else if (GDRESettings::get_singleton()->is_pack_loaded()) { // During the initial cache; we'll just have to load it ourselves
-							Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
-							if (base_script.is_valid()) {
-								base_type = base_script->get_global_name();
-							}
-						} else {
-							base_type = base_type_str;
-						}
-					}
 				}
 			} break;
 			default: {
 				break;
 			}
 		}
-		// prev_token = curr_token;
 	}
 
 	if (base_type.is_empty()) {
 		base_type = decomp->get_variant_ver_major() < 4 ? "Reference" : "RefCounted";
-	}
-	// If it doesn't use class_name, it's a script without a global identifier; for our sake, we'll just use the path as the global name
-	if (global_name.is_empty() && !script_path.is_empty()) {
-		global_name = GDRESettings::get_singleton()->localize_path(script_path.get_basename() + ".gd");
-		local_name = global_name;
 	}
 #if 0 // debug
 	print_line(vformat("number of export vars for script %s: %d", script_path, export_vars.size()));

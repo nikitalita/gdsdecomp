@@ -54,6 +54,7 @@ class FakeGDScript : public Script {
 	HashMap<StringName, Variant> properties;
 
 	Error parse_script();
+	void ensure_base_and_global_name();
 
 protected:
 	bool _get(const StringName &p_name, Variant &r_ret) const;
