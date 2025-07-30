@@ -26,4 +26,15 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	public GodotMonoDecompSettings(){}
 
 	public GodotMonoDecompSettings(LanguageVersion languageVersion) : base(languageVersion){}
+
+
+	public new GodotMonoDecompSettings Clone()
+	{
+		var settings = (GodotMonoDecompSettings) base.Clone();
+		settings.WriteNuGetPackageReferences = WriteNuGetPackageReferences;
+		settings.CopyOutOfTreeReferences = CopyOutOfTreeReferences;
+		settings.CreateAdditionalProjectsForProjectReferences = CreateAdditionalProjectsForProjectReferences;
+		return settings;
+	}
+
 }
