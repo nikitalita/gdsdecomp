@@ -4,6 +4,7 @@ using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.DebugInfo;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.Solution;
 using ICSharpCode.ILSpyX.PdbProvider;
 
 namespace GodotMonoDecomp;
@@ -207,6 +208,22 @@ public class GodotModuleDecompiler
 		return decompiler;
 	}
 
+	void removeIfExists(string path)
+	{
+		if (File.Exists(path))
+		{
+			try
+			{
+				File.Delete(path);
+			}
+			catch (Exception e)
+			{
+				Console.Error.WriteLine($"Error: Failed to delete existing file {path}: {e.Message}");
+			}
+		}
+
+	}
+
 	public int DecompileModule(string outputCSProjectPath, string[]? excludeFiles = null, IProgress<DecompilationProgress>? progress_reporter = null, CancellationToken token = default(CancellationToken))
 	{
 		try
@@ -221,34 +238,36 @@ public class GodotModuleDecompiler
 			GodotStuff.EnsureDir(targetDirectory);
 
 			var typesToExclude = excludeFiles?.Select(file => GodotStuff.TrimPrefix(file, "res://")).Where(fileMap.ContainsKey).Select(file => fileMap[file]).ToHashSet() ?? [];
-			void decompileFile(GodotModule module, string csprojPath)
+			ProjectItem decompileFile(GodotModule module, string csprojPath)
 			{
 				var godotProjectDecompiler = CreateProjectDecompiler(module, progress_reporter);
 
-				if (File.Exists(csprojPath))
-				{
-					try
-					{
-						File.Delete(csprojPath);
-					}
-					catch (Exception e)
-					{
-						Console.Error.WriteLine($"Error: Failed to delete existing project file: {e.Message}");
-					}
-				}
+				removeIfExists(csprojPath);
+
+				ProjectId projectId;
 
 				using (var projectFileWriter = new StreamWriter(File.OpenWrite(csprojPath)))
 				{
-					godotProjectDecompiler.DecompileGodotProject(
+					projectId = godotProjectDecompiler.DecompileGodotProject(
 						module.Module, targetDirectory, projectFileWriter, typesToExclude, fileMap.ToDictionary(pair => pair.Value, pair => pair.Key), module.depInfo, token);
 				}
+
+				ProjectItem item = new ProjectItem(csprojPath, projectId.PlatformName, projectId.Guid, projectId.TypeGuid);
+				return item;
+
 			}
-			decompileFile(MainModule, outputCSProjectPath);
+
+			var projectIDs = new List<ProjectItem>();
+			projectIDs.Add(decompileFile(MainModule, outputCSProjectPath));
 			foreach (var module in AdditionalModules)
 			{
 				var csProjPath = Path.Combine(targetDirectory, module.Name + ".csproj");
-				decompileFile(module, csProjPath);
+				projectIDs.Add(decompileFile(module, csProjPath));
 			}
+			var solutionPath = Path.ChangeExtension(outputCSProjectPath, ".sln");
+			removeIfExists(solutionPath);
+
+			GodotMonoDecomp.SolutionCreator.WriteSolutionFile(solutionPath, projectIDs);
 		}
 		catch (Exception e)
 		{
