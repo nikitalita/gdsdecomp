@@ -1046,13 +1046,13 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 	return "";
 }
 
-String GDRESettings::get_path_for_script_class(const String &p_class) {
+String GDRESettings::get_path_for_script_class(const StringName &p_class) {
 	if (!is_pack_loaded() || p_class.is_empty()) {
 		return "";
 	}
 	for (auto kv : script_cache) {
 		auto &dict = kv.value;
-		if (dict.has("class") && dict["class"] == p_class) {
+		if (dict.get("class", "").operator StringName() == p_class) {
 			return kv.key;
 		}
 	}

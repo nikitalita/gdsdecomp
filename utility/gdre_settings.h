@@ -240,7 +240,7 @@ public:
 
 	StringName get_cached_script_class(const String &p_path);
 	StringName get_cached_script_base(const String &p_path);
-	String get_path_for_script_class(const String &p_class);
+	String get_path_for_script_class(const StringName &p_class);
 
 	Vector<String> get_file_list(const Vector<String> &filters = Vector<String>());
 	Array get_file_info_array(const Vector<String> &filters = Vector<String>());
