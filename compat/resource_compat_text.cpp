@@ -590,8 +590,8 @@ Error ResourceLoaderCompatText::load() {
 		bool fake_script = false;
 		MissingResource *missing_resource = nullptr;
 		Ref<ResourceCompatConverter> converter;
-		auto init_missing_internal_resource([&]() {
-			auto nres = CompatFormatLoader::create_missing_internal_resource(path, type, id);
+		auto init_missing_internal_resource([&](bool no_fake_script) {
+			auto nres = CompatFormatLoader::create_missing_internal_resource(path, type, id, no_fake_script);
 			res = Ref<Resource>(nres);
 			if (res->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(res.ptr());
@@ -602,7 +602,7 @@ Error ResourceLoaderCompatText::load() {
 		});
 
 		if (load_type == ResourceInfo::FAKE_LOAD) {
-			init_missing_internal_resource();
+			init_missing_internal_resource(false);
 		} else if (res.is_null()) {
 			converter = ResourceCompatLoader::get_converter_for_type(type, ver_major);
 		}
@@ -610,7 +610,7 @@ Error ResourceLoaderCompatText::load() {
 			Ref<Resource> cache = ResourceCache::get_ref(path);
 			if (converter.is_valid() && (!cache.is_valid() || cache_mode == ResourceFormatLoader::CACHE_MODE_IGNORE)) {
 				// We pass a missing resource to the converter, so it can set the properties correctly.
-				init_missing_internal_resource();
+				init_missing_internal_resource(true);
 			} else if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && cache.is_valid()) { //only if it doesn't exist
 				// cached, do not assign
 				res = cache;
