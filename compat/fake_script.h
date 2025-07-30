@@ -10,6 +10,8 @@ class FakeGDScript : public Script {
 	GDCLASS(FakeGDScript, Script);
 	bool tool = false;
 	bool valid = false;
+	bool loaded = false;
+	bool autoload = true;
 	bool reloading = false;
 	bool is_binary = false;
 	String original_class = "GDScript";
@@ -46,6 +48,8 @@ class FakeGDScript : public Script {
 	Vector<uint8_t> binary_buffer;
 
 	String error_message;
+
+	HashMap<StringName, Variant> properties;
 
 	Error parse_script();
 
@@ -127,6 +131,13 @@ public:
 
 	void set_override_bytecode_revision(int p_revision);
 	int get_override_bytecode_revision() const;
+	void set_autoload(bool p_autoload);
+	bool is_autoload() const;
+
+	bool is_loaded() const;
+
+	void set_original_class(const String &p_class);
+	String get_original_class() const;
 };
 
 class FakeEmbeddedScript : public Script {

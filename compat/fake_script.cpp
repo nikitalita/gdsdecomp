@@ -68,7 +68,14 @@ bool FakeGDScript::inherits_script(const Ref<Script> &p_script) const {
 }
 
 StringName FakeGDScript::get_instance_base_type() const {
-	return base_type;
+	if (!base_type.is_empty()) {
+		return base_type;
+	}
+	auto path = script_path.is_empty() ? get_path() : script_path;
+	if (path.is_empty() || !path.is_resource_file()) {
+		return {};
+	}
+	return GDRESettings::get_singleton()->get_cached_script_base(path);
 }
 
 ScriptInstance *FakeGDScript::instance_create(Object *p_this) {
@@ -95,7 +102,10 @@ String FakeGDScript::get_source_code() const {
 void FakeGDScript::set_source_code(const String &p_code) {
 	is_binary = false;
 	source = p_code;
-	reload(false);
+	loaded = false;
+	if (autoload) {
+		reload(false);
+	}
 }
 
 Error FakeGDScript::reload(bool p_keep_state) {
@@ -335,7 +345,11 @@ bool FakeGDScript::_get(const StringName &p_name, Variant &r_ret) const {
 		r_ret = get_source_code();
 		return true;
 	}
-	return false;
+	if (!properties.has(p_name)) {
+		return false;
+	}
+	r_ret = properties[p_name];
+	return true;
 }
 
 bool FakeGDScript::_set(const StringName &p_name, const Variant &p_value) {
@@ -343,7 +357,14 @@ bool FakeGDScript::_set(const StringName &p_name, const Variant &p_value) {
 		set_source_code(p_value);
 		return true;
 	}
-	return false;
+
+	if (!properties.has(p_name)) {
+		properties.insert(p_name, p_value);
+		return true;
+	}
+
+	properties[p_name] = p_value;
+	return true;
 }
 
 void FakeGDScript::_get_property_list(List<PropertyInfo> *p_properties) const {
@@ -368,7 +389,10 @@ String FakeGDScript::get_script_path() const {
 
 Error FakeGDScript::load_source_code(const String &p_path) {
 	script_path = p_path;
-	return _reload_from_file();
+	if (autoload) {
+		return _reload_from_file();
+	}
+	return OK;
 }
 
 String FakeGDScript::get_error_message() const {
@@ -381,6 +405,26 @@ int FakeGDScript::get_override_bytecode_revision() const {
 
 void FakeGDScript::set_override_bytecode_revision(int p_revision) {
 	override_bytecode_revision = p_revision;
+}
+
+void FakeGDScript::set_autoload(bool p_autoload) {
+	autoload = p_autoload;
+}
+
+bool FakeGDScript::is_autoload() const {
+	return autoload;
+}
+
+bool FakeGDScript::is_loaded() const {
+	return loaded;
+}
+
+void FakeGDScript::set_original_class(const String &p_class) {
+	original_class = p_class;
+}
+
+String FakeGDScript::get_original_class() const {
+	return original_class;
 }
 
 // FakeEmbeddedScript
