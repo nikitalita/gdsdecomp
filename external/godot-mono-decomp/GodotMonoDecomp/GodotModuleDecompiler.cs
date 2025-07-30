@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.TypeSystem;
 
 namespace GodotMonoDecomp;
 
@@ -56,13 +57,19 @@ public class GodotModuleDecompiler
 	{
 		var path = GodotStuff.TrimPrefix(file, "res://");
 		if (fileMap.TryGetValue(path, out var type)){
-			var decompiler = new CSharpDecompiler(module, assemblyResolver, decompilerSettings);
+			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, assemblyResolver, decompilerSettings);
+			var partialTypes = GodotStuff.GetPartialGodotTypes(module, [type], ts);
+			var decompiler = godotProjectDecompiler.CreateDecompiler(ts);
+			foreach (var partialType in partialTypes){
+				decompiler.AddPartialTypeDefinition(partialType);
+			}
 			var syntaxTree = decompiler.DecompileTypes([type]);
+			GodotStuff.RemoveScriptPathAttribute(syntaxTree.Children);
 			using var w = new StringWriter();
 			syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, decompilerSettings.CSharpFormattingOptions));
 			return w.GetStringBuilder().ToString();
 		}
-		return "<ERROR: Could not find file " + file + " in assembly " + module.Name + ">";
+		return "// ERROR: Could not find file " + file + " in assembly " + module.Name + ".dll.\n// The associated class(es) may have not been compiled into the assembly.";
 	}
 
 	public int GetNumberOfFilesNotPresentInFileMap()
