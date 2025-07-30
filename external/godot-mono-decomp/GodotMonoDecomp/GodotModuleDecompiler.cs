@@ -1,5 +1,7 @@
 using System.Reflection.Metadata;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
@@ -304,14 +306,13 @@ public class GodotModuleDecompiler
 	}
 	public const string error_message = "// ERROR: Could not find file '{0}' in assembly '{1}.dll'.";
 
-	public string DecompileIndividualFile(string file)
+	private (GodotModule?, TypeDefinitionHandle) GetScriptModuleAndType(string file)
 	{
 		var path = Common.TrimPrefix(file, "res://");
 		if (!string.IsNullOrEmpty(path))
 		{
-			GodotModule? module = MainModule;
 			TypeDefinitionHandle foundType;
-
+			GodotModule? module = MainModule;
 			if (!module.fileMap.TryGetValue(path, out foundType))
 			{
 				module = null;
@@ -325,22 +326,220 @@ public class GodotModuleDecompiler
 				}
 			}
 
-			if (module != null)
-			{
-				var projectDecompiler = CreateProjectDecompiler(module);
+			return (module, foundType);
+		}
 
-				if (foundType == null)
-				{
-					return string.Format(error_message, file, MainModule.Name) + "\n// We screwed up somewhere.";
-				}
-				var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [foundType]);
-				return decompiler.DecompileTypesAsString([foundType]);
+		return (null, default(TypeDefinitionHandle));
+	}
+
+	public string DecompileIndividualFile(string file)
+	{
+		var path = Common.TrimPrefix(file, "res://");
+		var (module, type) = GetScriptModuleAndType(file);
+		if (module == null || type == default)
+		{
+			return string.Format(error_message, file, MainModule.Name) + (
+				originalProjectFiles.Contains(path)
+					? "\n// The associated class(es) may have not been compiled into the assembly."
+					: "\n// The file is not present in the original project."
+			);
+		}
+
+		var projectDecompiler = CreateProjectDecompiler(module);
+		var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [type]);
+		return decompiler.DecompileTypesAsString([type]);
+	}
+
+	private string GetPathForType(ITypeDefinition? typeDef){
+		if (typeDef == null || typeDef.ParentModule == null){
+			return "";
+		}
+		if (typeDef.ParentModule.AssemblyName == MainModule.Name){
+			return MainModule.fileMap.FirstOrDefault(pair => pair.Value == (TypeDefinitionHandle)typeDef.MetadataToken).Key;
+		}
+		foreach (var module in AdditionalModules){
+			if (module.Name == typeDef.ParentModule.AssemblyName){
+				return module.fileMap.FirstOrDefault(pair => pair.Value == (TypeDefinitionHandle)typeDef.MetadataToken).Key;
 			}
 		}
-		return string.Format(error_message, file, MainModule.Name) + (
-			originalProjectFiles.Contains(path) ? "\n// The associated class(es) may have not been compiled into the assembly." : "\n// The file is not present in the original project."
-		);
+		return "";
 	}
+
+	public GodotScriptInfo? GetScriptInfo(string file)
+	{
+		var (module, type) = GetScriptModuleAndType(file);
+		if (module == null || type == default)
+		{
+			return null;
+		}
+
+		var projectDecompiler = CreateProjectDecompiler(module);
+		var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [type]);
+		var allTypeDefs = decompiler.TypeSystem.GetAllTypeDefinitions();
+		var typeDef = allTypeDefs.FirstOrDefault(t => t.MetadataToken == type);
+
+		if (typeDef == null)
+		{
+			return null;
+		}
+		if (!GodotStuff.IsGodotClass(typeDef))
+		{
+			return null;
+		}
+
+		var props = typeDef.Fields.Concat<IMember>(typeDef.Properties)
+			.Where(p => p.GetAttributes().Any(a => a.AttributeType.Name == "ExportAttribute")).ToList();
+		var fields = typeDef.Fields.Where(p => p.GetAttributes().Any(a => a.AttributeType.Name.Contains("Export")))
+			.ToList();
+		var signals = GodotStuff.GetSignalsInClass(typeDef);
+		var syntaxTree = decompiler.Decompile([type]);
+		var isTool = typeDef.GetAttributes().FirstOrDefault(a => a.AttributeType.Name == "ToolAttribute") != null;
+
+		List<PropertyInfo> propsInfos = [];
+		List<MethodInfo> signalsInfo = [];
+		List<MethodInfo> methodsInfo = [];
+		foreach (var prop in props)
+		{
+			// No need, Export attribute guarantees that the member is public.
+			// if (CSharpDecompiler.MemberIsHidden(prop.ParentModule.MetadataFile, prop.MetadataToken,
+			// 	    projectDecompiler.Settings))
+			// {
+			// 	continue;
+			// }
+
+			var exportAttr = prop.GetAttributes().FirstOrDefault(a => a.AttributeType.Name == "ExportAttribute");
+			string propHint = "";
+			string propUsage = "";
+			if (exportAttr?.FixedArguments.Length >= 2)
+			{
+				int hintValue = exportAttr.FixedArguments[0].Value as int? ?? 0;
+				propHint = Common.GetEnumValueName(exportAttr.FixedArguments[0].Type, hintValue, "None");
+				propUsage = exportAttr.FixedArguments[1].Value.ToString();
+			}
+
+			string defaultValue = "";
+			GetFieldInitializerValueVisitor? visitor = null;
+			visitor = new GetFieldInitializerValueVisitor(prop, projectDecompiler);
+			syntaxTree.AcceptVisitor(visitor);
+
+			if (visitor == null)
+			{
+				defaultValue = "";
+			}
+			else if (string.IsNullOrEmpty(visitor.strVal))
+			{
+				defaultValue = "";
+			}
+			else
+			{
+				defaultValue = visitor.strVal;
+			}
+
+			propsInfos.Add(new PropertyInfo(prop.Name, prop.ReturnType.Name, defaultValue, propHint, propUsage ?? ""));
+		}
+
+		foreach (var signal in signals)
+		{
+			var invokeMethod = signal.GetMethods().FirstOrDefault(m => m.Name == "Invoke");
+			string[] args = [];
+			string[] argTypes = [];
+			if (invokeMethod != null)
+			{
+				args = invokeMethod.Parameters.Select(p => p.Name).ToArray();
+				argTypes = invokeMethod.Parameters.Select(p => p.Type.Name).ToArray();
+			}
+			signalsInfo.Add(new MethodInfo(signal.Name, "void", args, argTypes, false, false, false));
+		}
+
+		foreach (var method in typeDef.Methods)
+		{
+			if (CSharpDecompiler.MemberIsHidden(method.ParentModule.MetadataFile, method.MetadataToken,
+				    projectDecompiler.Settings))
+			{
+				continue;
+			}
+			if (!GodotStuff.IsBannedGodotTypeMember(method) && (method.Accessibility & Accessibility.Public) != 0)
+			{
+				var name = method.Name == ".ctor" ? "_init" : method.Name;
+				if (method.Name == ".ctor")
+				{
+					if (method.Parameters.Count == 0)
+					{
+						continue;
+					}
+				}
+				// _process, _ready, etc.
+				if (name.StartsWith("_"))
+				{
+					name = Common.CamelCaseToSnakeCase(name).ToLower();
+				}
+				methodsInfo.Add(new MethodInfo(
+					name,
+					method.ReturnType.Name,
+					method.Parameters.Select(p => p.Name).ToArray(),
+					method.Parameters.Select(p => p.Type.Name).ToArray(),
+					method.IsStatic,
+					method.IsAbstract,
+					method.IsVirtual
+				));
+			}
+		}
+
+		if (!file.StartsWith("res://"))
+		{
+			file = "res://" + file;
+		}
+
+		var baseTypes = typeDef.DirectBaseTypes.ToList();
+		var baseTypePaths = baseTypes.Select(t => GetPathForType(t.GetDefinition())).Select(
+			p => string.IsNullOrEmpty(p) ? "" : "res://" + p
+		).ToArray();
+
+
+
+		var scriptInfo = new GodotScriptInfo(
+			file,
+			typeDef.Namespace,
+			typeDef.Name,
+			baseTypes.Select(t => t.Name).ToArray(),
+			baseTypePaths,
+			propsInfos.ToArray(),
+			signalsInfo.ToArray(),
+			methodsInfo.ToArray(),
+			isTool,
+			typeDef.IsAbstract
+		);
+		return scriptInfo;
+	}
+
+	public void WriteWholeScriptInfo(string file)
+	{
+		Dictionary<string, GodotScriptInfo> scriptInfos = [];
+		foreach (var path in GetFilesInFileMap())
+		{
+			var scriptInfo = GetScriptInfo(path);
+			if (scriptInfo != null)
+			{
+				scriptInfos.Add(scriptInfo.Path, scriptInfo);
+			}
+		}
+		if (scriptInfos.Count == 0)
+		{
+			Console.WriteLine("// No script info found.");
+			return;
+		}
+
+		using (var writer = new StreamWriter(file))
+		{
+			var opts = new JsonWriterOptions();
+			opts.Indented = true;
+			opts.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+			var strWriter = new Utf8JsonWriter(writer.BaseStream, opts);
+			JsonSerializer.Serialize(strWriter, scriptInfos, SISrcGenContext.Default.DictionaryStringGodotScriptInfo);
+			strWriter.Flush();
+		}
+	}
+
 
 
 	public bool anyFileMapsContainsFile(string file)

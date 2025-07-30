@@ -1,24 +1,216 @@
-using System;
-using System.Collections;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.IO;
-using System.Linq;
 using System.Reflection.Metadata;
-using System.Threading;
-using System.Threading.Tasks;
 using ICSharpCode.Decompiler;
-using ICSharpCode.Decompiler.CSharp.OutputVisitor;
-using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
+using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.Syntax;
 using ICSharpCode.Decompiler.CSharp.Transforms;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.Decompiler.Util;
 
 namespace GodotMonoDecomp;
+
+public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
+{
+	public string? strVal = null;
+
+	private IMember targetMember;
+	private GodotProjectDecompiler godotDecompiler;
+	private bool found = false;
+	private SyntaxTree syntaxTree;
+
+	public GetFieldInitializerValueVisitor(IMember member, GodotProjectDecompiler godotDecompiler)
+	{
+		this.godotDecompiler = godotDecompiler;
+		this.targetMember = member;
+	}
+
+	public override void VisitSyntaxTree(SyntaxTree syntaxTree)
+	{
+		this.syntaxTree = syntaxTree;
+		base.VisitSyntaxTree(syntaxTree);
+	}
+
+	protected override void VisitChildren(AstNode node)
+	{
+		if (found)
+		{
+			return;
+		}
+
+		base.VisitChildren(node);
+	}
+
+	public override void VisitPropertyDeclaration(PropertyDeclaration propertyDeclaration)
+	{
+		if (found)
+		{
+			return;
+		}
+		if (targetMember is IProperty property && Equals(propertyDeclaration.GetSymbol(), property))
+		{
+			var initializer = propertyDeclaration.Initializer;
+			if (!(initializer == null || initializer == Expression.Null))
+			{
+				strVal = GetInitializerValue(initializer);
+			}
+			else
+			{
+				if (propertyDeclaration.ExpressionBody != null)
+				{
+					strVal = GetInitializerValue(propertyDeclaration.ExpressionBody);
+				}
+
+			}
+
+			found = true;
+			return;
+		}
+
+		base.VisitPropertyDeclaration(propertyDeclaration);
+	}
+
+	public string? GetInitializerValue(Expression initializer)
+	{
+		string? value = null;
+		if (initializer == null || initializer == Expression.Null)
+		{
+			return null;
+		}
+		else
+		{
+			var init = initializer;
+			var sym = initializer.GetSymbol();
+			if (sym is IVariable f && f.IsConst)
+			{
+				value = GodotExpressionTokenWriter.PrintPrimitiveValue(f.GetConstantValue(false));
+			}
+			else if (init is PrimitiveExpression primitiveExpression)
+			{
+				value = GodotExpressionTokenWriter.PrintPrimitiveValue(primitiveExpression.Value);
+			}
+			else if (init is InterpolatedStringExpression interpolatedStringExpression)
+			{
+				value = GodotExpressionOutputVisitor.GetString(interpolatedStringExpression);
+			}
+			else if (init is IdentifierExpression identifierExpression)
+			{
+				if (sym is IMember symMem && symMem.DeclaringType.Equals(targetMember.DeclaringType))
+				{
+					var vis = new GetFieldInitializerValueVisitor(symMem, godotDecompiler);
+					this.syntaxTree.AcceptVisitor(vis);
+					value = vis.strVal;
+				}
+				else
+				{
+					value = identifierExpression.Identifier;
+				}
+			}
+			else if (init is ObjectCreateExpression oce)
+			{
+				if (oce.Children.Count() == 1  && oce.LastChild is SimpleType simpleType)
+				{
+					if (simpleType.IdentifierToken.Name == "Array")
+					{
+						value = "[]";
+					}
+					else if (simpleType.IdentifierToken.Name == "Dictionary")
+					{
+						value = "{}";
+					}
+					else
+					{
+						if (GodotStuff.IsGodotVariantType(simpleType.IdentifierToken.Name))
+						{
+							value = GodotStuff.CSharpTypeToGodotType(simpleType.IdentifierToken.Name) + "()";
+						}
+						else
+						{
+							// TODO: this?
+							// value = GodotExpressionOutputVisitor.GetString(oce.LastChild) + ".new()";
+							value = "";
+						}
+					}
+				}
+				else
+				{
+					var sr = GodotExpressionOutputVisitor.GetString(oce);
+					value = Common.TrimPrefix(sr, "new").Trim();
+				}
+			}
+			else if (init is MemberReferenceExpression memberReferenceExpression)
+			{
+				value = GodotStuff.ReplaceMemberReference(memberReferenceExpression);
+				if (value == null)
+				{
+					var s = memberReferenceExpression.GetSymbol();
+					if (s is IProperty || s is IField)
+					{
+						IMember prop = (IMember)s;
+						var declaringType = prop.DeclaringType.GetDefinition();
+						if (declaringType == null || declaringType.ParentModule == null)
+						{
+							return GodotExpressionOutputVisitor.GetString(memberReferenceExpression);
+						}
+						var decompiler = godotDecompiler.CreateDecompilerWithPartials(declaringType.ParentModule.MetadataFile, [(TypeDefinitionHandle)declaringType.MetadataToken]);
+						var tree = decompiler.Decompile([declaringType.MetadataToken]);
+						GetFieldInitializerValueVisitor vis;
+						if (memberReferenceExpression.GetSymbol() is IMember m)
+						{
+							vis =  new GetFieldInitializerValueVisitor(m, godotDecompiler);
+							tree.AcceptVisitor(vis);
+							value = vis.strVal;
+						}
+
+						if (value == null)
+						{
+							value = GodotExpressionOutputVisitor.GetString(memberReferenceExpression);
+						}
+					}
+				}
+			}
+
+			else
+			{
+				value = GodotExpressionOutputVisitor.GetString(init);
+			}
+		}
+		return value;
+	}
+
+
+	public override void VisitFieldDeclaration(FieldDeclaration fieldDeclaration)
+	{
+		if (found)
+		{
+			return;
+		}
+
+		if (targetMember is IField field && Equals(fieldDeclaration.GetSymbol(), field))
+		{
+			// TODO: instantiate it and just get the value that way?
+			// var declaringType = field.DeclaringType;
+			// var declaringTypeDefinition = declaringType.GetDefinition();
+			// var module = declaringTypeDefinition.ParentModule;
+			// var obj = Activator.CreateInstance(module.AssemblyName, declaringType.FullName);
+
+			var intializers = fieldDeclaration.Variables;
+			foreach (var initializer in intializers)
+			{
+				strVal = GetInitializerValue(initializer.Initializer);
+				if (strVal != null)
+				{
+					break;
+				}
+			}
+
+			found = true;
+			return;
+		}
+
+		base.VisitFieldDeclaration(fieldDeclaration);
+	}
+}
 
 /// <summary>
 /// This transform is used to remove Godot.ScriptPathAttribute from the AST.
@@ -493,7 +685,7 @@ public static class GodotStuff
 		{
 			return false;
 		}
-		return entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject");
+		return entity.GetAllBaseTypes().Any(t => t.Name == "GodotObject" || t.FullName == "Godot.Object");
 	}
 
 	public static bool IsGodotPartialClass(ITypeDefinition entity)
@@ -802,5 +994,249 @@ public static class GodotStuff
 		"RaiseGodotClassSignalCallbacks"
 	];
 
+	public static MetadataFile? GetGodotSharpAssembly(MetadataFile file, IAssemblyResolver resolver)
+	{
+		var godotSharpReference = file.AssemblyReferences.FirstOrDefault(r => r.Name == "GodotSharp");
+		var godotSharpAssembly = godotSharpReference != null
+			? resolver.Resolve(godotSharpReference)
+			: null;
+		return godotSharpAssembly;
+	}
+
+	public static bool IsGodotVariantType(string type)
+	{
+		type = type.Trim().TrimEnd(']').TrimEnd('[');
+		switch (type)
+		{
+			case "Variant":
+			case "void":
+			case "bool":
+			case "int":
+			case "float":
+			case "String":
+			case "Vector2":
+			case "Vector2i":
+			case "Rect2":
+			case "Rect2i":
+			case "Vector3":
+			case "Vector3i":
+			case "Transform2D":
+			case "Vector4":
+			case "Vector4i":
+			case "Plane":
+			case "Quaternion":
+			case "AABB":
+			case "Basis":
+			case "Transform3D":
+			case "Projection":
+			case "Color":
+			case "StringName":
+			case "NodePath":
+			case "RID":
+			case "Object":
+			case "Callable":
+			case "Signal":
+			case "Dictionary":
+			case "Array":
+			case "PackedByteArray":
+			case "PackedInt32Array":
+			case "PackedInt64Array":
+			case "PackedFloat32Array":
+			case "PackedFloat64Array":
+			case "PackedStringArray":
+			case "PackedVector2Array":
+			case "PackedVector3Array":
+			case "PackedColorArray":
+			case "PackedVector4Array":
+			// 3.x types
+			case "Quat":
+			case "Transform":
+				return true;
+		}
+		if (type.StartsWith("Array<"))
+		{
+			return true;
+		}
+		if (type.StartsWith("Dictionary<"))
+		{
+			return true;
+		}
+		return false;
+	}
+
+
+
+	public static string CSharpTypeToGodotType(string _type)
+	{
+		var csharpType = Common.TrimPrefix(_type.Trim().Replace("&", "").Trim(), "System.");
+		var subCSharpType = csharpType;
+		var newType = csharpType;
+		var subType = csharpType;
+		bool isArray = false;
+		bool isDictionary = false;
+		// Godot 3.x PackedArray types
+		if (csharpType.StartsWith("Pool") && csharpType.EndsWith("Array"))
+		{
+			if (csharpType.StartsWith("PoolInt"))
+			{
+				return "PackedInt32Array";
+			}
+			if (csharpType.StartsWith("PoolReal"))
+			{
+				return "PackedFloat32Array";
+			}
+			return csharpType.Replace("Pool", "Packed");
+		}
+
+		if (csharpType.EndsWith("[]"))
+		{
+			isArray = true;
+			subCSharpType = csharpType.Substring(0, csharpType.Length - 2);
+			subType = subCSharpType;
+		}
+		else if (csharpType.Contains("<"))
+		{
+			if (csharpType.StartsWith("Array"))
+			{
+				isArray = true;
+				subCSharpType = csharpType.Split('<')[1].TrimEnd('>');
+				subType = subCSharpType;
+			} else if (csharpType.StartsWith("Dictionary"))
+			{
+				// TODO: subtypes
+				return "Dictionary";
+				// isDictionary = true;
+				// var parts = csharpType.Split('<', 1)[1].TrimEnd('>').Split(',');
+			}
+			else
+			{
+				// unknown, return "Variant"
+				return "Variant";
+			}
+		}
+
+		switch (subType)
+		{
+			case "Void":
+				subType = "void";
+				break;
+			case "Boolean":
+				subType = "bool";
+				break;
+			case "UInt32":
+			case "UInt64":
+			case "Int32":
+			case "Int64":
+				subType = "int";
+				break;
+			case "Single":
+			case "Double":
+				subType = "float";
+				break;
+			case "string":
+				subType = "String";
+				break;
+			case "godot_string_name":
+				subType = "StringName";
+				break;
+			// 3.x types
+			case "Quat":
+				subType = "Quaternion";
+				break;
+			case "Transform":
+				subType = "Transform3D";
+				break;
+			default:
+				break;
+		}
+		if (isArray)
+		{
+			switch (subCSharpType)
+			{
+				case "uint8_t":
+				case "byte":
+				case "Byte":
+					newType = "PackedByteArray";
+					break;
+				case "Boolean":
+					newType = "PackedBoolArray";
+					break;
+				case "UInt32":
+				case "Int32":
+					newType = "PackedInt32Array";
+					break;
+				case "UInt64":
+				case "Int64":
+					newType = "PackedInt64Array";
+					break;
+				case "Single":
+					newType = "PackedFloat32Array";
+					break;
+				case "Color":
+					newType = "PackedColorArray";
+					break;
+				case "Vector2":
+					newType = "PackedVector2Array";
+					break;
+				case "Vector3":
+					newType = "PackedVector3Array";
+					break;
+				case "string":
+				case "String":
+					newType = "PackedStringArray";
+					break;
+
+				default:
+					newType = "Array[" + subType + "]";
+					break;
+
+			}
+		}
+		else
+		{
+			newType = subType;
+		}
+		return newType;
+	}
+
+	public static string? ReplaceMemberReference(MemberReferenceExpression memberReferenceExpression)
+	{
+		string? text = null;
+		if (memberReferenceExpression.GetSymbol() is IMember ne)
+		{
+			if (ne.DeclaringType.FullName == "Godot.Colors")
+			{
+				text = "Color(\"" + Common.CamelCaseToSnakeCase(ne.Name).ToUpper() + "\")";
+
+			}
+			else if (ne.FullName.Contains(".Math"))
+			{
+				text = Common.CamelCaseToSnakeCase(ne.Name).ToUpper();
+			}
+			else if (ne.DeclaringType.FullName.StartsWith("Godot."))
+			{
+				// remove the Godot. prefix
+				string dtname = ne.DeclaringType.Name;
+				if (dtname.EndsWith("s"))
+				{
+					// remove the trailing 's' for plural types
+					dtname = dtname.Substring(0, dtname.Length - 1);
+				}
+				// text = dtname + "(\"" + Common.CamelCaseToSnakeCase(ne.Name).ToUpper() + "\")";
+				text = dtname + "." + Common.CamelCaseToSnakeCase(ne.Name).ToUpper();
+
+			}
+			else if (ne is IVariable iv && iv.IsConst)
+			{
+				text = GodotExpressionTokenWriter.PrintPrimitiveValue(iv.GetConstantValue());
+			}
+			else if (ne.FullName.EndsWith("tring.Empty"))
+			{
+				text = "\"\"";
+			}
+		}
+
+		return text;
+	}
 
 }

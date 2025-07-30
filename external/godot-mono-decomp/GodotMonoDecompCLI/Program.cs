@@ -44,7 +44,15 @@ int Main(string[] args)
 	settings.GodotVersionOverride = result.Value.GodotVersion == null ? null : GodotStuff.ParseGodotVersionFromString(result.Value.GodotVersion);
 	// get the current time
 	var startTime = DateTime.Now;
-    // call the DecompileProject function
+	// call the DecompileProject function
+	if (result.Value.WriteScriptInfo)
+	{
+		var files = Common.ListCSharpFiles(projectPath, false).ToList();
+		GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], referencePaths, settings);
+		var outputJson = Path.Join(outputDir, "godot_script_info.json");
+		Common.EnsureDir(outputDir);
+		decompiler.WriteWholeScriptInfo(outputJson);
+	}
     int resultCode = Lib.DecompileProject(assemblyPath, outputCSProj, projectPath, referencePaths, settings);
     var timeTaken = DateTime.Now - startTime;
     Console.WriteLine($"Decompilation completed in {timeTaken.TotalSeconds} seconds.");
@@ -84,6 +92,8 @@ public class Options
 	[Option("no-multi-project", Required = false, HelpText = "Whether to create additional projects for project references in main module.")]
 	public bool NoCreateAdditionalProjectsForProjectReferences { get; set; }
 
+	[Option("write-script-info", Required = false, HelpText = "Write script info to a JSON file in the output directory.")]
+	public bool WriteScriptInfo { get; set; }
 
 	[Option("verbose", Required = false, HelpText = "Set output to verbose messages.")]
 	public bool Verbose { get; set; }

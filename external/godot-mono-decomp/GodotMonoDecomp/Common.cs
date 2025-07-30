@@ -1,6 +1,8 @@
+using System.Text;
 using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
 
 namespace GodotMonoDecomp;
@@ -211,5 +213,46 @@ public static class Common
 				}
 			}
 		}
+	}
+
+	public static string CamelCaseToSnakeCase(string input)
+	{
+		if (string.IsNullOrEmpty(input))
+			return input;
+
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < input.Length; i++)
+		{
+			char c = input[i];
+			if (char.IsUpper(c) && i > 0 && char.IsLower(input[i - 1]))
+			{
+				sb.Append('_');
+			}
+			sb.Append(char.ToLowerInvariant(c));
+		}
+		return sb.ToString();
+	}
+
+	public static string[] GetEnumValueNames(IType type)
+	{
+		if (type.Kind != TypeKind.Enum)
+		{
+			return [];
+		}
+
+		return type
+			.GetFields()
+			.Where(field => !field.FullName.StartsWith("System.Enum") && !field.Name.EndsWith("value__"))
+			.Select(field => field.Name).ToArray();
+	}
+
+	public static string GetEnumValueName(IType type, int value, string defaultValue = "")
+	{
+		var names = GetEnumValueNames(type);
+		if (names.Length == 0 || value >= names.Length)
+		{
+			return defaultValue;
+		}
+		return names[value];
 	}
 }

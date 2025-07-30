@@ -83,6 +83,11 @@ char32_t** GodotMonoDecomp_GetAllUtf32StringsInModule(
 	int* r_num_strings
 );
 
+const char* GodotMonoDecomp_GetScriptInfo(
+	void* decompilerHandle,
+	const char* file
+);
+
 void GodotMonoDecomp_FreeObjectHandle(void* handle);
 
 void GodotMonoDecomp_FreeArray(void* array, int length);
