@@ -2244,6 +2244,19 @@ bool GDRESettings::has_loaded_dotnet_assembly() const {
 	return is_pack_loaded() && !current_project->decompiler.is_null();
 }
 
+bool GDRESettings::project_requires_dotnet_assembly() const {
+	if (!(is_pack_loaded() && get_ver_major() >= 4)) {
+		return false;
+	}
+	if (is_project_config_loaded()) {
+		return !get_project_setting("dotnet/project/assembly_name", String()).operator String().is_empty() ||
+				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
+				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
+	}
+	// fallback in case this is a add-on pck
+	return gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -2310,6 +2323,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_dotnet_decompiler"), &GDRESettings::get_dotnet_decompiler);
 	ClassDB::bind_method(D_METHOD("has_loaded_dotnet_assembly"), &GDRESettings::has_loaded_dotnet_assembly);
 	ClassDB::bind_method(D_METHOD("get_project_dotnet_assembly_name"), &GDRESettings::get_project_dotnet_assembly_name);
+	ClassDB::bind_method(D_METHOD("project_requires_dotnet_assembly"), &GDRESettings::project_requires_dotnet_assembly);
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues
