@@ -12,11 +12,59 @@ using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp.OutputVisitor;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.CSharp.Transforms;
 using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
 
 namespace GodotMonoDecomp;
+
+/// <summary>
+/// This transform is used to remove Godot.ScriptPathAttribute from the AST.
+/// </summary>
+public class RemoveGodotScriptPathAttribute : IAstTransform
+{
+
+	public void Run(AstNode rootNode, TransformContext context)
+	{
+
+		foreach (var section in rootNode.Children.OfType<NamespaceDeclaration>())
+		{
+			Run(section, context);
+		}
+		foreach (var section in rootNode.Children.OfType<TypeDeclaration>())
+		{
+			Run(section, context);
+		}
+		foreach (var section in rootNode.Children.OfType<AttributeSection>())
+		{
+			foreach (var attribute in section.Attributes)
+			{
+				var trr = attribute.Type.Annotation<TypeResolveResult>();
+				if (trr == null)
+					continue;
+
+				string fullName = trr.Type.FullName;
+				var arguments = attribute.Arguments;
+				switch (fullName)
+				{
+					case "Godot.ScriptPathAttribute":
+					{
+						attribute.Remove();
+						break;
+					}
+				}
+			}
+
+			if (section.Attributes.Count == 0)
+			{
+				section.Remove();
+			}
+		}
+	}
+}
+
 
 public static class GodotStuff
 {
@@ -376,49 +424,6 @@ public static class GodotStuff
 		return "";
 	}
 
-	public static bool RemoveScriptPathAttribute(IEnumerable<AstNode> children)
-	{
-		// using StreamWriter w = new StreamWriter(Path.Combine(TargetDirectory, file.Key));
-		foreach (var child in children)
-		{
-			switch (child)
-			{
-				case TypeDeclaration typeDeclaration:
-				{
-					// check for the "ScriptPath" attribute"
-					foreach (var attrSection in typeDeclaration.Attributes)
-					{
-						foreach (var attr in attrSection.Attributes)
-						{
-							if (attr.Type.ToString() == "ScriptPath")
-							{
-								attr.Remove();
-								if (attrSection.Attributes.Count == 0)
-								{
-									attrSection.Remove();
-								}
-
-								return true;
-							}
-						}
-
-					}
-
-					break;
-				}
-				case NamespaceDeclaration namespaceDeclaration:
-				{
-					if (RemoveScriptPathAttribute(namespaceDeclaration.Children))
-					{
-						return true;
-					}
-
-					break;
-				}
-			}
-		}
-		return false;
-	}
 
 	// list all .cs files in the directory and subdirectories
 	public static IEnumerable<string> ListCSharpFiles(string directory, bool absolute)
