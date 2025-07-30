@@ -157,7 +157,7 @@ Error FileAccessBuffer::get_error() const {
 
 Error FileAccessBuffer::resize(int64_t p_length) {
 	ERR_FAIL_COND_V(!open, ERR_UNAVAILABLE);
-	data.resize(p_length);
+	data.resize_initialized(p_length);
 	return OK;
 }
 
@@ -174,7 +174,7 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 
 	// check if data is large enough
 	if (pos + p_length > data.size()) {
-		data.resize((pos + p_length + (MIN(p_length, 16 * 1024))));
+		data.resize_initialized((pos + p_length + (MIN(p_length, 16 * 1024))));
 	}
 
 	memcpy(data.ptrw() + pos, p_src, p_length);
@@ -187,7 +187,7 @@ String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
 	ERR_FAIL_COND_V(!open, "");
 	uint64_t len = data.size() - pos;
 	String s;
-	s.append_utf8((const char *)data.ptr() + pos, len, p_skip_cr);
+	s.append_utf8((const char *)data.ptr() + pos, -1, p_skip_cr);
 	return s;
 }
 
@@ -195,6 +195,6 @@ String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
 	ERR_FAIL_COND_V(!open, "");
 	uint64_t len = data.size();
 	String s;
-	s.append_utf8((const char *)data.ptr(), len, p_skip_cr);
+	s.append_utf8((const char *)data.ptr(), -1, p_skip_cr);
 	return s;
 }
