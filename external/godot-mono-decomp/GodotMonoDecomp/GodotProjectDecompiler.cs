@@ -56,7 +56,7 @@ namespace GodotMonoDecomp
 		/// <summary>
 		/// Gets the setting this instance uses for decompiling.
 		/// </summary>
-		public DecompilerSettings Settings { get; }
+		public GodotMonoDecompSettings Settings { get; }
 
 		LanguageVersion? languageVersion;
 
@@ -92,7 +92,7 @@ namespace GodotMonoDecomp
 
 		public AssemblyReferenceClassifier AssemblyReferenceClassifier { get; }
 
-		public IDebugInfoProvider? DebugInfoProvider { get; }
+		public IDebugInfoProvider? DebugInfoProvider { get; set;}
 
 		/// <summary>
 		/// The MSBuild ProjectGuid to use for the new project.
@@ -123,7 +123,7 @@ namespace GodotMonoDecomp
 		#endregion
 
 		public GodotProjectDecompiler(
-			DecompilerSettings settings,
+			GodotMonoDecompSettings settings,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
 			IDebugInfoProvider? debugInfoProvider,
@@ -133,7 +133,7 @@ namespace GodotMonoDecomp
 		}
 
 		protected GodotProjectDecompiler(
-			DecompilerSettings settings,
+			GodotMonoDecompSettings settings,
 			Guid projectGuid,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
@@ -161,12 +161,12 @@ namespace GodotMonoDecomp
 											string targetDirectory,
 											TextWriter? projectFileWriter = null,
 											IEnumerable<TypeDefinitionHandle>? excludeTypes = null,
-											Dictionary<TypeDefinitionHandle, string>? handleToFileMap = null,
+											Dictionary<TypeDefinitionHandle, string> handleToFileMap = default,
 											DotNetCoreDepInfo? depInfo = null,
 											CancellationToken cancellationToken = default(CancellationToken))
 		{
 			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
-			this.handleToFileMap = handleToFileMap ?? MakeHandleToFileMap(file);
+			this.handleToFileMap = handleToFileMap ?? [];
 			this.depInfo = depInfo;
 			if (projectFileWriter == null)
 			{
@@ -196,7 +196,7 @@ namespace GodotMonoDecomp
 			{
 				throw new InvalidOperationException("Must set TargetDirectory");
 			}
-			projectWriter = ProjectFileWriterGodotStyle.Create();
+			projectWriter = ProjectFileWriterGodotStyle.Create(Settings.WriteNuGetPackageReferences, Settings.CopyOutOfTreeReferences, Settings.CreateAdditionalProjectsForProjectReferences);
 			if (projectWriter is ProjectFileWriterGodotStyle writer)
 			{
 				writer.DepInfo = depInfo;
@@ -342,21 +342,6 @@ namespace GodotMonoDecomp
 			}
 			return path;
 		}
-
-		Dictionary<TypeDefinitionHandle, string> MakeHandleToFileMap(MetadataFile module)
-		{
-			Version godotVersion = GodotStuff.GetGodotVersion(module) ?? new Version(0, 0, 0, 0);
-			Dictionary<string, GodotScriptMetadata>? metadata = null;
-			if (godotVersion.Major <= 3)
-			{
-				metadata = GodotScriptMetadataLoader.LoadFromFile(GodotScriptMetadataLoader.FindGodotScriptMetadataFile(module.FileName));
-			}
-			return GodotStuff.CreateFileMap(module, GetTypesToDecompile(module), FilesInOriginal, metadata, Settings.UseNestedDirectoriesForNamespaces).ToDictionary(
-				pair => pair.Value,
-				pair => pair.Key,
-				null);
-		}
-
 
 		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
 		{
