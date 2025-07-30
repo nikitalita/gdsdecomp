@@ -45,6 +45,7 @@
 #include "utility/github_source.h"
 #include "utility/gitlab_source.h"
 #include "utility/glob.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/godotver.h"
 #include "utility/import_exporter.h"
 #include "utility/mesh_previewer.h"
@@ -394,6 +395,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ScenePreviewer3D>();
 	ClassDB::register_class<ScenePreviewer2D>();
 	ClassDB::register_class<ScenePreviewer>();
+	ClassDB::register_class<GodotMonoDecompWrapper>();
 
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();

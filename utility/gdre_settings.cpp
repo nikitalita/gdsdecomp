@@ -16,6 +16,7 @@
 #include "utility/gdre_logger.h"
 #include "utility/gdre_packed_source.h"
 #include "utility/gdre_version.gen.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/import_info.h"
 #include "utility/pcfg_loader.h"
 #include "utility/plugin_manager.h"
@@ -697,6 +698,18 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	_ensure_script_cache_complete();
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
+
+	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
+	if (gdre::dir_has_any_matching_wildcards("res://", { "*.cs" })) {
+		err = load_project_dotnet_assembly();
+		if (err) {
+			err = OK;
+			WARN_PRINT("Could not load .NET assembly!");
+		} else {
+			print_line(vformat("Loaded .NET assembly: %s", get_dotnet_assembly_path()));
+		}
+	}
+
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
 	if (bytecode_revision > 0) {
@@ -1520,10 +1533,10 @@ bool GDRESettings::has_project_setting(const String &p_setting) {
 	return current_project->pcfg->has_setting(p_setting);
 }
 
-Variant GDRESettings::get_project_setting(const String &p_setting) {
-	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), Variant(), "Pack not loaded!");
-	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), Variant(), "project config not loaded!");
-	return current_project->pcfg->get_setting(p_setting, Variant());
+Variant GDRESettings::get_project_setting(const String &p_setting, const Variant &default_value) const {
+	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), default_value, "Pack not loaded!");
+	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), default_value, "project config not loaded!");
+	return current_project->pcfg->get_setting(p_setting, default_value);
 }
 
 void GDRESettings::set_project_setting(const String &p_setting, Variant value) {
@@ -2150,6 +2163,72 @@ Vector<String> GDRESettings::get_errors() {
 	return GDRELogger::get_errors();
 }
 
+Error GDRESettings::load_project_dotnet_assembly() {
+	String assembly_name = get_project_setting("dotnet/project/assembly_name");
+	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: dotnet/project/assembly_name is empty");
+	String project_dir = get_pack_path().get_base_dir();
+	if (project_dir.is_empty()) {
+		project_dir = get_project_path();
+	}
+	String assembly_file = assembly_name + ".dll";
+	Vector<String> directories = DirAccess::get_directories_at(project_dir);
+	for (String directory : directories) {
+		if (!directory.begins_with("data_")) {
+			continue;
+		}
+		String assembly_path = project_dir.path_join(directory).path_join(assembly_file);
+		if (FileAccess::exists(assembly_path)) {
+			return reload_dotnet_assembly(assembly_path);
+		}
+	}
+	ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + project_dir);
+}
+
+Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
+	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "Pack is not loaded");
+	current_project->assembly_path = p_path;
+	ERR_FAIL_COND_V_MSG(current_project->assembly_path.is_empty(), ERR_INVALID_PARAMETER, "Assembly path is empty");
+	ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
+
+	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
+	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() });
+	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
+	current_project->decompiler = decompiler;
+	return OK;
+}
+
+void GDRESettings::set_dotnet_assembly_path(const String &p_path) {
+	reload_dotnet_assembly(p_path);
+}
+
+String GDRESettings::get_dotnet_assembly_path() const {
+	if (is_pack_loaded()) {
+		return current_project->assembly_path;
+	}
+	return "";
+}
+
+Ref<GodotMonoDecompWrapper> GDRESettings::get_dotnet_decompiler() const {
+	if (!is_pack_loaded()) {
+		return Ref<GodotMonoDecompWrapper>();
+	}
+	return current_project->decompiler;
+}
+
+String GDRESettings::get_project_dotnet_assembly_name() const {
+	if (!is_pack_loaded()) {
+		return "";
+	}
+	if (!is_project_config_loaded()) {
+		return current_project->assembly_path.get_file().get_basename();
+	}
+	return get_project_setting("dotnet/project/assembly_name", current_project->assembly_path.get_file().get_basename());
+}
+
+bool GDRESettings::has_loaded_dotnet_assembly() const {
+	return is_pack_loaded() && !current_project->decompiler.is_null();
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -2211,6 +2290,11 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);
 	ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
+	ClassDB::bind_method(D_METHOD("set_dotnet_assembly_path", "p_path"), &GDRESettings::set_dotnet_assembly_path);
+	ClassDB::bind_method(D_METHOD("get_dotnet_assembly_path"), &GDRESettings::get_dotnet_assembly_path);
+	ClassDB::bind_method(D_METHOD("get_dotnet_decompiler"), &GDRESettings::get_dotnet_decompiler);
+	ClassDB::bind_method(D_METHOD("has_loaded_dotnet_assembly"), &GDRESettings::has_loaded_dotnet_assembly);
+	ClassDB::bind_method(D_METHOD("get_project_dotnet_assembly_name"), &GDRESettings::get_project_dotnet_assembly_name);
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues

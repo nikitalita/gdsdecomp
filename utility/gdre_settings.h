@@ -22,6 +22,7 @@ public:
 
 class GDRELogger;
 class GDREPackedData;
+class GodotMonoDecompWrapper;
 class GDRESettings : public Object {
 	GDCLASS(GDRESettings, Object);
 	_THREAD_SAFE_CLASS_
@@ -121,6 +122,8 @@ public:
 		String pack_file;
 		int bytecode_revision = 0;
 		bool suspect_version = false;
+		String assembly_path;
+		Ref<GodotMonoDecompWrapper> decompiler;
 		ProjectInfo() {
 			pcfg.instantiate();
 		}
@@ -207,6 +210,8 @@ private:
 
 	void load_encryption_key();
 	void unload_encryption_key();
+	Error reload_dotnet_assembly(const String &p_path);
+	Error load_project_dotnet_assembly();
 
 protected:
 	static void _bind_methods();
@@ -264,7 +269,7 @@ public:
 	String get_remap(const String &src) const;
 	String get_mapped_path(const String &src) const;
 	Error remove_remap(const String &src, const String &dst, const String &output_dir = "");
-	Variant get_project_setting(const String &p_setting);
+	Variant get_project_setting(const String &p_setting, const Variant &default_value = Variant()) const;
 	bool has_project_setting(const String &p_setting);
 	void set_project_setting(const String &p_setting, Variant value);
 	String get_project_config_path();
@@ -302,6 +307,14 @@ public:
 	String get_remapped_source_path(const String &p_dst) const;
 
 	Vector<String> get_errors();
+
+	void set_dotnet_assembly_path(const String &p_path);
+	String get_dotnet_assembly_path() const;
+
+	bool has_loaded_dotnet_assembly() const;
+	String get_project_dotnet_assembly_name() const;
+
+	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
 
 	static GDRESettings *get_singleton();
 	GDRESettings();

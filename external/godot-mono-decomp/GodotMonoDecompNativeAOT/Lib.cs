@@ -63,9 +63,16 @@ static public class Lib
 			IntPtr pathPtr = Marshal.ReadIntPtr(referencePaths, i * IntPtr.Size);
 			referencePathsStrs[i] = Marshal.PtrToStringAnsi(pathPtr) ?? string.Empty;
 		}
-		var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs);
-		var handle = GCHandle.Alloc(decompiler);
-		return GCHandle.ToIntPtr(handle);
+		try{
+			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs);
+			var handle = GCHandle.Alloc(decompiler);
+			return GCHandle.ToIntPtr(handle);
+		}
+		catch (Exception e)
+		{
+			Console.Error.WriteLine("Failed to create GodotModuleDecompiler: " + e.Message);
+			return IntPtr.Zero;
+		}
 	}
 
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_DecompileModule")]

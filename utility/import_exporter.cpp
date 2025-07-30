@@ -450,16 +450,22 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	// check if the pack has .cs files
-	auto cs_files = gdre::get_recursive_dir_list("res://", { "*.cs" });
+	auto cs_files = GDRESettings::get_singleton()->get_file_list({ "*.cs" });
 	if (cs_files.size() > 0) {
-		Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("decompile_cs", "Decompiling C# scripts...", -1, true));
-		if (get_ver_major() >= 4) {
-			err = decompile_mono_project();
+		if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
+			err = decompiler->decompile_module(output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj"));
 			if (err != OK) {
 				ERR_PRINT("Failed to decompile C# scripts!");
 				report->failed_scripts.append_array(cs_files);
 			} else {
-				report->decompiled_scripts.append_array(cs_files);
+				auto failed = decompiler->get_files_not_present_in_file_map();
+				for (int i = 0; i < cs_files.size(); i++) {
+					if (!failed.has(cs_files[i])) {
+						report->decompiled_scripts.push_back(cs_files[i]);
+					}
+				}
+				report->failed_scripts.append_array(failed);
 			}
 		} else {
 			report_unsupported_resource("CSharpScript", "3.x C# scripts", cs_files[0]);
@@ -1553,39 +1559,4 @@ void ImportExporterReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ver", "ver"), &ImportExporterReport::set_ver);
 	ClassDB::bind_method(D_METHOD("get_ver"), &ImportExporterReport::get_ver);
 	ClassDB::bind_method(D_METHOD("is_steam_detected"), &ImportExporterReport::is_steam_detected);
-}
-
-Error ImportExporter::decompile_mono_assembly(const String &assembly_path, const String &output_dir) {
-	auto cs_files = gdre::get_recursive_dir_list("res://", { "*.cs" });
-	String assembly_name = assembly_path.get_file().get_basename();
-	String project_file = assembly_name + ".csproj";
-	String project_path = output_dir.path_join(project_file);
-	GodotMonoDecompWrapper decompiler(assembly_path, cs_files, { assembly_path.get_base_dir() });
-	Error err = decompiler.decompile_module(project_path);
-	Vector<String> files_not_present_in_file_map = decompiler.get_files_not_present_in_file_map();
-	for (String file : files_not_present_in_file_map) {
-		print_line("File not present in file map: " + file);
-	}
-	return err;
-}
-
-Error ImportExporter::decompile_mono_project() {
-	String assembly_name = GDRESettings::get_singleton()->get_project_setting("dotnet/project/assembly_name");
-	ERR_FAIL_COND_V_MSG(assembly_name.is_empty(), ERR_INVALID_PARAMETER, "Could not decompile C# scripts: dotnet/project/assembly_name is empty");
-	String project_dir = GDRESettings::get_singleton()->get_pack_path().get_base_dir();
-	if (project_dir.is_empty()) {
-		project_dir = GDRESettings::get_singleton()->get_project_path();
-	}
-	String assembly_file = assembly_name + ".dll";
-	Vector<String> directories = DirAccess::get_directories_at(project_dir);
-	for (String directory : directories) {
-		if (!directory.begins_with("data_")) {
-			continue;
-		}
-		String assembly_path = project_dir.path_join(directory).path_join(assembly_file);
-		if (FileAccess::exists(assembly_path)) {
-			return decompile_mono_assembly(assembly_path, output_dir);
-		}
-	}
-	ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not decompile C# scripts: Assembly file not found in any directory in " + project_dir);
 }
