@@ -54,15 +54,11 @@ namespace GodotMonoDecomp
 		};
 
 		static readonly HashSet<string> ImplicitGodotReferences = new HashSet<string> {
-			"Godot",
 			"GodotSharp",
 			"Godot.SourceGenerators",
 			"GodotSharpEditor",
 			"Godot.NET.Sdk",
 			"Godot.NET.Sdk.Editor",
-			"GodotSharp",
-			"Godot.SourceGenerators",
-			"GodotSharpEditor"
 		};
 
 		enum ProjectType { Default, WinForms, Wpf, Web }
