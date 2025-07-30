@@ -694,6 +694,8 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	err = load_import_files();
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
 
+	_ensure_script_cache_complete();
+
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
@@ -993,7 +995,7 @@ void GDRESettings::add_pack_info(Ref<PackInfo> packinfo) {
 }
 
 StringName GDRESettings::get_cached_script_class(const String &p_path) {
-	if (!is_pack_loaded()) {
+	if (!is_pack_loaded() || p_path.is_empty()) {
 		return "";
 	}
 	String path = p_path;
@@ -1010,7 +1012,7 @@ StringName GDRESettings::get_cached_script_class(const String &p_path) {
 }
 
 StringName GDRESettings::get_cached_script_base(const String &p_path) {
-	if (!is_pack_loaded()) {
+	if (!is_pack_loaded() || p_path.is_empty()) {
 		return "";
 	}
 	String path = p_path;
@@ -1027,7 +1029,7 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 }
 
 String GDRESettings::get_path_for_script_class(const String &p_class) {
-	if (!is_pack_loaded()) {
+	if (!is_pack_loaded() || p_class.is_empty()) {
 		return "";
 	}
 	for (auto kv : script_cache) {
@@ -1786,6 +1788,41 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 		script_cache[path] = d;
 	}
 	return OK;
+}
+
+void GDRESettings::_ensure_script_cache_complete() {
+	auto script_paths = get_file_list({ "*.gd", "*.gdc", "*.gde" });
+	int bytecode_revision = get_bytecode_revision();
+	for (auto &path : script_paths) {
+		// Don't attempt to load compiled scripts if we don't have a valid version.
+		if (path.get_extension().to_lower() != "gd" && bytecode_revision == 0) {
+			continue;
+		}
+		String orig_path = path.ends_with(".gd") ? path : path.get_basename() + ".gd";
+		if (!script_cache.has(orig_path)) {
+			Ref<Script> script = ResourceCompatLoader::non_global_load(orig_path, "");
+			if (script.is_valid()) {
+				// {
+				// 	"base": &"Node",
+				// 	"class": &"AudioManager",
+				// 	"icon": "",
+				// 	"is_abstract": false,
+				// 	"is_tool": false,
+				// 	"language": &"GDScript",
+				// 	"path": "res://source/audio/audio_manager.gd"
+				// 	}
+				Dictionary d;
+				d["base"] = script->get_instance_base_type();
+				d["class"] = script->get_global_name();
+				d["icon"] = "";
+				d["is_abstract"] = script->is_abstract();
+				d["is_tool"] = script->is_tool();
+				d["language"] = SNAME("GDScript");
+				d["path"] = orig_path;
+				script_cache[orig_path] = d;
+			}
+		}
+	}
 }
 
 Error GDRESettings::reset_gdscript_cache() {
