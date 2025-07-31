@@ -1,10 +1,32 @@
 class_name GDRETextEditor
-extends Control
+extends CodeEdit
 
 var CODE_VIWER_OPTIONS: MenuButton = null
 var CODE_VIWER_OPTIONS_POPUP: PopupMenu = null
 var CODE_VIEWER: CodeEdit = null
-var TEXT_VIEW: Control = null
+const SAMPLE_TEXT = """@tool # this is a tool
+class_name FOO
+extends Node
+@export var string_prop: String = \"haldo\"
+func thingy():
+	var foo = 1
+	var bl = true
+	var bar = \"var\"
+	var baz: Color = Color(0.1,0.2,0.3)
+	var far: float = baz.r
+	var string_name: StringName = &\"haldo\"
+	var barf: NodePath = ^\"farts/lmao\"
+	$Cam / Camera2D.drag_margin_left = margin
+	$Cam / Camera2D.drag_margin_right = margin
+	var node_id = $Path/To/Node
+	var node_id_2 = $Path/To/\"A\"/Node/With/\"Some Spaces\"/In/It.thing()
+# this is a really long comment that is going to wrap around the text box!
+	lerp()
+	pass
+#  haldodelimiter_comments
+# NOTE: This is a note
+# BUG: This is a warning
+# ALERT: this is a critical"""
 
 const GDRESOURCE_COMMENTS = [";"]
 const GDSHADER_COMMENTS = ["//", "/* */"]
@@ -29,11 +51,6 @@ enum HighlightType {
 	CSHARP
 }
 
-@export var editable: bool = false:
-	set(val):
-		CODE_VIEWER.editable = val
-	get:
-		return CODE_VIEWER.editable
 @export var gdscript_highlighter: CodeHighlighter = preload("res://gdre_code_highlighter.tres"):
 	set(val):
 		if CODE_VIEWER.syntax_highlighter == gdscript_highlighter:
@@ -72,6 +89,51 @@ enum HighlightType {
 		csharp_highlighter = val
 	get:
 		return csharp_highlighter
+
+var code_opts_panel_button_icon = preload("res://gdre_icons/gdre_GuiTabMenuHl.svg")
+
+func _init():
+	CODE_VIEWER = self
+
+	var code_opts_box = Control.new()
+	code_opts_box.anchor_left = 1.0
+	code_opts_box.anchor_top = 0
+	code_opts_box.anchor_right = 1.0
+	code_opts_box.anchor_bottom = 0
+	code_opts_box.offset_left = -39
+	code_opts_box.offset_top = 6
+	code_opts_box.offset_right = -12
+	code_opts_box.offset_bottom = 33
+	code_opts_box.grow_horizontal = 0 as Control.GrowDirection
+
+	var code_opts_panel_button = Button.new()
+	code_opts_panel_button.theme_type_variation = &"CodeOptsButton"
+	code_opts_panel_button.layout_mode = 1
+	code_opts_panel_button.anchors_preset = 15
+	code_opts_panel_button.anchor_right = 1.0
+	code_opts_panel_button.anchor_bottom = 1.0
+	code_opts_panel_button.grow_horizontal = 2 as Control.GrowDirection
+	code_opts_panel_button.grow_vertical = 2 as Control.GrowDirection
+	code_opts_panel_button.pressed.connect(self._on_code_viewer_options_pressed)
+
+	CODE_VIWER_OPTIONS = MenuButton.new()
+	CODE_VIWER_OPTIONS.layout_mode = 1
+	CODE_VIWER_OPTIONS.anchors_preset = -1
+	CODE_VIWER_OPTIONS.anchor_right = 1.0
+	CODE_VIWER_OPTIONS.anchor_bottom = 1.0
+	CODE_VIWER_OPTIONS.offset_left = -0.5
+	CODE_VIWER_OPTIONS.offset_right = 0.5
+	CODE_VIWER_OPTIONS.grow_horizontal = 2 as Control.GrowDirection
+	CODE_VIWER_OPTIONS.grow_vertical = 2 as Control.GrowDirection
+	CODE_VIWER_OPTIONS.theme_type_variation = &"FlatMenuButton"
+	CODE_VIWER_OPTIONS.icon = code_opts_panel_button_icon
+	CODE_VIWER_OPTIONS.icon_alignment = 1 as HorizontalAlignment
+	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
+
+	code_opts_box.add_child(code_opts_panel_button)
+	code_opts_box.add_child(CODE_VIWER_OPTIONS)
+	add_child(code_opts_box)
+
 
 
 func reset():
@@ -413,10 +475,6 @@ func zoom_out():
 
 
 func _ready():
-	CODE_VIEWER = $CodeViewer
-	CODE_VIWER_OPTIONS = $CodeOptsBox/CodeViewerOptions
-	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
-	TEXT_VIEW = $"."
 	var menu: PopupMenu = CODE_VIEWER.get_menu()
 	var idx = menu.item_count
 	menu.add_separator("", idx)

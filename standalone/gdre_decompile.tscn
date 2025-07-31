@@ -3,7 +3,7 @@
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_7ifdu"]
 [ext_resource type="Script" uid="uid://cpaht3hkp5dqf" path="res://gdre_decompile.gd" id="1_vihwl"]
 [ext_resource type="Texture2D" uid="uid://70wmkccoq7gp" path="res://gdre_icons/gdre_GuiTabMenuHl.svg" id="4_hil8r"]
-[ext_resource type="PackedScene" uid="uid://ckg8dycpxer5o" path="res://gdre_text_editor.tscn" id="4_p6tj5"]
+[ext_resource type="Script" uid="uid://d3gw3xp1peanv" path="res://gdre_text_editor.gd" id="4_p6tj5"]
 
 [node name="GdreDecompile" type="AcceptDialog"]
 oversampling_override = 1.0
@@ -19,7 +19,7 @@ metadata/_custom_type_script = "uid://cbggqwojxui00"
 
 [node name="MainSplit" type="HSplitContainer" parent="."]
 unique_name_in_owner = true
-anchors_preset = 15
+anchors_preset = -1
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
@@ -121,10 +121,14 @@ icon = ExtResource("4_hil8r")
 icon_alignment = 1
 expand_icon = true
 
-[node name="GDRETextEditor" parent="MainSplit" instance=ExtResource("4_p6tj5")]
+[node name="GDRETextEditor" type="CodeEdit" parent="MainSplit"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
+theme = ExtResource("1_7ifdu")
+editable = false
+script = ExtResource("4_p6tj5")
+metadata/_custom_type_script = "uid://d3gw3xp1peanv"
 
 [node name="AddFilesDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
