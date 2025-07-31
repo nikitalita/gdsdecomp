@@ -61,8 +61,10 @@ ScriptDecompDialog::ScriptDecompDialog() {
 
 	//Script version
 	scrver = memnew(OptionButton);
+	Vector<GDScriptDecompVersion> decomp_versions = get_decomp_versions();
+	decomp_versions.insert(0, { 0xfffffff, "--- Please select bytecode version ---", 0, false });
 
-	for (int i = 0; decomp_versions[i].commit != 0; i++) {
+	for (int i = 0; i < decomp_versions.size(); i++) {
 		scrver->add_item(decomp_versions[i].name, decomp_versions[i].commit);
 	}
 

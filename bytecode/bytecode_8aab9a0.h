@@ -18,6 +18,7 @@ protected:
 	static constexpr const char *bytecode_rev_str = "8aab9a0";
 	static constexpr const char *engine_version = "3.1-dev6";
 	static constexpr const char *max_engine_version = "";
+	static constexpr const char *date = "2018-07-20";
 	static constexpr int parent = 0xa3f1ee5;
 
 	virtual Vector<GlobalToken> get_added_tokens() const override { return {GlobalToken::G_TK_PR_AS, GlobalToken::G_TK_PR_VOID, GlobalToken::G_TK_FORWARD_ARROW}; }
@@ -36,6 +37,7 @@ public:
 	virtual int get_parent() const override { return parent; }
 	virtual String get_engine_version() const override { return engine_version; }
 	virtual String get_max_engine_version() const override { return max_engine_version; }
+	virtual String get_date() const override { return date; }
 	GDScriptDecomp_8aab9a0() {}
 };
 

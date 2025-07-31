@@ -134,9 +134,9 @@ class BytecodeClass:
         self.added_tokens: list[str] = []
         self.removed_functions: list[str] = []
         self.added_functions: list[str] = []
-        self.renamed_functions: list[dict] = []
+        self.renamed_functions: dict[str, str] = {}
         self.arg_count_changed: list[str] = []
-        self.tokens_renamed: list[dict] = []
+        self.tokens_renamed: dict[str, str] = {}
         self.date = ""
         self.engine_version = ""
         self.max_engine_version = ""
@@ -468,6 +468,7 @@ def generate_class_header(dir: Path, bytecode_class: BytecodeClass) -> None:
         f.write('\tstatic constexpr const char *bytecode_rev_str = "' + bytecode_rev + '";\n')
         f.write('\tstatic constexpr const char *engine_version = "' + bytecode_class.engine_version + '";\n')
         f.write('\tstatic constexpr const char *max_engine_version = "' + bytecode_class.max_engine_version + '";\n')
+        f.write('\tstatic constexpr const char *date = "' + bytecode_class.date + '";\n')
         if bytecode_class.parent != None:
             f.write("\tstatic constexpr int parent = 0x" + str(bytecode_class.parent) + ";\n")
         else:
@@ -503,6 +504,19 @@ def generate_class_header(dir: Path, bytecode_class: BytecodeClass) -> None:
                 + '", "'.join(bytecode_class.arg_count_changed)
                 + '"}; }\n'
             )
+
+        if len(bytecode_class.tokens_renamed) > 0:
+            f.write("\tvirtual Dictionary get_tokens_renamed() const override { return {\n")
+            for src, dst in bytecode_class.tokens_renamed.items():
+                f.write(f'\t\t\t{{ "{src}", "{dst}" }},\n')
+            f.write("\t\t};\n")
+            f.write("\t}\n")
+        if len(bytecode_class.renamed_functions) > 0:
+            f.write("\tvirtual Dictionary get_renamed_functions() const override { return {\n")
+            for src, dst in bytecode_class.renamed_functions.items():
+                f.write(f'\t\t\t{{ "{src}", "{dst}" }},\n')
+            f.write("\t\t};\n")
+            f.write("\t}\n")
         f.write("public:\n")
         f.write("\tvirtual String get_function_name(int p_func) const override;\n")
         f.write("\tvirtual int get_function_count() const override;\n")
@@ -518,6 +532,7 @@ def generate_class_header(dir: Path, bytecode_class: BytecodeClass) -> None:
         f.write("\tvirtual int get_parent() const override { return parent; }\n")
         f.write("\tvirtual String get_engine_version() const override { return engine_version; }\n")
         f.write("\tvirtual String get_max_engine_version() const override { return max_engine_version; }\n")
+        f.write("\tvirtual String get_date() const override { return date; }\n")
 
         f.write("\t" + class_name + "() {}\n")
         f.write("};\n")
@@ -620,16 +635,14 @@ def generate_bytecode_description_string(bytecode_class: BytecodeClass) -> str:
     if len(bytecode_class.arg_count_changed) > 0:
         add_to_desc("changed argument count for `{}` function", bytecode_class.arg_count_changed)
     if len(bytecode_class.renamed_functions) > 0:
-        for dict in bytecode_class.renamed_functions:
-            dict_key: str = list(dict.keys())[0]
-            fmt_insert = "{} to {}".format(dict_key, dict[dict_key])
+        for dict_key, dict_val in bytecode_class.renamed_functions.items():
+            fmt_insert = "{} to {}".format(dict_key, dict_val)
             add_to_desc("renamed function {}", [fmt_insert])
     if len(bytecode_class.tokens_renamed) > 0:
-        for dict in bytecode_class.tokens_renamed:
-            dict_key = list(dict.keys())[0]
+        for dict_key, dict_val in bytecode_class.tokens_renamed.items():
             fmt_insert = "`{}` to `{}`".format(
                 dict_key.replace("TK_PR_", "").replace("TK_CF_", "").replace("TK_", ""),
-                dict[dict_key].replace("TK_PR_", "").replace("TK_CF_", "").replace("TK_", ""),
+                dict_val.replace("TK_PR_", "").replace("TK_CF_", "").replace("TK_", ""),
             )
             add_to_desc("renamed token {}", [fmt_insert])
     if len(description) == 0:
@@ -694,7 +707,36 @@ def generate_bytecode_version_header(dir: Path, bytecode_classes: list[BytecodeC
         header_str += f'#include "bytecode/{bytecode_class.file_stem}.h"\n'
 
     code = code.replace(BYTECODE_HEADERS, header_str)
-    version_section = '\t{ 0xfffffff, "--- Please select bytecode version ---", 0, false },\n'
+    code = code.replace(BYTECODE_LATEST_VERSION, "0x" + str(bytecode_classes[0].bytecode_rev))
+    with open(new_file_h, "w") as f:
+        f.write(code)
+
+
+def generate_bytecode_versions_cpp(dir: Path, bytecode_classes: list[BytecodeClass]) -> None:
+    new_dir = dir
+    # ensure the directory exists
+    code = ""
+    with open(our_dir / "misc" / "bytecode_versions.cpp.inc", "r") as f:
+        code = f.read()
+    if not code:
+        raise Exception("Failed to read bytecode_versions.cpp.inc")
+    if not new_dir.exists():
+        new_dir.mkdir()
+    new_file_cpp = new_dir / ("bytecode_versions.cpp")
+    code = code.replace(PRELUDE_REPLACE, PRELUDE)
+    bytecode_classdb_register = ""
+    for bytecode_class in bytecode_classes:
+        bytecode_classdb_register += "\tClassDB::register_class<" + bytecode_class.class_name + ">();\n"
+    code = code.replace(BYTECODE_CLASSDB_REGISTER, bytecode_classdb_register)
+
+    bytecode_case_statements = ""
+    for bytecode_class in bytecode_classes:
+        bytecode_case_statements += (
+            "\t\tcase 0x" + bytecode_class.bytecode_rev + ": return memnew(" + bytecode_class.class_name + ");\n"
+        )
+    code = code.replace(BYTECODE_CASE_STATEMENTS, bytecode_case_statements)
+
+    version_section = ""
     # "4.3.0 release (77af6ca / 2024-02-09 / Bytecode version: 100) - initial version"
     ver_format = '\t{{ 0x{commit}, "{name}", {bytecode_version}, {is_dev}, "{ver}", "{max_ver}", 0x{parent} }},\n'
     name_format = "{ver} ({commit} / {date} / Bytecode version: {bytecode_version}) - {description}"
@@ -719,35 +761,8 @@ def generate_bytecode_version_header(dir: Path, bytecode_classes: list[BytecodeC
             parent=bytecode_class.parent if bytecode_class.parent else 0,
         )
         version_section += line
-    version_section += '\t{ 0x0000000, "-NULL-", 0, false },\n'
+    version_section += ""
     code = code.replace(BYTECODE_DECOMP_VERSIONS, version_section)
-    code = code.replace(BYTECODE_LATEST_VERSION, "0x" + str(bytecode_classes[0].bytecode_rev))
-    with open(new_file_h, "w") as f:
-        f.write(code)
-
-
-def generate_bytecode_versions_cpp(dir: Path, bytecode_classes: list[BytecodeClass]) -> None:
-    new_dir = dir
-    # ensure the directory exists
-    code = ""
-    with open(our_dir / "misc" / "bytecode_versions.cpp.inc", "r") as f:
-        code = f.read()
-    if not code:
-        raise Exception("Failed to read bytecode_versions.cpp.inc")
-    if not new_dir.exists():
-        new_dir.mkdir()
-    new_file_cpp = new_dir / ("bytecode_versions.cpp")
-    code = code.replace(PRELUDE_REPLACE, PRELUDE)
-    bytecode_classdb_register = ""
-    for bytecode_class in bytecode_classes:
-        bytecode_classdb_register += "\tClassDB::register_class<" + bytecode_class.class_name + ">();\n"
-    code = code.replace(BYTECODE_CLASSDB_REGISTER, bytecode_classdb_register)
-    bytecode_case_statements = ""
-    for bytecode_class in bytecode_classes:
-        bytecode_case_statements += (
-            "\t\tcase 0x" + bytecode_class.bytecode_rev + ": return memnew(" + bytecode_class.class_name + ");\n"
-        )
-    code = code.replace(BYTECODE_CASE_STATEMENTS, bytecode_case_statements)
 
     with open(new_file_cpp, "w") as f:
         f.write(code)

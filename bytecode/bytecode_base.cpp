@@ -74,6 +74,8 @@ void GDScriptDecomp::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_godot_ver"), &GDScriptDecomp::get_godot_ver);
 	ClassDB::bind_method(D_METHOD("get_parent"), &GDScriptDecomp::get_parent);
 
+	ClassDB::bind_method(D_METHOD("to_json"), &GDScriptDecomp::to_json);
+
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_buffer_encrypted", "path", "engine_ver_major", "key"), &GDScriptDecomp::_get_buffer_encrypted);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("create_decomp_for_commit", "commit_hash"), &GDScriptDecomp::create_decomp_for_commit);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("create_decomp_for_version", "ver", "p_force"), &GDScriptDecomp::create_decomp_for_version, DEFVAL(false));
@@ -404,128 +406,128 @@ int GDScriptDecomp::read_bytecode_version_encrypted(const String &p_path, int en
 
 // constant array of string literals of the global token enum values
 const char *g_token_str[] = {
-	"EMPTY",
-	"IDENTIFIER",
-	"CONSTANT",
-	"SELF",
-	"BUILT_IN_TYPE",
-	"BUILT_IN_FUNC",
-	"IN",
-	"EQUAL", // "EQUAL_EQUAL" in 4.2
-	"NOT_EQUAL", // "BANG_EQUAL" in 4.2
-	"LESS",
-	"LESS_EQUAL",
-	"GREATER",
-	"GREATER_EQUAL",
-	"AND",
-	"OR",
-	"NOT",
-	"ADD",
-	"SUB",
-	"MUL",
-	"DIV",
-	"MOD",
-	"SHIFT_LEFT", // "LESS_LESS" in 4.2
-	"SHIFT_RIGHT", // "GREATER_GREATER" in 4.2
-	"ASSIGN", // "EQUAL" in 4.2
-	"ASSIGN_ADD", // "PLUS_EQUAL" in 4.2
-	"ASSIGN_SUB", // "MINUS_EQUAL" in 4.2
-	"ASSIGN_MUL", // "STAR_EQUAL" in 4.2
-	"ASSIGN_DIV", // "SLASH_EQUAL" in 4.2
-	"ASSIGN_MOD", // "PERCENT_EQUAL" in 4.2
-	"ASSIGN_SHIFT_LEFT", // "LESS_LESS_EQUAL" in 4.2
-	"ASSIGN_SHIFT_RIGHT", // "GREATER_GREATER_EQUAL" in 4.2
-	"ASSIGN_BIT_AND", // "AMPERSAND_EQUAL" in 4.2
-	"ASSIGN_BIT_OR", // "PIPE_EQUAL" in 4.2
-	"ASSIGN_BIT_XOR", // "CARET_EQUAL" in 4.2
-	"BIT_AND", // "AMPERSAND" in 4.2
-	"BIT_OR", // "PIPE" in 4.2
-	"BIT_XOR", // "CARET" in 4.2
-	"BIT_INVERT", // "TILDE" in 4.2
-	"IF",
-	"ELIF",
-	"ELSE",
-	"FOR",
-	"WHILE",
-	"BREAK",
-	"CONTINUE",
-	"PASS",
-	"RETURN",
-	"MATCH",
-	"FUNCTION",
-	"CLASS",
-	"CLASS_NAME",
-	"EXTENDS",
-	"IS",
-	"ONREADY",
-	"TOOL",
-	"STATIC",
-	"EXPORT",
-	"SETGET",
-	"CONST",
-	"VAR",
-	"AS",
-	"VOID",
-	"ENUM",
-	"PRELOAD",
-	"ASSERT",
-	"YIELD",
-	"SIGNAL",
-	"BREAKPOINT",
-	"REMOTE",
-	"SYNC",
-	"MASTER",
-	"SLAVE",
-	"PUPPET",
-	"REMOTESYNC",
-	"MASTERSYNC",
-	"PUPPETSYNC",
-	"BRACKET_OPEN",
-	"BRACKET_CLOSE",
-	"CURLY_BRACKET_OPEN",
-	"CURLY_BRACKET_CLOSE",
-	"PARENTHESIS_OPEN",
-	"PARENTHESIS_CLOSE",
-	"COMMA",
-	"SEMICOLON",
-	"PERIOD",
-	"QUESTION_MARK",
-	"COLON",
-	"DOLLAR",
-	"FORWARD_ARROW",
-	"NEWLINE",
-	"CONST_PI",
-	"CONST_TAU",
-	"WILDCARD",
-	"CONST_INF",
-	"CONST_NAN",
-	"ERROR",
-	"EOF",
-	"CURSOR",
-	"SLAVESYNC", //renamed to puppet sync in most recent versions
-	"DO", // removed in 3.1
-	"CASE",
-	"SWITCH",
-	"ANNOTATION", // added in 4.3
-	"AMPERSAND_AMPERSAND", // added in 4.3
-	"PIPE_PIPE", // added in 4.3
-	"BANG", // added in 4.3
-	"STAR_STAR", // added in 4.3
-	"STAR_STAR_EQUAL", // added in 4.3
-	"WHEN", // added in 4.3
-	"AWAIT", // added in 4.3
-	"NAMESPACE", // added in 4.3
-	"SUPER", // added in 4.3
-	"TRAIT", // added in 4.3
-	"PERIOD_PERIOD", // added in 4.3
-	"UNDERSCORE", // added in 4.3
-	"INDENT", // added in 4.3
-	"DEDENT", // added in 4.3
-	"VCS_CONFLICT_MARKER", // added in 4.3
-	"BACKTICK", // added in 4.3
-	"ABSTRACT", // added in 4.5
-	"PERIOD_PERIOD_PERIOD", // added in 4.5
-	"MAX",
+	"TK_EMPTY",
+	"TK_IDENTIFIER",
+	"TK_CONSTANT", // "TK_LITERAL" in 4.2
+	"TK_SELF",
+	"TK_BUILT_IN_TYPE",
+	"TK_BUILT_IN_FUNC",
+	"TK_OP_IN",
+	"TK_OP_EQUAL", // "EQUAL_EQUAL" in 4.2
+	"TK_OP_NOT_EQUAL", // "BANG_EQUAL" in 4.2
+	"TK_OP_LESS",
+	"TK_OP_LESS_EQUAL",
+	"TK_OP_GREATER",
+	"TK_OP_GREATER_EQUAL",
+	"TK_OP_AND",
+	"TK_OP_OR",
+	"TK_OP_NOT",
+	"TK_OP_ADD", // "PLUS" in 4.2
+	"TK_OP_SUB", // "MINUS" in 4.2
+	"TK_OP_MUL", // "STAR" in 4.2
+	"TK_OP_DIV", // "SLASH" in 4.2
+	"TK_OP_MOD", // "PERCENT" in 4.2
+	"TK_OP_SHIFT_LEFT", // "LESS_LESS" in 4.2
+	"TK_OP_SHIFT_RIGHT", // "GREATER_GREATER" in 4.2
+	"TK_OP_ASSIGN", // "EQUAL" in 4.2
+	"TK_OP_ASSIGN_ADD", // "PLUS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SUB", // "MINUS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_MUL", // "STAR_EQUAL" in 4.2
+	"TK_OP_ASSIGN_DIV", // "SLASH_EQUAL" in 4.2
+	"TK_OP_ASSIGN_MOD", // "PERCENT_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SHIFT_LEFT", // "LESS_LESS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SHIFT_RIGHT", // "GREATER_GREATER_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_AND", // "AMPERSAND_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_OR", // "PIPE_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_XOR", // "CARET_EQUAL" in 4.2
+	"TK_OP_BIT_AND", // "AMPERSAND" in 4.2
+	"TK_OP_BIT_OR", // "PIPE" in 4.2
+	"TK_OP_BIT_XOR", // "CARET" in 4.2
+	"TK_OP_BIT_INVERT", // "TILDE" in 4.2
+	"TK_CF_IF",
+	"TK_CF_ELIF",
+	"TK_CF_ELSE",
+	"TK_CF_FOR",
+	"TK_CF_WHILE",
+	"TK_CF_BREAK",
+	"TK_CF_CONTINUE",
+	"TK_CF_PASS",
+	"TK_CF_RETURN",
+	"TK_CF_MATCH",
+	"TK_PR_FUNCTION", // "FUNC" in 4.2
+	"TK_PR_CLASS",
+	"TK_PR_CLASS_NAME",
+	"TK_PR_EXTENDS",
+	"TK_PR_IS",
+	"TK_PR_ONREADY",
+	"TK_PR_TOOL",
+	"TK_PR_STATIC",
+	"TK_PR_EXPORT",
+	"TK_PR_SETGET",
+	"TK_PR_CONST",
+	"TK_PR_VAR",
+	"TK_PR_AS",
+	"TK_PR_VOID",
+	"TK_PR_ENUM",
+	"TK_PR_PRELOAD",
+	"TK_PR_ASSERT",
+	"TK_PR_YIELD",
+	"TK_PR_SIGNAL",
+	"TK_PR_BREAKPOINT",
+	"TK_PR_REMOTE",
+	"TK_PR_SYNC",
+	"TK_PR_MASTER",
+	"TK_PR_SLAVE",
+	"TK_PR_PUPPET",
+	"TK_PR_REMOTESYNC",
+	"TK_PR_MASTERSYNC",
+	"TK_PR_PUPPETSYNC",
+	"TK_BRACKET_OPEN",
+	"TK_BRACKET_CLOSE",
+	"TK_CURLY_BRACKET_OPEN",
+	"TK_CURLY_BRACKET_CLOSE",
+	"TK_PARENTHESIS_OPEN",
+	"TK_PARENTHESIS_CLOSE",
+	"TK_COMMA",
+	"TK_SEMICOLON",
+	"TK_PERIOD",
+	"TK_QUESTION_MARK",
+	"TK_COLON",
+	"TK_DOLLAR",
+	"TK_FORWARD_ARROW",
+	"TK_NEWLINE",
+	"TK_CONST_PI",
+	"TK_CONST_TAU",
+	"TK_WILDCARD",
+	"TK_CONST_INF",
+	"TK_CONST_NAN",
+	"TK_ERROR",
+	"TK_EOF",
+	"TK_CURSOR",
+	"TK_PR_SLAVESYNC", //renamed to puppet sync in most recent versions
+	"TK_CF_DO", // removed in 3.1
+	"TK_CF_CASE",
+	"TK_CF_SWITCH",
+	"TK_ANNOTATION", // added in 4.3
+	"TK_AMPERSAND_AMPERSAND", // added in 4.3
+	"TK_PIPE_PIPE", // added in 4.3
+	"TK_BANG", // added in 4.3
+	"TK_STAR_STAR", // added in 4.3
+	"TK_STAR_STAR_EQUAL", // added in 4.3
+	"TK_CF_WHEN", // added in 4.3
+	"TK_PR_AWAIT", // added in 4.3
+	"TK_PR_NAMESPACE", // added in 4.3
+	"TK_PR_SUPER", // added in 4.3
+	"TK_PR_TRAIT", // added in 4.3
+	"TK_PERIOD_PERIOD", // added in 4.3
+	"TK_UNDERSCORE", // added in 4.3
+	"TK_INDENT", // added in 4.3
+	"TK_DEDENT", // added in 4.3
+	"TK_VCS_CONFLICT_MARKER", // added in 4.3
+	"TK_BACKTICK", // added in 4.3
+	"TK_ABSTRACT", // added in 4.5
+	"TK_PERIOD_PERIOD_PERIOD", // added in 4.5
+	"TK_MAX",
 };
 static_assert(sizeof(g_token_str) / sizeof(g_token_str[0]) == GDScriptDecomp::GlobalToken::G_TK_MAX + 1, "g_token_str size mismatch");
 
@@ -2661,4 +2663,65 @@ String GDScriptDecomp::get_global_token_text(GlobalToken p_token_id) {
 			return "";
 		}
 	}
+}
+
+Dictionary GDScriptDecomp::to_json() const {
+	Dictionary json;
+	String engine_version = get_engine_version();
+	json["bytecode_rev"] = get_bytecode_rev();
+	json["bytecode_version"] = get_bytecode_version();
+	json["date"] = get_date();
+	json["engine_version"] = engine_version;
+	json["max_engine_version"] = get_max_engine_version();
+	json["engine_ver_major"] = get_engine_ver_major();
+	json["variant_ver_major"] = get_variant_ver_major();
+	json["parent"] = get_parent();
+	json["is_dev"] = engine_version.contains("-dev");
+	auto added_tokens = get_added_tokens();
+	auto added_tokens_str = PackedStringArray();
+	for (int i = 0; i < added_tokens.size(); i++) {
+		added_tokens_str.append(g_token_str[added_tokens[i]]);
+	}
+	json["added_tokens"] = added_tokens_str;
+	auto removed_tokens = get_removed_tokens();
+	auto removed_tokens_str = PackedStringArray();
+	for (int i = 0; i < removed_tokens.size(); i++) {
+		removed_tokens_str.append(g_token_str[removed_tokens[i]]);
+	}
+	json["removed_tokens"] = removed_tokens_str;
+	json["added_functions"] = get_added_functions();
+	json["removed_functions"] = get_removed_functions();
+	json["renamed_functions"] = get_renamed_functions();
+	json["arg_count_changed"] = get_function_arg_count_changed();
+	json["tokens_renamed"] = get_tokens_renamed();
+
+	Vector<String> func_names;
+	for (int i = 0; i < get_function_count(); i++) {
+		func_names.append(get_function_name(i));
+	}
+	json["func_names"] = func_names;
+	Vector<String> tk_names;
+	for (int i = 0; i < get_token_max() + 1; i++) {
+		auto val = get_global_token(i);
+		tk_names.append(get_token_name(val));
+	}
+	tk_names.append("TK_MAX");
+	json["tk_names"] = tk_names;
+	return json;
+}
+
+String GDScriptDecomp::get_token_name(GlobalToken p_token) {
+	if ((int)p_token <= (int)G_TK_MAX && (int)p_token >= 0) {
+		return g_token_str[(int)p_token];
+	}
+	return "";
+}
+
+GDScriptDecomp::GlobalToken GDScriptDecomp::get_token_for_name(const String &p_name) {
+	for (int i = 0; i <= G_TK_MAX; i++) {
+		if (g_token_str[i] == p_name) {
+			return (GlobalToken)i;
+		}
+	}
+	return G_TK_MAX;
 }

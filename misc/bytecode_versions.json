@@ -13,9 +13,9 @@
 		"removed_tokens": ["TK_ABSTRACT"],
 		"added_functions": [],
 		"removed_functions": [],
-		"renamed_functions": [],
+		"renamed_functions": {},
 		"arg_count_changed": [],
-		"tokens_renamed": [],
+		"tokens_renamed": {},
 		"func_names": [],
 		"tk_names": [
 			"TK_EMPTY",
@@ -135,9 +135,9 @@
 		"removed_tokens": [],
 		"added_functions": [],
 		"removed_functions": [],
-		"renamed_functions": [],
+		"renamed_functions": {},
 		"arg_count_changed": [],
-		"tokens_renamed": [],
+		"tokens_renamed": {},
 		"func_names": [],
 		"tk_names": [
 			"TK_EMPTY",
@@ -258,9 +258,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [],
         "tk_names": [
             "TK_EMPTY",
@@ -381,9 +381,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [],
         "tk_names": [
             "TK_EMPTY",
@@ -503,9 +503,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [],
         "tk_names": [
             "TK_EMPTY",
@@ -627,9 +627,9 @@
         ],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -837,9 +837,9 @@
         "removed_functions": [
             "decimals"
         ],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -1049,9 +1049,9 @@
             "deep_equal"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -1263,9 +1263,9 @@
             "ord"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -1476,9 +1476,9 @@
             "lerp_angle"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -1688,9 +1688,9 @@
             "posmod"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -1899,9 +1899,9 @@
             "move_toward"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -2109,9 +2109,9 @@
             "step_decimals"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -2319,9 +2319,9 @@
             "is_zero_approx"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -2527,12 +2527,12 @@
             "smoothstep"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [
             "var2bytes",
             "bytes2var"
         ],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -2738,9 +2738,9 @@
         ],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -2944,9 +2944,9 @@
             "push_warning"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -3152,13 +3152,11 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [
-            {
-                "TK_PR_SLAVESYNC": "TK_PR_PUPPETSYNC"
-            }
-        ],
+        "tokens_renamed": {
+            "TK_PR_SLAVESYNC": "TK_PR_PUPPETSYNC"
+        },
         "func_names": [
             "sin",
             "cos",
@@ -3364,9 +3362,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -3569,9 +3567,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -3773,9 +3771,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -3974,9 +3972,9 @@
             "print_debug"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -4172,9 +4170,9 @@
             "get_stack"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -4369,9 +4367,9 @@
             "is_instance_valid"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -4566,9 +4564,9 @@
             "cartesian2polar"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -4761,9 +4759,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -4955,9 +4953,9 @@
             "wrapf"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -5148,9 +5146,9 @@
             "range_lerp"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -5338,9 +5336,9 @@
             "len"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -5526,9 +5524,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -5714,9 +5712,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -5900,9 +5898,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6084,9 +6082,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6269,9 +6267,9 @@
             "to_json"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6451,9 +6449,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6630,9 +6628,9 @@
             "ColorN"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6808,9 +6806,9 @@
             "char"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -6985,9 +6983,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -7164,9 +7162,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -7339,9 +7337,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -7512,9 +7510,9 @@
             "ColorN"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -7684,9 +7682,9 @@
             "type_exists"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -7856,9 +7854,9 @@
             "bytes2var"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8026,9 +8024,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8194,9 +8192,9 @@
             "Color8"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8361,9 +8359,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8527,9 +8525,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8692,9 +8690,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -8856,9 +8854,9 @@
             "prints"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9017,13 +9015,11 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [
-            {
-                "get_inst": "instance_from_id"
-            }
-        ],
+        "renamed_functions": {
+            "get_inst": "instance_from_id"
+        },
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9184,9 +9180,9 @@
             "get_inst"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9347,9 +9343,9 @@
             "str2var"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9507,9 +9503,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9664,9 +9660,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9820,9 +9816,9 @@
             "hash"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -9975,9 +9971,9 @@
             "funcref"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -10129,9 +10125,9 @@
             "load"
         ],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",
@@ -10280,9 +10276,9 @@
         "removed_tokens": [],
         "added_functions": [],
         "removed_functions": [],
-        "renamed_functions": [],
+        "renamed_functions": {},
         "arg_count_changed": [],
-        "tokens_renamed": [],
+        "tokens_renamed": {},
         "func_names": [
             "sin",
             "cos",

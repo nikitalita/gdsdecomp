@@ -200,6 +200,8 @@ protected:
 	virtual Vector<String> get_added_functions() const { return {}; }
 	virtual Vector<String> get_removed_functions() const { return {}; }
 	virtual Vector<String> get_function_arg_count_changed() const { return {}; }
+	virtual Dictionary get_renamed_functions() const { return {}; }
+	virtual Dictionary get_tokens_renamed() const { return {}; }
 	bool check_compile_errors(const Vector<uint8_t> &p_buffer);
 	bool check_next_token(int p_pos, const Vector<uint32_t> &p_tokens, GlobalToken p_token);
 
@@ -233,6 +235,7 @@ public:
 	virtual int get_parent() const = 0;
 	virtual String get_engine_version() const = 0;
 	virtual String get_max_engine_version() const = 0;
+	virtual String get_date() const = 0;
 	Ref<GodotVer> get_godot_ver() const;
 	Ref<GodotVer> get_max_godot_ver() const;
 	Error get_script_state(const Vector<uint8_t> &p_buffer, ScriptState &r_state);
@@ -256,16 +259,20 @@ public:
 	Vector<String> get_compile_errors(const Vector<uint8_t> &p_buffer);
 	Error test_bytecode_match(const Vector<uint8_t> &p_buffer1, const Vector<uint8_t> &p_buffer2);
 
+	Dictionary to_json() const;
+
 	static bool token_is_keyword(GlobalToken p_token);
 	static bool token_is_keyword_called_like_function(GlobalToken p_token);
 	static bool token_is_control_flow_keyword(GlobalToken p_token);
 	static bool token_is_constant(GlobalToken p_token);
 	static bool token_is_operator_keyword(GlobalToken p_token);
 	static String get_global_token_name(GlobalToken p_token);
+	static String get_token_name(GlobalToken p_token);
 
 	String get_token_text(const ScriptState &p_script_state, uint32_t i);
 
 	static String get_global_token_text(GlobalToken p_token);
+	static GlobalToken get_token_for_name(const String &p_name);
 };
 
 VARIANT_ENUM_CAST(GDScriptDecomp::BytecodeTestResult)
