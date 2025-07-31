@@ -90,6 +90,15 @@ enum HighlightType {
 	get:
 		return csharp_highlighter
 
+@export var default_highlighter: HighlightType = HighlightType.GDSCRIPT:
+	set(val):
+		set_highlight_type(val)
+		default_highlighter = val
+	get:
+		return default_highlighter
+
+@onready var font_size = get_theme_font_size("TextEdit")
+
 var code_opts_panel_button_icon = preload("res://gdre_icons/gdre_GuiTabMenuHl.svg")
 
 func _init():
@@ -128,11 +137,25 @@ func _init():
 	CODE_VIWER_OPTIONS.theme_type_variation = &"FlatMenuButton"
 	CODE_VIWER_OPTIONS.icon = code_opts_panel_button_icon
 	CODE_VIWER_OPTIONS.icon_alignment = 1 as HorizontalAlignment
+
+	var menu: PopupMenu = CODE_VIEWER.get_menu()
+	var idx = menu.item_count
+	menu.add_separator("", idx)
+	show_tabs_popup_id = idx + 1
+	show_spaces_popup_id = idx + 2
+	word_wrap_popup_id = idx + 3
+	text_size_plus_id = idx + 5
+	text_size_minus_id = idx + 6
+	_add_items_to_popup_menu(menu)
+	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
+	_add_items_to_popup_menu(CODE_VIWER_OPTIONS_POPUP)
+
 	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
 
 	code_opts_box.add_child(code_opts_panel_button)
 	code_opts_box.add_child(CODE_VIWER_OPTIONS)
 	add_child(code_opts_box)
+	set_highlight_type(default_highlighter)
 
 
 
@@ -466,24 +489,13 @@ func _add_items_to_popup_menu(menu: PopupMenu):
 	reset_popup_menu(menu)
 
 func zoom_in():
-	var font_size = CODE_VIEWER.theme.get_theme_item(Theme.DATA_TYPE_FONT_SIZE, "font_size", "TextEdit")
-	CODE_VIEWER.theme.set_theme_item(Theme.DATA_TYPE_FONT_SIZE, "font_size", "TextEdit", font_size + 1)
+	font_size += 1
+	add_theme_font_size_override("font_size", font_size)
 
 func zoom_out():
-	var font_size = CODE_VIEWER.theme.get_theme_item(Theme.DATA_TYPE_FONT_SIZE, "font_size", "TextEdit")
-	CODE_VIEWER.theme.set_theme_item(Theme.DATA_TYPE_FONT_SIZE, "font_size", "TextEdit", font_size - 1)
+	font_size -= 1
+	add_theme_font_size_override("font_size", font_size)
 
 
-func _ready():
-	var menu: PopupMenu = CODE_VIEWER.get_menu()
-	var idx = menu.item_count
-	menu.add_separator("", idx)
-	show_tabs_popup_id = idx + 1
-	show_spaces_popup_id = idx + 2
-	word_wrap_popup_id = idx + 3
-	text_size_plus_id = idx + 5
-	text_size_minus_id = idx + 6
-	_add_items_to_popup_menu(menu)
-	CODE_VIWER_OPTIONS_POPUP = CODE_VIWER_OPTIONS.get_popup()
-	_add_items_to_popup_menu(CODE_VIWER_OPTIONS_POPUP)
-	reset()
+func _enter_tree() -> void:
+	pass
