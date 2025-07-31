@@ -402,6 +402,40 @@ TEST_CASE("[GDSDecomp][Bytecode] Test reserved words as accessor names") {
 	}
 }
 
+TEST_CASE("[GDSDecomp][Bytecode][Create] Test creating custom decomp") {
+	REQUIRE(GDRESettings::get_singleton());
+	auto cwd = GDRESettings::get_singleton()->get_cwd();
+	String gdscript_tests_path = get_gdscript_tests_path();
+	auto gdscript_test_scripts = Glob::rglob(gdscript_tests_path.path_join("**/*.gd"), true);
+	auto gdscript_test_error_scripts = Vector<String>();
+	for (int i = 0; i < gdscript_test_scripts.size(); i++) {
+		// remove any that contain ".notest." or "/error/"
+		auto script_path = gdscript_test_scripts[i].trim_prefix(cwd + "/");
+		if (script_path.contains(".notest.") || script_path.contains("error") || script_path.contains("completion")) {
+			gdscript_test_error_scripts.push_back(script_path);
+			gdscript_test_scripts.erase(gdscript_test_scripts[i]);
+			i--;
+		} else {
+			gdscript_test_scripts.write[i] = script_path;
+		}
+	}
+
+	GDScriptDecompVersion ver = GDScriptDecompVersion::create_derived_version_from_custom_def(LATEST_GDSCRIPT_COMMIT, Dictionary());
+	CHECK(!ver.name.is_empty());
+	int revision = GDScriptDecompVersion::register_decomp_version_custom(ver.custom);
+	CHECK(revision != 0);
+	Ref<GDScriptDecomp> decomp = create_decomp_for_commit(revision);
+	CHECK(decomp.is_valid());
+
+	for (int64_t i = 0; i < gdscript_test_scripts.size(); i++) {
+		auto &script_path = gdscript_test_scripts[i];
+		auto sub_case_name = vformat("Testing compiling script %s", script_path);
+		SUBCASE(sub_case_name.utf8().get_data()) {
+			test_script(script_path, revision, false, true);
+		}
+	}
+}
+
 } //namespace TestBytecode
 
 #endif // TEST_BYTECODE_H

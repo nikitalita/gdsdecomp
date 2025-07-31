@@ -236,6 +236,7 @@ public:
 	virtual String get_engine_version() const = 0;
 	virtual String get_max_engine_version() const = 0;
 	virtual String get_date() const = 0;
+	virtual bool is_custom() const { return false; }
 	Ref<GodotVer> get_godot_ver() const;
 	Ref<GodotVer> get_max_godot_ver() const;
 	Error get_script_state(const Vector<uint8_t> &p_buffer, ScriptState &r_state);
@@ -273,6 +274,11 @@ public:
 
 	static String get_global_token_text(GlobalToken p_token);
 	static GlobalToken get_token_for_name(const String &p_name);
+
+	// Intended to only be used by the custom bytecode editor
+	static Ref<GDScriptDecomp> _create_custom_decomp(Dictionary p_custom_def, int p_derived_from = 0);
+
+	static int register_decomp_version_custom(Dictionary p_custom_def, int p_derived_from = 0);
 };
 
 VARIANT_ENUM_CAST(GDScriptDecomp::BytecodeTestResult)

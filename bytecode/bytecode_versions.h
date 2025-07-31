@@ -6,6 +6,7 @@
 #pragma once
 
 #include "bytecode/bytecode_base.h"
+#include "bytecode/bytecode_custom.h"
 
 #include "bytecode/bytecode_ebc36a7.h"
 #include "bytecode/bytecode_2e216b5.h"
@@ -68,11 +69,12 @@
 
 
 void register_decomp_versions();
-GDScriptDecomp *create_decomp_for_commit(uint64_t p_commit_hash);
+GDScriptDecomp *create_decomp_for_commit(int p_commit_hash);
 Vector<Ref<GDScriptDecomp>> get_decomps_for_bytecode_ver(int bytecode_version, bool include_dev = false);
 struct GDScriptDecompVersion {
 	static Vector<GDScriptDecompVersion> decomp_versions;
-	uint64_t commit;
+	static int number_of_custom_versions;
+	int commit = 0;
 	String name;
 	int bytecode_version;
 	bool is_dev;
@@ -91,6 +93,13 @@ struct GDScriptDecompVersion {
 	Ref<GodotVer> get_max_version() const {
 		return GodotVer::parse(max_version);
 	}
+
+	static GDScriptDecompVersion create_version_from_custom_def(Dictionary p_custom_def);
+	static GDScriptDecompVersion create_derived_version_from_custom_def(int revision, Dictionary p_custom_def);
+	static int register_decomp_version_custom(Dictionary p_custom_def);
+	static int register_derived_decomp_version_custom(int revision, Dictionary p_custom_def);
+
+	GDScriptDecomp *create_decomp() const;
 };
 Vector<GDScriptDecompVersion> get_decomp_versions(bool include_dev = true, int ver_major = 0);
 

@@ -82,6 +82,8 @@ void GDScriptDecomp::_bind_methods() {
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("read_bytecode_version", "path"), &GDScriptDecomp::read_bytecode_version);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("read_bytecode_version_encrypted", "path", "engine_ver_major", "key"), &GDScriptDecomp::read_bytecode_version_encrypted);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_bytecode_versions"), &GDScriptDecomp::get_bytecode_versions);
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("_create_custom_decomp", "custom_def", "derived_from"), &GDScriptDecomp::_create_custom_decomp, DEFVAL(0));
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("register_decomp_version_custom", "custom_def", "derived_from"), &GDScriptDecomp::register_decomp_version_custom, DEFVAL(0));
 }
 
 void GDScriptDecomp::_ensure_space(String &p_code) {
@@ -2668,15 +2670,16 @@ String GDScriptDecomp::get_global_token_text(GlobalToken p_token_id) {
 Dictionary GDScriptDecomp::to_json() const {
 	Dictionary json;
 	String engine_version = get_engine_version();
-	json["bytecode_rev"] = get_bytecode_rev();
+	// bytecode_rev is a hex string without the 0x prefix
+	json["bytecode_rev"] = String::num_int64(get_bytecode_rev(), 16).to_lower();
 	json["bytecode_version"] = get_bytecode_version();
 	json["date"] = get_date();
 	json["engine_version"] = engine_version;
 	json["max_engine_version"] = get_max_engine_version();
 	json["engine_ver_major"] = get_engine_ver_major();
 	json["variant_ver_major"] = get_variant_ver_major();
-	json["parent"] = get_parent();
-	json["is_dev"] = engine_version.contains("-dev");
+	json["parent"] = String::num_int64(get_parent(), 16).to_lower();
+	json["is_dev"] = engine_version.contains("-dev") || is_custom();
 	auto added_tokens = get_added_tokens();
 	auto added_tokens_str = PackedStringArray();
 	for (int i = 0; i < added_tokens.size(); i++) {
@@ -2705,7 +2708,6 @@ Dictionary GDScriptDecomp::to_json() const {
 		auto val = get_global_token(i);
 		tk_names.append(get_token_name(val));
 	}
-	tk_names.append("TK_MAX");
 	json["tk_names"] = tk_names;
 	return json;
 }
@@ -2724,4 +2726,22 @@ GDScriptDecomp::GlobalToken GDScriptDecomp::get_token_for_name(const String &p_n
 		}
 	}
 	return G_TK_MAX;
+}
+
+Ref<GDScriptDecomp> GDScriptDecomp::_create_custom_decomp(Dictionary p_custom_def, int p_derived_from) {
+	GDScriptDecompVersion decomp;
+	if (p_derived_from == 0) {
+		decomp = GDScriptDecompVersion::create_version_from_custom_def(p_custom_def);
+	} else {
+		decomp = GDScriptDecompVersion::create_derived_version_from_custom_def(p_derived_from, p_custom_def);
+	}
+	return decomp.create_decomp();
+}
+
+int GDScriptDecomp::register_decomp_version_custom(Dictionary p_custom_def, int p_derived_from) {
+	if (p_derived_from == 0) {
+		return GDScriptDecompVersion::register_decomp_version_custom(p_custom_def);
+	} else {
+		return GDScriptDecompVersion::register_derived_decomp_version_custom(p_derived_from, p_custom_def);
+	}
 }
