@@ -6,7 +6,7 @@ var AUDIO_PLAYER_STREAM: AudioStreamPlayer = null
 var VIDEO_PLAYER_STREAM: VideoStreamPlayer = null
 var VIDEO_VIEW_BOX: Control = null
 var VIDEO_ASPECT_RATIO_CONTAINER: AspectRatioContainer = null
-var AUDIO_PREVIEW_BOX: GDREAudioPreviewBox = null
+var AUDIO_PREVIEW_BOX = null
 var AUDIO_VIEW_BOX: Control = null
 var AUDIO_STREAM_INFO: Label = null
 var PROGRESS_BAR: Slider = null
@@ -42,13 +42,21 @@ class PlayerController:
 		AUDIO,
 		VIDEO
 	}
+	signal finished()
+	func _on_finished():
+		finished.emit()
+
 	func _init(_player = null):
 		pass
 	func stop():
 		pass
+	func pause():
+		pass
 	func play(_pos: float):
 		pass
 	func is_playing() -> bool:
+		return false
+	func is_paused() -> bool:
 		return false
 	func seek(_pos: float):
 		pass
@@ -68,12 +76,19 @@ class AudioPlayerController extends PlayerController:
 	var audio_player: AudioStreamPlayer = null
 	func _init(p_audio_player: AudioStreamPlayer):
 		audio_player = p_audio_player
+		audio_player.finished.connect(_on_finished)
 	func stop():
+		audio_player.stop()
+		seek(0)
+	func pause():
 		audio_player.stop()
 	func play(pos: float):
 		audio_player.play(pos)
 	func is_playing() -> bool:
 		return audio_player.playing
+	func is_paused() -> bool:
+		# Can't pause audio streams
+		return false
 	func seek(pos: float):
 		audio_player.seek(pos)
 	func is_stream_loaded() -> bool:
@@ -93,19 +108,38 @@ class AudioPlayerController extends PlayerController:
 
 class VideoPlayerController extends PlayerController:
 	var video_player: VideoStreamPlayer = null
+
 	func _init(p_video_player: VideoStreamPlayer):
 		video_player = p_video_player
+		video_player.finished.connect(self._on_finished)
+		# play and then stop to queue up the first frame
+		play(0)
+		stop()
 	func stop():
+		# seek 0 first before stopping to queue up the first frame
+		seek(0)
 		video_player.stop()
+		video_player.paused = false
+	func pause():
+		video_player.paused = true
 	func play(pos: float):
+		video_player.paused = false
+		video_player.play()
 		if supports_seek():
 			video_player.stream_position = pos
-		video_player.play()
 	func is_playing() -> bool:
 		return video_player.is_playing()
+	func is_paused() -> bool:
+		return video_player.paused
 	func seek(pos: float):
 		if supports_seek():
-			video_player.stream_position = pos
+			if not is_playing():
+				# play and then pause to queue up the frame at the given position
+				play(pos)
+				pause()
+			# seeking is expensive in video streams
+			elif video_player.stream_position != pos:
+				video_player.stream_position = pos
 	func is_stream_loaded() -> bool:
 		return !(not video_player or not video_player.stream)
 	func get_stream_length() -> float:
@@ -126,13 +160,12 @@ class VideoPlayerController extends PlayerController:
 		return PlayerType.VIDEO
 
 func pause():
-	controller.stop()
+	controller.pause()
 
 func stop():
 	controller.stop()
-	seek(0)
+	last_seek_pos = 0
 	update_progress_bar()
-	update_audio_preview_pos()
 
 func play():
 	var pos = PROGRESS_BAR.value
@@ -204,7 +237,6 @@ func is_video(path) -> bool:
 func is_audio(path) -> bool:
 	return !is_video(path)
 
-
 func is_non_resource_smp(ext, p_type = ""):
 	return (ext == "wav" || ext == "ogg" || ext == "mp3")
 
@@ -229,6 +261,7 @@ func load_video(path):
 	VIDEO_ASPECT_RATIO_CONTAINER.ratio = sz.x / sz.y
 	controller = VideoPlayerController.new(VIDEO_PLAYER_STREAM)
 	setup_progress_bar()
+	controller.finished.connect(self.update_progress_bar)
 	return true
 
 
@@ -283,6 +316,7 @@ func load_sample(path):
 	else:
 		AUDIO_STREAM_INFO.text = ""
 	setup_progress_bar()
+	controller.finished.connect(self.update_progress_bar)
 	return true
 
 func time_from_float(time: float, step: float) -> String:
@@ -318,12 +352,6 @@ func update_progress_bar():
 	PROGRESS_BAR.value = get_playback_position()
 	update_text_label()
 
-func update_audio_preview_pos():
-	if controller.get_type() == PlayerController.PlayerType.AUDIO:
-		if not is_stream_loaded() or controller.supports_seek():
-			return
-		AUDIO_PREVIEW_BOX.update_pos(get_playback_position())
-
 func update_text_label():
 	if not controller.supports_seek():
 		TIME_LABEL.text = "--:-- / --:--"
@@ -334,6 +362,7 @@ func update_text_label():
 func _on_slider_drag_started() -> void:
 	var pos = PROGRESS_BAR.value
 	seek(pos)
+	last_seek_pos = pos
 	dragging_slider = true
 	pass # Replace with function body.
 
@@ -353,21 +382,31 @@ func _on_audio_stream_player_finished() -> void:
 	PROGRESS_BAR.value = 0
 	pass # Replace with function body.
 
+func get_drag_delta_threshold():
+	if controller.get_type() == PlayerController.PlayerType.VIDEO:
+		return 0.1
+	return 0.1
+
+func get_drag_pos_threshold():
+	var min_t = 0.05
+	if controller.get_type() == PlayerController.PlayerType.VIDEO:
+		min_t = 0.1
+	return max(PROGRESS_BAR.step, min_t)
+
 func _process(delta: float) -> void:
 	if not is_stream_loaded() or not self.visible:
 		return
-	if is_playing():
+	if controller.is_playing() or controller.is_paused():
 		if not dragging_slider:
-			update_progress_bar()
-		else:
+			if controller.is_playing() and not controller.is_paused():
+				update_progress_bar()
+		else: # dragging slider
 			last_updated_time += delta
-			if last_updated_time > 0.10:
-				if (abs(last_seek_pos - PROGRESS_BAR.value)) > 0.2:
+			if last_updated_time > get_drag_delta_threshold():
+				if (abs(last_seek_pos - PROGRESS_BAR.value)) > get_drag_pos_threshold():
 					seek(PROGRESS_BAR.value)
 					last_updated_time = 0
 					last_seek_pos = PROGRESS_BAR.value
-		update_audio_preview_pos()
-
 
 func _on_progress_bar_value_changed(_value: float) -> void:
 	update_text_label()
@@ -406,7 +445,11 @@ func _ready():
 	PAUSE_BUTTON.icon = pause_icon
 	STOP_BUTTON.icon = stop_icon
 
-	controller = PlayerController.new()
+	reset()
+	#load_media("/Users/nikita/Desktop/_test_individual_export/Door_OGV.ogv")
+	#load_media("/Users/nikita/Desktop/_test_individual_export/gearhead.ogv")
+	#load_media("/Users/nikita/Downloads/4K_resolution_sample.ogv")
+	# load_media('/Users/nikita/Desktop/_test_individual_export/A moment of silent.ogg')
 	# load_sample("res://anomaly 105 jun12.ogg")
 	# load_sample("res://2.wav")
 	# load_media("res://Door_OGV.ogv")
