@@ -53,6 +53,11 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Forces the export to export in multi-root mode, even if the scene is a single root",
 				false)),
 		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
+				"Force require KHR_node_visibility extension",
+				"By default, the exporter will only require the KHR_node_visibility extension if the scenes are from Godot 4.5 or later.\nThis setting forces the exporter to require the extension regardless of engine version.",
+				false)),
+		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/replace_shader_materials",
 				"Replace shader materials",
 				"Replaces shader materials with their referenced materials when exporting the scene (this may result in inaccurate exports)",

@@ -574,7 +574,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 		ver_major = iinfo->get_ver_major();
 		ver_minor = iinfo->get_ver_minor();
 	} else {
-		if (res_info.is_valid()) {
+		if (res_info.is_valid() && res_info->get_resource_format() != "text") {
 			ver_major = res_info->ver_major;
 			ver_minor = res_info->ver_minor;
 		} else {
@@ -1086,6 +1086,11 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					if (has_physics_nodes) {
 						WARN_PRINT("Skinned meshes have physics nodes, but still exporting as non-single-root.");
 					}
+				}
+				if (after_4_4 || options.get("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false)) {
+					doc->set_visibility_mode(GLTFDocument::VisibilityMode::VISIBILITY_MODE_INCLUDE_REQUIRED);
+				} else {
+					doc->set_visibility_mode(GLTFDocument::VisibilityMode::VISIBILITY_MODE_INCLUDE_OPTIONAL);
 				}
 				int32_t flags = 0;
 				auto exts = doc->get_supported_gltf_extensions();
@@ -1768,6 +1773,9 @@ SceneExporterInstance::SceneExporterInstance(String p_output_dir, Dictionary cur
 	}
 	if (!options.has("Exporter/Scene/GLTF/replace_shader_materials")) {
 		options["Exporter/Scene/GLTF/replace_shader_materials"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/replace_shader_materials", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/force_require_KHR_node_visibility")) {
+		options["Exporter/Scene/GLTF/force_require_KHR_node_visibility"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	}
 }
 
