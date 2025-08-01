@@ -1,6 +1,9 @@
 #pragma once
+#include "core/io/resource_loader.h"
 #include "exporters/obj_exporter.h"
 #include "exporters/resource_exporter.h"
+#include "scene/resources/compressed_texture.h"
+
 struct dep_info;
 
 class SceneExporter : public ResourceExporter {
@@ -25,8 +28,91 @@ public:
 };
 
 class SceneExporterInstance {
-	Dictionary options;
+	bool replace_shader_materials = false;
+	bool force_lossless_images = false;
+	bool force_export_multi_root = false;
+	bool force_require_KHR_node_visibility = false;
+	bool use_double_precision = false;
+
 	String output_dir;
+	Vector<uint64_t> texture_uids;
+	int ver_major = 0;
+	int ver_minor = 0;
+	bool after_4_1 = false;
+	bool after_4_3 = false;
+	bool after_4_4 = false;
+	Error err = OK;
+	bool updating_import_info = false;
+
+	Ref<ExportReport> report;
+	String source_path;
+	Ref<ImportInfo> iinfo;
+	Ref<ResourceInfo> res_info;
+
+	bool has_script = false;
+	bool has_shader = false;
+	bool has_external_animation = false;
+	bool has_external_materials = false;
+	bool has_external_images = false;
+	bool has_external_meshes = false;
+	bool had_images = false;
+	List<String> get_deps;
+	HashMap<String, dep_info> get_deps_map;
+	HashSet<String> script_or_shader_deps;
+	HashSet<String> need_to_be_updated;
+	HashSet<String> animation_deps_needed;
+	HashSet<String> image_deps_needed;
+	HashSet<String> external_deps_updated;
+	HashSet<String> animation_deps_updated;
+	Vector<String> error_messages;
+	Vector<String> image_extensions;
+	Vector<CompressedTexture2D::DataFormat> image_formats;
+	Vector<Ref<Resource>> textures;
+	Vector<String> id_to_texture_path;
+	Dictionary image_path_to_data_hash;
+	Vector<Pair<String, String>> id_to_material_path;
+
+	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
+	// Vector<Pair<String, String>> id_to_meshes_path;
+	Vector<ObjExporter::MeshInfo> id_to_mesh_info;
+	HashMap<String, String> animation_map;
+	HashMap<String, ObjExporter::MeshInfo> mesh_info_map;
+	HashMap<String, Dictionary> animation_options;
+
+	bool has_reset_track = false;
+	bool has_skinned_meshes = false;
+	bool has_non_skeleton_transforms = false;
+	bool has_physics_nodes = false;
+	String root_type;
+	String root_name;
+	String export_image_format;
+	bool is_lossy = false;
+
+	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
+
+	ObjExporter::MeshInfo _get_mesh_options_for_import_params();
+
+	static String get_resource_path(const Ref<Resource> &res);
+	static String get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx);
+	static String get_path_res(const Ref<Resource> &res);
+
+	String append_error_messages(Error p_err, const String &err_msg = "");
+	void set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace);
+
+	void insert_image_map(String &name, int i);
+	void get_default_mesh_opt(bool global_opt, bool local_opt);
+
+	void _set_stuff_from_instanced_scene(Node *root);
+	Error _export_instanced_scene(Node *root, String p_dest_path);
+	void update_import_params(String p_dest_path);
+	Error _load_deps();
+	void _unload_deps();
+
+	Error _export_text(const String &p_dest_path, const String &p_src_path);
+
+	void set_path_options(Dictionary &import_opts, const String &path, const String &prefix = "save_to_file");
+	String get_path_options(const Dictionary &import_opts);
+	void _initial_set(const String &p_src_path, Ref<ExportReport> p_report);
 
 public:
 	SceneExporterInstance(String p_output_dir, Dictionary curr_options = {});
