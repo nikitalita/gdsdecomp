@@ -3,6 +3,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
+#include "core/variant/variant.h"
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
@@ -415,7 +416,7 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 	return resources;
 }
 
-Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
+Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path, Vector<String> &r_buffer_paths) {
 	auto state_buffers = p_state->get_buffers();
 	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
 
@@ -441,6 +442,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
 		if (file.is_null()) {
 			return err;
 		}
+		r_buffer_paths.push_back(path);
 		if (buffer_data.is_empty()) {
 			return OK;
 		}
@@ -455,7 +457,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
 	return OK;
 }
 
-Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
+Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path, Vector<String> &r_buffer_paths) {
 	auto state_buffers = p_state->get_buffers();
 	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
 
@@ -474,6 +476,7 @@ Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
 		if (file.is_null()) {
 			return err;
 		}
+		r_buffer_paths.push_back(path);
 		if (buffer_data.is_empty()) {
 			return OK;
 		}
@@ -488,10 +491,10 @@ Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
 	return OK;
 }
 
-Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_single_precision) {
+Error _serialize_file(Ref<GLTFState> p_state, const String p_path, Vector<String> &r_buffer_paths, bool p_force_single_precision) {
 	Error err = FAILED;
 	if (p_path.to_lower().ends_with("glb")) {
-		err = _encode_buffer_glb(p_state, p_path);
+		err = _encode_buffer_glb(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V(file.is_null(), FAILED);
@@ -545,7 +548,7 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_
 #if DEBUG_ENABLED
 		indent = "  ";
 #endif
-		err = _encode_buffer_bins(p_state, p_path);
+		err = _encode_buffer_bins(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V(file.is_null(), FAILED);
@@ -1160,7 +1163,8 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
 					auto gltf_path = output_dir.path_join(".untouched_gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
 					gdre::ensure_dir(gltf_path.get_base_dir());
-					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
+					Vector<String> buffer_paths;
+					_serialize_file(state, gltf_path, buffer_paths, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 				}
 #endif
 
@@ -1421,10 +1425,17 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
 					auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
 					gdre::ensure_dir(gltf_path.get_base_dir());
-					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
+					Vector<String> buffer_paths;
+					_serialize_file(state, gltf_path, buffer_paths, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 				}
 #endif
-				p_err = _serialize_file(state, p_dest_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
+				Vector<String> buffer_paths;
+				p_err = _serialize_file(state, p_dest_path, buffer_paths, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
+				if (p_report.is_valid() && buffer_paths.size() > 0) {
+					Dictionary extra_info = p_report->get_extra_info();
+					extra_info["external_buffer_paths"] = buffer_paths;
+					p_report->set_extra_info(extra_info);
+				}
 			}
 			memdelete(root);
 			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
@@ -1833,17 +1844,22 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 			err = ERR_PRINTER_ON_FIRE;
 		}
 	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= minimum_ver) {
-		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
-		// TODO: do real GLTF validation
-		// TODO: fix errors where some models aren't being textured?
-		// move the file to the correct location
+		// No errors, we can move the file to the correct location
 		auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
-		gdre::ensure_dir(new_dest.get_base_dir());
-		auto da = DirAccess::create_for_path(new_dest.get_base_dir());
+		auto new_dest_base_dir = new_dest.get_base_dir();
+		gdre::ensure_dir(new_dest_base_dir);
+		auto da = DirAccess::create_for_path(new_dest_base_dir);
 		if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
 			iinfo->set_export_dest(orignal_export_dest);
 			report->set_new_source_path(orignal_export_dest);
 			report->set_saved_path(new_dest);
+			Dictionary extra_info = report->get_extra_info();
+			if (extra_info.has("external_buffer_paths")) {
+				for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
+					auto buffer_path = new_dest_base_dir.path_join(E.get_file());
+					da->rename(E, buffer_path);
+				}
+			}
 		} else {
 			report->set_saved_path(dest_path);
 		}
