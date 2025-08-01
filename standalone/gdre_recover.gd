@@ -2,7 +2,7 @@ class_name GDRERecoverDialog
 extends Window
 
 
-var FILE_TREE : GDREFileTree = null
+var FILE_TREE = null
 var EXTRACT_ONLY : CheckBox = null
 var RECOVER : CheckBox = null
 var RECOVER_WINDOW :Window = null
@@ -96,7 +96,7 @@ func _get_all_files(files: PackedStringArray) -> PackedStringArray:
 	return PackedStringArray(new_files.keys())
 
 const DIR_STRUCTURE_OPTION_NAME = "Directory Structure"
-const EXPORT_GLB_OPTION_NAME = "Export Scenes as GLB"
+const EXPORT_SCENE_OPTION_NAME = "Export Scenes as"
 
 enum DirStructure {
 	FLAT,
@@ -104,10 +104,22 @@ enum DirStructure {
 	ABSOLUTE_HIERARCHICAL,
 }
 
+enum ExportSceneType {
+	AUTO,
+	TSCN,
+	GLB,
+}
+
 const DIR_STRUCTURE_NAMES: PackedStringArray = [
 	"Flat",
 	"Relative Hierarchical",
 	"Absolute Hierarchical",
+]
+
+const EXPORT_SCENE_TYPE_NAMES: PackedStringArray = [
+	"Auto",
+	"tscn",
+	"GLB",
 ]
 
 func get_output_file_name(src: String, output_folder: String, dir_structure_option: DirStructure, new_ext: String = "", rel_base: String = "") -> String:
@@ -123,7 +135,7 @@ func get_output_file_name(src: String, output_folder: String, dir_structure_opti
 	return new_name
 
 
-func _export_scene(file: String, output_dir: String, dir_structure: DirStructure, rel_base: String, export_glb: bool) -> ExportReport:
+func _export_scene(file: String, output_dir: String, dir_structure: DirStructure, rel_base: String, export_type: ExportSceneType) -> ExportReport:
 	var source_file = file
 	var iinfo = GDRESettings.get_import_info_by_dest(file)
 	if iinfo:
@@ -132,21 +144,25 @@ func _export_scene(file: String, output_dir: String, dir_structure: DirStructure
 	var res_ext = file.get_extension().to_lower()
 	var ext = source_file.get_extension().to_lower()
 
-	if export_glb:
+	if export_type == ExportSceneType.GLB:
 		if ext != "glb" and ext != "gltf":
 			ext = "glb"
 	else:
-		if not is_instance_valid(iinfo):
+		if export_type == ExportSceneType.TSCN or not is_instance_valid(iinfo):
 			if res_ext == "scn":
 				ext = "tscn"
 
 
 	var export_dest = get_output_file_name(source_file, output_dir, dir_structure, ext, rel_base)
-	return SceneExporter.export_file_with_options(export_dest, file, {
+	var report = SceneExporter.export_file_with_options(export_dest, file, {
 		"Exporter/Scene/GLTF/replace_shader_materials": true,
 	})
+	#err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ
+	if (report.error == ERR_BUG or report.error == ERR_PRINTER_ON_FIRE or report.error == ERR_DATABASE_CANT_READ):
+		report.error = OK
+	return report
 
-func _export_files(files: PackedStringArray, output_dir: String, dir_structure: DirStructure, rel_base: String, export_glb: bool) -> PackedStringArray:
+func _export_files(files: PackedStringArray, output_dir: String, dir_structure: DirStructure, rel_base: String, export_glb: ExportSceneType) -> PackedStringArray:
 	var errs: PackedStringArray = []
 	files = _get_all_files(files)
 
@@ -164,7 +180,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 		var _ret = GDRESettings.get_import_info_by_dest(file)
 		var file_ext = file.get_extension().to_lower()
 		if file_ext == "scn" or file_ext == "tscn":
-			if not export_glb and file_ext == "tscn":
+			if export_glb != ExportSceneType.GLB and file_ext == "tscn":
 				var src = file if not is_instance_valid(_ret) else _ret.source_file
 				if src.get_extension().to_lower() == file_ext:
 					# just extract the file
@@ -223,7 +239,7 @@ func _on_export_resources_confirmed(output_dir: String):
 	REL_BASE_DIR = "res://"
 	var options = %ExportResDirDialog.get_selected_options()
 	var dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
-	var export_glb = options.get(EXPORT_GLB_OPTION_NAME, false)
+	var export_glb: ExportSceneType = options.get(EXPORT_SCENE_OPTION_NAME, int(ExportSceneType.AUTO))
 
 	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
 
@@ -326,15 +342,19 @@ func _set_current_dir_if_default(file_dialog: FileDialog, dir: String):
 			file_dialog.set_current_dir(dir)
 
 
-func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: DirStructure, include_glb: bool):
+func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: DirStructure, include_scene: bool):
 	var options = file_dialog.get_selected_options()
-	include_glb = include_glb and GDRESettings.get_ver_major() >= GDREGlobals.MINIMUM_GLB_VERSION
-	var glb_default = options.get(EXPORT_GLB_OPTION_NAME, 0)
 	file_dialog.set_option_count(0)
 	file_dialog.add_option(DIR_STRUCTURE_OPTION_NAME, DIR_STRUCTURE_NAMES, int(default_dir_structure))
+	if not include_scene:
+		return
+	var include_glb = GDRESettings.get_ver_major() >= GDREGlobals.MINIMUM_GLB_VERSION
+	var scene_default = options.get(EXPORT_SCENE_OPTION_NAME, int(ExportSceneType.AUTO))
 	#file_dialog.set_option_default(0, int(default_dir_structure))
-	if include_glb:
-		file_dialog.add_option(EXPORT_GLB_OPTION_NAME, ["False", "True"], glb_default)
+	var glb_opts = EXPORT_SCENE_TYPE_NAMES.duplicate()
+	if not include_glb:
+		glb_opts.remove_at(int(ExportSceneType.GLB))
+	file_dialog.add_option(EXPORT_SCENE_OPTION_NAME, glb_opts, scene_default)
 
 func open_export_resources_dir_dialog(default_dir_structure: DirStructure):
 	# remove all the current options
@@ -389,7 +409,7 @@ func _ready():
 	DIRECTORY.text = DESKTOP_DIR
 	FILE_TREE.add_custom_right_click_item("Extract Selected...", self._on_extract_resources_pressed)
 	FILE_TREE.add_custom_right_click_item("Export Selected...", self._on_export_resources_pressed)
-	#load_test()
+	# load_test()
 
 func add_project(paths: PackedStringArray) -> int:
 	if GDRESettings.is_pack_loaded():

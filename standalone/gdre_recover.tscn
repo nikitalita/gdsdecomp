@@ -291,8 +291,8 @@ access = 2
 option_count = 2
 option_0/name = "Directory Structure"
 option_0/values = PackedStringArray("Flat", "Relative Hierarchical", "Matching Project")
-option_1/name = "Export Scenes as GLB"
-option_1/values = PackedStringArray("False", "True")
+option_1/name = "Export Scenes as"
+option_1/values = PackedStringArray("Auto", "TSCN", "GLB")
 
 [node name="ExtractResDirDialog" type="FileDialog" parent="."]
 unique_name_in_owner = true
