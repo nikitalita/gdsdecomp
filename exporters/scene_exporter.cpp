@@ -1183,7 +1183,15 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					Array images = state->get_images();
 					Array json_images = json.has("images") ? (Array)json["images"] : Array();
 					HashMap<String, Vector<int>> image_map;
-					bool has_duped_images = false;
+					auto insert_image_map = [&](String &name, int i) {
+						if (!image_map.has(name)) {
+							image_map[name] = Vector<int>();
+							image_map[name].push_back(i);
+						} else {
+							image_map[name].push_back(i);
+							name = String(name) + vformat("_%03d", image_map[name].size() - 1);
+						}
+					};
 					static const HashMap<String, Vector<BaseMaterial3D::TextureParam>> generated_tex_suffixes = {
 						{ "emission", { BaseMaterial3D::TEXTURE_EMISSION } },
 						{ "normal", { BaseMaterial3D::TEXTURE_NORMAL } },
@@ -1233,21 +1241,11 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 						bool is_internal = path.is_empty() || path.get_file().contains("::");
 						if (is_internal) {
 							name = get_name_res(image_dict, image, i);
-							if (!image_map.has(name)) {
-								image_map[name] = Vector<int>();
-							} else {
-								has_duped_images = true;
-							}
-							image_map[name].push_back(i);
+							insert_image_map(name, i);
 						} else {
 							name = path.get_file().get_basename();
 							external_deps_updated.insert(path);
-							if (!image_map.has(name)) {
-								image_map[name] = Vector<int>();
-							} else {
-								has_duped_images = true;
-							}
-							image_map[name].push_back(i);
+							insert_image_map(name, i);
 							unsigned char md5_hash[16];
 							Ref<Image> img = image->get_image();
 							auto img_data = img->get_data();
@@ -1264,39 +1262,6 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 						if (extras.has("data_format")) {
 							image_formats.push_back(CompressedTexture2D::DataFormat(int(extras["data_format"])));
 						}
-					}
-					HashMap<int, int> removal_to_replacement;
-					Vector<int> to_remove;
-					if (has_duped_images) {
-						for (auto &E : image_map) {
-							auto &indices = E.value;
-							if (indices.size() <= 1) {
-								continue;
-							}
-							int replacement = indices[0];
-							for (int i = 1; i < indices.size(); i++) {
-								Dictionary image_dict = json_images[indices[i]];
-								Ref<Texture2D> image = images[indices[i]];
-								to_remove.push_back(indices[i]);
-								removal_to_replacement[indices[i]] = replacement;
-							}
-						}
-						Array json_textures = json["textures"];
-						for (Dictionary texture_dict : json_textures) {
-							if (texture_dict.has("source")) {
-								// image idx
-								int image_idx = texture_dict["source"];
-								if (removal_to_replacement.has(image_idx)) {
-									texture_dict["source"] = removal_to_replacement[image_idx];
-								}
-							}
-						}
-						to_remove.sort();
-						to_remove.reverse();
-						for (int i = 0; i < to_remove.size(); i++) {
-							json_images.remove_at(to_remove[i]);
-						}
-						json["textures"] = json_textures;
 					}
 					if (json_images.size() > 0) {
 						json["images"] = json_images;
