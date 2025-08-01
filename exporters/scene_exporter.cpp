@@ -314,29 +314,6 @@ inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<R
 	}
 }
 
-void GLBExporterInstance::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
-	auto ver_major = p_import_info->get_ver_major();
-	auto ver_minor = p_import_info->get_ver_minor();
-	if (ver_major == 4) {
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/ensure_tangents"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/generate_lods"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/create_shadow_meshes"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "meshes/light_baking", PROPERTY_HINT_ENUM, "Disabled,Static,Static Lightmaps,Dynamic", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 1));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::FLOAT, "meshes/lightmap_texel_size", PROPERTY_HINT_RANGE, "0.001,100,0.001"), 0.2));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/force_disable_compression"), false));
-
-		// 4.x removes the import params, so we need to rewrite all of them
-		p_import_info->set_param("meshes/ensure_tangents", p_mesh_info.has_tangents);
-		p_import_info->set_param("meshes/generate_lods", p_mesh_info.has_lods);
-		p_import_info->set_param("meshes/create_shadow_meshes", p_mesh_info.has_shadow_meshes);
-		p_import_info->set_param("meshes/light_baking", p_mesh_info.has_lightmap_uv2 ? 2 : 1);
-		p_import_info->set_param("meshes/lightmap_texel_size", p_mesh_info.lightmap_uv2_texel_size);
-		if (ver_minor >= 2) {
-			p_import_info->set_param("meshes/force_disable_compression", !p_mesh_info.compression_enabled);
-		}
-	}
-	// 2.x doesn't require this
-}
 HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, int ver_major) {
 	HashSet<Ref<Resource>> resources;
 	switch (p_variant.get_type()) {
@@ -638,9 +615,14 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 	bool validation_error = p_err == ERR_PRINTER_ON_FIRE || p_err == ERR_BUG;
 
 	if (report.is_valid()) {
-		if (!project_recovery && validation_error) {
-			// Only relevant for project recovery mode
-			p_err = OK;
+		if (validation_error) {
+			if (!project_recovery) {
+				// Only relevant for project recovery mode
+				p_err = OK;
+			} else {
+				// TODO: make the metadata rewriter in import exporter not require ERR_PRINTER_ON_FIRE to be set to write dirty metadata when there are errors
+				p_err = ERR_PRINTER_ON_FIRE;
+			}
 		}
 		report->set_message(error_statement + "\n");
 		report->append_message_detail({ "Dependencies:" });
@@ -684,7 +666,7 @@ void GLBExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource
 	// reset the path cache, then set the path so it loads it into cache.
 	texture->set_path_cache("");
 	texture->set_path(info.dep, true);
-	textures.push_back(texture);
+	loaded_deps.push_back(texture);
 }
 
 String GLBExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
@@ -787,7 +769,6 @@ void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRepor
 	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
 	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
 	updating_import_info = iinfo.is_valid() && iinfo->get_ver_major() >= 4;
-	set_all_externals = false;
 }
 
 Error GLBExporterInstance::_load_deps() {
@@ -859,7 +840,7 @@ Error GLBExporterInstance::_load_deps() {
 		} else if (info.uid != ResourceUID::INVALID_ID) {
 			if (!info.uid_in_uid_cache) {
 				ResourceUID::get_singleton()->add_id(info.uid, info.remap);
-				texture_uids.push_back(info.uid);
+				loaded_dep_uids.push_back(info.uid);
 			} else if (!info.uid_in_uid_cache_matches_dep) {
 				if (info.uid_remap_path_exists) {
 					WARN_PRINT(vformat("Dependency %s:%s is not mapped to the same path: %s (%s)", info.dep, info.remap, info.orig_remap, ResourceUID::get_singleton()->id_to_text(info.uid)));
@@ -1424,7 +1405,7 @@ Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
 	return OK;
 }
 
-void GLBExporterInstance::update_import_params(const String &p_dest_path) {
+void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	ObjExporter::MeshInfo global_mesh_info = _get_mesh_options_for_import_params();
 
 	int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
@@ -1580,12 +1561,13 @@ void GLBExporterInstance::update_import_params(const String &p_dest_path) {
 }
 
 void GLBExporterInstance::_unload_deps() {
-	textures.clear();
+	loaded_deps.clear();
 
 	// remove the UIDs that we added that didn't exist before
-	for (uint64_t id : texture_uids) {
+	for (uint64_t id : loaded_dep_uids) {
 		ResourceUID::get_singleton()->remove_id(id);
 	}
+	loaded_dep_uids.clear();
 }
 
 Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo) {
@@ -1599,7 +1581,44 @@ Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const Stri
 	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "You called the wrong function you idiot.");
 }
 
-Error GLBExporterInstance::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
+Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
+	auto errors_before = _get_error_count();
+	Node *root = scene->instantiate();
+	auto errors_after = _get_error_count();
+	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
+	if (errors_after > errors_before) {
+		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+		had_errors_during_scene_instantiation = true;
+	}
+	if (root == nullptr) {
+		err = ERR_CANT_ACQUIRE_RESOURCE;
+		ERR_PRINT(add_errors_to_report(ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path));
+		_get_logged_error_messages();
+	}
+	return root;
+}
+
+Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
+	err = _load_deps();
+	if (err != OK) {
+		return err;
+	}
+	auto mode_type = ResourceCompatLoader::get_default_load_type();
+	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
+	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
+		r_scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+	} else {
+		r_scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+	if (err || !r_scene.is_valid()) {
+		r_scene = nullptr;
+		_unload_deps();
+		GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CANT_READ, "Failed to load scene " + source_path);
+	}
+	return OK;
+}
+
+Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	_initial_set(p_src_path, p_report);
 
 	String dest_ext = p_dest_path.get_extension().to_lower();
@@ -1607,39 +1626,26 @@ Error GLBExporterInstance::_export_file(const String &p_dest_path, const String 
 		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
 	}
 
-	err = _load_deps();
-	if (err != OK) {
-		return err;
-	}
+	err = gdre::ensure_dir(p_dest_path.get_base_dir());
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
+
 	{
-		{
-			auto mode_type = ResourceCompatLoader::get_default_load_type();
-			Ref<PackedScene> scene;
-			// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-			if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
-				scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-			} else {
-				scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
-			}
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(err || !scene.is_valid(), ERR_FILE_CANT_READ, "Failed to load scene " + source_path);
-
-			err = gdre::ensure_dir(p_dest_path.get_base_dir());
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
-
-			auto errors_before = _get_error_count();
-			Node *root = scene->instantiate();
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(root == nullptr, ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path);
-			auto errors_after = _get_error_count();
-			// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
-			if (errors_after > errors_before) {
-				scene_instantiation_error_messages.append_array(_get_logged_error_messages());
-				had_errors_during_scene_instantiation = true;
-			}
-
-			_set_stuff_from_instanced_scene(root);
-			err = _export_instanced_scene(root, p_dest_path);
-			memdelete(root);
+		Ref<PackedScene> scene;
+		err = _load_scene_and_deps(scene);
+		if (err != OK) {
+			return err;
 		}
+
+		Node *root = _instantiate_scene(scene);
+		if (!root) {
+			scene = nullptr;
+			_unload_deps();
+			return err;
+		}
+
+		_set_stuff_from_instanced_scene(root);
+		err = _export_instanced_scene(root, p_dest_path);
+		memdelete(root);
 	}
 	_unload_deps();
 
@@ -1653,10 +1659,14 @@ Error GLBExporterInstance::_export_file(const String &p_dest_path, const String 
 	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "");
 
 	if (updating_import_info) {
-		update_import_params(p_dest_path);
+		_update_import_params(p_dest_path);
 	}
 
-	set_all_externals = external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
+	return _get_return_error();
+}
+
+Error GLBExporterInstance::_get_return_error() {
+	bool set_all_externals = external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
 	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
@@ -1736,7 +1746,7 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		return export_file_to_non_glb(p_src_path, p_dest_path, nullptr);
 	}
 	GLBExporterInstance instance(p_dest_path.get_base_dir());
-	Error err = instance._export_file(p_dest_path, p_src_path, nullptr);
+	Error err = instance.export_file(p_dest_path, p_src_path, nullptr);
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		err = OK;
 	}
@@ -1834,7 +1844,7 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 		}
 		return report;
 	}
-	Error err = instance._export_file(out_path, res_path, report);
+	Error err = instance.export_file(out_path, res_path, report);
 	if (err == OK) {
 		report->set_saved_path(out_path);
 	}
@@ -1884,7 +1894,7 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 			}
 		} else {
 			GLBExporterInstance instance(output_dir, {}, true);
-			err = instance._export_file(dest_path, iinfo->get_path(), report);
+			err = instance.export_file(dest_path, iinfo->get_path(), report);
 			bool move_file = !non_gltf && iinfo->get_ver_major() >= minimum_ver;
 			if (instance.had_script() && err == OK) {
 				report->set_saved_path(dest_path);

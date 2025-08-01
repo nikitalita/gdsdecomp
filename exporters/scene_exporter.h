@@ -65,8 +65,8 @@ class GLBExporterInstance {
 	HashSet<String> image_deps_needed;
 	String export_image_format;
 	Vector<String> image_extensions;
-	Vector<Ref<Resource>> textures;
-	Vector<uint64_t> texture_uids;
+	Vector<Ref<Resource>> loaded_deps;
+	Vector<uint64_t> loaded_dep_uids;
 
 	// set during _export_instanced_scene
 	bool had_images = false;
@@ -93,7 +93,6 @@ class GLBExporterInstance {
 	// error tracking
 	bool had_errors_during_scene_instantiation = false;
 	bool had_errors_during_gltf_conversion = false;
-	bool set_all_externals = false;
 	String error_statement;
 	Vector<String> scene_instantiation_error_messages;
 	Vector<String> gltf_serialization_error_messages;
@@ -107,6 +106,7 @@ class GLBExporterInstance {
 	static String get_resource_path(const Ref<Resource> &res);
 	static String get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx);
 	static String get_path_res(const Ref<Resource> &res);
+	static int get_ver_major(const String &res_path);
 
 	String add_errors_to_report(Error p_err, const String &err_msg = "");
 	void set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace);
@@ -116,10 +116,13 @@ class GLBExporterInstance {
 
 	void _set_stuff_from_instanced_scene(Node *root);
 	Error _export_instanced_scene(Node *root, const String &p_dest_path);
-	void update_import_params(const String &p_dest_path);
+	void _update_import_params(const String &p_dest_path);
 	Error _check_model_can_load(const String &p_dest_path);
 	Error _load_deps();
+	Error _load_scene_and_deps(Ref<PackedScene> &r_scene);
 	void _unload_deps();
+	Error _get_return_error();
+	Node *_instantiate_scene(Ref<PackedScene> scene);
 
 	Error _export_text(const String &p_dest_path, const String &p_src_path);
 
@@ -135,10 +138,7 @@ public:
 
 	bool had_script() const { return has_script; }
 
-	int get_ver_major(const String &res_path);
-	void rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info);
 	bool using_threaded_load() const;
 	bool supports_multithread() const { return SceneExporter::can_multithread; }
-	Error _export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
-	Error export_file_to_obj(const String &out_path, const String &res_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info);
+	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 };
