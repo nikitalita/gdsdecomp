@@ -32,15 +32,16 @@ public:
 };
 
 class GLBExporterInstance {
+	// options, set during constructor
 	bool project_recovery = false;
 	bool replace_shader_materials = false;
 	bool force_lossless_images = false;
 	bool force_export_multi_root = false;
 	bool force_require_KHR_node_visibility = false;
 	bool use_double_precision = false;
-
 	String output_dir;
-	Vector<uint64_t> texture_uids;
+
+	// set during _initial_set
 	int ver_major = 0;
 	int ver_minor = 0;
 	bool after_4_1 = false;
@@ -48,29 +49,48 @@ class GLBExporterInstance {
 	bool after_4_4 = false;
 	Error err = OK;
 	bool updating_import_info = false;
-
 	Ref<ExportReport> report;
 	String source_path;
 	Ref<ImportInfo> iinfo;
 	Ref<ResourceInfo> res_info;
 
+	// set during _load_deps
 	bool has_script = false;
 	bool has_shader = false;
-	bool has_external_animation = false;
-	bool has_external_materials = false;
-	bool has_external_images = false;
-	bool has_external_meshes = false;
-	bool had_images = false;
 	List<String> get_deps;
 	HashMap<String, dep_info> get_deps_map;
 	HashSet<String> script_or_shader_deps;
 	HashSet<String> need_to_be_updated;
 	HashSet<String> animation_deps_needed;
 	HashSet<String> image_deps_needed;
+	String export_image_format;
+	Vector<String> image_extensions;
+	Vector<Ref<Resource>> textures;
+	Vector<uint64_t> texture_uids;
+
+	// set during _export_instanced_scene
+	bool had_images = false;
+	Vector<CompressedTexture2D::DataFormat> image_formats;
+	Dictionary image_path_to_data_hash;
+	Vector<ObjExporter::MeshInfo> id_to_mesh_info;
+	Vector<Pair<String, String>> id_to_material_path;
+
+	// set during _set_stuff_from_instanced_scene
+	HashMap<String, Dictionary> animation_options; // used by update_import_params
+	bool has_reset_track = false;
+	bool has_skinned_meshes = false;
+	bool has_non_skeleton_transforms = false;
+	bool has_physics_nodes = false;
+	String root_type;
+	String root_name;
+	bool has_lossy_images = false;
+	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
+
+	// set during update_import_params
 	HashSet<String> external_deps_updated;
 	HashSet<String> animation_deps_updated;
-	String export_image_format;
 
+	// error tracking
 	bool had_errors_during_scene_instantiation = false;
 	bool had_errors_during_gltf_conversion = false;
 	bool set_all_externals = false;
@@ -79,28 +99,6 @@ class GLBExporterInstance {
 	Vector<String> gltf_serialization_error_messages;
 	Vector<String> import_param_error_messages;
 	Vector<String> dependency_resolution_list;
-
-	Vector<String> image_extensions;
-	Vector<CompressedTexture2D::DataFormat> image_formats;
-	Vector<Ref<Resource>> textures;
-	Vector<String> id_to_texture_path;
-	Dictionary image_path_to_data_hash;
-	Vector<Pair<String, String>> id_to_material_path;
-
-	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
-	// Vector<Pair<String, String>> id_to_meshes_path;
-	Vector<ObjExporter::MeshInfo> id_to_mesh_info;
-	HashMap<String, String> animation_map;
-	HashMap<String, ObjExporter::MeshInfo> mesh_info_map;
-	HashMap<String, Dictionary> animation_options;
-
-	bool has_reset_track = false;
-	bool has_skinned_meshes = false;
-	bool has_non_skeleton_transforms = false;
-	bool has_physics_nodes = false;
-	String root_type;
-	String root_name;
-	bool has_lossy_images = false;
 
 	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
 

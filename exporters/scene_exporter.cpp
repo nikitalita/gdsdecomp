@@ -804,17 +804,14 @@ Error GLBExporterInstance::_load_deps() {
 				script_or_shader_deps.insert(info.dep);
 			}
 			if (info.type.contains("Animation")) {
-				has_external_animation = true;
 				animation_deps_needed.insert(info.dep);
 				need_to_be_updated.insert(info.dep);
 			} else if (info.type.contains("Material")) {
 				if (info.real_type == "ShaderMaterial") {
 					has_shader = true;
 				}
-				has_external_materials = true;
 				need_to_be_updated.insert(info.dep);
 			} else if (info.type.contains("Texture")) {
-				has_external_images = true;
 				image_deps_needed.insert(info.dep);
 				String ext = info.dep.get_extension().to_upper();
 				if (ext == "JPG") {
@@ -823,7 +820,6 @@ Error GLBExporterInstance::_load_deps() {
 				image_extensions.append(ext);
 				need_to_be_updated.insert(info.dep);
 			} else if (info.type.contains("Mesh")) {
-				has_external_meshes = true;
 				need_to_be_updated.insert(info.dep);
 			}
 		}
@@ -1433,7 +1429,7 @@ void GLBExporterInstance::update_import_params(const String &p_dest_path) {
 
 	int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
 	if (had_images) {
-		if (has_external_images) {
+		if (image_deps_needed.size() > 0) {
 			image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
 		} else {
 			auto most_common_format = gdre::get_most_popular_value(image_formats);
@@ -1664,7 +1660,7 @@ Error GLBExporterInstance::_export_file(const String &p_dest_path, const String 
 	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
-	if (had_errors_during_gltf_conversion && has_external_animation && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
+	if (had_errors_during_gltf_conversion && animation_deps_needed.size() > 0 && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
 		Vector<int64_t> error_messages_to_remove;
 		had_errors_during_gltf_conversion = false;
 		for (int64_t i = 0; i < gltf_serialization_error_messages.size(); i++) {
@@ -1844,7 +1840,6 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
 
 	Error err;
-	Vector<uint64_t> texture_uids;
 	String orignal_export_dest = iinfo->get_export_dest();
 	String new_path = orignal_export_dest;
 	String ext = new_path.get_extension().to_lower();
