@@ -1675,13 +1675,18 @@ Error GLBExporterInstance::_export_file(const String &p_dest_path, const String 
 				continue;
 			}
 			if (message.contains("glTF:")) {
-				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("Cannot get node for animated track")) {
+				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("animated track using path")) {
 					NodePath path = message.substr(message.find("ath:") + 4).strip_edges();
 					if (!path.is_empty() && external_animation_nodepaths.has(path)) {
 						// pop off the error message and the stack traces
 						error_messages_to_remove.push_back(i);
 						continue;
 					}
+				}
+				// The previous error message is always emitted right after this one (and this one doesn't contain a path), so we just ignore it.
+				if (message.contains("A node was animated, but it wasn't found in the GLTFState")) {
+					error_messages_to_remove.push_back(i);
+					continue;
 				}
 			}
 			had_errors_during_gltf_conversion = true;
