@@ -625,6 +625,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 	HashSet<String> script_or_shader_deps;
 	HashSet<String> need_to_be_updated;
 	HashSet<String> animation_deps_needed;
+	HashSet<String> image_deps_needed;
 	HashSet<String> external_deps_updated;
 	HashSet<String> animation_deps_updated;
 
@@ -754,6 +755,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					need_to_be_updated.insert(info.dep);
 				} else if (info.type.contains("Texture")) {
 					has_external_images = true;
+					image_deps_needed.insert(info.dep);
 					String ext = info.dep.get_extension().to_upper();
 					if (ext == "JPG") {
 						ext = "JPEG";
@@ -1149,6 +1151,18 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				if (p_err) {
 					ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
 				}
+#if DEBUG_ENABLED
+				{
+					// save a gltf copy for debugging
+					Dictionary gltf_asset = state->get_json().get("asset", Dictionary());
+					gltf_asset["generator"] = "GDRE Tools";
+					state->get_json()["asset"] = gltf_asset;
+					auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
+					auto gltf_path = output_dir.path_join(".untouched_gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
+					gdre::ensure_dir(gltf_path.get_base_dir());
+					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
+				}
+#endif
 
 				auto get_name_res = [](const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
 					String name = dict.get("name", String());
@@ -1159,7 +1173,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 							if (info.is_valid() && !info->resource_name.is_empty()) {
 								name = info->resource_name;
 							} else {
-								name = res->get_class() + "_" + String::num_int64(idx);
+								// name = res->get_class() + "_" + String::num_int64(idx);
 							}
 						}
 					}
@@ -1203,8 +1217,16 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 						Dictionary image_dict = json_images[i];
 						Ref<Texture2D> image = images[i];
 						auto path = get_path_res(image);
-						String name;
-						if (path.is_empty()) {
+						String name = image_dict.get("name", String());
+						if (path.is_empty() && !name.is_empty()) {
+							for (auto E : image_deps_needed) {
+								if (E.get_file().get_basename() == name) {
+									path = E;
+									break;
+								}
+							}
+						}
+						if (path.is_empty() && !get_name_res(image_dict, image, i).is_empty()) {
 							name = get_name_res(image_dict, image, i);
 							auto parts = name.rsplit("_", false, 1);
 							String material_name = parts.size() > 0 ? parts[0] : String();
@@ -1397,7 +1419,7 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 				if (p_dest_path.get_extension() == "glb") {
 					// save a gltf copy for debugging
 					auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
-					auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.get_basename() + ".gltf");
+					auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
 					gdre::ensure_dir(gltf_path.get_base_dir());
 					_serialize_file(state, gltf_path, !options.get("Exporter/Scene/GLTF/use_double_precision", false));
 				}
@@ -1541,7 +1563,6 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					auto name = E.name;
 					auto path = E.path;
 					if (name.is_empty() || mesh_Dict.has(name)) {
-						ERR_CONTINUE(name.is_empty());
 						continue;
 					}
 					// "save_to_file/enabled": true,
