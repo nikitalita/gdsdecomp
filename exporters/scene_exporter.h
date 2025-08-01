@@ -9,6 +9,10 @@ struct dep_info;
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
 
+	static Error export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo);
+
+	static Error export_file_to_obj(const String &res_path, const String &dest_path, Ref<ImportInfo> iinfo);
+
 protected:
 	static void _bind_methods();
 
@@ -27,7 +31,8 @@ public:
 	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
 };
 
-class SceneExporterInstance {
+class GLBExporterInstance {
+	bool project_recovery = false;
 	bool replace_shader_materials = false;
 	bool force_lossless_images = false;
 	bool force_export_multi_root = false;
@@ -64,7 +69,17 @@ class SceneExporterInstance {
 	HashSet<String> image_deps_needed;
 	HashSet<String> external_deps_updated;
 	HashSet<String> animation_deps_updated;
-	Vector<String> error_messages;
+	String export_image_format;
+
+	bool had_errors_during_scene_instantiation = false;
+	bool had_errors_during_gltf_conversion = false;
+	bool set_all_externals = false;
+	String error_statement;
+	Vector<String> scene_instantiation_error_messages;
+	Vector<String> gltf_serialization_error_messages;
+	Vector<String> import_param_error_messages;
+	Vector<String> dependency_resolution_list;
+
 	Vector<String> image_extensions;
 	Vector<CompressedTexture2D::DataFormat> image_formats;
 	Vector<Ref<Resource>> textures;
@@ -85,8 +100,7 @@ class SceneExporterInstance {
 	bool has_physics_nodes = false;
 	String root_type;
 	String root_name;
-	String export_image_format;
-	bool is_lossy = false;
+	bool has_lossy_images = false;
 
 	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
 
@@ -96,15 +110,16 @@ class SceneExporterInstance {
 	static String get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx);
 	static String get_path_res(const Ref<Resource> &res);
 
-	String append_error_messages(Error p_err, const String &err_msg = "");
+	String add_errors_to_report(Error p_err, const String &err_msg = "");
 	void set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace);
 
 	void insert_image_map(String &name, int i);
 	void get_default_mesh_opt(bool global_opt, bool local_opt);
 
 	void _set_stuff_from_instanced_scene(Node *root);
-	Error _export_instanced_scene(Node *root, String p_dest_path);
-	void update_import_params(String p_dest_path);
+	Error _export_instanced_scene(Node *root, const String &p_dest_path);
+	void update_import_params(const String &p_dest_path);
+	Error _check_model_can_load(const String &p_dest_path);
 	Error _load_deps();
 	void _unload_deps();
 
@@ -114,8 +129,13 @@ class SceneExporterInstance {
 	String get_path_options(const Dictionary &import_opts);
 	void _initial_set(const String &p_src_path, Ref<ExportReport> p_report);
 
+	uint64_t _get_error_count();
+	Vector<String> _get_logged_error_messages();
+
 public:
-	SceneExporterInstance(String p_output_dir, Dictionary curr_options = {});
+	GLBExporterInstance(String p_output_dir, Dictionary curr_options = {}, bool p_project_recovery = false);
+
+	bool had_script() const { return has_script; }
 
 	int get_ver_major(const String &res_path);
 	void rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info);

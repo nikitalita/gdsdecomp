@@ -277,7 +277,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 	}
 }
 
-bool SceneExporterInstance::using_threaded_load() const {
+bool GLBExporterInstance::using_threaded_load() const {
 	// If the scenes are being exported using the worker task pool, we can't use threaded load
 	return !supports_multithread();
 }
@@ -314,7 +314,7 @@ inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<R
 	}
 }
 
-void SceneExporterInstance::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
+void GLBExporterInstance::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
 	auto ver_major = p_import_info->get_ver_major();
 	auto ver_minor = p_import_info->get_ver_minor();
 	if (ver_major == 4) {
@@ -560,21 +560,24 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, Vector<String
 	return err;
 }
 
-int SceneExporterInstance::get_ver_major(const String &res_path) {
+int GLBExporterInstance::get_ver_major(const String &res_path) {
 	Error err;
 	auto info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
 	ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to get resource info for " + res_path);
 	return info->ver_major; // Placeholder return value
 }
 
-String SceneExporterInstance::append_error_messages(Error p_err, const String &err_msg) {
+String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_msg) {
 	String step;
 	switch (p_err) {
 		case ERR_FILE_MISSING_DEPENDENCIES:
 			step = "dependency resolution";
 			break;
 		case ERR_FILE_CANT_OPEN:
-			step = "load";
+			step = "scene resource load";
+			break;
+		case ERR_CANT_ACQUIRE_RESOURCE:
+			step = "instancing scene resource";
 			break;
 		case ERR_COMPILATION_FAILED:
 			step = "appending to GLTF document";
@@ -582,11 +585,11 @@ String SceneExporterInstance::append_error_messages(Error p_err, const String &e
 		case ERR_FILE_CANT_WRITE:
 			step = "serializing GLTF document";
 			break;
-		case ERR_BUG:
-			step = "GLTF export";
-			break;
 		case ERR_FILE_CORRUPT:
-			step = "GLTF validation";
+			step = "GLTF is empty or corrupt";
+			break;
+		case ERR_BUG:
+			step = "GLTF conversion";
 			break;
 		case ERR_PRINTER_ON_FIRE:
 			step = "rewriting import settings";
@@ -610,25 +613,47 @@ String SceneExporterInstance::append_error_messages(Error p_err, const String &e
 	if (!desc.is_empty()) {
 		err_message += "\n  Scene had " + desc;
 	}
+	error_statement = err_message;
+	Vector<String> errors;
+	if (had_errors_during_scene_instantiation) {
+		errors.append("** Errors during scene instantiation:");
+		errors.append_array(scene_instantiation_error_messages);
+	}
+	if (had_errors_during_gltf_conversion) {
+		errors.append("** Errors during GLTF serialization:");
+		errors.append_array(gltf_serialization_error_messages);
+	}
+	if (!import_param_error_messages.is_empty()) {
+		errors.append("** Errors during import parameter setting:");
+		errors.append_array(import_param_error_messages);
+	}
+	Vector<String> other_errors = _get_logged_error_messages();
+	if (!other_errors.is_empty()) {
+		errors.append("** Other errors:");
+		errors.append_array(other_errors);
+	}
+	for (const auto &E : get_deps_map) {
+		dependency_resolution_list.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
+	}
+	bool validation_error = p_err == ERR_PRINTER_ON_FIRE || p_err == ERR_BUG;
 
 	if (report.is_valid()) {
-		auto message = err_message + "\n";
-		Vector<String> message_detail;
-		message_detail.append("Dependencies:");
-		for (const auto &E : get_deps_map) {
-			message_detail.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
+		if (!project_recovery && validation_error) {
+			// Only relevant for project recovery mode
+			p_err = OK;
 		}
-		report->set_message(message);
-		report->append_message_detail(message_detail);
+		report->set_message(error_statement + "\n");
+		report->append_message_detail({ "Dependencies:" });
+		report->append_message_detail(dependency_resolution_list);
 		report->set_error(p_err);
-		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
-		report->append_error_messages(error_messages);
+		report->append_error_messages(errors);
 	}
+	String printed_error_message = (!validation_error ? vformat("Failed to export scene %s:\n  %s", source_path, err_message) : vformat("GLTF validation failed for scene %s:\n  %s", source_path, err_message));
 
-	return vformat("Failed to export scene %s:\n  %s", source_path, err_message);
+	return printed_error_message;
 }
 
-void SceneExporterInstance::set_path_options(Dictionary &import_opts, const String &path, const String &prefix) {
+void GLBExporterInstance::set_path_options(Dictionary &import_opts, const String &path, const String &prefix) {
 	if (after_4_4) {
 		ResourceUID::ID uid = path.is_empty() ? ResourceUID::INVALID_ID : GDRESettings::get_singleton()->get_uid_for_path(path);
 		if (uid != ResourceUID::INVALID_ID) {
@@ -642,14 +667,14 @@ void SceneExporterInstance::set_path_options(Dictionary &import_opts, const Stri
 	}
 }
 
-String SceneExporterInstance::get_path_options(const Dictionary &import_opts) {
+String GLBExporterInstance::get_path_options(const Dictionary &import_opts) {
 	if (after_4_4) {
 		return import_opts.get("save_to_file/fallback_path", import_opts.get("save_to_file/path", ""));
 	}
 	return import_opts.get("save_to_file/path", "");
 }
 
-void SceneExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace) {
+void GLBExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace) {
 	if (texture.is_null() || (!force_replace && ResourceCache::get_ref(info.dep).is_valid())) {
 		return;
 	}
@@ -662,7 +687,7 @@ void SceneExporterInstance::set_cache_res(const dep_info &info, const Ref<Resour
 	textures.push_back(texture);
 }
 
-String SceneExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
+String GLBExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
 	String name = dict.get("name", String());
 	if (name.is_empty()) {
 		name = res->get_name();
@@ -678,7 +703,7 @@ String SceneExporterInstance::get_name_res(const Dictionary &dict, const Ref<Res
 	return name;
 }
 
-String SceneExporterInstance::get_path_res(const Ref<Resource> &res) {
+String GLBExporterInstance::get_path_res(const Ref<Resource> &res) {
 	String path = res->get_path();
 	if (path.is_empty()) {
 		Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
@@ -689,7 +714,7 @@ String SceneExporterInstance::get_path_res(const Ref<Resource> &res) {
 	return path;
 }
 
-ObjExporter::MeshInfo SceneExporterInstance::_get_mesh_options_for_import_params() {
+ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params() {
 	ObjExporter::MeshInfo global_mesh_info;
 	Vector<bool> global_has_tangents;
 	Vector<bool> global_has_lods;
@@ -718,7 +743,7 @@ ObjExporter::MeshInfo SceneExporterInstance::_get_mesh_options_for_import_params
 	return global_mesh_info;
 }
 
-String SceneExporterInstance::get_resource_path(const Ref<Resource> &res) {
+String GLBExporterInstance::get_resource_path(const Ref<Resource> &res) {
 	String path = res->get_path();
 	if (path.is_empty()) {
 		Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
@@ -729,11 +754,11 @@ String SceneExporterInstance::get_resource_path(const Ref<Resource> &res) {
 	return path;
 }
 
-#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)                                                    \
-	{                                                                                        \
-		ERR_PRINT(append_error_messages(err, msg));                                          \
-		supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors(); \
-		return err;                                                                          \
+#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)          \
+	{                                              \
+		ERR_PRINT(add_errors_to_report(err, msg)); \
+		_get_logged_error_messages();              \
+		return err;                                \
 	}
 
 #define GDRE_SCN_EXP_FAIL_COND_V_MSG(cond, err, msg) \
@@ -741,7 +766,7 @@ String SceneExporterInstance::get_resource_path(const Ref<Resource> &res) {
 		GDRE_SCN_EXP_FAIL_V_MSG(err, msg);           \
 	}
 
-void SceneExporterInstance::_initial_set(const String &p_src_path, Ref<ExportReport> p_report) {
+void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportReport> p_report) {
 	report = p_report;
 	iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
 	res_info = ResourceCompatLoader::get_resource_info(p_src_path, "");
@@ -762,9 +787,10 @@ void SceneExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRep
 	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
 	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
 	updating_import_info = iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+	set_all_externals = false;
 }
 
-Error SceneExporterInstance::_load_deps() {
+Error GLBExporterInstance::_load_deps() {
 	get_deps_recursive(source_path, get_deps_map);
 
 	for (auto &E : get_deps_map) {
@@ -877,7 +903,7 @@ Error SceneExporterInstance::_load_deps() {
 
 	// export/import settings
 	export_image_format = image_extensions.is_empty() ? "PNG" : gdre::get_most_popular_value(image_extensions);
-	bool lossy = false;
+	has_lossy_images = false;
 	if (export_image_format == "WEBP") {
 		// Only 3.4 and above supports lossless WebP
 		if (ver_major > 3 || (ver_major == 3 && ver_minor >= 4)) {
@@ -887,7 +913,7 @@ Error SceneExporterInstance::_load_deps() {
 				export_image_format = "PNG";
 			} else {
 				export_image_format = "Lossy WebP";
-				lossy = true;
+				has_lossy_images = true;
 			}
 		}
 		// TODO: add setting to force PNG?
@@ -895,20 +921,23 @@ Error SceneExporterInstance::_load_deps() {
 		if (force_lossless_images) {
 			export_image_format = "PNG";
 		} else {
-			lossy = true;
+			has_lossy_images = true;
 		}
 	} else {
 		// the GLTF exporter doesn't support anything other than PNG, JPEG, and WEBP
 		export_image_format = "PNG";
 	}
-	if (lossy && report.is_valid()) {
+	if (has_lossy_images && report.is_valid()) {
 		report->set_loss_type(ImportInfo::STORED_LOSSY);
 	}
 
 	return OK;
 }
 
-void SceneExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
+void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
+	root_type = root->get_class();
+	root_name = root->get_name();
+
 	TypedArray<Node> animation_player_nodes = root->find_children("*", "AnimationPlayer");
 	TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
 	HashSet<Node *> skinned_mesh_instances;
@@ -926,6 +955,10 @@ void SceneExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			}
 		}
 	}
+	TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
+	TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
+	has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
+
 	if (has_script) {
 		TypedArray<Node> nodes = { root };
 		nodes.append_array(root->get_children());
@@ -1026,7 +1059,7 @@ void SceneExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	}
 }
 
-Error SceneExporterInstance::_export_instanced_scene(Node *root, String p_dest_path) {
+Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
 	{
 		String scene_name;
 		if (iinfo.is_valid()) {
@@ -1059,9 +1092,6 @@ Error SceneExporterInstance::_export_instanced_scene(Node *root, String p_dest_p
 		if (force_export_multi_root || (has_non_skeleton_transforms && has_skinned_meshes)) {
 			// WARN_PRINT("Skinned meshes have non-skeleton transforms, exporting as non-single-root.");
 			doc->set_root_node_mode(GLTFDocument::RootNodeMode::ROOT_NODE_MODE_MULTI_ROOT);
-			TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
-			TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
-			has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
 			if (has_physics_nodes) {
 				WARN_PRINT("Skinned meshes have physics nodes, but still exporting as non-single-root.");
 			}
@@ -1074,14 +1104,14 @@ Error SceneExporterInstance::_export_instanced_scene(Node *root, String p_dest_p
 		int32_t flags = 0;
 		auto exts = doc->get_supported_gltf_extensions();
 		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
-		root_type = root->get_class();
-		root_name = root->get_name();
 		bool was_silenced = GDRELogger::is_silencing_errors();
 		GDRELogger::set_silent_errors(true);
+		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		if (err) {
 			GDRELogger::set_silent_errors(was_silenced);
-			ERR_FAIL_COND_V_MSG(err, ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
+			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
 		}
 
 		// remove shader materials from meshes in the state before serializing
@@ -1120,9 +1150,15 @@ Error SceneExporterInstance::_export_instanced_scene(Node *root, String p_dest_p
 
 		err = doc->_serialize(state);
 		GDRELogger::set_silent_errors(was_silenced);
-		if (err) {
-			ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
+		auto errors_after = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
+		had_errors_during_gltf_conversion = errors_after > errors_before;
+		if (had_errors_during_gltf_conversion) {
+			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 		}
+		if (err) {
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
+		}
+
 #if DEBUG_ENABLED
 		{
 			// save a gltf copy for debugging
@@ -1378,18 +1414,21 @@ Error SceneExporterInstance::_export_instanced_scene(Node *root, String p_dest_p
 			report->set_extra_info(extra_info);
 		}
 	}
-	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
+	return OK;
+}
+
+Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
 	tinygltf::Model model;
 	String error_string;
-	// load it just to verify that it's valid
-	err = load_model(p_dest_path, model, error_string);
+	Error err = load_model(p_dest_path, model, error_string);
 	if (err != OK) {
 		return ERR_FILE_CORRUPT;
 	}
 	return OK;
 }
 
-void SceneExporterInstance::update_import_params(String p_dest_path) {
+void GLBExporterInstance::update_import_params(const String &p_dest_path) {
 	ObjExporter::MeshInfo global_mesh_info = _get_mesh_options_for_import_params();
 
 	int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
@@ -1544,7 +1583,7 @@ void SceneExporterInstance::update_import_params(String p_dest_path) {
 	report->set_extra_info(extra_info);
 }
 
-void SceneExporterInstance::_unload_deps() {
+void GLBExporterInstance::_unload_deps() {
 	textures.clear();
 
 	// remove the UIDs that we added that didn't exist before
@@ -1553,46 +1592,30 @@ void SceneExporterInstance::_unload_deps() {
 	}
 }
 
-Error SceneExporterInstance::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
-	_initial_set(p_src_path, p_report);
-
+Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo) {
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	if (dest_ext == "escn" || dest_ext == "tscn") {
 		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
 	} else if (dest_ext == "obj") {
 		ObjExporter::MeshInfo mesh_info;
-		Error err = export_file_to_obj(p_dest_path, p_src_path, ver_major, mesh_info);
-		if (err != OK) {
-			return err;
-		}
-		if (iinfo.is_valid()) {
-			ObjExporter::rewrite_import_params(iinfo, mesh_info);
-		}
-		return OK;
-	} else if (dest_ext != "glb" && dest_ext != "gltf") {
-		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, .obj, .glb, and .gltf formats are supported for export.");
+		return export_file_to_obj(p_dest_path, p_src_path, iinfo);
 	}
-	bool set_all_externals = false;
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "You called the wrong function you idiot.");
+}
 
-#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)                                                    \
-	{                                                                                        \
-		ERR_PRINT(append_error_messages(err, msg));                                          \
-		supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors(); \
-		return err;                                                                          \
+Error GLBExporterInstance::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
+	_initial_set(p_src_path, p_report);
+
+	String dest_ext = p_dest_path.get_extension().to_lower();
+	if (dest_ext != "glb" && dest_ext != "gltf") {
+		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
 	}
 
-#define GDRE_SCN_EXP_FAIL_COND_V_MSG(cond, err, msg) \
-	if (unlikely(cond)) {                            \
-		GDRE_SCN_EXP_FAIL_V_MSG(err, msg);           \
-	}
-
-	bool no_threaded_load = false;
 	err = _load_deps();
 	if (err != OK) {
 		return err;
 	}
 	{
-		uint64_t errors_before;
 		{
 			auto mode_type = ResourceCompatLoader::get_default_load_type();
 			Ref<PackedScene> scene;
@@ -1604,36 +1627,48 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 			}
 			GDRE_SCN_EXP_FAIL_COND_V_MSG(err || !scene.is_valid(), ERR_FILE_CANT_READ, "Failed to load scene " + source_path);
 
-			errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
 			err = gdre::ensure_dir(p_dest_path.get_base_dir());
 			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
 
+			auto errors_before = _get_error_count();
 			Node *root = scene->instantiate();
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(root == nullptr, ERR_BUG, "Failed to instantiate scene " + source_path);
+			GDRE_SCN_EXP_FAIL_COND_V_MSG(root == nullptr, ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path);
+			auto errors_after = _get_error_count();
+			// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
+			if (errors_after > errors_before) {
+				scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+				had_errors_during_scene_instantiation = true;
+			}
+
 			_set_stuff_from_instanced_scene(root);
 			err = _export_instanced_scene(root, p_dest_path);
 			memdelete(root);
 		}
-		auto errors_after = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
-		if (err == OK && errors_after > errors_before) {
-			err = ERR_BUG;
-		}
-		if (updating_import_info) {
-			update_import_params(p_dest_path);
-		}
 	}
 	_unload_deps();
 
+	// _export_instanced_scene should have already set the error report
+	if (err != OK) {
+		return err;
+	}
+
+	// Check if the model can be loaded; minimum validation to ensure the model is valid
+	err = _check_model_can_load(p_dest_path);
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "");
+
+	if (updating_import_info) {
+		update_import_params(p_dest_path);
+	}
+
 	set_all_externals = external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
-	// GLTF Exporter has issues with custom animations and throws errors;
+	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
-	if (err == ERR_BUG && has_external_animation && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
-		err = OK;
-		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
+	if (had_errors_during_gltf_conversion && has_external_animation && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
 		Vector<int64_t> error_messages_to_remove;
-		for (int64_t i = 0; i < error_messages.size(); i++) {
-			auto message = error_messages[i].strip_edges();
+		had_errors_during_gltf_conversion = false;
+		for (int64_t i = 0; i < gltf_serialization_error_messages.size(); i++) {
+			auto message = gltf_serialization_error_messages[i].strip_edges();
 
 			if (message.begins_with("at:") ||
 					message.begins_with("GDScript backtrace")) {
@@ -1653,43 +1688,38 @@ Error SceneExporterInstance::_export_file(const String &p_dest_path, const Strin
 					}
 				}
 			}
-			err = ERR_BUG;
+			had_errors_during_gltf_conversion = true;
 			break;
 		}
-		if (err == OK) {
+		if (!had_errors_during_gltf_conversion) {
 			for (int64_t i = error_messages_to_remove.size() - 1; i >= 0; i--) {
-				error_messages.remove_at(error_messages_to_remove[i]);
+				gltf_serialization_error_messages.remove_at(error_messages_to_remove[i]);
 			}
 		}
 	}
+
 	if (!set_all_externals) {
-		if (p_report.is_valid()) {
-			p_report->set_message("Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
-		}
-		error_messages.append("Dependencies that were not set:");
+		import_param_error_messages.append("Dependencies that were not set:");
 		for (auto &E : need_to_be_updated) {
 			if (external_deps_updated.has(E)) {
 				continue;
 			}
-			error_messages.append("\t" + E);
+			import_param_error_messages.append("\t" + E);
 		}
-		if (err == OK) {
-			err = ERR_PRINTER_ON_FIRE;
-			// Quiet messages
-			append_error_messages(err, "");
-		} else {
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
-		}
+	}
+
+	if (had_errors_during_gltf_conversion) {
+		String _ = add_errors_to_report(ERR_BUG, "");
+	}
+
+	if (!set_all_externals && err == OK) {
+		String _ = add_errors_to_report(ERR_PRINTER_ON_FIRE, "Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
 	} else {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
-	if (has_script) {
-		if (p_report.is_valid()) {
-			p_report->set_message("Script has scripts, not saving to original path.");
-		}
-		if (err == OK) {
-			err = ERR_DATABASE_CANT_READ;
-		}
+
+	if (project_recovery && (had_errors_during_gltf_conversion || !set_all_externals)) {
+		err = ERR_PRINTER_ON_FIRE;
 	}
 
 	return err;
@@ -1701,7 +1731,10 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		int ver_major = get_ver_major(p_src_path);
 		ERR_FAIL_COND_V_MSG(ver_major != 4, ERR_UNAVAILABLE, "Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 	}
-	SceneExporterInstance instance(p_dest_path.get_base_dir());
+	if (ext != "glb" && ext != "gltf") {
+		return export_file_to_non_glb(p_src_path, p_dest_path, nullptr);
+	}
+	GLBExporterInstance instance(p_dest_path.get_base_dir());
 	Error err = instance._export_file(p_dest_path, p_src_path, nullptr);
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		err = OK;
@@ -1709,18 +1742,22 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 	return err;
 }
 
-Error SceneExporterInstance::export_file_to_obj(const String &p_dest_path, const String &p_src_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info) {
+Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, Ref<ImportInfo> iinfo) {
+	ObjExporter::MeshInfo r_mesh_info;
 	Error err;
 	Ref<PackedScene> scene;
+	bool using_threaded_load = !SceneExporter::can_multithread;
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
+	if (ResourceCompatLoader::is_globally_available() && using_threaded_load) {
 		scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
 	} else {
-		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, !using_threaded_load, ResourceFormatLoader::CACHE_MODE_REUSE);
 	}
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
 	Vector<Ref<Mesh>> meshes;
 	Vector<Ref<Mesh>> meshes_to_remove;
+
+	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 
 	auto resources = _find_resources(scene, true, ver_major);
 	for (auto &E : resources) {
@@ -1737,10 +1774,18 @@ Error SceneExporterInstance::export_file_to_obj(const String &p_dest_path, const
 		meshes.erase(mesh);
 	}
 
-	return ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
+	err = ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
+	if (err != OK) {
+		return err;
+	}
+	if (iinfo.is_valid()) {
+		ObjExporter::rewrite_import_params(iinfo, r_mesh_info);
+	}
+	return OK;
 }
 
-SceneExporterInstance::SceneExporterInstance(String p_output_dir, Dictionary curr_options) {
+GLBExporterInstance::GLBExporterInstance(String p_output_dir, Dictionary curr_options, bool p_project_recovery) {
+	project_recovery = p_project_recovery;
 	output_dir = p_output_dir;
 	Dictionary options = curr_options;
 	if (!options.has("Exporter/Scene/GLTF/force_lossless_images")) {
@@ -1767,7 +1812,7 @@ SceneExporterInstance::SceneExporterInstance(String p_output_dir, Dictionary cur
 
 Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options) {
 	Ref<ExportReport> report = memnew(ExportReport());
-	SceneExporterInstance instance(out_path.get_base_dir(), options);
+	GLBExporterInstance instance(out_path.get_base_dir(), options, false);
 	String ext = out_path.get_extension().to_lower();
 	if (ext != "escn" && ext != "tscn") {
 		int ver_major = get_ver_major(res_path);
@@ -1777,10 +1822,18 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 			return report;
 		}
 	}
-	Error err = instance._export_file(out_path, res_path, report);
-	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
-		err = OK;
+	if (ext != "glb" && ext != "gltf") {
+		Error err = export_file_to_non_glb(res_path, out_path, nullptr);
+		report->set_error(err);
+		if (err != OK) {
+			report->append_error_messages(GDRELogger::get_errors());
+			return report;
+		} else {
+			report->set_saved_path(out_path);
+		}
+		return report;
 	}
+	Error err = instance._export_file(out_path, res_path, report);
 	if (err == OK) {
 		report->set_saved_path(out_path);
 	}
@@ -1821,39 +1874,54 @@ Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<I
 		report->set_unsupported_format_type(itos(iinfo->get_ver_major()) + ".x PackedScene");
 	} else {
 		report->set_new_source_path(new_path);
-		SceneExporterInstance instance(output_dir);
-		err = instance._export_file(dest_path, iinfo->get_path(), report);
-	}
-	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
-		report->set_saved_path(dest_path);
-		// save the import info anyway
-		if (err == ERR_DATABASE_CANT_READ) {
-			err = OK;
-		} else if (err == ERR_BUG) {
-			err = ERR_PRINTER_ON_FIRE;
-		}
-	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= minimum_ver) {
-		// No errors, we can move the file to the correct location
-		auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
-		auto new_dest_base_dir = new_dest.get_base_dir();
-		gdre::ensure_dir(new_dest_base_dir);
-		auto da = DirAccess::create_for_path(new_dest_base_dir);
-		if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
-			iinfo->set_export_dest(orignal_export_dest);
-			report->set_new_source_path(orignal_export_dest);
-			report->set_saved_path(new_dest);
-			Dictionary extra_info = report->get_extra_info();
-			if (extra_info.has("external_buffer_paths")) {
-				for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
-					auto buffer_path = new_dest_base_dir.path_join(E.get_file());
-					da->rename(E, buffer_path);
-				}
+		if (to_text || to_obj) {
+			err = export_file_to_non_glb(iinfo->get_path(), dest_path, iinfo);
+			if (err != OK) {
+				report->set_error(err);
+				report->append_error_messages(GDRELogger::get_errors());
+			} else {
+				report->set_saved_path(dest_path);
 			}
 		} else {
-			report->set_saved_path(dest_path);
+			GLBExporterInstance instance(output_dir, {}, true);
+			err = instance._export_file(dest_path, iinfo->get_path(), report);
+			bool move_file = !non_gltf && iinfo->get_ver_major() >= minimum_ver;
+			if (instance.had_script() && err == OK) {
+				report->set_saved_path(dest_path);
+				report->set_message("Script has scripts, not saving to original path.");
+				move_file = false;
+			} else if (err == ERR_PRINTER_ON_FIRE) {
+				// re-save the import info anyway, but don't move the file
+				report->set_saved_path(dest_path);
+				move_file = false;
+			} else if (err == OK) {
+				report->set_saved_path(dest_path);
+			} else if (err) {
+				move_file = false;
+			}
+
+			if (move_file) {
+				// No errors, we can move the file to the correct location
+				auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
+				auto new_dest_base_dir = new_dest.get_base_dir();
+				gdre::ensure_dir(new_dest_base_dir);
+				auto da = DirAccess::create_for_path(new_dest_base_dir);
+				if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
+					iinfo->set_export_dest(orignal_export_dest);
+					report->set_new_source_path(orignal_export_dest);
+					report->set_saved_path(new_dest);
+					Dictionary extra_info = report->get_extra_info();
+					if (extra_info.has("external_buffer_paths")) {
+						for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
+							auto buffer_path = new_dest_base_dir.path_join(E.get_file());
+							da->rename(E, buffer_path);
+						}
+					}
+				} else {
+					report->set_saved_path(dest_path);
+				}
+			}
 		}
-	} else if (err == OK) {
-		report->set_saved_path(dest_path);
 	}
 
 #if DEBUG_ENABLED
@@ -1886,4 +1954,12 @@ String SceneExporter::get_default_export_extension(const String &res_path) const
 
 void SceneExporter::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file_with_options", "out_path", "res_path", "options"), &SceneExporter::export_file_with_options);
+}
+
+uint64_t GLBExporterInstance::_get_error_count() {
+	return supports_multithread() ? GDRELogger::get_thread_error_count() : GDRELogger::get_error_count();
+}
+
+Vector<String> GLBExporterInstance::_get_logged_error_messages() {
+	return supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors();
 }
