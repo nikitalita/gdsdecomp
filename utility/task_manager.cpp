@@ -231,3 +231,20 @@ bool TaskManager::is_current_task_canceled() {
 	});
 	return canceled;
 }
+
+bool TaskManager::is_current_task_completed(TaskManagerID p_task_id) const {
+	bool done = false;
+	group_id_to_description.if_contains(p_task_id, [&](auto &v) {
+		auto task = v.second;
+		if (task->is_done()) {
+			done = true;
+		}
+	});
+	return done;
+}
+
+void TaskManager::cancel_all() {
+	group_id_to_description.for_each_m([&](auto &v) {
+		v.second->cancel();
+	});
+}

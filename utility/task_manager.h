@@ -60,7 +60,7 @@ public:
 		}
 		// returns true if the task was cancelled before completion
 		bool update_progress(bool p_force_refresh = false) {
-			if (!is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
+			if (progress_enabled && !is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
 				cancel();
 				return true;
 			}
@@ -467,8 +467,10 @@ public:
 	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
 	Error wait_for_task_completion(TaskManagerID p_task_id);
+	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
 	void update_progress_bg();
+	void cancel_all();
 };
 
 class DownloadToken {
