@@ -41,6 +41,9 @@ class GLBExporterInstance {
 	bool use_double_precision = false;
 	String output_dir;
 
+	bool exporting_in_thread = false;
+	bool canceled = false;
+
 	// set during _initial_set
 	int ver_major = 0;
 	int ver_minor = 0;
@@ -133,12 +136,19 @@ class GLBExporterInstance {
 	uint64_t _get_error_count();
 	Vector<String> _get_logged_error_messages();
 
+	bool _is_logger_silencing_errors() const;
+	void _silence_errors(bool p_silence);
+
 public:
+	void _do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path);
+
 	GLBExporterInstance(String p_output_dir, Dictionary curr_options = {}, bool p_project_recovery = false);
 
 	bool had_script() const { return has_script; }
 
+	void cancel();
+
 	bool using_threaded_load() const;
-	bool supports_multithread() const { return SceneExporter::can_multithread; }
+	bool supports_multithread() const;
 	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 };

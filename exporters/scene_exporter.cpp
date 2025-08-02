@@ -3,6 +3,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
+#include "core/object/worker_thread_pool.h"
 #include "core/variant/variant.h"
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
@@ -21,6 +22,7 @@
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/json.h"
+#include "main/main.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
 struct dep_info {
@@ -1036,8 +1038,33 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	}
 }
 
+bool GLBExporterInstance::_is_logger_silencing_errors() const {
+	if (supports_multithread()) {
+		return GDRELogger::is_thread_local_silencing_errors();
+	}
+	return GDRELogger::is_silencing_errors();
+}
+
+void GLBExporterInstance::_silence_errors(bool p_silence) {
+	if (supports_multithread()) {
+		GDRELogger::set_thread_local_silent_errors(p_silence);
+	} else {
+		GDRELogger::set_silent_errors(p_silence);
+	}
+}
+
+#define GDRE_SCN_EXP_CHECK_CANCEL()                                                    \
+	{                                                                                  \
+		if (unlikely(canceled)) {                                                      \
+			ERR_PRINT(add_errors_to_report(ERR_SKIP, "Exporting scene was canceled")); \
+			_get_logged_error_messages();                                              \
+			return ERR_SKIP;                                                           \
+		}                                                                              \
+	}
+
 Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
 	{
+		GDRE_SCN_EXP_CHECK_CANCEL();
 		String scene_name;
 		if (iinfo.is_valid()) {
 			scene_name = iinfo->get_source_file().get_file().get_basename();
@@ -1066,6 +1093,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		doc->set_image_format(export_image_format);
 		doc->set_lossy_quality(1.0f);
 
+		GDRE_SCN_EXP_CHECK_CANCEL();
 		if (force_export_multi_root || (has_non_skeleton_transforms && has_skinned_meshes)) {
 			// WARN_PRINT("Skinned meshes have non-skeleton transforms, exporting as non-single-root.");
 			doc->set_root_node_mode(GLTFDocument::RootNodeMode::ROOT_NODE_MODE_MULTI_ROOT);
@@ -1081,15 +1109,19 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		int32_t flags = 0;
 		auto exts = doc->get_supported_gltf_extensions();
 		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
-		bool was_silenced = GDRELogger::is_silencing_errors();
-		GDRELogger::set_silent_errors(true);
-		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
+		bool was_silenced = _is_logger_silencing_errors();
+		_silence_errors(true);
+		auto errors_before = _get_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		if (err) {
-			GDRELogger::set_silent_errors(was_silenced);
+			_silence_errors(was_silenced);
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
 		}
+		if (canceled) {
+			_silence_errors(was_silenced);
+		}
+		GDRE_SCN_EXP_CHECK_CANCEL();
 
 		// remove shader materials from meshes in the state before serializing
 		if (replace_shader_materials) {
@@ -1126,8 +1158,10 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 
 		err = doc->_serialize(state);
-		GDRELogger::set_silent_errors(was_silenced);
-		auto errors_after = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
+		_silence_errors(was_silenced);
+		GDRE_SCN_EXP_CHECK_CANCEL();
+
+		auto errors_after = _get_error_count();
 		had_errors_during_gltf_conversion = errors_after > errors_before;
 		if (had_errors_during_gltf_conversion) {
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
@@ -1137,6 +1171,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 
 #if DEBUG_ENABLED
+		GDRE_SCN_EXP_CHECK_CANCEL();
 		{
 			// save a gltf copy for debugging
 			Dictionary gltf_asset = state->get_json().get("asset", Dictionary());
@@ -1148,6 +1183,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			Vector<String> buffer_paths;
 			_serialize_file(state, gltf_path, buffer_paths, !use_double_precision);
 		}
+		GDRE_SCN_EXP_CHECK_CANCEL();
 #endif
 		{
 			auto json = state->get_json();
@@ -1172,6 +1208,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				{ "albedo", { BaseMaterial3D::TEXTURE_ALBEDO } }
 			};
 			for (int i = 0; i < json_images.size(); i++) {
+				GDRE_SCN_EXP_CHECK_CANCEL();
 				Dictionary image_dict = json_images[i];
 				Ref<Texture2D> image = images[i];
 				auto path = get_path_res(image);
@@ -1218,6 +1255,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 						}
 					}
 				}
+				GDRE_SCN_EXP_CHECK_CANCEL();
 				bool is_internal = path.is_empty() || path.get_file().contains("::");
 				if (is_internal) {
 					name = get_name_res(image_dict, image, i);
@@ -1236,6 +1274,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				if (!name.is_empty()) {
 					image_dict["name"] = demangle_name(name);
 				}
+				GDRE_SCN_EXP_CHECK_CANCEL();
 				Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(image);
 				Dictionary extras = info.is_valid() ? info->extra : Dictionary();
 				had_images = true;
@@ -1255,6 +1294,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				auto gltf_meshes = state->get_meshes();
 				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
 				for (int i = 0; i < gltf_meshes.size(); i++) {
+					GDRE_SCN_EXP_CHECK_CANCEL();
 					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
 					auto mesh = gltf_mesh->get_mesh();
 					auto original_name = gltf_mesh->get_original_name();
@@ -1292,7 +1332,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 						mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
 						// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
 					}
-
+					GDRE_SCN_EXP_CHECK_CANCEL();
 					id_to_mesh_info.push_back(mesh_info);
 				}
 				json["meshes"] = json_meshes;
@@ -1300,6 +1340,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			if (json.has("materials")) {
 				Array json_materials = json["materials"];
 				for (int i = 0; i < materials.size(); i++) {
+					GDRE_SCN_EXP_CHECK_CANCEL();
 					Dictionary material_dict = json_materials[i];
 					Ref<Material> material = materials[i];
 					auto path = get_path_res(material);
@@ -1313,6 +1354,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					if (!name.is_empty()) {
 						material_dict["name"] = demangle_name(name);
 					}
+					GDRE_SCN_EXP_CHECK_CANCEL();
 					id_to_material_path.push_back({ name, path });
 				}
 			}
@@ -1323,6 +1365,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				Array json_scenes = json["scenes"];
 				Vector<GLTFNodeIndex> nodes_to_remove;
 				for (int node_idx = gltf_nodes.size() - 1; node_idx >= 0; node_idx--) {
+					GDRE_SCN_EXP_CHECK_CANCEL();
 					Ref<GLTFNode> node = gltf_nodes[node_idx];
 					Dictionary json_node = json_nodes[node_idx];
 					if (node.is_valid()) {
@@ -1374,6 +1417,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			json["asset"] = gltf_asset;
 		}
 #if DEBUG_ENABLED
+		GDRE_SCN_EXP_CHECK_CANCEL();
 		if (p_dest_path.get_extension() == "glb") {
 			// save a gltf copy for debugging
 			auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
@@ -1383,6 +1427,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			_serialize_file(state, gltf_path, buffer_paths, !use_double_precision);
 		}
 #endif
+		GDRE_SCN_EXP_CHECK_CANCEL();
 		Vector<String> buffer_paths;
 		err = _serialize_file(state, p_dest_path, buffer_paths, !use_double_precision);
 		if (report.is_valid() && buffer_paths.size() > 0) {
@@ -1618,6 +1663,46 @@ Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
 	return OK;
 }
 
+bool GLBExporterInstance::supports_multithread() const {
+	return exporting_in_thread;
+}
+
+void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path) {
+	exporting_in_thread = true;
+	auto pair = (Pair<Node *, String> *)p_pair_of_root_node_and_dest_path;
+	Node *root = pair->first;
+	String dest_path = pair->second;
+	err = _export_instanced_scene(root, dest_path);
+	exporting_in_thread = false;
+	print_line("Exporting scene " + dest_path + " is done");
+}
+
+struct GLTFSerializationTaskRunnerStruct : public TaskRunnerStruct {
+	String p_src_path;
+	bool done = false;
+	GLBExporterInstance *exporter = nullptr;
+	virtual int get_current_task_step_value() override {
+		return 0;
+	}
+	virtual String get_current_task_step_description() override {
+		return "Exporting scene " + p_src_path;
+	}
+	virtual void cancel() override {
+		exporter->cancel();
+	}
+	virtual bool is_done() const override {
+		return done;
+	}
+	virtual void run(void *p_userdata) override {
+		exporter->_do_export_instanced_scene(p_userdata);
+		done = true;
+	}
+};
+
+void GLBExporterInstance::cancel() {
+	canceled = true;
+}
+
 Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	_initial_set(p_src_path, p_report);
 
@@ -1644,7 +1729,53 @@ Error GLBExporterInstance::export_file(const String &p_dest_path, const String &
 		}
 
 		_set_stuff_from_instanced_scene(root);
-		err = _export_instanced_scene(root, p_dest_path);
+		Pair<Node *, String> pair = { root, p_dest_path };
+		auto start_time = OS::get_singleton()->get_ticks_msec();
+		GLTFSerializationTaskRunnerStruct task_runner;
+		task_runner.exporter = this;
+		task_runner.p_src_path = p_src_path;
+		auto task_id = TaskManager::get_singleton()->add_task(&task_runner, &pair, "Exporting scene " + p_src_path, -1, true, true, true);
+
+		bool going_to_abort = false;
+		bool aborted = false;
+		uint64_t last_update_time = 0;
+		uint64_t cancel_time = 0;
+		static constexpr uint64_t ABORT_TIMEOUT = 5000;
+		bool printed_abort_warning = false;
+		while (!TaskManager::get_singleton()->is_current_task_completed(task_id)) {
+			auto current_time = OS::get_singleton()->get_ticks_msec();
+			if (unlikely(going_to_abort)) {
+				if (current_time - cancel_time > ABORT_TIMEOUT) {
+					print_line("Exporting scene " + p_src_path + " was aborted after " + itos(current_time - start_time) + "ms");
+					aborted = true;
+					break;
+				} else {
+					if (!printed_abort_warning) {
+						print_line("Cancelling export in 5 seconds...");
+						printed_abort_warning = true;
+					}
+				}
+			} else if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || current_time - start_time > 60000)) {
+				if (!current_time - start_time > 60000) {
+					print_line("Exporting scene " + p_src_path + " is taking an unusually long time...");
+				}
+				cancel_time = OS::get_singleton()->get_ticks_msec();
+				going_to_abort = true;
+			}
+
+			Main::iteration();
+			if (current_time - last_update_time > 200) {
+				TaskManager::get_singleton()->update_progress_bg();
+				last_update_time = current_time;
+			}
+			OS::get_singleton()->delay_usec(10);
+		}
+		auto end_time = OS::get_singleton()->get_ticks_msec();
+		if (!aborted) {
+			TaskManager::get_singleton()->wait_for_task_completion(task_id);
+		} else {
+			TaskManager::get_singleton()->cancel_all();
+		}
 		memdelete(root);
 	}
 	_unload_deps();
