@@ -5,6 +5,7 @@
 #include "scene/resources/compressed_texture.h"
 
 struct dep_info;
+struct BatchExportToken;
 
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
@@ -13,11 +14,21 @@ class SceneExporter : public ResourceExporter {
 
 	static Error export_file_to_obj(const String &res_path, const String &dest_path, Ref<ImportInfo> iinfo);
 
+	static SceneExporter *singleton;
+
+	void do_batch_export_instanced_scene(int i, BatchExportToken *tokens);
+
+	String get_batch_export_description(int i, BatchExportToken *tokens) const;
+
 protected:
 	static void _bind_methods();
 
 public:
 	static constexpr bool can_multithread = false;
+
+	static SceneExporter *get_singleton();
+	SceneExporter();
+	~SceneExporter();
 
 	virtual Error export_file(const String &out_path, const String &res_path) override;
 	virtual Ref<ExportReport> export_resource(const String &output_dir, Ref<ImportInfo> import_infos) override;
@@ -29,9 +40,13 @@ public:
 	virtual String get_default_export_extension(const String &res_path) const override;
 
 	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
+	Vector<Ref<ExportReport>> batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes);
 };
 
 class GLBExporterInstance {
+	friend class SceneExporter;
+
+	bool is_batch_export = false;
 	// options, set during constructor
 	bool project_recovery = false;
 	bool replace_shader_materials = false;
@@ -151,4 +166,9 @@ public:
 	bool using_threaded_load() const;
 	bool supports_multithread() const;
 	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
+
+	void _batch_preload(BatchExportToken &token);
+	void _batch_export_instanced_scene(int i, BatchExportToken *tokens);
+
+	void set_batch_export(bool p_batch_export) { is_batch_export = p_batch_export; }
 };

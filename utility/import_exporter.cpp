@@ -11,6 +11,7 @@
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
 #include "exporters/resource_exporter.h"
+#include "exporters/scene_exporter.h"
 #include "gdre_logger.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
@@ -512,8 +513,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
+	Vector<Ref<ImportInfo>> scene_tokens;
 	HashMap<String, Vector<Ref<ImportInfo>>> export_dest_to_iinfo;
 	HashSet<String> dupes;
+	constexpr bool MULTITHREADED_SCENE_EXPORT = true;
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
 		if (partial_export && !hashset_intersects_vector(files_to_export_set, iinfo->get_dest_files())) {
@@ -565,7 +568,12 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		bool supports_multithreading = !GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 		bool is_high_priority = importer == "gdextension" || importer == "gdnative";
 		if (exporter_map.has(importer)) {
-			if (!exporter_map.get(importer)->supports_multithread()) {
+			auto &exporter = exporter_map.get(importer);
+			if (exporter->get_name() == "PackedScene" && MULTITHREADED_SCENE_EXPORT) {
+				scene_tokens.push_back(iinfo);
+				export_dest_to_iinfo.insert(iinfo->get_export_dest(), Vector<Ref<ImportInfo>>({ iinfo }));
+				continue;
+			} else if (!exporter->supports_multithread()) {
 				supports_multithreading = false;
 			}
 		} else {
@@ -729,6 +737,17 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			"ImportExporter::export_imports",
 			"Exporting resources...",
 			true, pr, num_multithreaded_tokens);
+	if (err != OK) {
+		print_line("Export cancelled!");
+		return err;
+	}
+
+	if (scene_tokens.size() > 0) {
+		auto reports = SceneExporter::get_singleton()->batch_export_files(output_dir, scene_tokens);
+		for (int i = 0; i < reports.size(); i++) {
+			non_multithreaded_tokens.push_back({ scene_tokens[i], reports[i], false });
+		}
+	}
 
 	if (err != OK) {
 		print_line("Export cancelled!");
