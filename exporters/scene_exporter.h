@@ -10,8 +10,6 @@ struct BatchExportToken;
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
 
-	static Error export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo);
-
 	static Error export_file_to_obj(const String &res_path, const String &dest_path, Ref<ImportInfo> iinfo);
 
 	static SceneExporter *singleton;
@@ -24,6 +22,7 @@ protected:
 	static void _bind_methods();
 
 public:
+	static Error export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo);
 	static constexpr bool can_multithread = false;
 
 	static SceneExporter *get_singleton();
@@ -167,7 +166,7 @@ public:
 	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 
 	void _batch_preload(BatchExportToken &token);
-	void _batch_export_instanced_scene(int i, BatchExportToken *tokens);
+	void _batch_export_instanced_scene(BatchExportToken &token);
 
 	void set_batch_export(bool p_batch_export) { is_batch_export = p_batch_export; }
 };

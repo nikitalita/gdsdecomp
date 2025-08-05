@@ -2165,14 +2165,9 @@ struct BatchExportToken {
 		bool to_text = ext == "escn" || ext == "tscn";
 		bool to_obj = ext == "obj";
 		bool non_gltf = ext != "glb" && ext != "gltf";
-		// GLTF export can result in inaccurate models
-		// save it under .assets, which won't be picked up for import by the godot editor
-		if (!to_text && !to_obj) {
-			new_path = new_path.replace("res://", "res://.assets/");
-			// we only export glbs
-			if (non_gltf) {
-				new_path = new_path.get_basename() + ".glb";
-			}
+		// Non-original path, save it under .assets, which won't be picked up for import by the godot editor
+		if (!to_text && !to_obj && non_gltf) {
+			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
 		}
 		output_dir = p_output_dir;
 		p_src_path = p_iinfo->get_path();
@@ -2193,8 +2188,7 @@ struct BatchExportToken {
 	}
 
 	bool is_obj_output() const {
-		String ext = get_export_dest().get_extension().to_lower();
-		return ext == "obj";
+		return get_export_dest().get_extension().to_lower() == "obj";
 	}
 
 	bool is_glb_output_with_non_gltf_ext() const {
@@ -2211,6 +2205,59 @@ struct BatchExportToken {
 	}
 	String get_original_export_dest() const {
 		return original_export_dest;
+	}
+
+	void move_output_to_dot_assets() {
+		String new_export_dest = get_export_dest();
+		if (!FileAccess::exists(p_dest_path)) {
+			return;
+		}
+		report->set_saved_path(p_dest_path);
+		if (new_export_dest.begins_with("res://.assets/")) {
+			// already in .assets
+			return;
+		}
+		new_export_dest = new_export_dest.replace_first("res://", "res://.assets/");
+		report->get_import_info()->set_export_dest(new_export_dest);
+		auto new_dest = output_dir.path_join(new_export_dest.trim_prefix("res://"));
+		auto new_dest_base_dir = new_dest.get_base_dir();
+		gdre::ensure_dir(new_dest_base_dir);
+		auto da = DirAccess::create_for_path(new_dest_base_dir);
+		if (da.is_valid() && da->rename(p_dest_path, new_dest) == OK) {
+			report->get_import_info()->set_export_dest(new_export_dest);
+			report->set_new_source_path(new_export_dest);
+			report->set_saved_path(new_dest);
+			Dictionary extra_info = report->get_extra_info();
+			if (extra_info.has("external_buffer_paths")) {
+				for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
+					auto buffer_path = new_dest_base_dir.path_join(E.get_file());
+					da->rename(E, buffer_path);
+				}
+			}
+		}
+	}
+
+	void batch_preload() {
+		if (is_text_output() || is_obj_output()) {
+			return;
+		}
+		instance._batch_preload(*this);
+	}
+
+	void batch_export_instanced_scene() {
+		if (is_text_output() || is_obj_output()) {
+			Error err = SceneExporter::export_file_to_non_glb(report->get_import_info()->get_path(), p_dest_path, report->get_import_info());
+			if (err != OK) {
+				report->set_error(err);
+				report->append_error_messages(GDRELogger::get_errors());
+			} else {
+				report->set_saved_path(p_dest_path);
+			}
+			done = true;
+			return;
+		}
+		instance._batch_export_instanced_scene(*this);
+		report->set_saved_path(p_dest_path);
 	}
 };
 
@@ -2246,8 +2293,7 @@ void GLBExporterInstance::_batch_preload(BatchExportToken &token) {
 	token.scene_loaded_and_instanced = true;
 }
 
-void GLBExporterInstance::_batch_export_instanced_scene(int i, BatchExportToken *tokens) {
-	auto &token = tokens[i];
+void GLBExporterInstance::_batch_export_instanced_scene(BatchExportToken &token) {
 	while (!token.scene_loaded_and_instanced && err == OK) {
 		OS::get_singleton()->delay_usec(100);
 	}
@@ -2288,7 +2334,7 @@ void GLBExporterInstance::_batch_export_instanced_scene(int i, BatchExportToken 
 }
 // void do_batch_export_instanced_scene(int i, BatchExportToken *tokens);
 void SceneExporter::do_batch_export_instanced_scene(int i, BatchExportToken *tokens) {
-	tokens[i].instance._batch_export_instanced_scene(i, tokens);
+	tokens[i].batch_export_instanced_scene();
 }
 
 String SceneExporter::get_batch_export_description(int i, BatchExportToken *tokens) const {
@@ -2335,7 +2381,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			true);
 
 	for (auto &token : tokens) {
-		token.instance._batch_preload(token);
+		token.batch_preload();
 	}
 #if ENABLE_3_X_SCENE_LOADING
 	constexpr int minimum_ver = 3;
@@ -2364,48 +2410,20 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		report->set_new_source_path(new_path);
 		Error err = token.instance.err;
 		if (to_text || to_obj) {
-			err = export_file_to_non_glb(iinfo->get_path(), dest_path, iinfo);
-			if (err != OK) {
-				report->set_error(err);
-				report->append_error_messages(GDRELogger::get_errors());
-			} else {
+			if (err == OK) {
 				report->set_saved_path(dest_path);
 			}
 		} else {
 			bool move_file = !non_gltf && iinfo->get_ver_major() >= minimum_ver;
 			if (token.instance.had_script() && err == OK) {
-				report->set_saved_path(dest_path);
 				report->set_message("Script has scripts, not saving to original path.");
-				move_file = false;
+				token.move_output_to_dot_assets();
 			} else if (err == ERR_PRINTER_ON_FIRE) {
-				// re-save the import info anyway, but don't move the file
-				report->set_saved_path(dest_path);
-				move_file = false;
+				token.move_output_to_dot_assets();
 			} else if (err == OK) {
 				report->set_saved_path(dest_path);
 			} else if (err) {
-				move_file = false;
-			}
-			if (move_file) {
-				// No errors, we can move the file to the correct location
-				auto new_dest = output_dir.path_join(token.original_export_dest.replace("res://", ""));
-				auto new_dest_base_dir = new_dest.get_base_dir();
-				gdre::ensure_dir(new_dest_base_dir);
-				auto da = DirAccess::create_for_path(new_dest_base_dir);
-				if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
-					iinfo->set_export_dest(token.original_export_dest);
-					report->set_new_source_path(token.original_export_dest);
-					report->set_saved_path(new_dest);
-					Dictionary extra_info = report->get_extra_info();
-					if (extra_info.has("external_buffer_paths")) {
-						for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
-							auto buffer_path = new_dest_base_dir.path_join(E.get_file());
-							da->rename(E, buffer_path);
-						}
-					}
-				} else {
-					report->set_saved_path(dest_path);
-				}
+				token.move_output_to_dot_assets();
 			}
 		}
 
