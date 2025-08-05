@@ -16,7 +16,7 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
-Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
+Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t timeout_s_no_progress) {
 	if (p_group_id == -1) {
 		return ERR_INVALID_PARAMETER;
 	}
@@ -34,8 +34,12 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
 		} else if (already_waiting) {
 			return ERR_ALREADY_IN_USE;
 		}
-		if (task->wait_for_completion()) {
-			err = ERR_SKIP;
+		if (task->wait_for_completion(timeout_s_no_progress)) {
+			if (task->is_timed_out()) {
+				err = ERR_TIMEOUT;
+			} else {
+				err = ERR_SKIP;
+			}
 		}
 	}
 	group_id_to_description.erase(p_group_id);
@@ -230,6 +234,16 @@ bool TaskManager::is_current_task_canceled() {
 		}
 	});
 	return canceled;
+}
+
+bool TaskManager::is_current_task_timed_out() {
+	bool timed_out = false;
+	group_id_to_description.for_each([&](auto &v) {
+		if (v.second->is_timed_out()) {
+			timed_out = true;
+		}
+	});
+	return timed_out;
 }
 
 bool TaskManager::is_current_task_completed(TaskManagerID p_task_id) const {

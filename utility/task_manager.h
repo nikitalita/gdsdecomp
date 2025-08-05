@@ -28,6 +28,7 @@ public:
 		bool started = false;
 		bool auto_start = true;
 		bool progress_enabled = true;
+		bool timed_out = false;
 		Ref<EditorProgressGDDC> progress;
 
 		virtual void wait_for_task_completion_internal() = 0;
@@ -67,7 +68,24 @@ public:
 
 			return is_canceled();
 		}
-		virtual bool wait_for_completion() {
+		bool is_timed_out() const { return timed_out; }
+
+		bool _wait_after_timeout() {
+			auto curr_time = OS::get_singleton()->get_ticks_msec();
+			constexpr uint64_t ABORT_THRESHOLD_MS = 3000;
+			while (!is_done() && curr_time - OS::get_singleton()->get_ticks_msec() > ABORT_THRESHOLD_MS) {
+				OS::get_singleton()->delay_usec(10000);
+			}
+			if (is_done()) {
+				wait_for_task_completion_internal();
+				return true;
+			} else {
+				WARN_PRINT("Couldn't wait for task completion!!!!!");
+			}
+			return false;
+		}
+
+		virtual bool wait_for_completion(uint64_t timeout_s_no_progress = 0) {
 			if (is_canceled()) {
 				return true;
 			}
@@ -90,8 +108,32 @@ public:
 				if (!is_main_thread) {
 					WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
 				}
+				uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
+				auto last_progress = get_current_task_step_value();
+				bool printed_warning = false;
 				while (!is_done()) {
 					OS::get_singleton()->delay_usec(10000);
+					if (timeout_s_no_progress != 0) {
+						auto curr_progress = get_current_task_step_value();
+						auto curr_time = OS::get_singleton()->get_ticks_msec();
+						if (curr_progress != last_progress) {
+							last_progress_made = curr_time;
+							last_progress = curr_progress;
+						} else {
+							auto delta = curr_time - last_progress_made;
+							if (!printed_warning && delta > (timeout_s_no_progress - 5) * 1000) {
+								print_line("Task is taking an unusually long time to complete, cancelling in 5 seconds...");
+								printed_warning = true;
+							} else if (delta > timeout_s_no_progress * 1000) {
+								ERR_PRINT("Task is taking too long to complete, cancelling...");
+								timed_out = true;
+								cancel();
+								_wait_after_timeout();
+								finish_progress();
+								return true;
+							}
+						}
+					}
 					update_progress(is_main_thread);
 					if (is_canceled()) {
 						break;
@@ -466,9 +508,10 @@ public:
 
 	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
-	Error wait_for_task_completion(TaskManagerID p_task_id);
+	Error wait_for_task_completion(TaskManagerID p_task_id, uint64_t timeout_s_no_progress = 0);
 	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
+	bool is_current_task_timed_out();
 	void update_progress_bg();
 	void cancel_all();
 };
