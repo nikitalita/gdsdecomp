@@ -109,13 +109,12 @@ class GLBExporterInstance {
 	HashSet<String> animation_deps_updated;
 
 	// error tracking
-	bool had_errors_during_scene_instantiation = false;
-	bool had_errors_during_gltf_conversion = false;
 	String error_statement;
 	Vector<String> scene_instantiation_error_messages;
 	Vector<String> gltf_serialization_error_messages;
 	Vector<String> import_param_error_messages;
 	Vector<String> dependency_resolution_list;
+	Vector<String> other_error_messages;
 
 	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
 

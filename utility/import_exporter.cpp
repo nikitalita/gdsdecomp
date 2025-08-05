@@ -745,7 +745,9 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	if (scene_tokens.size() > 0) {
 		auto reports = SceneExporter::get_singleton()->batch_export_files(output_dir, scene_tokens);
 		for (int i = 0; i < reports.size(); i++) {
-			non_multithreaded_tokens.push_back({ scene_tokens[i], reports[i], false });
+			ExportToken token = { scene_tokens[i], reports[i], false };
+			rewrite_metadata(token);
+			non_multithreaded_tokens.push_back(token);
 		}
 	}
 

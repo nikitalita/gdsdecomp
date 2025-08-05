@@ -594,22 +594,22 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 	}
 	error_statement = err_message;
 	Vector<String> errors;
-	if (had_errors_during_scene_instantiation) {
+	if (scene_instantiation_error_messages.size() > 0) {
 		errors.append("** Errors during scene instantiation:");
 		errors.append_array(scene_instantiation_error_messages);
 	}
-	if (had_errors_during_gltf_conversion) {
-		errors.append("** Errors during GLTF serialization:");
+	if (gltf_serialization_error_messages.size() > 0) {
+		errors.append("** Errors during GLTF conversion:");
 		errors.append_array(gltf_serialization_error_messages);
 	}
-	if (!import_param_error_messages.is_empty()) {
+	if (import_param_error_messages.size() > 0) {
 		errors.append("** Errors during import parameter setting:");
 		errors.append_array(import_param_error_messages);
 	}
-	Vector<String> other_errors = _get_logged_error_messages();
-	if (!other_errors.is_empty()) {
+	other_error_messages.append_array(_get_logged_error_messages());
+	if (other_error_messages.size() > 0) {
 		errors.append("** Other errors:");
-		errors.append_array(other_errors);
+		errors.append_array(other_error_messages);
 	}
 	for (const auto &E : get_deps_map) {
 		dependency_resolution_list.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
@@ -1111,6 +1111,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 		bool was_silenced = _is_logger_silencing_errors();
 		_silence_errors(true);
+		other_error_messages = _get_logged_error_messages();
 		auto errors_before = _get_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		if (err) {
@@ -1162,8 +1163,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		GDRE_SCN_EXP_CHECK_CANCEL();
 
 		auto errors_after = _get_error_count();
-		had_errors_during_gltf_conversion = errors_after > errors_before;
-		if (had_errors_during_gltf_conversion) {
+		if (errors_after > errors_before) {
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 		}
 		if (err) {
@@ -1421,6 +1421,13 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		if (p_dest_path.get_extension() == "glb") {
 			// save a gltf copy for debugging
 			auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
+			if (iinfo.is_valid()) {
+				String ext = iinfo->get_source_file().get_extension().to_lower();
+				// make sure it doesn't already end with two extensions
+				if (rel_path.get_extension().get_extension().is_empty()) {
+					rel_path = rel_path.get_basename() + "." + ext + ".gltf";
+				}
+			}
 			auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
 			gdre::ensure_dir(gltf_path.get_base_dir());
 			Vector<String> buffer_paths;
@@ -1633,7 +1640,6 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
 	if (errors_after > errors_before) {
 		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
-		had_errors_during_scene_instantiation = true;
 	}
 	if (root == nullptr) {
 		err = ERR_CANT_ACQUIRE_RESOURCE;
@@ -1664,7 +1670,7 @@ Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
 }
 
 bool GLBExporterInstance::supports_multithread() const {
-	return !Thread::is_main_thread() && !is_batch_export;
+	return !Thread::is_main_thread();
 }
 
 void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path) {
@@ -1672,7 +1678,7 @@ void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_a
 	Node *root = pair->first;
 	String dest_path = pair->second;
 	err = _export_instanced_scene(root, dest_path);
-	print_line("Exporting scene " + dest_path + " is done");
+	// print_line("Exporting scene " + dest_path + " is done");
 }
 
 struct GLTFSerializationTaskRunnerStruct : public TaskRunnerStruct {
@@ -1799,9 +1805,10 @@ Error GLBExporterInstance::_get_return_error() {
 	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
-	if (had_errors_during_gltf_conversion && animation_deps_needed.size() > 0 && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
+	bool had_gltf_serialization_errors = gltf_serialization_error_messages.size() > 0;
+	if (had_gltf_serialization_errors && animation_deps_needed.size() > 0 && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
 		Vector<int64_t> error_messages_to_remove;
-		had_errors_during_gltf_conversion = false;
+		had_gltf_serialization_errors = false;
 		for (int64_t i = 0; i < gltf_serialization_error_messages.size(); i++) {
 			auto message = gltf_serialization_error_messages[i].strip_edges();
 
@@ -1811,12 +1818,13 @@ Error GLBExporterInstance::_get_return_error() {
 				continue;
 			}
 			if (message.begins_with("WARNING:")) {
+				error_messages_to_remove.push_back(i);
 				continue;
 			}
 			if (message.contains("glTF:")) {
 				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("animated track using path")) {
 					NodePath path = message.substr(message.find("ath:") + 4).strip_edges();
-					if (!path.is_empty() && external_animation_nodepaths.has(path)) {
+					if (!updating_import_info || (!path.is_empty() && external_animation_nodepaths.has(path))) {
 						// pop off the error message and the stack traces
 						error_messages_to_remove.push_back(i);
 						continue;
@@ -1828,10 +1836,10 @@ Error GLBExporterInstance::_get_return_error() {
 					continue;
 				}
 			}
-			had_errors_during_gltf_conversion = true;
+			had_gltf_serialization_errors = true;
 			break;
 		}
-		if (!had_errors_during_gltf_conversion) {
+		if (!had_gltf_serialization_errors) {
 			for (int64_t i = error_messages_to_remove.size() - 1; i >= 0; i--) {
 				gltf_serialization_error_messages.remove_at(error_messages_to_remove[i]);
 			}
@@ -1848,7 +1856,7 @@ Error GLBExporterInstance::_get_return_error() {
 		}
 	}
 
-	if (had_errors_during_gltf_conversion) {
+	if (had_gltf_serialization_errors) {
 		String _ = add_errors_to_report(ERR_BUG, "");
 	}
 
@@ -1858,7 +1866,7 @@ Error GLBExporterInstance::_get_return_error() {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
 
-	if (project_recovery && (had_errors_during_gltf_conversion || !set_all_externals)) {
+	if (project_recovery && (had_gltf_serialization_errors || !set_all_externals)) {
 		err = ERR_PRINTER_ON_FIRE;
 	}
 
@@ -2140,6 +2148,7 @@ struct BatchExportToken {
 	String p_src_path;
 	String p_dest_path;
 	String original_export_dest;
+	String output_dir;
 	bool scene_loaded_and_instanced = false;
 	bool done = false;
 	BatchExportToken() :
@@ -2165,9 +2174,43 @@ struct BatchExportToken {
 				new_path = new_path.get_basename() + ".glb";
 			}
 		}
-		p_iinfo->set_export_dest(new_path);
+		output_dir = p_output_dir;
 		p_src_path = p_iinfo->get_path();
-		p_dest_path = p_output_dir.path_join(new_path.replace("res://", ""));
+		set_export_dest(new_path);
+	}
+
+	void set_export_dest(const String &p_export_dest) {
+		report->get_import_info()->set_export_dest(p_export_dest);
+		p_dest_path = output_dir.path_join(p_export_dest.replace("res://", ""));
+	}
+	String get_export_dest() const {
+		return report->get_import_info()->get_export_dest();
+	}
+
+	bool is_text_output() const {
+		String ext = get_export_dest().get_extension().to_lower();
+		return ext == "escn" || ext == "tscn";
+	}
+
+	bool is_obj_output() const {
+		String ext = get_export_dest().get_extension().to_lower();
+		return ext == "obj";
+	}
+
+	bool is_glb_output_with_non_gltf_ext() const {
+		String ext = original_export_dest.get_extension().to_lower();
+		bool to_text = ext == "escn" || ext == "tscn";
+		bool to_obj = ext == "obj";
+
+		return !to_text && !to_obj && ext != "glb" && ext != "gltf";
+	}
+
+	void append_original_ext_to_export_dest() {
+		String original_ext = original_export_dest.get_extension().to_lower();
+		set_export_dest(get_export_dest().get_basename() + "." + original_ext + ".glb");
+	}
+	String get_original_export_dest() const {
+		return original_export_dest;
 	}
 };
 
@@ -2208,12 +2251,13 @@ void GLBExporterInstance::_batch_export_instanced_scene(int i, BatchExportToken 
 	while (!token.scene_loaded_and_instanced && err == OK) {
 		OS::get_singleton()->delay_usec(100);
 	}
+	is_batch_export = true;
 	if (err != OK) {
-		if (token.root) {
-			memdelete(token.root);
-			token._scene = nullptr;
-			token.root = nullptr;
-		}
+		// if (token.root) {
+		// 	memdelete(token.root);
+		// 	token._scene = nullptr;
+		// 	token.root = nullptr;
+		// }
 		return;
 	}
 	const String &p_dest_path = token.p_dest_path;
@@ -2254,9 +2298,29 @@ String SceneExporter::get_batch_export_description(int i, BatchExportToken *toke
 Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes) {
 	Vector<BatchExportToken> tokens;
 	tokens.resize(scenes.size());
+	HashMap<String, int> export_dest_to_iinfo;
 	for (int i = 0; i < tokens.size(); i++) {
 		tokens.write[i] = BatchExportToken(output_dir, scenes[i]);
-		tokens.write[i].instance.image_path_to_data_hash = Dictionary();
+		auto &token = tokens.write[i];
+		token.instance.image_path_to_data_hash = Dictionary();
+		String export_dest = token.get_export_dest();
+		if (export_dest_to_iinfo.has(export_dest)) {
+			int other_i = export_dest_to_iinfo[export_dest];
+			auto &other_token = tokens.write[other_i];
+			if (other_token.original_export_dest.get_file() != other_token.get_export_dest().get_file()) {
+				other_token.append_original_ext_to_export_dest();
+				export_dest_to_iinfo.erase(export_dest);
+			}
+		}
+		if (export_dest_to_iinfo.has(export_dest)) {
+			if (token.original_export_dest.get_file() != token.get_export_dest().get_file()) {
+				token.append_original_ext_to_export_dest();
+			} else {
+				token.set_export_dest(export_dest.get_basename() + "_" + itos(i) + "." + export_dest.get_extension());
+			}
+		} else {
+			export_dest_to_iinfo[export_dest] = i;
+		}
 	}
 	auto task_id = TaskManager::get_singleton()->add_group_task(
 			this,
@@ -2281,6 +2345,9 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	TaskManager::get_singleton()->wait_for_task_completion(task_id);
 
+	for (auto &token : tokens) {
+		token.instance._unload_deps();
+	}
 	Vector<Ref<ExportReport>> reports;
 	for (auto &token : tokens) {
 		auto &report = token.report;
@@ -2288,9 +2355,10 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		auto dest_path = token.p_dest_path;
 		auto iinfo = token.report->get_import_info();
 		String ext = new_path.get_extension().to_lower();
+		String original_ext = token.original_export_dest.get_extension().to_lower();
 		bool to_text = ext == "escn" || ext == "tscn";
 		bool to_obj = ext == "obj";
-		bool non_gltf = ext != "glb" && ext != "gltf";
+		bool non_gltf = original_ext != "glb" && original_ext != "gltf";
 		// GLTF export can result in inaccurate models
 		// save it under .assets, which won't be picked up for import by the godot editor
 		report->set_new_source_path(new_path);
