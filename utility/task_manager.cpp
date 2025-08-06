@@ -69,8 +69,12 @@ bool TaskManager::BaseTemplateTaskData::_is_aborted() const {
 }
 
 bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
+	if (progress_enabled && progress.is_valid()) {
+		progress->step("Cancelling...", -1, true);
+	}
+
 	auto curr_time = OS::get_singleton()->get_ticks_msec();
-	constexpr uint64_t ABORT_THRESHOLD_MS = 7000;
+	constexpr uint64_t ABORT_THRESHOLD_MS = 10000;
 	while (!is_done() && OS::get_singleton()->get_ticks_msec() - curr_time < ABORT_THRESHOLD_MS) {
 		OS::get_singleton()->delay_usec(10000);
 	}
