@@ -15,14 +15,20 @@ class SceneExporter : public ResourceExporter {
 
 	static SceneExporter *singleton;
 
-	void do_batch_export_instanced_scene(int i, BatchExportToken *tokens);
+	void do_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens);
 
-	String get_batch_export_description(int i, BatchExportToken *tokens) const;
+	String get_batch_export_description(int i, std::shared_ptr<BatchExportToken> *tokens) const;
 
 protected:
 	static void _bind_methods();
 
 public:
+#if ENABLE_3_X_SCENE_LOADING
+	static constexpr int MINIMUM_GODOT_VER_SUPPORTED = 3;
+#else
+	static constexpr int MINIMUM_GODOT_VER_SUPPORTED = 4;
+#endif
+
 	static Error export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo);
 	static constexpr bool can_multithread = false;
 

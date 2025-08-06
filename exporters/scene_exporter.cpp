@@ -1705,6 +1705,10 @@ void GLBExporterInstance::cancel() {
 Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
 	_initial_set(p_src_path, p_report);
 
+	if (ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
+		return ERR_UNAVAILABLE;
+	}
+
 	String dest_ext = p_dest_path.get_extension().to_lower();
 	if (dest_ext != "glb" && dest_ext != "gltf") {
 		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
@@ -1853,6 +1857,10 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 	Error err;
 	Ref<PackedScene> scene;
 	bool using_threaded_load = !SceneExporter::can_multithread;
+	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
+	if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
+		return ERR_UNAVAILABLE;
+	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
 	if (ResourceCompatLoader::is_globally_available() && using_threaded_load) {
 		scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
@@ -1862,8 +1870,6 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
 	Vector<Ref<Mesh>> meshes;
 	Vector<Ref<Mesh>> meshes_to_remove;
-
-	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 
 	auto resources = _find_resources(scene, true, ver_major);
 	for (auto &E : resources) {
@@ -1969,6 +1975,7 @@ struct BatchExportToken {
 	bool preload_done = false;
 	bool done = false;
 	Error err = OK;
+	size_t scene_size = 0;
 	BatchExportToken() :
 			instance(String(), {}, true) {}
 
@@ -1988,6 +1995,7 @@ struct BatchExportToken {
 			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
 			report->set_new_source_path(new_path);
 		}
+		scene_size = FileAccess::get_size(p_iinfo->get_path());
 		output_dir = p_output_dir;
 		p_src_path = p_iinfo->get_path();
 		set_export_dest(new_path);
@@ -2077,6 +2085,12 @@ struct BatchExportToken {
 			return;
 		}
 		instance._initial_set(p_src_path, report);
+		if (instance.ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
+			err = ERR_UNAVAILABLE;
+			report->set_error(err);
+			preload_done = true;
+			return;
+		}
 
 		err = gdre::ensure_dir(p_dest_path.get_base_dir());
 		report->set_error(err);
@@ -2116,7 +2130,6 @@ struct BatchExportToken {
 			err = _check_cancelled();
 		}
 		if (err != OK) {
-			clear_scene();
 			report->set_error(err);
 			return;
 		}
@@ -2147,12 +2160,11 @@ struct BatchExportToken {
 		in_progress--;
 	}
 
-	void post_export() {
+	void post_export(Error p_skip_type = ERR_SKIP) {
 		// GLTF export can result in inaccurate models
 		// save it under .assets, which won't be picked up for import by the godot editor
 		if (err == OK && !done) {
-			clear_scene();
-			err = ERR_SKIP;
+			err = p_skip_type;
 		}
 		report->set_error(err);
 		if (err == ERR_SKIP) {
@@ -2255,57 +2267,66 @@ Error GLBExporterInstance::_batch_export_instanced_scene(Node *root, const Strin
 	return err;
 }
 // void do_batch_export_instanced_scene(int i, BatchExportToken *tokens);
-void SceneExporter::do_batch_export_instanced_scene(int i, BatchExportToken *tokens) {
-	tokens[i].batch_export_instanced_scene();
+void SceneExporter::do_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens) {
+	std::shared_ptr<BatchExportToken> token = tokens[i];
+	token->batch_export_instanced_scene();
 }
 
-String SceneExporter::get_batch_export_description(int i, BatchExportToken *tokens) const {
-	return "Exporting scene " + tokens[i].p_src_path;
+String SceneExporter::get_batch_export_description(int i, std::shared_ptr<BatchExportToken> *tokens) const {
+	return "Exporting scene " + tokens[i]->p_src_path;
 }
+
+struct BatchExportTokenSort {
+	bool operator()(const std::shared_ptr<BatchExportToken> &a, const std::shared_ptr<BatchExportToken> &b) const {
+		return a->scene_size > b->scene_size;
+	}
+};
 
 Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes) {
-	Vector<BatchExportToken> tokens;
+	Vector<std::shared_ptr<BatchExportToken>> tokens;
 	tokens.resize(scenes.size());
 	HashMap<String, int> export_dest_to_iinfo;
 	for (int i = 0; i < tokens.size(); i++) {
-		tokens.write[i] = BatchExportToken(output_dir, scenes[i]);
+		tokens.write[i] = std::make_shared<BatchExportToken>(output_dir, scenes[i]);
 		auto &token = tokens.write[i];
-		token.instance.image_path_to_data_hash = Dictionary();
-		String export_dest = token.get_export_dest();
+		token->instance.image_path_to_data_hash = Dictionary();
+		String export_dest = token->get_export_dest();
 		if (export_dest_to_iinfo.has(export_dest)) {
 			int other_i = export_dest_to_iinfo[export_dest];
 			auto &other_token = tokens.write[other_i];
-			if (other_token.original_export_dest.get_file() != other_token.get_export_dest().get_file()) {
-				other_token.append_original_ext_to_export_dest();
+			if (other_token->original_export_dest.get_file() != other_token->get_export_dest().get_file()) {
+				other_token->append_original_ext_to_export_dest();
 				export_dest_to_iinfo.erase(export_dest);
 			}
 		}
 		if (export_dest_to_iinfo.has(export_dest)) {
-			if (token.original_export_dest.get_file() != token.get_export_dest().get_file()) {
-				token.append_original_ext_to_export_dest();
+			if (token->original_export_dest.get_file() != token->get_export_dest().get_file()) {
+				token->append_original_ext_to_export_dest();
 			} else {
-				token.set_export_dest(export_dest.get_basename() + "_" + itos(i) + "." + export_dest.get_extension());
+				token->set_export_dest(export_dest.get_basename() + "_" + itos(i) + "." + export_dest.get_extension());
 			}
 		} else {
 			export_dest_to_iinfo[export_dest] = i;
 		}
 	}
+	tokens.sort_custom<BatchExportTokenSort>();
+
 	BatchExportToken::in_progress = 0;
 	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
 	auto task_id = TaskManager::get_singleton()->add_group_task(
 			this,
 			&SceneExporter::do_batch_export_instanced_scene,
 			tokens.ptrw(),
-			scenes.size(),
+			tokens.size(),
 			&SceneExporter::get_batch_export_description,
-			"Preloading scenes",
+			"Exporting scenes",
 			"Exporting scenes",
 			true,
 			-1,
 			true);
 
 	for (auto &token : tokens) {
-		token.batch_preload();
+		token->batch_preload();
 		// Don't load more than the current number of tasks being processed
 		while (BatchExportToken::in_progress >= default_threads) {
 			if (TaskManager::get_singleton()->update_progress_bg()) {
@@ -2322,18 +2343,13 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			break;
 		}
 	}
-#if ENABLE_3_X_SCENE_LOADING
-	constexpr int minimum_ver = 3;
-#else
-	constexpr int minimum_ver = 4;
-#endif
 
-	TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
+	Error err = TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
 
 	Vector<Ref<ExportReport>> reports;
 	for (auto &token : tokens) {
-		token.post_export();
-		reports.push_back(token.report);
+		token->post_export(err);
+		reports.push_back(token->report);
 	}
 	return reports;
 }
