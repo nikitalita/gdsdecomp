@@ -179,15 +179,24 @@ bool GDREProgressDialog::Task::should_redraw(uint64_t curr_time_us) const {
 	return force_next_redraw || curr_time_us - last_progress_tick >= 200000;
 }
 
+void GDREProgressDialog::Task::set_indeterminate(bool p_indeterminate) {
+	indeterminate = p_indeterminate;
+}
+
 bool GDREProgressDialog::Task::update() {
 	ERR_FAIL_COND_V(!initialized, false);
 	if (!should_redraw(OS::get_singleton()->get_ticks_usec())) {
 		return false;
 	}
-	bool was_forced = force_next_redraw;
-	force_next_redraw = false;
 	if (!vb) {
 		return false;
+	}
+	bool was_forced = force_next_redraw;
+	force_next_redraw = false;
+
+	if (indeterminate != progress->is_indeterminate()) {
+		progress->set_indeterminate(indeterminate);
+		was_forced = true;
 	}
 	if (!indeterminate) {
 		if (!was_forced && state->get_text() == current_step.state && progress->get_value() == current_step.step) {
@@ -281,18 +290,28 @@ void GDREProgressDialog::add_task(const String &p_task, const String &p_label, i
 bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, int p_step, bool p_force_redraw) {
 	ERR_FAIL_COND_V(!tasks.contains(p_task), canceled);
 	bool is_main_thread = is_safe_to_redraw();
-	bool do_update = false;
+	bool do_update = p_force_redraw;
 	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
 		t.second.set_step(p_state, p_step, p_force_redraw);
 		if (is_main_thread) {
-			do_update = t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
+			do_update = do_update || t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
 		}
 	});
-	if (do_update) {
+	if (do_update && is_main_thread) {
 		main_thread_update();
 	}
 
 	return canceled;
+}
+
+void GDREProgressDialog::task_set_indeterminate(const String &p_task, bool p_indeterminate) {
+	ERR_FAIL_COND(!tasks.contains(p_task));
+	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
+		t.second.set_indeterminate(p_indeterminate);
+	});
+	if (is_safe_to_redraw()) {
+		main_thread_update();
+	}
 }
 
 bool GDREProgressDialog::_process_removals() {
@@ -445,6 +464,7 @@ void StdOutProgress::end() {
 void EditorProgressGDDC::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("step", "state", "step", "force_refresh"), &EditorProgressGDDC::step, DEFVAL(-1), DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("get_task"), &EditorProgressGDDC::get_task);
+	ClassDB::bind_method(D_METHOD("set_indeterminate", "indeterminate"), &EditorProgressGDDC::set_indeterminate);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("create", "parent", "task", "label", "amount", "can_cancel"), &EditorProgressGDDC::create, DEFVAL(false));
 }
 
@@ -466,6 +486,15 @@ bool EditorProgressGDDC::step(const String &p_state, int p_step, bool p_force_re
 	}
 	return false;
 }
+
+void EditorProgressGDDC::set_indeterminate(bool p_indeterminate) {
+	if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless()) {
+		// stdout_progress.set_indeterminate(p_indeterminate);
+	} else if (GDREProgressDialog::get_singleton()) {
+		GDREProgressDialog::get_singleton()->task_set_indeterminate(task, p_indeterminate);
+	}
+}
+
 EditorProgressGDDC::EditorProgressGDDC() {}
 EditorProgressGDDC::EditorProgressGDDC(const String &p_task, const String &p_label, int p_amount, bool p_can_cancel) :
 		EditorProgressGDDC(nullptr, p_task, p_label, p_amount, p_can_cancel) {}

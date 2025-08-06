@@ -71,12 +71,17 @@ bool TaskManager::BaseTemplateTaskData::_is_aborted() const {
 bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
 	if (progress_enabled && progress.is_valid()) {
 		progress->step("Cancelling...", -1, true);
+		progress->set_indeterminate(true);
 	}
 
 	auto curr_time = OS::get_singleton()->get_ticks_msec();
 	constexpr uint64_t ABORT_THRESHOLD_MS = 10000;
+	bool is_safe_to_update = Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing();
 	while (!is_done() && OS::get_singleton()->get_ticks_msec() - curr_time < ABORT_THRESHOLD_MS) {
 		OS::get_singleton()->delay_usec(10000);
+		if (TaskManager::get_singleton() && is_safe_to_update) {
+			TaskManager::get_singleton()->update_progress_bg();
+		}
 	}
 	if (is_done()) {
 		wait_for_task_completion_internal();
