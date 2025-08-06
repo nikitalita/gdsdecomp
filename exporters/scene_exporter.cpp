@@ -1957,6 +1957,7 @@ Error _check_cancelled() {
 }
 
 struct BatchExportToken {
+	static std::atomic<int> in_progress;
 	GLBExporterInstance instance;
 	Ref<ExportReport> report;
 	Ref<PackedScene> _scene;
@@ -2086,6 +2087,7 @@ struct BatchExportToken {
 			}
 			instance._set_stuff_from_instanced_scene(root);
 		}
+		print_line("Preloaded scene " + p_src_path);
 		scene_loaded_and_instanced = true;
 	}
 
@@ -2100,29 +2102,31 @@ struct BatchExportToken {
 			report->set_error(err);
 			return;
 		}
+		in_progress++;
+		print_line("Exporting scene " + p_src_path);
 
 		if (is_text_output() || is_obj_output()) {
-			Error err = SceneExporter::export_file_to_non_glb(report->get_import_info()->get_path(), p_dest_path, report->get_import_info());
+			err = SceneExporter::export_file_to_non_glb(report->get_import_info()->get_path(), p_dest_path, report->get_import_info());
 			if (err != OK) {
-				report->set_error(err);
 				report->append_error_messages(GDRELogger::get_errors());
 			} else {
 				report->set_saved_path(p_dest_path);
 			}
-			done = true;
-			return;
+		} else {
+			err = instance._batch_export_instanced_scene(root, p_dest_path);
+			if (root) {
+				memdelete(root);
+				root = nullptr;
+			}
+			_scene = nullptr;
+			if (err == OK) {
+				report->set_saved_path(p_dest_path);
+			}
 		}
-		err = instance._batch_export_instanced_scene(root, p_dest_path);
-		if (root) {
-			memdelete(root);
-			root = nullptr;
-		}
-		_scene = nullptr;
-		if (err == OK) {
-			report->set_saved_path(p_dest_path);
-		}
+		print_line("Finished exporting scene " + p_src_path);
 		report->set_error(err);
 		done = true;
+		in_progress--;
 	}
 
 	void post_export() {
@@ -2151,6 +2155,8 @@ struct BatchExportToken {
 		}
 	}
 };
+
+std::atomic<int> BatchExportToken::in_progress = 0;
 
 Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	BatchExportToken token(output_dir, iinfo);
@@ -2262,6 +2268,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			export_dest_to_iinfo[export_dest] = i;
 		}
 	}
+	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
 	auto task_id = TaskManager::get_singleton()->add_group_task(
 			this,
 			&SceneExporter::do_batch_export_instanced_scene,
@@ -2276,6 +2283,12 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	for (auto &token : tokens) {
 		token.batch_preload();
+		// Don't load more than the current number of tasks being processed
+		while (BatchExportToken::in_progress >= default_threads) {
+			TaskManager::get_singleton()->update_progress_bg();
+			OS::get_singleton()->delay_usec(100);
+		}
+		TaskManager::get_singleton()->update_progress_bg();
 	}
 #if ENABLE_3_X_SCENE_LOADING
 	constexpr int minimum_ver = 3;
