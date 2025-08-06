@@ -16,6 +16,116 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
+void TaskManager::BaseTemplateTaskData::start() {
+	if (started) {
+		return;
+	}
+	start_internal();
+	started = true;
+}
+bool TaskManager::BaseTemplateTaskData::is_started() const {
+	return started;
+}
+bool TaskManager::BaseTemplateTaskData::is_canceled() const {
+	return canceled;
+}
+void TaskManager::BaseTemplateTaskData::cancel() {
+	canceled = true;
+	cancel_internal();
+}
+void TaskManager::BaseTemplateTaskData::finish_progress() {
+	progress = nullptr;
+}
+// returns true if the task was cancelled before completion
+bool TaskManager::BaseTemplateTaskData::update_progress(bool p_force_refresh) {
+	if (progress_enabled && !is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
+		cancel();
+		return true;
+	}
+
+	return is_canceled();
+}
+bool TaskManager::BaseTemplateTaskData::is_timed_out() const {
+	return timed_out;
+}
+
+bool TaskManager::BaseTemplateTaskData::_wait_after_timeout() {
+	auto curr_time = OS::get_singleton()->get_ticks_msec();
+	constexpr uint64_t ABORT_THRESHOLD_MS = 3000;
+	while (!is_done() && curr_time - OS::get_singleton()->get_ticks_msec() > ABORT_THRESHOLD_MS) {
+		OS::get_singleton()->delay_usec(10000);
+	}
+	if (is_done()) {
+		wait_for_task_completion_internal();
+		return true;
+	} else {
+		WARN_PRINT("Couldn't wait for task completion!!!!!");
+	}
+	return false;
+}
+
+bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_no_progress) {
+	if (is_canceled()) {
+		return true;
+	}
+	if (!started) {
+		if (auto_start) {
+			start();
+		} else {
+			while (!started && !is_canceled()) {
+				OS::get_singleton()->delay_usec(10000);
+			}
+		}
+	}
+	if (is_canceled()) {
+		return true;
+	}
+	if (runs_current_thread) {
+		run_on_current_thread();
+	} else {
+		bool is_main_thread = Thread::is_main_thread();
+		if (!is_main_thread) {
+			WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
+		}
+		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
+		auto last_progress = get_current_task_step_value();
+		bool printed_warning = false;
+		while (!is_done()) {
+			OS::get_singleton()->delay_usec(10000);
+			if (timeout_s_no_progress != 0) {
+				auto curr_progress = get_current_task_step_value();
+				auto curr_time = OS::get_singleton()->get_ticks_msec();
+				if (curr_progress != last_progress) {
+					last_progress_made = curr_time;
+					last_progress = curr_progress;
+				} else {
+					auto delta = curr_time - last_progress_made;
+					if (!printed_warning && delta > (timeout_s_no_progress - 5) * 1000) {
+						print_line("Task is taking an unusually long time to complete, cancelling in 5 seconds...");
+						printed_warning = true;
+					} else if (delta > timeout_s_no_progress * 1000) {
+						ERR_PRINT("Task is taking too long to complete, cancelling...");
+						timed_out = true;
+						cancel();
+						_wait_after_timeout();
+						finish_progress();
+						return true;
+					}
+				}
+			}
+			update_progress(is_main_thread);
+			if (is_canceled()) {
+				break;
+			}
+		}
+		wait_for_task_completion_internal();
+	}
+	finish_progress();
+	return is_canceled();
+}
+
+TaskManager::BaseTemplateTaskData::~BaseTemplateTaskData() {}
+
 Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t timeout_s_no_progress) {
 	if (p_group_id == -1) {
 		return ERR_INVALID_PARAMETER;
