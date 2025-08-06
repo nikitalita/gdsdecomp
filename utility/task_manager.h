@@ -48,8 +48,10 @@ public:
 		bool is_canceled() const;
 		void cancel();
 		void finish_progress();
+		bool is_progress_enabled() const;
 		// returns true if the task was cancelled before completion
 		bool update_progress(bool p_force_refresh = false);
+		bool _update_progress(bool p_force_refresh = false);
 		bool is_timed_out() const;
 
 		bool _wait_after_timeout();

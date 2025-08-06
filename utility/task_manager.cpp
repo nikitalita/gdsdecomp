@@ -1,4 +1,5 @@
 #include "task_manager.h"
+#include "main/main.h"
 #include "utility/common.h"
 
 TaskManager *TaskManager::singleton = nullptr;
@@ -36,6 +37,18 @@ void TaskManager::BaseTemplateTaskData::cancel() {
 void TaskManager::BaseTemplateTaskData::finish_progress() {
 	progress = nullptr;
 }
+bool TaskManager::BaseTemplateTaskData::is_progress_enabled() const {
+	return progress_enabled;
+}
+
+bool TaskManager::BaseTemplateTaskData::_update_progress(bool p_force_refresh) {
+	if (!progress_enabled && Thread::is_main_thread()) {
+		TaskManager::get_singleton()->update_progress_bg();
+		return is_canceled();
+	}
+	return update_progress(p_force_refresh);
+}
+
 // returns true if the task was cancelled before completion
 bool TaskManager::BaseTemplateTaskData::update_progress(bool p_force_refresh) {
 	if (progress_enabled && !is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
@@ -65,6 +78,7 @@ bool TaskManager::BaseTemplateTaskData::_wait_after_timeout() {
 }
 
 bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_no_progress) {
+	bool is_main_thread = Thread::is_main_thread();
 	if (is_canceled()) {
 		return true;
 	}
@@ -74,6 +88,9 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 		} else {
 			while (!started && !is_canceled()) {
 				OS::get_singleton()->delay_usec(10000);
+				if (is_main_thread) {
+					TaskManager::get_singleton()->update_progress_bg();
+				}
 			}
 		}
 	}
@@ -83,7 +100,6 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 	if (runs_current_thread) {
 		run_on_current_thread();
 	} else {
-		bool is_main_thread = Thread::is_main_thread();
 		if (!is_main_thread) {
 			WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
 		}
@@ -113,7 +129,7 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 					}
 				}
 			}
-			update_progress(is_main_thread);
+			_update_progress(is_main_thread);
 			if (is_canceled()) {
 				break;
 			}
@@ -157,11 +173,18 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 }
 
 void TaskManager::update_progress_bg() {
+	bool main_loop_iterating = false;
 	group_id_to_description.for_each_m([&](auto &v) {
-		if (!v.second->is_waiting) {
-			v.second->update_progress();
+		if (v.second->is_progress_enabled() && v.second->is_started()) {
+			main_loop_iterating = true;
+			if (!v.second->is_waiting) {
+				v.second->update_progress();
+			}
 		}
 	});
+	if (!main_loop_iterating && !Main::is_iterating() && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing()) {
+		Main::iteration();
+	}
 }
 
 TaskManager::DownloadTaskID TaskManager::add_download_task(const String &p_download_url, const String &p_save_path, bool silent) {
