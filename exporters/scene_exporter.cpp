@@ -1060,7 +1060,7 @@ void GLBExporterInstance::_silence_errors(bool p_silence) {
 
 #define GDRE_SCN_EXP_CHECK_CANCEL()                                                                         \
 	{                                                                                                       \
-		if (unlikely(canceled || TaskManager::get_singleton()->is_current_task_canceled())) {               \
+		if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || canceled)) {               \
 			Error err = TaskManager::get_singleton()->is_current_task_timed_out() ? ERR_TIMEOUT : ERR_SKIP; \
 			return err;                                                                                     \
 		}                                                                                                   \
@@ -1966,7 +1966,7 @@ struct BatchExportToken {
 	String p_dest_path;
 	String original_export_dest;
 	String output_dir;
-	bool scene_loaded_and_instanced = false;
+	bool preload_done = false;
 	bool done = false;
 	Error err = OK;
 	BatchExportToken() :
@@ -2056,9 +2056,24 @@ struct BatchExportToken {
 		}
 	}
 
+	void clear_scene() {
+		if (root) {
+			memdelete(root);
+			root = nullptr;
+		}
+		_scene = nullptr;
+	}
+
+	// scene loading and scene instancing has to be done on the main thread to avoid deadlocks and crashes
 	void batch_preload() {
 		if (is_text_output() || is_obj_output()) {
-			scene_loaded_and_instanced = true;
+			preload_done = true;
+			return;
+		}
+		err = _check_cancelled();
+		if (err != OK) {
+			report->set_error(err);
+			preload_done = true;
 			return;
 		}
 		instance._initial_set(p_src_path, report);
@@ -2074,6 +2089,7 @@ struct BatchExportToken {
 			}
 			if (err != OK) {
 				report->set_error(err);
+				preload_done = true;
 				return;
 			}
 			_scene = scene;
@@ -2083,32 +2099,34 @@ struct BatchExportToken {
 				scene = nullptr;
 				err = ERR_CANT_ACQUIRE_RESOURCE;
 				report->set_error(err);
+				preload_done = true;
 				return;
 			}
 			instance._set_stuff_from_instanced_scene(root);
 		}
-		print_line("Preloaded scene " + p_src_path);
-		scene_loaded_and_instanced = true;
+		// print_line("Preloaded scene " + p_src_path);
+		preload_done = true;
 	}
 
 	void batch_export_instanced_scene() {
-		while (!scene_loaded_and_instanced && err == OK && _check_cancelled() == OK) {
-			OS::get_singleton()->delay_usec(100);
+		while (!preload_done && _check_cancelled() == OK) {
+			OS::get_singleton()->delay_usec(10000);
 		}
 		if (err == OK) {
 			err = _check_cancelled();
 		}
 		if (err != OK) {
+			clear_scene();
 			report->set_error(err);
 			return;
 		}
 		in_progress++;
-		print_line("Exporting scene " + p_src_path);
+		// print_line("Exporting scene " + p_src_path);
 
 		if (is_text_output() || is_obj_output()) {
 			err = SceneExporter::export_file_to_non_glb(report->get_import_info()->get_path(), p_dest_path, report->get_import_info());
 			if (err != OK) {
-				report->append_error_messages(GDRELogger::get_errors());
+				report->append_error_messages(GDRELogger::get_thread_errors());
 			} else {
 				report->set_saved_path(p_dest_path);
 			}
@@ -2123,7 +2141,7 @@ struct BatchExportToken {
 				report->set_saved_path(p_dest_path);
 			}
 		}
-		print_line("Finished exporting scene " + p_src_path);
+		// print_line("Finished exporting scene " + p_src_path);
 		report->set_error(err);
 		done = true;
 		in_progress--;
@@ -2132,6 +2150,10 @@ struct BatchExportToken {
 	void post_export() {
 		// GLTF export can result in inaccurate models
 		// save it under .assets, which won't be picked up for import by the godot editor
+		if (err == OK && !done) {
+			clear_scene();
+			err = ERR_SKIP;
+		}
 		report->set_error(err);
 		if (err == ERR_SKIP) {
 			report->set_message("Export cancelled.");
@@ -2268,6 +2290,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			export_dest_to_iinfo[export_dest] = i;
 		}
 	}
+	BatchExportToken::in_progress = 0;
 	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
 	auto task_id = TaskManager::get_singleton()->add_group_task(
 			this,
@@ -2285,10 +2308,19 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		token.batch_preload();
 		// Don't load more than the current number of tasks being processed
 		while (BatchExportToken::in_progress >= default_threads) {
-			TaskManager::get_singleton()->update_progress_bg();
-			OS::get_singleton()->delay_usec(100);
+			if (TaskManager::get_singleton()->update_progress_bg()) {
+				break;
+			}
+			OS::get_singleton()->delay_usec(10000);
 		}
-		TaskManager::get_singleton()->update_progress_bg();
+		// calling update_progress_bg serves three purposes:
+		// 1) updating the progress bar
+		// 2) checking if the task was cancelled
+		// 3) allowing the main loop to iterate so that the command queue is flushed
+		// Without flushing the command queue, GLTFDocument::append_from_scene will hang
+		if (TaskManager::get_singleton()->update_progress_bg()) {
+			break;
+		}
 	}
 #if ENABLE_3_X_SCENE_LOADING
 	constexpr int minimum_ver = 3;
@@ -2298,9 +2330,6 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
 
-	for (auto &token : tokens) {
-		token.instance._unload_deps();
-	}
 	Vector<Ref<ExportReport>> reports;
 	for (auto &token : tokens) {
 		token.post_export();
