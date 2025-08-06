@@ -230,6 +230,7 @@ int TaskManager::DownloadTaskData::get_current_task_step_value() {
 
 void TaskManager::DownloadTaskData::run_on_current_thread() {
 	if (canceled) {
+		done = true;
 		return;
 	}
 	callback_data(nullptr);
