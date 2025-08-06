@@ -42,9 +42,11 @@ bool TaskManager::BaseTemplateTaskData::is_progress_enabled() const {
 }
 
 bool TaskManager::BaseTemplateTaskData::_update_progress(bool p_force_refresh) {
-	if (!progress_enabled && Thread::is_main_thread()) {
-		TaskManager::get_singleton()->update_progress_bg();
-		return is_canceled();
+	if (!progress_enabled) {
+		if (TaskManager::get_singleton()->update_progress_bg()) {
+			cancel();
+			return true;
+		}
 	}
 	return update_progress(p_force_refresh);
 }
@@ -62,10 +64,14 @@ bool TaskManager::BaseTemplateTaskData::is_timed_out() const {
 	return timed_out;
 }
 
-bool TaskManager::BaseTemplateTaskData::_wait_after_timeout() {
+bool TaskManager::BaseTemplateTaskData::_is_aborted() const {
+	return _aborted;
+}
+
+bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
 	auto curr_time = OS::get_singleton()->get_ticks_msec();
-	constexpr uint64_t ABORT_THRESHOLD_MS = 3000;
-	while (!is_done() && curr_time - OS::get_singleton()->get_ticks_msec() > ABORT_THRESHOLD_MS) {
+	constexpr uint64_t ABORT_THRESHOLD_MS = 7000;
+	while (!is_done() && OS::get_singleton()->get_ticks_msec() - curr_time < ABORT_THRESHOLD_MS) {
 		OS::get_singleton()->delay_usec(10000);
 	}
 	if (is_done()) {
@@ -73,13 +79,18 @@ bool TaskManager::BaseTemplateTaskData::_wait_after_timeout() {
 		return true;
 	} else {
 		WARN_PRINT("Couldn't wait for task completion!!!!!");
+		_aborted = true;
 	}
 	return false;
 }
 
 bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_no_progress) {
 	bool is_main_thread = Thread::is_main_thread();
+	_aborted = false;
 	if (is_canceled()) {
+		if (started && !runs_current_thread) {
+			_wait_after_cancel();
+		}
 		return true;
 	}
 	if (!started) {
@@ -89,12 +100,17 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 			while (!started && !is_canceled()) {
 				OS::get_singleton()->delay_usec(10000);
 				if (is_main_thread) {
-					TaskManager::get_singleton()->update_progress_bg();
+					if (TaskManager::get_singleton()->update_progress_bg()) {
+						break;
+					}
 				}
 			}
 		}
 	}
 	if (is_canceled()) {
+		if (started && !runs_current_thread) {
+			_wait_after_cancel();
+		}
 		return true;
 	}
 	if (runs_current_thread) {
@@ -123,9 +139,7 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 						ERR_PRINT("Task is taking too long to complete, cancelling...");
 						timed_out = true;
 						cancel();
-						_wait_after_timeout();
-						finish_progress();
-						return true;
+						break;
 					}
 				}
 			}
@@ -134,7 +148,11 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 				break;
 			}
 		}
-		wait_for_task_completion_internal();
+		if (!is_canceled()) {
+			wait_for_task_completion_internal();
+		} else {
+			_wait_after_cancel();
+		}
 	}
 	finish_progress();
 	return is_canceled();
@@ -147,6 +165,7 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 		return ERR_INVALID_PARAMETER;
 	}
 	Error err = OK;
+	bool erase = true;
 	{
 		std::shared_ptr<BaseTemplateTaskData> task;
 		bool already_waiting = false;
@@ -166,15 +185,24 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 			} else {
 				err = ERR_SKIP;
 			}
+			if (task->_is_aborted()) {
+				erase = false;
+			}
 		}
 	}
-	group_id_to_description.erase(p_group_id);
+	if (erase) {
+		group_id_to_description.erase(p_group_id);
+	}
 	return err;
 }
 
-void TaskManager::update_progress_bg() {
+bool TaskManager::update_progress_bg() {
 	bool main_loop_iterating = false;
+	bool canceled = false;
 	group_id_to_description.for_each_m([&](auto &v) {
+		if (v.second->is_canceled()) {
+			canceled = true;
+		}
 		if (v.second->is_progress_enabled() && v.second->is_started()) {
 			main_loop_iterating = true;
 			if (!v.second->is_waiting) {
@@ -185,6 +213,7 @@ void TaskManager::update_progress_bg() {
 	if (!main_loop_iterating && !Main::is_iterating() && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing()) {
 		Main::iteration();
 	}
+	return canceled;
 }
 
 TaskManager::DownloadTaskID TaskManager::add_download_task(const String &p_download_url, const String &p_save_path, bool silent) {
@@ -200,6 +229,9 @@ int TaskManager::DownloadTaskData::get_current_task_step_value() {
 }
 
 void TaskManager::DownloadTaskData::run_on_current_thread() {
+	if (canceled) {
+		return;
+	}
 	callback_data(nullptr);
 }
 

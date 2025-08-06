@@ -29,11 +29,13 @@ public:
 		bool auto_start = true;
 		bool progress_enabled = true;
 		bool timed_out = false;
+		bool _aborted = false;
 		Ref<EditorProgressGDDC> progress;
 
 		virtual void wait_for_task_completion_internal() = 0;
 		virtual void start_internal() = 0;
 		virtual void cancel_internal() {}
+		bool _wait_after_cancel();
 
 	public:
 		std::atomic<bool> is_waiting = false;
@@ -53,8 +55,7 @@ public:
 		bool update_progress(bool p_force_refresh = false);
 		bool _update_progress(bool p_force_refresh = false);
 		bool is_timed_out() const;
-
-		bool _wait_after_timeout();
+		bool _is_aborted() const;
 
 		virtual bool wait_for_completion(uint64_t timeout_s_no_progress = 0);
 
@@ -167,6 +168,9 @@ public:
 		}
 
 		void run_on_current_thread() override {
+			if (canceled) {
+				return;
+			}
 			uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
 			for (int i = 0; i < elements; i++) {
 				if (group_task_callback(i, userdata) || OS::get_singleton()->get_ticks_usec() - last_progress_upd > 50000) {
@@ -236,6 +240,9 @@ public:
 			cb_struct->run(p_data);
 		}
 		virtual void run_on_current_thread() override {
+			if (canceled) {
+				return;
+			}
 			run_internal(userdata);
 		}
 		virtual int get_current_task_step_value() override {
@@ -425,7 +432,7 @@ public:
 	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
 	bool is_current_task_timed_out();
-	void update_progress_bg();
+	bool update_progress_bg();
 	void cancel_all();
 };
 
