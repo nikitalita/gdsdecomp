@@ -1062,8 +1062,6 @@ void GLBExporterInstance::_silence_errors(bool p_silence) {
 	{                                                                                                       \
 		if (unlikely(canceled || TaskManager::get_singleton()->is_current_task_canceled())) {               \
 			Error err = TaskManager::get_singleton()->is_current_task_timed_out() ? ERR_TIMEOUT : ERR_SKIP; \
-			ERR_PRINT(add_errors_to_report(err, ""));                                                       \
-			_get_logged_error_messages();                                                                   \
 			return err;                                                                                     \
 		}                                                                                                   \
 	}
@@ -1676,10 +1674,9 @@ void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_a
 	Node *root = pair->first;
 	String dest_path = pair->second;
 	err = _export_instanced_scene(root, dest_path);
-	// print_line("Exporting scene " + dest_path + " is done");
 }
 
-struct GLTFSerializationTaskRunnerStruct : public TaskRunnerStruct {
+struct SingleExportTaskRunnerStruct : public TaskRunnerStruct {
 	String p_src_path;
 	bool done = false;
 	GLBExporterInstance *exporter = nullptr;
@@ -1732,53 +1729,15 @@ Error GLBExporterInstance::export_file(const String &p_dest_path, const String &
 
 		_set_stuff_from_instanced_scene(root);
 		Pair<Node *, String> pair = { root, p_dest_path };
-		auto start_time = OS::get_singleton()->get_ticks_msec();
-		GLTFSerializationTaskRunnerStruct task_runner;
+		SingleExportTaskRunnerStruct task_runner;
 		task_runner.exporter = this;
 		task_runner.p_src_path = p_src_path;
-		auto task_id = TaskManager::get_singleton()->add_task(&task_runner, &pair, "Exporting scene " + p_src_path, -1, true, true, project_recovery);
+		Error wait_err = TaskManager::get_singleton()->run_task(&task_runner, &pair, "Exporting scene " + p_src_path, -1, true, true, true);
 
-		bool going_to_abort = false;
-		bool aborted = false;
-		uint64_t last_update_time = 0;
-		uint64_t cancel_time = 0;
-		static constexpr uint64_t ABORT_TIMEOUT = 5000;
-		bool printed_abort_warning = false;
-		while (!TaskManager::get_singleton()->is_current_task_completed(task_id)) {
-			auto current_time = OS::get_singleton()->get_ticks_msec();
-			if (unlikely(going_to_abort)) {
-				if (current_time - cancel_time > ABORT_TIMEOUT) {
-					print_line("Exporting scene " + p_src_path + " was aborted after " + itos(current_time - start_time) + "ms");
-					aborted = true;
-					break;
-				} else {
-					if (!printed_abort_warning) {
-						print_line("Cancelling export in 5 seconds...");
-						printed_abort_warning = true;
-					}
-				}
-			} else if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || current_time - start_time > 60000)) {
-				if (!current_time - start_time > 60000) {
-					print_line("Exporting scene " + p_src_path + " is taking an unusually long time, cancelling...");
-				}
-				task_runner.cancel();
-				cancel_time = OS::get_singleton()->get_ticks_msec();
-				going_to_abort = true;
-			}
+		if (wait_err != OK) {
+			err = wait_err;
+		}
 
-			Main::iteration();
-			if (current_time - last_update_time > 200) {
-				TaskManager::get_singleton()->update_progress_bg();
-				last_update_time = current_time;
-			}
-			OS::get_singleton()->delay_usec(10);
-		}
-		auto end_time = OS::get_singleton()->get_ticks_msec();
-		if (!aborted) {
-			TaskManager::get_singleton()->wait_for_task_completion(task_id);
-		} else {
-			TaskManager::get_singleton()->cancel_all();
-		}
 		memdelete(root);
 	}
 	_unload_deps();
@@ -1996,6 +1955,7 @@ Error _check_cancelled() {
 	}
 	return OK;
 }
+
 struct BatchExportToken {
 	GLBExporterInstance instance;
 	Ref<ExportReport> report;
@@ -2024,7 +1984,7 @@ struct BatchExportToken {
 		bool non_gltf = ext != "glb" && ext != "gltf";
 		// Non-original path, save it under .assets, which won't be picked up for import by the godot editor
 		if (!to_text && !to_obj && non_gltf) {
-			new_path = new_path.replace("res://", "res://.assets/") + ".glb";
+			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
 			report->set_new_source_path(new_path);
 		}
 		output_dir = p_output_dir;
@@ -2169,6 +2129,11 @@ struct BatchExportToken {
 		// GLTF export can result in inaccurate models
 		// save it under .assets, which won't be picked up for import by the godot editor
 		report->set_error(err);
+		if (err == ERR_SKIP) {
+			report->set_message("Export cancelled.");
+		} else if (err == ERR_TIMEOUT) {
+			report->set_message("Export timed out.");
+		}
 		if (is_text_output() || is_obj_output()) {
 			if (err == OK) {
 				report->set_saved_path(p_dest_path);

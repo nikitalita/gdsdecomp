@@ -142,8 +142,6 @@ class GLBExporterInstance {
 	Error _get_return_error();
 	Node *_instantiate_scene(Ref<PackedScene> scene);
 
-	Error _export_text(const String &p_dest_path, const String &p_src_path);
-
 	void set_path_options(Dictionary &import_opts, const String &path, const String &prefix = "save_to_file");
 	String get_path_options(const Dictionary &import_opts);
 	void _initial_set(const String &p_src_path, Ref<ExportReport> p_report);
