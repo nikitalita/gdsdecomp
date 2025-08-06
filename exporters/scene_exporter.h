@@ -9,6 +9,7 @@ struct BatchExportToken;
 
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
+	friend struct BatchExportToken;
 
 	static Error export_file_to_obj(const String &res_path, const String &dest_path, Ref<ImportInfo> iinfo);
 
@@ -43,6 +44,7 @@ public:
 };
 
 class GLBExporterInstance {
+	friend struct BatchExportToken;
 	friend class SceneExporter;
 
 	bool is_batch_export = false;
@@ -165,8 +167,7 @@ public:
 	bool supports_multithread() const;
 	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 
-	void _batch_preload(BatchExportToken &token);
-	void _batch_export_instanced_scene(BatchExportToken &token);
+	Error _batch_export_instanced_scene(Node *root, const String &p_dest_path);
 
 	void set_batch_export(bool p_batch_export) { is_batch_export = p_batch_export; }
 };
