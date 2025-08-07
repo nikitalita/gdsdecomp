@@ -1810,6 +1810,41 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 	}
 	return OK;
 }
+namespace {
+struct ScriptCacheTask {
+	struct ScriptCacheTaskToken {
+		String orig_path;
+		bool is_gdscript;
+		Dictionary d;
+	};
+
+	String get_description(int i, ScriptCacheTaskToken *tokens) const {
+		return tokens[i].orig_path;
+	}
+
+	void do_task(int i, ScriptCacheTaskToken *tokens) {
+		Ref<Script> script = ResourceCompatLoader::custom_load(tokens[i].orig_path, "", ResourceInfo::LoadType::NON_GLOBAL_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		if (script.is_valid()) {
+			// {
+			// 	"base": &"Node",
+			// 	"class": &"AudioManager",
+			// 	"icon": "",
+			// 	"is_abstract": false,
+			// 	"is_tool": false,
+			// 	"language": &"GDScript",
+			// 	"path": "res://source/audio/audio_manager.gd"
+			// 	}
+			tokens[i].d.set("base", script->get_instance_base_type());
+			tokens[i].d.set("class", script->get_global_name());
+			tokens[i].d.set("icon", "");
+			tokens[i].d.set("is_abstract", script->is_abstract());
+			tokens[i].d.set("is_tool", script->is_tool());
+			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
+			tokens[i].d.set("path", tokens[i].orig_path);
+		}
+	}
+};
+} //namespace
 
 void GDRESettings::_ensure_script_cache_complete() {
 	Vector<String> filters = { "*.gd", "*.gdc", "*.gde" };
@@ -1819,7 +1854,7 @@ void GDRESettings::_ensure_script_cache_complete() {
 	// }
 	auto script_paths = get_file_list(filters);
 	int bytecode_revision = get_bytecode_revision();
-	GDRELogger::set_silent_errors(true);
+	Vector<ScriptCacheTask::ScriptCacheTaskToken> tokens;
 	for (auto &path : script_paths) {
 		auto ext = path.get_extension().to_lower();
 		bool bytecode_script = ext == "gdc" || ext == "gde";
@@ -1830,29 +1865,38 @@ void GDRESettings::_ensure_script_cache_complete() {
 		}
 		String orig_path = bytecode_script ? path.get_basename() + ".gd" : path;
 		if (!script_cache.has(orig_path)) {
-			Ref<Script> script = ResourceCompatLoader::custom_load(orig_path, "", ResourceInfo::LoadType::NON_GLOBAL_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
-			if (script.is_valid()) {
-				// {
-				// 	"base": &"Node",
-				// 	"class": &"AudioManager",
-				// 	"icon": "",
-				// 	"is_abstract": false,
-				// 	"is_tool": false,
-				// 	"language": &"GDScript",
-				// 	"path": "res://source/audio/audio_manager.gd"
-				// 	}
-				Dictionary d;
-				d.set("base", script->get_instance_base_type());
-				d.set("class", script->get_global_name());
-				d.set("icon", "");
-				d.set("is_abstract", script->is_abstract());
-				d.set("is_tool", script->is_tool());
-				d.set("language", is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
-				d.set("path", orig_path);
-				script_cache.insert(orig_path, d);
-			}
+			tokens.push_back(ScriptCacheTask::ScriptCacheTaskToken{ orig_path, is_gdscript, {} });
 		}
 	}
+	if (tokens.size() == 0) {
+		return;
+	}
+
+	GDRELogger::set_silent_errors(true);
+	ScriptCacheTask task;
+	// any less than this and it's faster to just do it in one thread
+	if (tokens.size() > 50) {
+		TaskManager::get_singleton()->run_multithreaded_group_task(
+				&task,
+				&ScriptCacheTask::do_task,
+				tokens.ptrw(),
+				tokens.size(),
+				&ScriptCacheTask::get_description,
+				"GDRESettings::load_pack_gdscript_cache",
+				RTR("Loading GDScript cache..."),
+				false);
+
+	} else {
+		for (int i = 0; i < tokens.size(); i++) {
+			task.do_task(i, tokens.ptrw());
+		}
+	}
+	for (int i = 0; i < tokens.size(); i++) {
+		if (!tokens[i].d.is_empty()) {
+			script_cache.insert(tokens[i].orig_path, tokens[i].d);
+		}
+	}
+
 	GDRELogger::set_silent_errors(false);
 }
 
