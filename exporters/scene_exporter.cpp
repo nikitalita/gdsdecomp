@@ -215,7 +215,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 				info.uid_in_uid_cache = info.uid != ResourceUID::INVALID_ID && ResourceUID::get_singleton()->has_id(info.uid);
 				auto uid_path = info.uid_in_uid_cache ? ResourceUID::get_singleton()->get_id_path(info.uid) : "";
 				info.orig_remap = GDRESettings::get_singleton()->get_mapped_path(info.dep);
-				if (info.uid_in_uid_cache && uid_path != info.dep) {
+				if (info.uid_in_uid_cache && uid_path != info.dep && uid_path != info.orig_remap) {
 					info.uid_in_uid_cache_matches_dep = false;
 					info.remap = GDRESettings::get_singleton()->get_mapped_path(uid_path);
 					if (!FileAccess::exists(info.remap)) {
@@ -1984,8 +1984,7 @@ struct BatchExportToken {
 		report = memnew(ExportReport(p_iinfo));
 		original_export_dest = p_iinfo->get_export_dest();
 		instance.set_batch_export(true);
-		String orignal_export_dest = p_iinfo->get_export_dest();
-		String new_path = orignal_export_dest;
+		String new_path = original_export_dest;
 		String ext = new_path.get_extension().to_lower();
 		bool to_text = ext == "escn" || ext == "tscn";
 		bool to_obj = ext == "obj";
@@ -2329,7 +2328,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		token->batch_preload();
 		// Don't load more than the current number of tasks being processed
 		while (BatchExportToken::in_progress >= default_threads) {
-			if (TaskManager::get_singleton()->update_progress_bg()) {
+			if (TaskManager::get_singleton()->update_progress_bg(true)) {
 				break;
 			}
 			OS::get_singleton()->delay_usec(10000);
@@ -2339,7 +2338,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		// 2) checking if the task was cancelled
 		// 3) allowing the main loop to iterate so that the command queue is flushed
 		// Without flushing the command queue, GLTFDocument::append_from_scene will hang
-		if (TaskManager::get_singleton()->update_progress_bg()) {
+		if (TaskManager::get_singleton()->update_progress_bg(true)) {
 			break;
 		}
 	}
