@@ -398,8 +398,11 @@ func confirm():
 func _on_save_pck_dialog_file_selected(path: String) -> void:
 	$SavePckDialog.hide()
 	if (not _validate()):
-		print("Validation failed")
-		close()
+		popup_error_box("Validation failed", "Error")
+		return
+	self.call_on_next_process(func(): _do_save(path))
+
+func _do_save(path: String):
 	var file_map: Dictionary[String, String] = {}
 	var pck_files = FILE_TREE.get_checked_files()
 	var ext = path.get_extension()

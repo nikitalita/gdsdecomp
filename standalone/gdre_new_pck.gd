@@ -184,6 +184,9 @@ func _on_save_pressed() -> void:
 
 func _on_save_dialog_file_selected(path: String) -> void:
 	SAVE_DIALOG.hide()
+	self.call_on_next_process(func(): _do_save(path))
+
+func _do_save(path: String):
 	# remove extra extension that macos adds
 	var ext = path.get_extension()
 	var dot_ext = "." + ext
