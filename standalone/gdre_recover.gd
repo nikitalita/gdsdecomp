@@ -148,10 +148,11 @@ func _export_scene(file: String, output_dir: String, dir_structure: DirStructure
 	if export_type == ExportSceneType.GLB:
 		if ext != "glb" and ext != "gltf":
 			ext = "glb"
-	else:
-		if export_type == ExportSceneType.TSCN or not is_instance_valid(iinfo):
-			if res_ext == "scn":
-				ext = "tscn"
+	elif export_type == ExportSceneType.TSCN:
+		ext = "tscn"
+	else: # AUTO
+		if not is_instance_valid(iinfo):
+			ext = "tscn"
 
 
 	var export_dest = get_output_file_name(source_file, output_dir, dir_structure, ext, rel_base)
@@ -193,6 +194,9 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			if not report:
 				errs.append("Failed to export resource: " + file)
 			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
+				if (report.error == ERR_SKIP):
+					errs.append("Exporting cancelled: " + file + "\n" + report.message + "\n" + GDREGlobals.parse_log_errors(report.get_error_messages()))
+					continue
 				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n" + GDREGlobals.parse_log_errors(report.get_error_messages()))
 		elif _ret:
 			var iinfo: ImportInfo = ImportInfo.copy(_ret)
@@ -231,7 +235,14 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 	return errs
 
 func _on_export_resources_confirmed(output_dir: String):
-	self.call_on_next_process(func(): _do_export(output_dir))
+	self.call_on_next_process(self.call_on_next_process.bind(self._do_export.bind(output_dir)))
+
+
+func _show_error_or_success(errs: PackedStringArray, success_message: String):
+	if errs.size() > 0:
+		popup_error_box("\n".join(errs), "Error")
+	else:
+		popup_error_box(success_message, "Success")
 
 func _do_export(output_dir: String):
 	var files: PackedStringArray = []
@@ -247,16 +258,13 @@ func _do_export(output_dir: String):
 
 	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
 
-	if errs.size() > 0:
-		popup_error_box("\n".join(errs), "Error")
-	else:
-		popup_error_box("Successfully exported resources", "Success")
+	self.call_on_next_process(self.call_on_next_process.bind(self._show_error_or_success.bind(errs, "Successfully exported resources")))
 
 
 
 
 func _on_extract_resources_dir_selected(path: String):
-	self.call_on_next_process(func(): _do_extract(path))
+	self.call_on_next_process(self.call_on_next_process.bind(self._do_extract.bind(path)))
 
 func _do_extract(path: String):
 	var options = %ExtractResDirDialog.get_selected_options()
@@ -276,10 +284,7 @@ func _do_extract(path: String):
 		var err = extract_file(file, path, dir_structure, rel_base)
 		if not err.is_empty():
 			errs.append(err)
-	if errs.size() > 0:
-		popup_error_box("\n".join(errs), "Error")
-	else:
-		popup_error_box("Successfully extracted resources", "Success")
+	self.call_on_next_process(self.call_on_next_process.bind(self._show_error_or_success.bind(errs, "Successfully extracted resources")))
 
 func _determine_rel_base_dir(selected_items: Array) -> String:
 	var base_dirs: Dictionary = {}
