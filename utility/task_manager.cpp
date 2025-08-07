@@ -41,21 +41,36 @@ bool TaskManager::BaseTemplateTaskData::is_progress_enabled() const {
 	return progress_enabled;
 }
 
-bool TaskManager::BaseTemplateTaskData::_update_progress(bool p_force_refresh) {
-	if (!progress_enabled) {
-		if (TaskManager::get_singleton()->update_progress_bg()) {
-			cancel();
-			return true;
-		}
+bool TaskManager::BaseTemplateTaskData::wait_update_progress(bool p_force_refresh) {
+	bool bg_ret = false;
+	if (!dont_update_progress_bg) {
+		// We only want to force a redraw for the other tasks if the progress is not enabled, since `update_progress` can force the redraw itself
+		bool force_redraw_bg = !progress_enabled ? p_force_refresh : false;
+		// This will not update this task's progress, as `is_waiting` is true here.
+		bg_ret = TaskManager::get_singleton()->update_progress_bg(force_redraw_bg);
 	}
-	return update_progress(p_force_refresh);
+	update_progress(p_force_refresh);
+	// Only use the cancel value if the progress is not enabled
+	if (!progress_enabled && bg_ret && !is_canceled()) {
+		cancel();
+	}
+
+	return is_canceled();
+}
+
+String TaskManager::BaseTemplateTaskData::_get_task_description() {
+	if (is_canceled()) {
+		return "Cancelling...";
+	}
+	return get_current_task_step_description();
 }
 
 // returns true if the task was cancelled before completion
 bool TaskManager::BaseTemplateTaskData::update_progress(bool p_force_refresh) {
-	if (progress_enabled && !is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
-		cancel();
-		return true;
+	if (progress_enabled && progress.is_valid() && progress->step(_get_task_description(), get_current_task_step_value(), p_force_refresh)) {
+		if (!is_canceled()) {
+			cancel();
+		}
 	}
 
 	return is_canceled();
@@ -69,19 +84,17 @@ bool TaskManager::BaseTemplateTaskData::_is_aborted() const {
 }
 
 bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
+	bool is_main_thread = Thread::is_main_thread();
 	if (progress_enabled && progress.is_valid()) {
-		progress->step("Cancelling...", -1, true);
 		progress->set_indeterminate(true);
+		wait_update_progress(is_main_thread);
 	}
 
 	auto curr_time = OS::get_singleton()->get_ticks_msec();
 	constexpr uint64_t ABORT_THRESHOLD_MS = 10000;
-	bool is_safe_to_update = Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing();
 	while (!is_done() && OS::get_singleton()->get_ticks_msec() - curr_time < ABORT_THRESHOLD_MS) {
 		OS::get_singleton()->delay_usec(10000);
-		if (TaskManager::get_singleton() && is_safe_to_update) {
-			TaskManager::get_singleton()->update_progress_bg();
-		}
+		wait_update_progress(is_main_thread);
 	}
 	if (is_done()) {
 		wait_for_task_completion_internal();
@@ -108,8 +121,8 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 		} else {
 			while (!started && !is_canceled()) {
 				OS::get_singleton()->delay_usec(10000);
-				if (is_main_thread) {
-					if (TaskManager::get_singleton()->update_progress_bg()) {
+				if (!dont_update_progress_bg) {
+					if (TaskManager::get_singleton()->update_progress_bg(is_main_thread)) {
 						break;
 					}
 				}
@@ -152,7 +165,7 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 					}
 				}
 			}
-			_update_progress(is_main_thread);
+			wait_update_progress(is_main_thread);
 			if (is_canceled()) {
 				break;
 			}
@@ -205,18 +218,18 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 	return err;
 }
 
-bool TaskManager::update_progress_bg() {
+bool TaskManager::update_progress_bg(bool p_force_refresh) {
 	bool main_loop_iterating = false;
 	bool canceled = false;
 	group_id_to_description.for_each_m([&](auto &v) {
-		if (v.second->is_canceled()) {
-			canceled = true;
-		}
 		if (v.second->is_progress_enabled() && v.second->is_started()) {
 			main_loop_iterating = true;
 			if (!v.second->is_waiting) {
-				v.second->update_progress();
+				v.second->update_progress(p_force_refresh);
 			}
+		}
+		if (v.second->is_canceled()) {
+			canceled = true;
 		}
 	});
 	if (!main_loop_iterating && !Main::is_iterating() && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing()) {
@@ -272,6 +285,7 @@ void TaskManager::DownloadTaskData::start_internal() {
 
 TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool silent) :
 		download_url(p_download_url), save_path(p_save_path), silent(silent) {
+	dont_update_progress_bg = true;
 	auto_start = false;
 }
 

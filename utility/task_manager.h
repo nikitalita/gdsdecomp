@@ -23,6 +23,7 @@ public:
 
 	class BaseTemplateTaskData {
 	protected:
+		bool dont_update_progress_bg = false;
 		bool canceled = false;
 		bool runs_current_thread = false;
 		bool started = false;
@@ -36,6 +37,8 @@ public:
 		virtual void start_internal() = 0;
 		virtual void cancel_internal() {}
 		bool _wait_after_cancel();
+		String _get_task_description();
+		bool wait_update_progress(bool p_force_refresh = false);
 
 	public:
 		std::atomic<bool> is_waiting = false;
@@ -53,7 +56,6 @@ public:
 		bool is_progress_enabled() const;
 		// returns true if the task was cancelled before completion
 		bool update_progress(bool p_force_refresh = false);
-		bool _update_progress(bool p_force_refresh = false);
 		bool is_timed_out() const;
 		bool _is_aborted() const;
 
@@ -432,7 +434,7 @@ public:
 	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
 	bool is_current_task_timed_out();
-	bool update_progress_bg();
+	bool update_progress_bg(bool p_force_refresh = false);
 	void cancel_all();
 };
 
