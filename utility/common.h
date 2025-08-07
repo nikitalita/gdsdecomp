@@ -3,6 +3,7 @@
 #include "core/variant/variant.h"
 #include "macros.h"
 
+#include <core/io/dir_access.h>
 #include <core/object/class_db.h>
 #include <core/object/object.h>
 #include <core/variant/typed_array.h>
@@ -31,6 +32,7 @@ Error rimraf(const String &dir);
 bool dir_is_empty(const String &dir);
 Error touch_file(const String &path);
 bool store_var_compat(Ref<FileAccess> f, const Variant &p_var, int ver_major, bool p_full_objects = false);
+String get_full_path(const String &p_path, DirAccess::AccessType p_access);
 
 String num_scientific(double p_num);
 String num_scientific(float p_num);

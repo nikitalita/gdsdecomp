@@ -646,8 +646,9 @@ func test_decomp(fname):
 
 func export_imports(output_dir:String, files: PackedStringArray):
 	var importer:ImportExporter = ImportExporter.new()
-	importer.export_imports(output_dir, files)
+	var ret = importer.export_imports(output_dir, files)
 	importer.reset()
+	return ret
 
 
 func dump_files(output_dir:String, files: PackedStringArray, ignore_checksum_errors: bool = false) -> int:
@@ -943,7 +944,9 @@ func recovery(  input_files:PackedStringArray,
 		secs_taken = (end_time - start_time) / 1000
 		print("Extraction operation complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 		return
-	export_imports(output_dir, files)
+	err = export_imports(output_dir, files)
+	if err != OK:
+		print("Error: failed to export imports: " + GDREGlobals.get_recent_error_string())
 	end_time = Time.get_ticks_msec()
 	secs_taken = (end_time - start_time) / 1000
 	print("Recovery complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])

@@ -1115,6 +1115,46 @@ Ref<FileAccess> gdre::open_encrypted_v3(const String &p_path, int p_mode, const 
 	return fae;
 }
 
+String gdre::get_full_path(const String &p_path, DirAccess::AccessType p_access) {
+	String path = p_path.simplify_path();
+	bool is_dir = DirAccess::exists(path);
+	if (!(is_dir || FileAccess::exists(path))) {
+		return path;
+	}
+	Ref<DirAccess> da = DirAccess::create(p_access);
+	ERR_FAIL_COND_V_MSG(da.is_null(), path, "Failed to create DirAccess.");
+	ERR_FAIL_COND_V_MSG(da->change_dir(p_path.get_base_dir()) != OK, path, "Failed to change directory.");
+	String real_base_dir = da->get_current_dir();
+	da->list_dir_begin();
+	String file = da->get_next();
+	Vector<String> potential_paths;
+	String new_path;
+	while (file != "") {
+		if (file == p_path.get_file()) {
+			new_path = real_base_dir.path_join(file);
+			break;
+		} else if (file.to_lower() == p_path.get_file().to_lower()) {
+			potential_paths.push_back(real_base_dir.path_join(file));
+		}
+		file = da->get_next();
+	}
+	if (new_path.is_empty()) {
+		if (potential_paths.size() >= 1) {
+			if (potential_paths.size() > 1) {
+				WARN_PRINT(vformat("Multiple files found for %s, using %s", p_path, potential_paths[0]));
+			}
+			new_path = potential_paths[0];
+		}
+	}
+	if (!new_path.is_empty()) {
+		if (is_dir) {
+			return DirAccess::get_full_path(new_path, p_access);
+		}
+		return new_path;
+	}
+	return path;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
