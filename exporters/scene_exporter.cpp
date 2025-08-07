@@ -1763,7 +1763,7 @@ Error GLBExporterInstance::export_file(const String &p_dest_path, const String &
 }
 
 Error GLBExporterInstance::_get_return_error() {
-	bool set_all_externals = external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
+	bool set_all_externals = !updating_import_info || external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
 	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
