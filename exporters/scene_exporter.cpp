@@ -2289,11 +2289,17 @@ struct BatchExportTokenSort {
 
 Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes) {
 	Vector<std::shared_ptr<BatchExportToken>> tokens;
-	tokens.resize(scenes.size());
 	HashMap<String, int> export_dest_to_iinfo;
-	for (int i = 0; i < tokens.size(); i++) {
-		tokens.write[i] = std::make_shared<BatchExportToken>(output_dir, scenes[i]);
-		auto &token = tokens.write[i];
+	Vector<Ref<ExportReport>> reports;
+	for (int i = 0; i < scenes.size(); i++) {
+		Ref<ExportReport> report = ResourceExporter::_check_for_existing_resources(scenes[i]);
+		if (report.is_valid()) {
+			reports.push_back(report);
+			continue;
+		}
+
+		tokens.push_back(std::make_shared<BatchExportToken>(output_dir, scenes[i]));
+		auto &token = tokens[tokens.size() - 1];
 		token->instance.image_path_to_data_hash = Dictionary();
 		String export_dest = token->get_export_dest();
 		if (export_dest_to_iinfo.has(export_dest)) {
@@ -2351,7 +2357,6 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	Error err = TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
 
-	Vector<Ref<ExportReport>> reports;
 	for (auto &token : tokens) {
 		token->post_export(err);
 		reports.push_back(token->report);

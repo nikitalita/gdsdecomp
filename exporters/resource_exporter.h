@@ -23,6 +23,8 @@ public:
 	virtual bool supports_multithread() const;
 	virtual bool supports_nonpack_export() const;
 	virtual String get_default_export_extension(const String &res_path) const;
+
+	static Ref<ExportReport> _check_for_existing_resources(const Ref<ImportInfo> &iinfo);
 };
 
 class Exporter : public Object {

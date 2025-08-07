@@ -323,20 +323,8 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 		return;
 	}
 	auto &token = tokens[i];
-	bool has_file = false;
-	auto dest_files = token.iinfo->get_dest_files();
-	for (const String &dest : dest_files) {
-		if (GDRESettings::get_singleton()->has_path_loaded(dest)) {
-			has_file = true;
-			break;
-		}
-	}
-	if (!has_file) {
-		token.report.instantiate(token.iinfo);
-		token.report->set_error(ERR_FILE_NOT_FOUND);
-		token.report->set_message("No existing resources found for this import");
-		token.report->append_message_detail({ "Possibles:" });
-		token.report->append_message_detail(dest_files);
+	token.report = ResourceExporter::_check_for_existing_resources(token.iinfo);
+	if (token.report.is_valid()) {
 		last_completed++;
 		return;
 	}
