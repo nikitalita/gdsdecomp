@@ -1348,7 +1348,9 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	// The reason for this threshold is that the translations may contain keys that are not currently in use in the project.
 	bool resave = missing_keys > (default_messages.size() * threshold);
 	if (resave) {
-		iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
+		if (!export_dest.begins_with("res://.assets/")) {
+			iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
+		}
 	}
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
 	err = gdre::ensure_dir(output_path.get_base_dir());
