@@ -185,26 +185,31 @@ void GDREProgressDialog::Task::set_indeterminate(bool p_indeterminate) {
 
 bool GDREProgressDialog::Task::update() {
 	ERR_FAIL_COND_V(!initialized, false);
-	if (!should_redraw(OS::get_singleton()->get_ticks_usec())) {
-		return false;
+	auto curr_time_us = OS::get_singleton()->get_ticks_usec();
+	if (!should_redraw(curr_time_us)) {
+		if (!(vb && curr_time_us - last_progress_tick >= 50000 &&
+					(progress->get_value() != current_step.step ||
+							state->get_text() != current_step.state ||
+							indeterminate != progress->is_indeterminate()))) {
+			return false;
+		}
 	}
 	if (!vb) {
 		return false;
 	}
-	bool was_forced = force_next_redraw;
 	force_next_redraw = false;
 
 	if (indeterminate != progress->is_indeterminate()) {
 		progress->set_indeterminate(indeterminate);
-		was_forced = true;
 	}
 	if (!indeterminate) {
-		if (!was_forced && state->get_text() == current_step.state && progress->get_value() == current_step.step) {
-			return false;
+		if (progress->get_value() != current_step.step) {
+			progress->set_value(current_step.step);
 		}
-		progress->set_value(current_step.step);
 	}
-	state->set_text(current_step.state);
+	if (state->get_text() != current_step.state) {
+		state->set_text(current_step.state);
+	}
 	last_progress_tick = OS::get_singleton()->get_ticks_usec();
 	return true;
 }
