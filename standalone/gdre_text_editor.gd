@@ -191,7 +191,12 @@ func set_viewer_text(text: String):
 		var truncated_text = ""
 		for line in lines:
 			if line.length() > 12000:
-				truncated_text += line.left(12000) + " <TRUNCATED...>\n"
+				var truncated_suffix = " <TRUNCATED...>"
+				var truncated_line = line.left(12000)
+				# prevent highlighter from breaking on the truncated line
+				if (truncated_line.count("\"") % 2 != 0):
+					truncated_suffix += "\""
+				truncated_text += truncated_line + truncated_suffix + "\n"
 			else:
 				truncated_text += line + "\n"
 		text = truncated_text
