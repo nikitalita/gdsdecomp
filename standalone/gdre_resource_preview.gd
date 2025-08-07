@@ -161,14 +161,18 @@ func load_scene(path):
 	return true
 
 
+func can_preview_scene():
+	return SceneExporter.get_minimum_godot_ver_supported() >= GDRESettings.get_ver_major()
+
 func text_preview_check_button(path):
 	var ext = path.get_extension().to_lower()
 	if (is_mesh(ext)):
 		%SwitchViewButton.text = SWITCH_TO_MESH_TEXT
 		%SwitchViewButton.visible = true
 	elif (is_scene(ext)):
-		%SwitchViewButton.text = SWITCH_TO_SCENE_TEXT
-		%SwitchViewButton.visible = true
+		if (can_preview_scene()):
+			%SwitchViewButton.text = SWITCH_TO_SCENE_TEXT
+			%SwitchViewButton.visible = true
 
 
 func handle_error_opening(path):
@@ -201,7 +205,7 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		error_opening = not load_texture(path)
 	elif (is_mesh(ext)):
 		error_opening = not load_mesh(path)
-	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext) and info.get("ver_major", 0) >= 4):
+	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext) and can_preview_scene()):
 		error_opening = not load_scene(path)
 	elif (try_text_preview(path)):
 		return

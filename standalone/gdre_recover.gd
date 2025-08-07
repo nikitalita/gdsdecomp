@@ -360,7 +360,7 @@ func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: Di
 	file_dialog.add_option(DIR_STRUCTURE_OPTION_NAME, DIR_STRUCTURE_NAMES, int(default_dir_structure))
 	if not include_scene:
 		return
-	var include_glb = GDRESettings.get_ver_major() >= GDREGlobals.MINIMUM_GLB_VERSION
+	var include_glb = GDRESettings.get_ver_major() >= SceneExporter.get_minimum_godot_ver_supported()
 	var scene_default = options.get(EXPORT_SCENE_OPTION_NAME, int(ExportSceneType.AUTO))
 	#file_dialog.set_option_default(0, int(default_dir_structure))
 	var glb_opts = EXPORT_SCENE_TYPE_NAMES.duplicate()

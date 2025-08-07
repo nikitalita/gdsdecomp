@@ -2222,6 +2222,7 @@ String SceneExporter::get_default_export_extension(const String &res_path) const
 
 void SceneExporter::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file_with_options", "out_path", "res_path", "options"), &SceneExporter::export_file_with_options);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_minimum_godot_ver_supported"), &SceneExporter::get_minimum_godot_ver_supported);
 }
 
 uint64_t GLBExporterInstance::_get_error_count() {

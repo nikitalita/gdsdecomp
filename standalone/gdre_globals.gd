@@ -58,5 +58,3 @@ static func parse_and_print_log_errors(errors: PackedStringArray) -> String:
 		print(error)
 	return parse_log_errors(errors)
 
-
-const MINIMUM_GLB_VERSION: int = 4

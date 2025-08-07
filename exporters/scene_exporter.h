@@ -47,6 +47,10 @@ public:
 
 	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
 	Vector<Ref<ExportReport>> batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes);
+
+	static constexpr int get_minimum_godot_ver_supported() {
+		return MINIMUM_GODOT_VER_SUPPORTED;
+	}
 };
 
 class GLBExporterInstance {
