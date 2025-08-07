@@ -48,6 +48,7 @@ func show_win():
 	self.set_position(center)
 	SHOW_PREVIEW_BUTTON.set_pressed_no_signal(true)
 	SHOW_PREVIEW_BUTTON.toggled.emit(true)
+	set_exclusive(true)
 	self.popup_centered()
 
 static var void_func: Callable = func(): return
@@ -230,6 +231,9 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 	return errs
 
 func _on_export_resources_confirmed(output_dir: String):
+	self.call_on_next_process(func(): _do_export(output_dir))
+
+func _do_export(output_dir: String):
 	var files: PackedStringArray = []
 	var errs: PackedStringArray = []
 	for item: TreeItem in prev_items:
@@ -252,6 +256,9 @@ func _on_export_resources_confirmed(output_dir: String):
 
 
 func _on_extract_resources_dir_selected(path: String):
+	self.call_on_next_process(func(): _do_extract(path))
+
+func _do_extract(path: String):
 	var options = %ExtractResDirDialog.get_selected_options()
 	var dir_structure = options.get(DIR_STRUCTURE_OPTION_NAME, DirStructure.RELATIVE_HIERARCHICAL)
 	var files: PackedStringArray = []

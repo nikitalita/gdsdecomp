@@ -104,6 +104,7 @@ func show_window(window: Window):
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 	var center = (safe_area.position + safe_area.size - NEW_PCK_WINDOW.size) / 2
 	window.set_position(center)
+	window.set_exclusive(true)
 	window.show()
 
 

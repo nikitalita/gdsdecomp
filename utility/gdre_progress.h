@@ -34,6 +34,7 @@
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 #include "scene/gui/label.h"
+#include "scene/gui/panel_container.h"
 #include "scene/gui/popup.h"
 #include "scene/gui/progress_bar.h"
 
@@ -102,13 +103,17 @@ class GDREProgressDialog : public PopupPanel {
 	TaskMap tasks;
 
 	VBoxContainer *main = nullptr;
+	PanelContainer *center_panel = nullptr;
 
 	LocalVector<Window *> host_windows;
 
 	static GDREProgressDialog *singleton;
 	void _popup();
+	void _hide();
 	void _post_add_task(bool p_can_cancel);
 	bool _process_removals();
+	void _reparent_and_show();
+	void _parent_visible_changed(Window *p_window);
 
 	void _cancel_pressed();
 

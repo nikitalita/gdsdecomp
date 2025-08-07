@@ -32,6 +32,7 @@
 
 #include "core/os/os.h"
 #include "main/main.h"
+#include "scene/gui/file_dialog.h"
 #include "servers/display_server.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_standalone.h"
@@ -215,6 +216,50 @@ bool GDREProgressDialog::Task::update() {
 }
 
 void GDREProgressDialog::_popup() {
+	// 	if (GodotREEditorStandalone::get_singleton()) {
+	// 		GodotREEditorStandalone::get_singleton()->set_process_input(true);
+	// 	}
+	// #ifdef TOOLS_ENABLED
+	// 	else if (EditorNode::get_singleton()) {
+	// 		EditorNode::get_singleton()->set_process_input(true);
+	// 	}
+	// #endif
+
+	// 	// Disable all other windows to prevent interaction with them.
+	// 	for (Window *w : host_windows) {
+	// 		w->set_process_mode(PROCESS_MODE_DISABLED);
+	// 	}
+
+	if (is_ready()) {
+		_reparent_and_show();
+	} else {
+		callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	}
+}
+
+void GDREProgressDialog::_parent_visible_changed(Window *p_window) {
+	if (!Thread::is_main_thread()) {
+		callable_mp(this, &GDREProgressDialog::_parent_visible_changed).call_deferred(p_window);
+	} else {
+		if (p_window) {
+			p_window->disconnect(SceneStringName(visibility_changed), callable_mp(this, &GDREProgressDialog::_parent_visible_changed).bind(p_window));
+		}
+		if (is_visible()) {
+			_popup();
+		}
+	}
+}
+
+void GDREProgressDialog::_reparent_and_show() {
+	Window *current_window = SceneTree::get_singleton()->get_root()->get_last_exclusive_window();
+	ERR_FAIL_NULL(current_window);
+
+	FileDialog *file_dialog = Object::cast_to<FileDialog>(current_window);
+	if (file_dialog && file_dialog->get_use_native_dialog()) {
+		WARN_PRINT("File dialog is using native dialog, so we can't show progress dialog, attempting to show it again...");
+		callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	}
+
 	Size2 ms = main->get_combined_minimum_size();
 	ms.width = MAX(500 * GDRESettings::get_singleton()->get_auto_display_scale(), ms.width);
 
@@ -225,41 +270,53 @@ void GDREProgressDialog::_popup() {
 	main->set_offset(SIDE_RIGHT, -style->get_margin(SIDE_RIGHT));
 	main->set_offset(SIDE_TOP, style->get_margin(SIDE_TOP));
 	main->set_offset(SIDE_BOTTOM, -style->get_margin(SIDE_BOTTOM));
+
 	if (is_inside_tree()) {
+		if (this != current_window && get_parent() != current_window) {
+			reparent(current_window);
+		}
+	}
+
+	if (!is_inside_tree()) {
+		popup_exclusive_centered(current_window, ms);
+	} else {
 		Rect2i adjust = _popup_adjust_rect();
 		if (adjust != Rect2i()) {
 			set_position(adjust.position);
 			set_size(adjust.size);
 		}
 		popup_centered(ms);
-	} else {
-		for (Window *window : host_windows) {
-			if (window->has_focus()) {
-				if (!is_inside_tree()) {
-					popup_exclusive_centered(window, ms);
-				} else if (get_parent() != window) {
-					reparent(window);
-					popup_centered(ms);
-				}
-				return;
-			}
-		}
-		// No host window found, use main window.
-		if (GodotREEditorStandalone::get_singleton()) {
-			if (!is_inside_tree()) {
-				popup_exclusive_centered(GodotREEditorStandalone::get_singleton(), ms);
-			} else {
-				reparent(GodotREEditorStandalone::get_singleton()->get_parent_window());
-				popup_centered(ms);
-			}
-		} else {
-#ifdef TOOLS_ENABLED
-			EditorInterface::get_singleton()->popup_dialog_centered(this, ms);
-#endif
-		}
 	}
-	set_process_input(true);
+	auto callable = callable_mp(this, &GDREProgressDialog::_parent_visible_changed).bind(current_window);
+	if (!current_window->is_connected(SceneStringName(visibility_changed), callable)) {
+		current_window->connect(SceneStringName(visibility_changed), callable);
+	}
+
+	// if (!is_inside_tree()) {
+	// 	callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	// 	return;
+	// }
+	// Ensures that events are properly released before the dialog blocks input.
+	// bool window_is_input_disabled = current_window->is_input_disabled();
+	// current_window->set_disable_input(!window_is_input_disabled);
+	// current_window->set_disable_input(window_is_input_disabled);
+
 	show();
+}
+
+void GDREProgressDialog::_hide() {
+	hide();
+	// 	if (GodotREEditorStandalone::get_singleton()) {
+	// 		GodotREEditorStandalone::get_singleton()->set_process_input(false);
+	// 	}
+	// #ifdef TOOLS_ENABLED
+	// 	else if (EditorNode::get_singleton()) {
+	// 		EditorNode::get_singleton()->set_process_input(false);
+	// 	}
+	// #endif
+	// 	for (Window *w : host_windows) {
+	// 		w->set_process_mode(PROCESS_MODE_INHERIT);
+	// 	}
 }
 
 void GDREProgressDialog::_post_add_task(bool p_can_cancel) {
@@ -353,7 +410,8 @@ void GDREProgressDialog::main_thread_update() {
 		return;
 	}
 	is_updating = true;
-	bool should_update = _process_removals();
+	bool removed = _process_removals();
+	bool should_update = removed;
 	bool p_can_cancel = false;
 	bool initialized = false;
 	bool should_force_redraw = false;
@@ -379,8 +437,8 @@ void GDREProgressDialog::main_thread_update() {
 	if (should_update || initialized) {
 		last_tick_updated = last_tick;
 		if (size == 0) {
-			hide();
-		} else if (initialized) {
+			_hide();
+		} else if (initialized || removed) {
 			_post_add_task(p_can_cancel);
 		} else {
 			_update_ui();
@@ -423,11 +481,13 @@ GDREProgressDialog::GDREProgressDialog() {
 	cancel->set_text(RTR("Cancel"));
 	cancel_hb->add_spacer();
 	cancel->connect(SceneStringName(pressed), callable_mp(this, &GDREProgressDialog::_cancel_pressed));
-	set_process(true);
+	// set_process(true);
 }
 
 GDREProgressDialog::~GDREProgressDialog() {
-	singleton = nullptr;
+	if (singleton == this) {
+		singleton = nullptr;
+	}
 }
 
 String EditorProgressGDDC::get_task() {

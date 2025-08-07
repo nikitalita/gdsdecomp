@@ -1,6 +1,8 @@
 #include "gdre_standalone.h"
+#include "core/object/callable_method_pointer.h"
 #include "gdre_version.gen.h"
 #include "scene/gui/rich_text_label.h"
+#include "scene/main/node.h"
 #include "utility/gdre_audio_stream_preview.h"
 #include "utility/gdre_logger.h"
 
@@ -101,6 +103,14 @@ void GodotREEditorStandalone::progress_end_task(const String &p_task) {
 }
 
 void GodotREEditorStandalone::_notification(int p_notification) {
+	if (p_notification == NOTIFICATION_ENTER_TREE) {
+		auto window = get_parent_window();
+		if (window) {
+			// progress_dialog->reparent(window);
+			window->set_theme(get_theme());
+			callable_mp((Node *)progress_dialog, &Node::reparent).call_deferred(window, false);
+		}
+	}
 	if (p_notification == NOTIFICATION_PROCESS) {
 		if (log_message_buffer.size() > 0 && OS::get_singleton()->get_ticks_msec() - last_log_message_time > 200) {
 			write_log_message("");

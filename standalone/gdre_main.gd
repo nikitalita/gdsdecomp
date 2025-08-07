@@ -1,7 +1,5 @@
 extends GodotREEditorStandalone
 
-var ver_major = 0
-var ver_minor = 0
 var scripts_only = false
 var config: ConfigFile = null
 var last_error = ""
@@ -182,8 +180,8 @@ func close_recover_file_dialog():
 	if _file_dialog:
 		last_dir = _file_dialog.current_dir
 		_file_dialog.hide()
-		_file_dialog.set_transient(false)
-		_file_dialog.set_exclusive(false)
+		# _file_dialog.set_transient(false)
+		# _file_dialog.set_exclusive(false)
 
 
 func launch_recovery_window(paths: PackedStringArray):
@@ -573,7 +571,9 @@ func _ready():
 	# If CLI arguments were passed in, just quit
 	var args = get_sanitized_args()
 	if handle_cli(args):
-		get_tree().quit()
+		deferred_calls.push_back(func():
+			get_tree().quit()
+		)
 		return
 	var show_disclaimer = should_show_disclaimer()
 	show_disclaimer = show_disclaimer and len(args) == 0
@@ -865,8 +865,8 @@ func recovery(  input_files:PackedStringArray,
 		return
 
 	print("Successfully loaded PCK!")
-	ver_major = GDRESettings.get_ver_major()
-	ver_minor = GDRESettings.get_ver_minor()
+	var ver_major = GDRESettings.get_ver_major()
+	var ver_minor = GDRESettings.get_ver_minor()
 	var version:String = GDRESettings.get_version_string()
 	print("Version: " + version)
 	var files: PackedStringArray = []
@@ -1379,38 +1379,43 @@ func handle_cli(args: PackedStringArray) -> bool:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
 		return true
-	if prepop.size() > 0:
-		var start_time = Time.get_ticks_msec()
-		GDRESettings.prepop_plugin_cache(prepop)
-		var end_time = Time.get_ticks_msec()
-		var secs_taken = (end_time - start_time) / 1000
-		print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
-	elif compile_files.size() > 0:
-		compile(compile_files, bytecode_version, output_dir)
-	elif decompile_files.size() > 0:
-		decompile(decompile_files, bytecode_version, output_dir, enc_key)
-	elif not input_file.is_empty():
-		recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, csharp_assembly)
-		GDRESettings.unload_project()
-		close_log()
-	elif not input_extract_file.is_empty():
-		recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes)
-		GDRESettings.unload_project()
-		close_log()
-	elif txt_to_bin.is_empty() == false:
-		text_to_bin(txt_to_bin, output_dir)
-	elif bin_to_txt.is_empty() == false:
-		bin_to_text(bin_to_txt, output_dir)
-	elif not pck_create_dir.is_empty():
-		create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
-	elif not pck_patch_pck.is_empty():
-		patch_pck(pck_patch_pck, output_dir, patch_map, includes, excludes, enc_key, embed_pck)
-		GDRESettings.unload_project()
-	elif set_setting:
-		return false # don't quit
-	else:
-		print_usage()
-		print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
+
+	if set_setting and main_cmds.size() == 0:
+		return false
+	deferred_calls.push_back(func():
+		if prepop.size() > 0:
+			var start_time = Time.get_ticks_msec()
+			GDRESettings.prepop_plugin_cache(prepop)
+			var end_time = Time.get_ticks_msec()
+			var secs_taken = (end_time - start_time) / 1000
+			print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
+		elif compile_files.size() > 0:
+			compile(compile_files, bytecode_version, output_dir)
+		elif decompile_files.size() > 0:
+			decompile(decompile_files, bytecode_version, output_dir, enc_key)
+		elif not input_file.is_empty():
+			print("Recovery started")
+			print("input_file: ", input_file)
+			recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, csharp_assembly)
+			GDRESettings.unload_project()
+			close_log()
+		elif not input_extract_file.is_empty():
+			recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes)
+			GDRESettings.unload_project()
+			close_log()
+		elif txt_to_bin.is_empty() == false:
+			text_to_bin(txt_to_bin, output_dir)
+		elif bin_to_txt.is_empty() == false:
+			bin_to_text(bin_to_txt, output_dir)
+		elif not pck_create_dir.is_empty():
+			create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
+		elif not pck_patch_pck.is_empty():
+			patch_pck(pck_patch_pck, output_dir, patch_map, includes, excludes, enc_key, embed_pck)
+			GDRESettings.unload_project()
+		else:
+			print_usage()
+			print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
+	)
 	return true
 
 func _start_patch_pck(dest_pck: String, pack_info: PackInfo, embed_pck: String = ""):

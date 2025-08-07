@@ -55,6 +55,7 @@ func show_win():
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 	var center = (safe_area.position + safe_area.size - self.size) / 2
 	self.set_position(center)
+	set_exclusive(true)
 	self.show()
 
 func hide_win():
