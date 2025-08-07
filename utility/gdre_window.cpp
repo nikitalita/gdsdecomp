@@ -14,12 +14,11 @@ GDREWindow::~GDREWindow() {
 }
 
 void GDREWindow::_notification(int p_what) {
-	if (p_what == NOTIFICATION_PROCESS) {
-		if (!next_process_calls.is_empty()) {
-			for (const auto &callable : next_process_calls) {
-				callable.call();
-			}
-			next_process_calls.clear();
+	if (!next_process_calls.is_empty()) {
+		auto calls = next_process_calls;
+		next_process_calls.clear();
+		for (const auto &callable : calls) {
+			callable.call();
 		}
 	}
 }
@@ -48,10 +47,11 @@ GDREAcceptDialogBase::~GDREAcceptDialogBase() {
 void GDREAcceptDialogBase::_notification(int p_what) {
 	if (p_what == NOTIFICATION_PROCESS) {
 		if (!next_process_calls.is_empty()) {
-			for (const auto &callable : next_process_calls) {
+			auto calls = next_process_calls;
+			next_process_calls.clear();
+			for (const auto &callable : calls) {
 				callable.call();
 			}
-			next_process_calls.clear();
 		}
 	}
 }
