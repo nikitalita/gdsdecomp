@@ -1,4 +1,4 @@
-extends Window
+extends GDREWindow
 
 const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")

@@ -24,7 +24,7 @@
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_bvmre"]
 
-[node name="GdreRecover" type="Window"]
+[node name="GdreRecover" type="GDREWindow"]
 oversampling_override = 1.0
 title = "Project Recovery"
 position = Vector2i(0, 24)

@@ -52,7 +52,7 @@ bg_color = Color(0.196078, 0.231373, 0.309804, 1)
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_jnjsh"]
 
-[node name="GdreExportReport" type="Window"]
+[node name="GdreExportReport" type="GDREWindow"]
 oversampling_override = 1.0
 position = Vector2i(0, 24)
 size = Vector2i(1152, 800)

@@ -1,5 +1,5 @@
 class_name GDRENewPck
-extends Window
+extends GDREAcceptDialogBase
 
 const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
@@ -32,7 +32,7 @@ var DESKTOP_DIR = OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP)
 
 var ver_info = Engine.get_version_info()
 # TODO: make this use something dynamic (GDRESettings?)
-const PCK_VERSION_DEFAULT = 2 
+const PCK_VERSION_DEFAULT = 2
 var DEFAULT_VER_MAJOR = ver_info["major"]
 var DEFAULT_VER_MINOR = ver_info["minor"]
 var DEFAULT_VER_PATCH = ver_info["patch"]
@@ -188,7 +188,7 @@ func _on_save_dialog_file_selected(path: String) -> void:
 	var dot_ext = "." + ext
 	if (path.ends_with(dot_ext + dot_ext)):
 		path = path.trim_suffix(dot_ext + dot_ext) + dot_ext
-		
+
 	emit_signal("save_pck_requested", path)
 	# var creator = PckCreator.new()
 	# creator.encrypt = ENCRYPT.is_pressed()
@@ -203,7 +203,7 @@ func _on_save_dialog_file_selected(path: String) -> void:
 	# var excludes = EXCLUDES.text.split(",")
 	# creator.pck_create(path, DIRECTORY.text, includes, excludes)
 	# close()
-	
+
 
 
 func _on_close_requested() -> void:

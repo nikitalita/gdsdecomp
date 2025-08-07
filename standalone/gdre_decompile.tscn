@@ -5,7 +5,7 @@
 [ext_resource type="Texture2D" uid="uid://70wmkccoq7gp" path="res://gdre_icons/gdre_GuiTabMenuHl.svg" id="4_hil8r"]
 [ext_resource type="Script" uid="uid://d3gw3xp1peanv" path="res://gdre_text_editor.gd" id="4_p6tj5"]
 
-[node name="GdreDecompile" type="AcceptDialog"]
+[node name="GdreDecompile" type="GDREAcceptDialogBase"]
 oversampling_override = 1.0
 title = "Decompile GDScript"
 initial_position = 1

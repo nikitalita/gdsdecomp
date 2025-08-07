@@ -18,7 +18,7 @@ outline_size = 1
 [sub_resource type="LabelSettings" id="LabelSettings_twpvv"]
 font_size = 18
 
-[node name="GDREConfigDialog" type="Window"]
+[node name="GDREConfigDialog" type="GDREWindow"]
 oversampling_override = 1.0
 title = "Settings"
 position = Vector2i(0, 24)

@@ -1,5 +1,5 @@
 class_name GDRERecoverDialog
-extends Window
+extends GDREWindow
 
 
 var FILE_TREE = null

@@ -1,5 +1,5 @@
 class_name GDREConfigDialog
-extends Window
+extends GDREWindow
 
 signal config_changed()
 

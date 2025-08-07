@@ -1,5 +1,5 @@
 class_name GDREChildDialog
-extends AcceptDialog
+extends GDREAcceptDialogBase
 
 var ERROR_DIALOG: AcceptDialog = null
 var CONFIRM_DIALOG: ConfirmationDialog = null
@@ -99,13 +99,13 @@ func _init_error_dialog():
 	if (ERROR_DIALOG == null):
 		ERROR_DIALOG = AcceptDialog.new()
 	if (not ERROR_DIALOG.is_inside_tree()):
-		self.add_child(ERROR_DIALOG)	
+		self.add_child(ERROR_DIALOG)
 	pass
 func _init_confirm_dialog():
 	if (CONFIRM_DIALOG == null):
 		CONFIRM_DIALOG = ConfirmationDialog.new()
 	if (not CONFIRM_DIALOG.is_inside_tree()):
-		self.add_child(CONFIRM_DIALOG)	
+		self.add_child(CONFIRM_DIALOG)
 	pass
 
 func _parent_ready():

@@ -13,7 +13,7 @@
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_vbu8o"]
 
-[node name="GdreNewPck" type="AcceptDialog"]
+[node name="GdreNewPck" type="GDREAcceptDialogBase"]
 auto_translate_mode = 1
 title = "Create New Pck..."
 position = Vector2i(0, 36)

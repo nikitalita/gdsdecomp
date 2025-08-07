@@ -44,6 +44,7 @@
 #include "utility/common.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
+#include "utility/gdre_window.h"
 #include "utility/github_source.h"
 #include "utility/gitlab_source.h"
 #include "utility/glob.h"
@@ -316,6 +317,9 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ScriptDecompDialog>();
 
 #endif
+
+	ClassDB::register_class<GDREWindow>();
+	ClassDB::register_class<GDREAcceptDialogBase>();
 
 	ClassDB::register_class<SemVer>();
 	ClassDB::register_class<GodotVer>();
