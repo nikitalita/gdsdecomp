@@ -1928,13 +1928,14 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 	String ext = out_path.get_extension().to_lower();
 	if (ext != "escn" && ext != "tscn") {
 		int ver_major = get_ver_major(res_path);
-		if (ver_major < 4) {
+		if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
 			report->set_message("Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 			report->set_error(ERR_UNAVAILABLE);
 			return report;
 		}
 	}
-	if (ext != "glb" && ext != "gltf") {
+	String opath = out_path;
+	if (ext == "escn" || ext == "tscn" || ext == "obj") {
 		Error err = export_file_to_non_glb(res_path, out_path, nullptr);
 		report->set_error(err);
 		if (err != OK) {
@@ -1944,10 +1945,14 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 			report->set_saved_path(out_path);
 		}
 		return report;
+	} else if (ext != "glb" && ext != "gltf") {
+		WARN_PRINT("Attempting to export to non-GLTF format, saving to " + out_path.get_basename() + ".glb");
+		opath = out_path.get_basename() + ".glb";
 	}
-	Error err = instance.export_file(out_path, res_path, report);
+	Error err = instance.export_file(opath, res_path, report);
+	report->set_error(err);
 	if (err == OK) {
-		report->set_saved_path(out_path);
+		report->set_saved_path(opath);
 	}
 	return report;
 }
