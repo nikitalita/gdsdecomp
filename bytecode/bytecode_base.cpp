@@ -2473,7 +2473,7 @@ String GDScriptDecomp::get_global_token_text(GlobalToken p_token_id) {
 			return "export";
 		} break;
 		case G_TK_PR_SETGET: {
-			return " setget";
+			return "setget";
 		} break;
 		case G_TK_PR_CONST: {
 			return "const";

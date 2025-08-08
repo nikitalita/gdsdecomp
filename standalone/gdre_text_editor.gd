@@ -58,11 +58,17 @@ enum HighlightType {
 	CSHARP
 }
 
+func _add_regions_to_gdscript_highlighter():
+	# Not working, if it ends in a newline, the color wraps to the next line
+	gdscript_highlighter.add_color_region("@", " ", Color("#ffb373"))
+	gdscript_highlighter.add_color_region("$", " ", Color("#63c259"))
+
 @export var gdscript_highlighter: CodeHighlighter = preload("res://gdre_code_highlighter.tres"):
 	set(val):
 		if CODE_VIEWER.syntax_highlighter == gdscript_highlighter:
 			CODE_VIEWER.syntax_highlighter = val
 		gdscript_highlighter = val
+		# _add_regions_to_gdscript_highlighter()
 	get:
 		return gdscript_highlighter
 @export var gdresource_highlighter: CodeHighlighter = preload("res://gdre_gdresource_highlighter.tres"):
@@ -112,6 +118,8 @@ var find_replace_bar: GDREFindReplaceBar = null
 
 func _init():
 	CODE_VIEWER = self
+
+	# _add_regions_to_gdscript_highlighter()
 	last_editable = self.editable
 
 	var code_opts_box = Control.new()
@@ -282,7 +290,7 @@ func load_text_string(text):
 	return true
 
 func is_shader(ext, p_type = ""):
-	if (ext == "shader" || ext == "gdshader"):
+	if (ext == "shader" || ext == "gdshader" || ext == "gdshaderinc"):
 		return true
 	return false
 
@@ -380,12 +388,17 @@ func load_path(path, highlight_type: HighlightType = HighlightType.UNKNOWN):
 		set_viewer_text(text)
 	return true
 
+
+func set_common_code_viewer_props(is_code: bool):
+	CODE_VIEWER.line_folding = is_code
+	CODE_VIEWER.gutters_draw_fold_gutter = is_code
+	CODE_VIEWER.gutters_draw_line_numbers = is_code
+	CODE_VIEWER.auto_brace_completion_highlight_matching = is_code
+
+
 func set_shader_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdshader_highlighter
-	CODE_VIEWER.line_folding = true
-	CODE_VIEWER.gutters_draw_fold_gutter = true
-	CODE_VIEWER.gutters_draw_line_numbers = true
-	CODE_VIEWER.auto_brace_completion_highlight_matching = true
+	set_common_code_viewer_props(true)
 	CODE_VIEWER.highlight_all_occurrences = true
 	CODE_VIEWER.highlight_current_line = true
 	CODE_VIEWER.draw_control_chars = true
@@ -395,8 +408,7 @@ func set_shader_viewer_props():
 
 func set_csharp_viewer_props():
 	CODE_VIEWER.syntax_highlighter = csharp_highlighter
-	CODE_VIEWER.gutters_draw_line_numbers = true
-	CODE_VIEWER.auto_brace_completion_highlight_matching = true
+	set_common_code_viewer_props(true)
 	CODE_VIEWER.highlight_all_occurrences = true
 	CODE_VIEWER.highlight_current_line = true
 	CODE_VIEWER.draw_control_chars = true
@@ -406,10 +418,7 @@ func set_csharp_viewer_props():
 
 func set_code_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdscript_highlighter
-	CODE_VIEWER.line_folding = true
-	CODE_VIEWER.gutters_draw_fold_gutter = true
-	CODE_VIEWER.gutters_draw_line_numbers = true
-	CODE_VIEWER.auto_brace_completion_highlight_matching = true
+	set_common_code_viewer_props(true)
 	CODE_VIEWER.highlight_all_occurrences = true
 	CODE_VIEWER.highlight_current_line = true
 	CODE_VIEWER.draw_control_chars = true
@@ -419,10 +428,7 @@ func set_code_viewer_props():
 
 func set_json_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdscript_highlighter
-	CODE_VIEWER.line_folding = true
-	CODE_VIEWER.gutters_draw_fold_gutter = true
-	CODE_VIEWER.gutters_draw_line_numbers = true
-	CODE_VIEWER.auto_brace_completion_highlight_matching = true
+	set_common_code_viewer_props(true)
 	CODE_VIEWER.highlight_all_occurrences = true
 	CODE_VIEWER.highlight_current_line = true
 	CODE_VIEWER.draw_control_chars = true
@@ -432,10 +438,7 @@ func set_json_viewer_props():
 
 func set_resource_viewer_props():
 	CODE_VIEWER.syntax_highlighter = gdresource_highlighter
-	CODE_VIEWER.line_folding = false
-	CODE_VIEWER.gutters_draw_fold_gutter = false
-	CODE_VIEWER.gutters_draw_line_numbers = false
-	CODE_VIEWER.auto_brace_completion_highlight_matching = false
+	set_common_code_viewer_props(false)
 	CODE_VIEWER.highlight_all_occurrences = true
 	CODE_VIEWER.highlight_current_line = true
 	CODE_VIEWER.draw_control_chars = false
@@ -445,10 +448,7 @@ func set_resource_viewer_props():
 
 func set_text_viewer_props():
 	CODE_VIEWER.syntax_highlighter = null
-	CODE_VIEWER.line_folding = false
-	CODE_VIEWER.gutters_draw_fold_gutter = false
-	CODE_VIEWER.gutters_draw_line_numbers = false
-	CODE_VIEWER.auto_brace_completion_highlight_matching = false
+	set_common_code_viewer_props(false)
 	CODE_VIEWER.highlight_all_occurrences = false
 	CODE_VIEWER.highlight_current_line = false
 	CODE_VIEWER.draw_control_chars = false
