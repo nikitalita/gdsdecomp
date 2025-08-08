@@ -100,18 +100,41 @@ func load_texture(path):
 	%TextureView.visible = true
 	return true
 
-func pop_resource_info(path: String):
-	if ResourceCompatLoader.handles_resource(path, ""):
-		var info = ResourceCompatLoader.get_resource_info(path)
-		var type = info["type"]
-		var format = info["format_type"]
-		%ResourceInfo.text = RESOURCE_INFO_TEXT_FORMAT % [path, type, format]
-		if (info["ver_major"] <= 2):
-			var iinfo = GDRESettings.get_import_info_by_dest(path)
-			if iinfo:
-				%ResourceInfo.text += "\n" + iinfo.to_string()
+func pop_resource_info(path: String, info: Dictionary):
+	var info_text = ""
+	if not info.is_empty():
+		var type = info.get("type", "")
+		var format = info.get("format_type", "")
+		info_text = RESOURCE_INFO_TEXT_FORMAT % [path, type, format]
+		var ver_major = info.get("ver_major", 0)
+		if format == "binary" and ver_major > 0:
+			var ver_minor = info.get("ver_minor", 0)
+			info_text += "\n[b]Engine Version:[/b] " + str(ver_major) + "." + str(ver_minor)
+			if ver_major <= 2:
+				# Showing V2 import info in the info box because there's no other way to look at the v2 import metadata in binary resources
+				var iinfo: ImportInfo = GDRESettings.get_import_info_by_dest(path)
+				if iinfo and iinfo.get_iitype() == ImportInfo.V2 and iinfo.is_import():
+					info_text += "\n"
+					if (iinfo.get_additional_sources().size() > 0):
+						info_text += "[b]Source Files:[/b] [" + "\n"
+						for source in PackedStringArray([iinfo.source_file]) + iinfo.get_additional_sources():
+							info_text += "\t" + source + "\n"
+						info_text += "]\n"
+					else:
+						info_text += "[b]Source File:[/b] "
+						info_text += iinfo.source_file + "\n"
+					info_text += "[b]Importer:[/b] "
+					info_text += iinfo.get_importer() + "\n"
+					if (iinfo.params.size() > 0):
+						info_text += "[b]Import Options:[/b] {" + "\n"
+						for key in iinfo.params.keys():
+							info_text += "\t" + str(key) + ": " + str(iinfo.params[key]) + "\n"
+						info_text += "}\n"
+					else:
+						info_text += "[b]Import Options:[/b] {}\n"
 	else:
-		%ResourceInfo.text = "[b]Path:[/b] " + path
+		info_text = "[b]Path:[/b] " + path
+	%ResourceInfo.text = info_text
 
 func is_mesh(ext):
 	return ext == "mesh"
@@ -207,10 +230,13 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		error_opening = not load_mesh(path)
 	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext) and can_preview_scene()):
 		error_opening = not load_scene(path)
-	elif (try_text_preview(path)):
-		return
 	else:
-		not_supported = true
+		var type = %TextView.recognize(path)
+		if type == -1:
+			not_supported = true
+		else:
+			error_opening = not try_text_preview(path, type)
+
 	if (not_supported):
 		%TextView.load_text_string("Not a supported resource")
 		%TextView.visible = true
@@ -220,19 +246,16 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		%TextView.visible = true
 		%ResourceInfo.text = path
 	if (%ResourceInfo.text == ""):
-		pop_resource_info(path)
+		pop_resource_info(path, info)
 
 
-func try_text_preview(path):
-	var ext = path.get_extension().to_lower()
-	text_preview_check_button(path)
-	var type = %TextView.recognize(path)
+func try_text_preview(path, type):
 	if type == -1:
 		return false
-	else:
-		if not %TextView.load_path(path, type):
-			return false
-		%TextView.visible = true
+	if not %TextView.load_path(path, type):
+		return false
+	text_preview_check_button(path)
+	%TextView.visible = true
 	return true
 
 	# TODO: handle binary resources
@@ -379,7 +402,7 @@ func _on_switch_view_button_pressed() -> void:
 			%SwitchViewButton.visible = true
 		SWITCH_TO_TEXT_TEXT:
 			if %TextView.current_path != path:
-				try_text_preview(path)
+				try_text_preview(path, %TextView.recognize(path))
 			else:
 				%TextView.visible = true
 			text_preview_check_button(path)
