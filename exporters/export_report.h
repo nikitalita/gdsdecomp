@@ -85,11 +85,11 @@ public:
 	void set_extra_info(const Dictionary &p_extra_info) { extra_info = p_extra_info; }
 	Dictionary get_extra_info() const { return extra_info; }
 
-	String get_path() const { return import_info->get_path(); }
+	String get_path() const { return import_info.is_valid() ? import_info->get_path() : ""; }
 
 	ExportReport() {}
 	ExportReport(Ref<ImportInfo> p_import_info) :
-			import_info(p_import_info), source_path(p_import_info->get_source_file()), new_source_path(import_info->get_export_dest()) {}
+			import_info(p_import_info), source_path(import_info.is_valid() ? p_import_info->get_source_file() : ""), new_source_path(import_info.is_valid() ? p_import_info->get_export_dest() : "") {}
 };
 
 VARIANT_ENUM_CAST(ExportReport::MetadataStatus);
