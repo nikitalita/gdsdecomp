@@ -58,6 +58,7 @@ class GLBExporterInstance {
 	friend class SceneExporter;
 
 	bool is_batch_export = false;
+	bool force_no_update_import_params = false;
 	// options, set during constructor
 	bool project_recovery = false;
 	bool replace_shader_materials = false;
@@ -178,4 +179,6 @@ public:
 	Error _batch_export_instanced_scene(Node *root, const String &p_dest_path);
 
 	void set_batch_export(bool p_batch_export) { is_batch_export = p_batch_export; }
+
+	void set_force_no_update_import_params(bool p_force_no_update_import_params) { force_no_update_import_params = p_force_no_update_import_params; }
 };

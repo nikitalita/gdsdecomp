@@ -775,7 +775,7 @@ void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRepor
 	after_4_1 = (ver_major > 4 || (ver_major == 4 && ver_minor > 1));
 	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
 	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
-	updating_import_info = iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+	updating_import_info = !force_no_update_import_params && iinfo.is_valid() && iinfo->get_ver_major() >= 4;
 }
 
 Error GLBExporterInstance::_load_deps() {
@@ -1922,20 +1922,56 @@ GLBExporterInstance::GLBExporterInstance(String p_output_dir, Dictionary curr_op
 	use_double_precision = options.get("Exporter/Scene/GLTF/use_double_precision", false);
 }
 
+constexpr bool _check_unsupported(int ver_major, bool is_text_output) {
+	return ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED && !is_text_output;
+}
+
+inline void _set_unsupported(Ref<ExportReport> report, int ver_major, bool is_obj_output) {
+	report->set_error(ERR_UNAVAILABLE);
+	report->set_unsupported_format_type(vformat("v%d.x scene", ver_major));
+	report->set_message(vformat("Scene export for engine version %d with %s output is not currently supported\nTry saving to .tscn instead.", ver_major, is_obj_output ? "obj" : "GLTF/GLB"));
+}
+
 Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options) {
-	Ref<ExportReport> report = memnew(ExportReport());
-	GLBExporterInstance instance(out_path.get_base_dir(), options, false);
-	String ext = out_path.get_extension().to_lower();
-	if (ext != "escn" && ext != "tscn") {
-		int ver_major = get_ver_major(res_path);
-		if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
-			report->set_message("Scene export for engine version " + itos(ver_major) + " is not currently supported.");
-			report->set_error(ERR_UNAVAILABLE);
-			return report;
+	Ref<ImportInfo> iinfo;
+	Ref<ExportReport> report;
+	if (GDRESettings::get_singleton()->is_pack_loaded()) {
+		auto found = GDRESettings::get_singleton()->get_import_info_by_dest(res_path);
+		if (found.is_valid()) {
+			iinfo = ImportInfo::copy(found);
 		}
 	}
+	if (!iinfo.is_valid()) {
+		bool is_resource = ResourceCompatLoader::handles_resource(res_path);
+		if (is_resource) {
+			// NOTE: If we start supporting non-resource scenes, we need to update this.
+			iinfo = ImportInfo::load_from_file(res_path);
+		}
+		if (!iinfo.is_valid()) {
+			report = memnew(ExportReport());
+			report->set_source_path(res_path);
+			if (!is_resource) {
+				report->set_message(res_path + " is not a valid resource.");
+				report->set_error(ERR_INVALID_PARAMETER);
+			} else {
+				report->set_message("Failed to load resource " + res_path + " for export");
+				report->set_error(ERR_FILE_CANT_READ);
+			}
+			ERR_FAIL_V_MSG(report, report->get_message());
+		}
+	}
+	report = memnew(ExportReport(iinfo));
+	String ext = out_path.get_extension().to_lower();
+	bool to_text = ext == "escn" || ext == "tscn";
+	bool to_obj = ext == "obj";
+	bool non_gltf = ext != "glb" && ext != "gltf";
+	int ver_major = iinfo->get_ver_major();
+	if (_check_unsupported(ver_major, to_text)) {
+		_set_unsupported(report, ver_major, to_obj);
+		return report;
+	}
 	String opath = out_path;
-	if (ext == "escn" || ext == "tscn" || ext == "obj") {
+	if (to_text || to_obj) {
 		Error err = export_file_to_non_glb(res_path, out_path, nullptr);
 		report->set_error(err);
 		if (err != OK) {
@@ -1945,10 +1981,12 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 			report->set_saved_path(out_path);
 		}
 		return report;
-	} else if (ext != "glb" && ext != "gltf") {
-		WARN_PRINT("Attempting to export to non-GLTF format, saving to " + out_path.get_basename() + ".glb");
+	} else if (non_gltf) {
 		opath = out_path.get_basename() + ".glb";
+		WARN_PRINT("Attempting to export to non-GLTF format, saving to " + opath);
 	}
+	GLBExporterInstance instance(out_path.get_base_dir(), options, false);
+	instance.set_force_no_update_import_params(true);
 	Error err = instance.export_file(opath, res_path, report);
 	report->set_error(err);
 	if (err == OK) {
@@ -1979,6 +2017,7 @@ struct BatchExportToken {
 	String output_dir;
 	bool preload_done = false;
 	bool done = false;
+	int ver_major = 0;
 	Error err = OK;
 	size_t scene_size = 0;
 	BatchExportToken() :
@@ -1986,6 +2025,7 @@ struct BatchExportToken {
 
 	BatchExportToken(const String &p_output_dir, const Ref<ImportInfo> &p_iinfo) :
 			instance(p_output_dir, {}, true) {
+		ERR_FAIL_COND_MSG(!p_iinfo.is_valid(), "Import info is invalid");
 		report = memnew(ExportReport(p_iinfo));
 		original_export_dest = p_iinfo->get_export_dest();
 		instance.set_batch_export(true);
@@ -1999,6 +2039,7 @@ struct BatchExportToken {
 			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
 			report->set_new_source_path(new_path);
 		}
+		ver_major = p_iinfo->get_ver_major();
 		scene_size = FileAccess::get_size(p_iinfo->get_path());
 		output_dir = p_output_dir;
 		p_src_path = p_iinfo->get_path();
@@ -2076,8 +2117,19 @@ struct BatchExportToken {
 		_scene = nullptr;
 	}
 
+	bool check_unsupported() {
+		return _check_unsupported(ver_major, is_text_output());
+	}
+
 	// scene loading and scene instancing has to be done on the main thread to avoid deadlocks and crashes
 	void batch_preload() {
+		if (check_unsupported()) {
+			err = ERR_UNAVAILABLE;
+			_set_unsupported(report, ver_major, is_obj_output());
+			preload_done = true;
+			return;
+		}
+
 		if (is_text_output() || is_obj_output()) {
 			preload_done = true;
 			return;
@@ -2089,12 +2141,6 @@ struct BatchExportToken {
 			return;
 		}
 		instance._initial_set(p_src_path, report);
-		if (instance.ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
-			err = ERR_UNAVAILABLE;
-			report->set_error(err);
-			preload_done = true;
-			return;
-		}
 
 		err = gdre::ensure_dir(p_dest_path.get_base_dir());
 		report->set_error(err);
@@ -2291,15 +2337,23 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	Vector<std::shared_ptr<BatchExportToken>> tokens;
 	HashMap<String, int> export_dest_to_iinfo;
 	Vector<Ref<ExportReport>> reports;
-	for (int i = 0; i < scenes.size(); i++) {
-		Ref<ExportReport> report = ResourceExporter::_check_for_existing_resources(scenes[i]);
+	for (auto &scene : scenes) {
+		Ref<ExportReport> report = ResourceExporter::_check_for_existing_resources(scene);
 		if (report.is_valid()) {
 			reports.push_back(report);
 			continue;
 		}
+		String ext = scene->get_export_dest().get_extension().to_lower();
+		if (_check_unsupported(scene->get_ver_major(), ext == "escn" || ext == "tscn")) {
+			report = memnew(ExportReport(scene));
+			_set_unsupported(report, scene->get_ver_major(), ext == "obj");
+			reports.push_back(report);
+			continue;
+		}
 
-		tokens.push_back(std::make_shared<BatchExportToken>(output_dir, scenes[i]));
-		auto &token = tokens[tokens.size() - 1];
+		tokens.push_back(std::make_shared<BatchExportToken>(output_dir, scene));
+		int idx = tokens.size() - 1;
+		auto &token = tokens[idx];
 		token->instance.image_path_to_data_hash = Dictionary();
 		String export_dest = token->get_export_dest();
 		if (export_dest_to_iinfo.has(export_dest)) {
@@ -2314,13 +2368,17 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			if (token->original_export_dest.get_file() != token->get_export_dest().get_file()) {
 				token->append_original_ext_to_export_dest();
 			} else {
-				token->set_export_dest(export_dest.get_basename() + "_" + itos(i) + "." + export_dest.get_extension());
+				token->set_export_dest(export_dest.get_basename() + "_" + itos(idx) + "." + export_dest.get_extension());
 			}
 		} else {
-			export_dest_to_iinfo[export_dest] = i;
+			export_dest_to_iinfo[export_dest] = idx;
 		}
 	}
 	tokens.sort_custom<BatchExportTokenSort>();
+
+	if (tokens.is_empty()) {
+		return reports;
+	}
 
 	BatchExportToken::in_progress = 0;
 	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
