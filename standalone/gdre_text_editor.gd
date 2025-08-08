@@ -231,6 +231,8 @@ func set_viewer_text(text: String):
 	CODE_VIEWER.text = text
 	CODE_VIEWER.scroll_vertical = 0
 	CODE_VIEWER.scroll_horizontal = 0
+	if find_replace_bar.visible:
+		find_replace_bar.refresh_search()
 
 func load_code(path, override_bytecode_revision: int = 0) -> bool:
 	var code_text = ""

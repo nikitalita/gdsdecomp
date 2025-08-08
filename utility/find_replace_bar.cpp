@@ -666,11 +666,15 @@ void GDREFindReplaceBar::set_text_edit(CodeEdit *p_text_editor) {
 
 Ref<Shortcut> get_or_create_shortcut(const String &p_action_name, const String &p_default_label, Key p_default_keycode, Key macos_override_keycode = Key::NONE){
 	Ref<Shortcut> shortcut = memnew(Shortcut);
-
-	auto events = InputMap::get_singleton()->action_get_events(p_action_name);
 	Array arr;
-	for (const auto &event : *events) {
-		arr.push_back(event);
+
+	if (InputMap::get_singleton()->has_action(p_action_name)) {
+		auto events = InputMap::get_singleton()->action_get_events(p_action_name);
+		if (events) {
+			for (const auto &event : *events) {
+				arr.push_back(event);
+			}
+		}
 	}
 	shortcut->set_name(p_default_label);
 	if (arr.size() == 0) {
@@ -779,6 +783,12 @@ void GDREFindReplaceBar::_update_panel_background() {
 	}
 }
 
+void GDREFindReplaceBar::refresh_search() {
+	preserve_cursor = true;
+	_search_text_changed(get_search_text());
+	preserve_cursor = false;
+}
+
 void GDREFindReplaceBar::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("search_next"), &GDREFindReplaceBar::search_next);
 	ClassDB::bind_method(D_METHOD("search_prev"), &GDREFindReplaceBar::search_prev);
@@ -807,6 +817,8 @@ void GDREFindReplaceBar::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_show_panel_background", "p_show"), &GDREFindReplaceBar::set_show_panel_background);
 	ClassDB::bind_method(D_METHOD("is_showing_panel_background"), &GDREFindReplaceBar::is_showing_panel_background);
+
+	ClassDB::bind_method(D_METHOD("refresh_search"), &GDREFindReplaceBar::refresh_search);
 
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_panel_background"), "set_show_panel_background", "is_showing_panel_background");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "replace_enabled"), "set_replace_enabled", "is_replace_enabled");

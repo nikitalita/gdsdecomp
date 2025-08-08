@@ -118,5 +118,7 @@ public:
 	void set_show_panel_background(bool p_show);
 	bool is_showing_panel_background() const;
 
+	void refresh_search();
+
 	GDREFindReplaceBar();
 };
