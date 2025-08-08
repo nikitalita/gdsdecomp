@@ -1155,6 +1155,32 @@ String gdre::get_full_path(const String &p_path, DirAccess::AccessType p_access)
 	return path;
 }
 
+bool gdre::directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files_or_dirs) {
+	for (auto &file_or_dir : p_files_or_dirs) {
+		if (FileAccess::exists(p_dir_path.path_join(file_or_dir)) || DirAccess::exists(p_dir_path.path_join(file_or_dir))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+Vector<String> gdre::get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute) {
+	Vector<String> ret = DirAccess::get_files_at(p_dir);
+	for (auto &wc : wildcards) {
+		for (int i = ret.size() - 1; i >= 0; i--) {
+			if (!ret[i].get_file().matchn(wc)) {
+				ret.remove_at(i);
+			}
+		}
+	}
+	if (absolute) {
+		for (int i = 0; i < ret.size(); i++) {
+			ret.write[i] = p_dir.path_join(ret[i]);
+		}
+	}
+	return ret;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 

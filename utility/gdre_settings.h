@@ -217,6 +217,8 @@ private:
 	void _set_shader_globals();
 	void _clear_shader_globals();
 
+	Vector<String> sort_and_validate_pck_files(const Vector<String> &p_paths);
+
 protected:
 	static void _bind_methods();
 

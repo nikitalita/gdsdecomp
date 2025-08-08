@@ -6,6 +6,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
+#include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/io/file_access_encrypted.h"
 #include "core/object/class_db.h"
@@ -441,7 +442,7 @@ Error GDRESettings::unload_dir() {
 	project_path = "";
 	return OK;
 }
-
+namespace {
 bool is_macho(const String &p_path) {
 	Ref<FileAccess> fa = FileAccess::open(p_path, FileAccess::READ);
 	if (fa.is_null()) {
@@ -467,21 +468,17 @@ bool is_macho(const String &p_path) {
 	return false;
 }
 
-Error check_embedded(String &p_path) {
+bool is_executable(const String &p_path) {
 	String extension = p_path.get_extension().to_lower();
-	if (extension != "pck" && extension != "apk" && extension != "zip") {
-		// check if it's a mach-o executable
-
-		if (GDREPackedSource::is_embeddable_executable(p_path)) {
-			if (!GDREPackedSource::has_embedded_pck(p_path)) {
-				return ERR_FILE_UNRECOGNIZED;
-			}
-		} else if (is_macho(p_path)) {
-			return ERR_FILE_UNRECOGNIZED;
-		}
+	if (extension == "exe") {
+		return true;
 	}
-	return OK;
+	if (extension == "pck" || extension == "apk" || extension == "zip" || extension == "ipa") {
+		return false;
+	}
+	return GDREPackedSource::is_executable(p_path);
 }
+} //namespace
 
 Error GDRESettings::load_pck(const String &p_path) {
 	// Check if the path is already loaded
@@ -535,6 +532,182 @@ String GDRESettings::sanitize_home_in_path(const String &p_path) {
 	}
 	return p_path;
 }
+namespace {
+bool is_godot_directory(const String &p_path) {
+	// check the directory for the presence of any of these files/dirs
+	static const Vector<String> godot_files = { "project.godot", "project.binary", ".godot", ".import", "engine.cfg", "engine.cfb" };
+	return gdre::directory_has_any_of(p_path, godot_files);
+}
+} //namespace
+
+struct FileModifiedTimeSorter {
+	bool operator()(const String &p_a, const String &p_b) const {
+		return FileAccess::get_modified_time(p_a) < FileAccess::get_modified_time(p_b);
+	}
+};
+
+Vector<String> GDRESettings::sort_and_validate_pck_files(const Vector<String> &p_paths) {
+	Vector<String> pck_files;
+	String main_pck_path;
+	Vector<String> additional_main_pck_paths;
+
+	size_t dir_count = 0;
+
+	// A common pattern for games is to have DLC releases come as additional pcks that override paths in the main pck
+	// We want to ensure that the main pck comes first
+	for (int i = 0; i < p_paths.size(); i++) {
+		String path = p_paths[i];
+		String ext = path.get_extension().to_lower();
+		// directories come first
+		if (DirAccess::exists(path)) {
+			// This may be a ".app" bundle, so we need to check if it's a valid Godot app
+			// and if so, load the pck from inside the bundle
+			if (ext == "app") {
+				String resources_path = path.path_join("Contents").path_join("Resources");
+				if (DirAccess::exists(resources_path)) {
+					auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
+					ERR_CONTINUE_MSG(list.is_empty(), "Can't find pck file in .app bundle!");
+					String gamename = path.get_file().get_basename();
+					Vector<String> new_list;
+					for (auto &pck : list) {
+						// ensure it comes first
+						if (gamename.filenocasecmp_to(pck.get_file().get_basename()) == 0) {
+							main_pck_path = pck;
+						} else {
+							new_list.push_back(pck);
+						}
+					}
+					if (main_pck_path.is_empty()) {
+						main_pck_path = new_list[0];
+						new_list.remove_at(0);
+						additional_main_pck_paths = new_list;
+					} else {
+						pck_files.append_array(new_list);
+					}
+					continue; // skip the rest of the loop
+				}
+			}
+			if (dir_count > 1) {
+				ERR_FAIL_V_MSG({}, "Cannot specify multiple directories!");
+			}
+			if (!is_godot_directory(path)) {
+				// TODO: Rethink this, this may be confusing to the user and cause issues
+				// auto list = gdre::get_files_at(path, { "*.pck" });
+				// ERR_CONTINUE_MSG(list.is_empty(), "Not a Godot directory: " + sanitize_home_in_path(path));
+				// pck_files.append_array(list);
+				// continue;
+				ERR_CONTINUE_MSG(true, "Not a Godot directory: " + sanitize_home_in_path(path));
+			}
+			dir_count++;
+			// Dir ALWAYS comes first
+			if (!main_pck_path.is_empty()) {
+				pck_files.push_back(main_pck_path);
+			}
+			main_pck_path = path;
+		} else if (ext == "apk" || ext == "ipa") {
+			// APKs and IPAs are always the "main" pck
+			if (!main_pck_path.is_empty()) {
+				main_pck_path = path;
+			} else {
+				pck_files.push_back(path);
+			}
+		} else if (is_executable(path)) {
+			if (GDREPackedSource::has_embedded_pck(path)) {
+				// embedded pck in exe, ensure that this pck comes first
+				if (main_pck_path.is_empty()) {
+					main_pck_path = path;
+				} else {
+					pck_files.push_back(path);
+				}
+				continue;
+			}
+			auto san_path = sanitize_home_in_path(path);
+			String new_path = path;
+			String parent_path = path.get_base_dir();
+			if (parent_path.is_empty()) {
+				parent_path = GDRESettings::get_exec_dir();
+			}
+			Error e = ERR_FILE_NOT_FOUND;
+			if (parent_path.get_file().to_lower() == "macos") {
+				// we want to get ../Resources
+				parent_path = parent_path.get_base_dir().path_join("Resources");
+				String pck_path = parent_path.path_join(path.get_file().get_basename() + ".pck");
+				if (FileAccess::exists(pck_path)) {
+					new_path = pck_path;
+					e = OK;
+				}
+				if (pck_files.has(new_path)) {
+					// we already tried this path
+					WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
+					continue;
+				}
+			}
+			if (e != OK) {
+				String pck_path = path.get_basename() + ".pck";
+				bool only_1_path = pck_files.size() == 1;
+				bool already_has_path = pck_files.has(pck_path);
+				bool exists = FileAccess::exists(pck_path);
+				if (!only_1_path && (already_has_path || !exists)) {
+					// we already tried this path
+					WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
+					continue;
+				}
+				ERR_FAIL_COND_V_MSG(!exists, {}, "Can't find embedded pck file in executable and cannot find pck file in same directory!");
+				new_path = pck_path;
+			}
+			path = new_path;
+			WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + path);
+			if (main_pck_path.is_empty()) {
+				// pck that matches the game name, ensure that this pck comes first
+				main_pck_path = path;
+			} else {
+				pck_files.push_back(path);
+			}
+		} else {
+			pck_files.push_back(path);
+		}
+	}
+
+	if (main_pck_path.is_empty() && pck_files.size() > 1) {
+		// try and find a pck that has a binary executable in the same directory with the same name
+		HashMap<String, Vector<String>> common_base_dirs;
+		for (int i = 0; i < pck_files.size(); i++) {
+			String path = pck_files[i];
+			String base_dir = path.get_base_dir();
+			if (!common_base_dirs.has(base_dir)) {
+				common_base_dirs.insert(base_dir, gdre::get_files_at(base_dir, {}));
+			}
+			String pack_base_name = path.get_file().get_basename();
+			// check for a pck file that has a binary executable in the same directory with the same name
+			for (auto &p : common_base_dirs[base_dir]) {
+				String file = p.get_file();
+				String file_ext = file.get_extension().to_lower();
+				if (file_ext == "pck" || file_ext == "zip" || file_ext == "ipa" || file_ext == "apk") {
+					continue;
+				}
+				// has an exe with the same name; this is the "main" pck
+				if (file.nocasecmp_to(pack_base_name) == 0 || file.get_basename().filenocasecmp_to(pack_base_name) == 0) {
+					main_pck_path = path;
+					pck_files.remove_at(i);
+					break;
+				}
+			}
+			if (!main_pck_path.is_empty()) {
+				break;
+			}
+		}
+	}
+
+	if (!additional_main_pck_paths.is_empty()) {
+		additional_main_pck_paths.append_array(pck_files);
+		pck_files = additional_main_pck_paths;
+	}
+
+	if (!main_pck_path.is_empty()) {
+		pck_files.insert(0, main_pck_path);
+	}
+	return pck_files;
+}
 
 Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract, const String &csharp_assembly_override) {
 	GDRELogger::clear_error_queues();
@@ -553,94 +726,47 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	load_encryption_key();
 
 	Error err = ERR_CANT_OPEN;
-	Vector<String> pck_files = p_paths;
-	// This may be a ".app" bundle, so we need to check if it's a valid Godot app
-	// and if so, load the pck from inside the bundle
-	if (pck_files[0].get_extension().to_lower() == "app" && DirAccess::exists(pck_files[0])) {
-		if (pck_files.size() > 1) {
-			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
-		}
-		String resources_path = pck_files[0].path_join("Contents").path_join("Resources");
-		if (DirAccess::exists(resources_path)) {
-			auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
-			if (!list.is_empty()) {
-				pck_files = list;
-			} else {
-				ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Can't find pck file in .app bundle!");
-			}
-		}
+	Vector<String> pck_files = sort_and_validate_pck_files(p_paths);
+
+	if (pck_files.is_empty()) {
+		ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "No valid paths provided!");
 	}
 
-	if (DirAccess::exists(pck_files[0])) {
-		if (pck_files.size() > 1) {
-			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
-		}
-		print_line("Opening file: " + sanitize_home_in_path(pck_files[0]));
-		err = load_dir(pck_files[0]);
-		ERR_FAIL_COND_V_MSG(err, err, "FATAL ERROR: Can't load project directory!");
-		load_pack_uid_cache();
-		load_pack_gdscript_cache();
-	} else {
-		for (auto path : pck_files) {
-			auto san_path = sanitize_home_in_path(path);
-			print_line("Opening file: " + san_path);
-			if (check_embedded(path) != OK) {
-				String new_path = path;
-				String parent_path = path.get_base_dir();
-				if (parent_path.is_empty()) {
-					parent_path = GDRESettings::get_exec_dir();
-				}
-				if (parent_path.get_file().to_lower() == "macos") {
-					// we want to get ../Resources
-					parent_path = parent_path.get_base_dir().path_join("Resources");
-					String pck_path = parent_path.path_join(path.get_file().get_basename() + ".pck");
-					if (FileAccess::exists(pck_path)) {
-						new_path = pck_path;
-						err = OK;
-					}
-					if (pck_files.has(new_path)) {
-						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
-						continue;
-					}
-				}
-				if (err != OK) {
-					String pck_path = path.get_basename() + ".pck";
-					bool only_1_path = pck_files.size() == 1;
-					bool already_has_path = pck_files.has(pck_path);
-					bool exists = FileAccess::exists(pck_path);
-					if (!only_1_path && (already_has_path || !exists)) {
-						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
-						continue;
-					}
-					ERR_FAIL_COND_V_MSG(!exists, err, "Can't find embedded pck file in executable and cannot find pck file in same directory!");
-					new_path = pck_path;
-				}
-				path = new_path;
-				WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + san_path);
-			}
-			err = load_pck(path);
-			if (err || !is_pack_loaded()) {
-				unload_project();
-				ERR_FAIL_COND_V_MSG(err, err, "Can't load project!");
-			}
-			auto last_type = packs[packs.size() - 1]->type;
-			// If the last pack was an APK and has a sparse bundle, we need to load it
-			if ((last_type == PackInfo::APK || last_type == PackInfo::ZIP) && has_path_loaded("res://assets.sparsepck")) {
-				err = load_pck("res://assets.sparsepck");
-				if (err && err != ERR_ALREADY_IN_USE) {
-					unload_project();
-					if (error_encryption) {
-						ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack! (Did you set the correct key?)");
-					}
-					ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack!!");
-				}
-				err = OK;
-			}
+	// load the directory first
+	for (int i = 0; i < pck_files.size(); i++) {
+		String path = pck_files[i];
+		auto san_path = sanitize_home_in_path(path);
+		if (DirAccess::exists(path)) {
+			print_line("Opening directory: " + san_path);
+			err = load_dir(path);
+			ERR_FAIL_COND_V_MSG(err, err, "FATAL ERROR: Can't load project directory!");
 			load_pack_uid_cache();
 			load_pack_gdscript_cache();
+			continue;
 		}
+
+		print_line("Opening file: " + san_path);
+		err = load_pck(path);
+		ERR_CONTINUE_MSG(err == ERR_ALREADY_IN_USE, "Can't load PCK, already loaded from " + path);
+		if (err || !is_pack_loaded()) {
+			unload_project();
+			ERR_FAIL_COND_V_MSG(err, err, "Can't load project!");
+		}
+		auto last_type = packs[packs.size() - 1]->type;
+		// If the last pack was an APK and has a sparse bundle, we need to load it
+		if ((last_type == PackInfo::APK || last_type == PackInfo::ZIP) && has_path_loaded("res://assets.sparsepck")) {
+			err = load_pck("res://assets.sparsepck");
+			if (err && err != ERR_ALREADY_IN_USE) {
+				unload_project();
+				if (error_encryption) {
+					ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack! (Did you set the correct key?)");
+				}
+				ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack!!");
+			}
+			err = OK;
+		}
+		load_pack_uid_cache();
+		load_pack_gdscript_cache();
 	}
 
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_FILE_CANT_READ, "FATAL ERROR: loaded project pack, but didn't load files from it!");

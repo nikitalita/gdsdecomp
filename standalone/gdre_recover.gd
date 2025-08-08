@@ -442,7 +442,7 @@ func add_project(paths: PackedStringArray) -> int:
 	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files)# +
 	if FILE_TREE.num_broken > 0 or FILE_TREE.num_malformed > 0:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
-	DIRECTORY.text = DESKTOP_DIR.path_join(paths[0].get_file().get_basename())
+	DIRECTORY.text = DESKTOP_DIR.path_join(GDRESettings.get_pack_path().get_file().get_basename())
 
 	if GDRESettings.project_requires_dotnet_assembly():
 		# don't show the assembly picker if the assembly is loaded from a temp directory
