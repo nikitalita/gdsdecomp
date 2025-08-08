@@ -42,6 +42,7 @@
 #include "exporters/translation_exporter.h"
 #include "utility/asset_library_source.h"
 #include "utility/common.h"
+#include "utility/find_replace_bar.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
 #include "utility/gdre_window.h"
@@ -402,6 +403,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ScenePreviewer3D>();
 	ClassDB::register_class<ScenePreviewer2D>();
 	ClassDB::register_class<ScenePreviewer>();
+	ClassDB::register_class<GDREFindReplaceBar>();
 	ClassDB::register_class<GodotMonoDecompWrapper>();
 
 	ClassDB::register_class<GDREConfig>();
