@@ -264,12 +264,25 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 	} else if (p_path.get_extension() == "gdnlib" || p_path.get_extension() == "gdextension") {
 		iinfo = Ref<ImportInfoGDExt>(memnew(ImportInfoGDExt));
 		err = iinfo->_load(p_path);
-	} else if (ver_major >= 3) {
-		iinfo = Ref<ImportInfo>(memnew(ImportInfoDummy));
-		err = iinfo->_load(p_path);
 	} else {
-		iinfo = Ref<ImportInfo>(memnew(ImportInfov2));
-		err = iinfo->_load(p_path);
+		if (ver_major == 0 && ResourceCompatLoader::handles_resource(p_path)) {
+			Ref<ResourceInfo> res_info;
+			err = get_resource_info(p_path, res_info);
+			if (err == OK) {
+				ver_major = res_info->ver_major;
+			}
+		}
+		if (err == OK) {
+			if (ver_major <= 2) {
+				iinfo = Ref<ImportInfo>(memnew(ImportInfov2));
+				err = iinfo->_load(p_path);
+			} else if (ResourceCompatLoader::handles_resource(p_path)) {
+				iinfo = Ref<ImportInfo>(memnew(ImportInfoDummy));
+				err = iinfo->_load(p_path);
+			} else {
+				err = ERR_UNAVAILABLE;
+			}
+		}
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, Ref<ImportInfo>(), "Could not load " + p_path);
 	return iinfo;
@@ -533,6 +546,7 @@ Error ImportInfoDummy::_load(const String &p_path) {
 	Error err;
 	Ref<ResourceInfo> res_info;
 	err = ImportInfo::get_resource_info(p_path, res_info);
+	ERR_FAIL_COND_V_MSG(err == ERR_UNAVAILABLE, err, "Could not load resource info for " + p_path);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_path);
 	preferred_import_path = p_path;
 	source_file = "";
@@ -543,6 +557,14 @@ Error ImportInfoDummy::_load(const String &p_path) {
 	dest_files = Vector<String>({ p_path });
 	import_md_path = "";
 	return OK;
+}
+
+Ref<ImportInfo> ImportInfoDummy::create_dummy(const String &p_path) {
+	Ref<ImportInfoDummy> iinfo = memnew(ImportInfoDummy);
+	if (iinfo->_load(p_path) != OK) {
+		return Ref<ImportInfo>();
+	}
+	return iinfo;
 }
 
 Error ImportInfoRemap::_load(const String &p_path) {
