@@ -983,14 +983,14 @@ Error GDRESettings::unload_project() {
 	logger->stop_prebuffering();
 	_clear_shader_globals();
 	error_encryption = false;
-	reset_uid_cache();
-	reset_gdscript_cache();
 	if (get_pack_type() == PackInfo::DIR) {
 		unload_dir();
 	}
 
 	remove_current_pack();
 	GDREPackedData::get_singleton()->clear();
+	reset_uid_cache();
+	reset_gdscript_cache();
 	return OK;
 }
 
@@ -1728,7 +1728,12 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 			String old_path = ResourceUID::get_singleton()->get_id_path(E.second);
 			String new_path = E.first;
 			if (old_path != new_path) {
-				WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+				if (old_path.simplify_path() == new_path.simplify_path()) {
+					// Sometimes uid caches have duplicate paths when paths were not simplified before saving; this is a workaround
+					new_path = new_path.simplify_path();
+				} else {
+					WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+				}
 			}
 			ResourceUID::get_singleton()->set_id(E.second, new_path);
 		} else {
@@ -1804,6 +1809,9 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 	}
 	for (int i = 0; i < global_class_list.size(); i++) {
 		Dictionary d = global_class_list[i];
+		if (d.is_empty() || !d.has("path")) {
+			continue;
+		}
 		String path = d["path"];
 		// path = path.simplify_path();
 		script_cache[path] = d;
