@@ -312,7 +312,7 @@ func _on_REToolsMenu_item_selected(id):
 		REToolsMenuID.ABOUT:  # about
 			open_about_window()
 		REToolsMenuID.REPORT_BUG:  # Report a bug
-			OS.shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
+			OS.shell_open("https://github.com/GDRETools/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
 		REToolsMenuID.QUIT:  # Quit
 			get_tree().quit()
 
@@ -408,8 +408,8 @@ func register_dropped_files():
 		print("name: " + str(self.get_name()))
 
 
-var repo_url = "https://github.com/bruvzg/gdsdecomp"
-var latest_release_url = "https://github.com/bruvzg/gdsdecomp/releases/latest"
+var repo_url = "https://github.com/GDRETools/gdsdecomp"
+var latest_release_url = "https://github.com/GDRETools/gdsdecomp/releases/latest"
 
 func _on_setenc_key_ok_pressed():
 	# get the current text in the line edit
