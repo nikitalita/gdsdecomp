@@ -59,10 +59,33 @@ func _init_error_dialog():
 		self.add_child(ERROR_DIALOG)
 	pass
 
+static func popup_box(parent_window: Node, dialog: AcceptDialog, message: String, box_title: String, confirm_func: Callable = void_func, cancel_func: Callable = void_func):
+	if (dialog == null):
+		dialog = AcceptDialog.new()
+	if (dialog.get_parent() != parent_window):
+		if (dialog.get_parent() == null):
+			parent_window.add_child(dialog)
+		else:
+			dialog.reparent(parent_window)
+	dialog.reset_size()
+	dialog.set_text(message)
+	dialog.set_title(box_title)
+	var _confirm_func: Callable
+	var _cancel_func: Callable
+	var arr = dialog.get_signal_connection_list("confirmed")
+	for dict in arr:
+		dialog.disconnect("confirmed", dict.callable)
+	arr = dialog.get_signal_connection_list("canceled")
+	for dict in arr:
+		dialog.disconnect("canceled", dict.callable)
+	dialog.connect("confirmed", confirm_func)
+	dialog.connect("canceled", cancel_func)
+
+
 func popup_error_box(message: String, box_title: String, call_func: Callable = void_func):
 	if not ERROR_DIALOG:
 		_init_error_dialog()
-	return GDREChildDialog.popup_box(self, ERROR_DIALOG, message, box_title, call_func, call_func)
+	return popup_box(self, ERROR_DIALOG, message, box_title, call_func, call_func)
 	# return dialog
 
 
@@ -179,9 +202,9 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			continue
 
 		GDRESettings.get_errors()
-		var _ret = GDRESettings.get_import_info_by_dest(file)
+		var _ret: ImportInfo = GDRESettings.get_import_info_by_dest(file)
 		var file_ext = file.get_extension().to_lower()
-		if file_ext == "scn" or file_ext == "tscn":
+		if file_ext == "scn" or file_ext == "tscn" or (_ret and _ret.get_compat_type() == "PackedScene"):
 			if export_glb != ExportSceneType.GLB and file_ext == "tscn":
 				var src = file if not is_instance_valid(_ret) else _ret.source_file
 				if src.get_extension().to_lower() == file_ext:
