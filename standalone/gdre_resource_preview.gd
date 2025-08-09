@@ -136,11 +136,11 @@ func pop_resource_info(path: String, info: Dictionary):
 		info_text = "[b]Path:[/b] " + path
 	%ResourceInfo.text = info_text
 
-func is_mesh(ext):
-	return ext == "mesh"
+func is_mesh(ext, type: String):
+	return ext == "mesh" || type == "Mesh" || type == "ArrayMesh" || type == "PlaceholderMesh"
 
-func is_scene(ext):
-	return ext == "tscn" || ext == "scn"
+func is_scene(ext, type: String):
+	return ext == "tscn" || ext == "scn" || type == "PackedScene"
 
 func load_mesh(path):
 	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
@@ -185,24 +185,24 @@ func load_scene(path):
 
 
 func can_preview_scene():
-	return SceneExporter.get_minimum_godot_ver_supported() >= GDRESettings.get_ver_major()
+	return SceneExporter.get_minimum_godot_ver_supported() <= GDRESettings.get_ver_major()
 
-func text_preview_check_button(path):
-	var ext = path.get_extension().to_lower()
-	if (is_mesh(ext)):
+func text_preview_check_button(path, type):
+	if (is_mesh(path.get_extension().to_lower(), type)):
 		%SwitchViewButton.text = SWITCH_TO_MESH_TEXT
 		%SwitchViewButton.visible = true
-	elif (is_scene(ext)):
+	elif (is_scene(path.get_extension().to_lower(), type)):
 		if (can_preview_scene()):
 			%SwitchViewButton.text = SWITCH_TO_SCENE_TEXT
 			%SwitchViewButton.visible = true
 
 
 func handle_error_opening(path):
-	%SwitchViewButton.visible = false
-	%TextView.load_text_string("Error opening resource")
+	# %SwitchViewButton.visible = false
+	%TextView.load_text_string("Error opening resource:\n" + GDREGlobals.get_recent_error_string())
 	%TextView.visible = true
 	%ResourceInfo.text = path
+
 
 
 func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
@@ -212,8 +212,13 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 	var error_opening = false
 	var not_supported = false
 	var info: Dictionary = {}
+	var res_type = ""
+
+	# clear errors
+	GDREGlobals.get_recent_error_string()
 	if ResourceCompatLoader.handles_resource(path, ""):
 		info = ResourceCompatLoader.get_resource_info(path)
+		res_type = info.get("type", "")
 	if (is_sample(ext)):
 		error_opening = not %MediaPlayer.load_sample(path)
 		if not error_opening:
@@ -226,35 +231,33 @@ func load_resource(path: String, override_bytecode_revision: int = 0) -> void:
 		error_opening = not load_texture(path)
 	elif (is_texture(ext)):
 		error_opening = not load_texture(path)
-	elif (is_mesh(ext)):
+	elif (is_mesh(ext, res_type)):
 		error_opening = not load_mesh(path)
-	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext) and can_preview_scene()):
+	elif (ENABLE_SCENE_PREVIEW_BY_DEFAULT and is_scene(ext, res_type) and can_preview_scene()):
 		error_opening = not load_scene(path)
 	else:
 		var type = %TextView.recognize(path)
 		if type == -1:
 			not_supported = true
 		else:
-			error_opening = not try_text_preview(path, type)
+			error_opening = not try_text_preview(path, type, res_type)
 
 	if (not_supported):
 		%TextView.load_text_string("Not a supported resource")
 		%TextView.visible = true
 		%ResourceInfo.text = path
 	elif (error_opening):
-		%TextView.load_text_string("Error opening resource")
-		%TextView.visible = true
-		%ResourceInfo.text = path
+		handle_error_opening(path)
 	if (%ResourceInfo.text == ""):
 		pop_resource_info(path, info)
 
 
-func try_text_preview(path, type):
+func try_text_preview(path, type, res_type):
 	if type == -1:
 		return false
 	if not %TextView.load_path(path, type):
 		return false
-	text_preview_check_button(path)
+	text_preview_check_button(path, res_type)
 	%TextView.visible = true
 	return true
 
@@ -384,28 +387,38 @@ func _on_switch_view_button_pressed() -> void:
 	var cur_text = %SwitchViewButton.text
 	make_all_views_invisible()
 	current_resource_path = path
+	var type = "Mesh"
+	if %ScenePreviewer3D.visible:
+		type = "PackedScene"
+	var error_opening = false
 
 	match cur_text:
 		SWITCH_TO_SCENE_TEXT:
 			if %ScenePreviewer3D.get_edited_resource_path() != path:
-				load_scene(path)
+				error_opening = not load_scene(path)
 			else:
 				%ScenePreviewer3D.visible = true
-			%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-			%SwitchViewButton.visible = true
+			if not error_opening:
+				%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+				%SwitchViewButton.visible = true
 		SWITCH_TO_MESH_TEXT:
 			if %MeshPreviewer.get_edited_resource_path() != path:
-				load_mesh(path)
+				error_opening = not load_mesh(path)
 			else:
 				%MeshPreviewer.visible = true
-			%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-			%SwitchViewButton.visible = true
+			if not error_opening:
+				%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+				%SwitchViewButton.visible = true
 		SWITCH_TO_TEXT_TEXT:
 			if %TextView.current_path != path:
-				try_text_preview(path, %TextView.recognize(path))
+				error_opening = not try_text_preview(path, %TextView.recognize(path), type)
 			else:
 				%TextView.visible = true
-			text_preview_check_button(path)
+			if not error_opening:
+				%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+				%SwitchViewButton.visible = true
 		_:
 			print("!!!!!Unknown switch view button text: ", cur_text)
 			pass
+	if error_opening:
+		handle_error_opening(path)
