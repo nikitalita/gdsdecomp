@@ -1,43 +1,41 @@
 #include "find_replace_bar.h"
 #include "core/variant/array.h"
-#include "gdre_settings.h"
 #include "editor/gdre_icons.gen.h"
+#include "gdre_settings.h"
 #ifdef MODULE_SVG_ENABLED
 #include "modules/svg/image_loader_svg.h"
 #endif
-#include "scene/resources/image_texture.h"
-#include "core/os/keyboard.h"
-#include "core/input/shortcut.h"
 #include "core/input/input_map.h"
+#include "core/input/shortcut.h"
+#include "core/os/keyboard.h"
+#include "scene/resources/image_texture.h"
 
+namespace {
+// TODO: move this elsewhere
+static Ref<ImageTexture> generate_icon(int p_index) {
+	Ref<Image> img = memnew(Image);
 
-namespace{
-	// TODO: move this elsewhere
-	static Ref<ImageTexture> generate_icon(int p_index) {
-		Ref<Image> img = memnew(Image);
+#ifdef MODULE_SVG_ENABLED
+	// Upsample icon generation only if the scale isn't an integer multiplier.
+	// Generating upsampled icons is slower, and the benefit is hardly visible
+	// with integer scales.
+	ImageLoaderSVG img_loader;
+	img_loader.create_image_from_string(img, gdre_icons_sources[p_index], 1.0, false, false);
+#endif
 
-	#ifdef MODULE_SVG_ENABLED
-		// Upsample icon generation only if the scale isn't an integer multiplier.
-		// Generating upsampled icons is slower, and the benefit is hardly visible
-		// with integer scales.
-		ImageLoaderSVG img_loader;
-		img_loader.create_image_from_string(img, gdre_icons_sources[p_index], 1.0, false, false);
-	#endif
-
-		return ImageTexture::create_from_image(img);
-	}
-
-	Ref<ImageTexture> get_gdre_icon(const StringName &p_name){
-		for (int i = 0; i < gdre_icons_count; i++) {
-			if (gdre_icons_names[i] == p_name) {
-				return generate_icon(i);
-			}
-		}
-		return nullptr;
-	}
-
-
+	return ImageTexture::create_from_image(img);
 }
+
+Ref<ImageTexture> get_gdre_icon(const StringName &p_name) {
+	for (int i = 0; i < gdre_icons_count; i++) {
+		if (gdre_icons_names[i] == p_name) {
+			return generate_icon(i);
+		}
+	}
+	return nullptr;
+}
+
+} //namespace
 
 void GDREFindReplaceBar::_notification(int p_what) {
 	switch (p_what) {
@@ -664,7 +662,7 @@ void GDREFindReplaceBar::set_text_edit(CodeEdit *p_text_editor) {
 	_editor_text_changed();
 }
 
-Ref<Shortcut> get_or_create_shortcut(const String &p_action_name, const String &p_default_label, Key p_default_keycode, Key macos_override_keycode = Key::NONE){
+Ref<Shortcut> get_or_create_shortcut(const String &p_action_name, const String &p_default_label, Key p_default_keycode, Key macos_override_keycode = Key::NONE) {
 	Ref<Shortcut> shortcut = memnew(Shortcut);
 	Array arr;
 
@@ -680,7 +678,7 @@ Ref<Shortcut> get_or_create_shortcut(const String &p_action_name, const String &
 	if (arr.size() == 0) {
 		Ref<InputEventKey> replace_event = InputEventKey::create_reference(p_default_keycode);
 		arr.push_back(replace_event);
-		if (macos_override_keycode != Key::NONE){
+		if (macos_override_keycode != Key::NONE) {
 			Ref<InputEventKey> macos_event = InputEventKey::create_reference(macos_override_keycode);
 			arr.push_back(macos_event);
 		}
@@ -739,8 +737,6 @@ Ref<Shortcut> GDREFindReplaceBar::get_find_prev_shortcut() const {
 	return get_or_create_shortcut("ui_find_previous", TTRC("Find Previous"), KeyModifierMask::SHIFT | Key::F3, KeyModifierMask::META | KeyModifierMask::SHIFT | Key::G);
 }
 
-
-
 void GDREFindReplaceBar::set_replace_enabled(bool p_enabled) {
 	if (replace_enabled == p_enabled) {
 		return;
@@ -750,16 +746,15 @@ void GDREFindReplaceBar::set_replace_enabled(bool p_enabled) {
 
 void GDREFindReplaceBar::_update_replace_bar_enabled() {
 	_update_toggle_replace_button(false);
-	if (!replace_enabled){
+	if (!replace_enabled) {
 		replace_text->hide();
 		hbc_button_replace->hide();
 		hbc_option_replace->hide();
-		if (search_text->is_visible_in_tree()){
+		if (search_text->is_visible_in_tree()) {
 			_show_search(false, true);
 		}
 	}
 }
-
 
 bool GDREFindReplaceBar::is_replace_enabled() const {
 	return replace_enabled;

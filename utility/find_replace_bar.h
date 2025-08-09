@@ -1,12 +1,12 @@
-#include "scene/gui/code_edit.h"
+#include "core/object/object.h"
+#include "scene/gui/box_container.h"
+#include "scene/gui/button.h"
 #include "scene/gui/check_box.h"
+#include "scene/gui/code_edit.h"
 #include "scene/gui/label.h"
 #include "scene/gui/line_edit.h"
-#include "scene/gui/text_edit.h"
-#include "scene/gui/box_container.h"
-#include "core/object/object.h"
-#include "scene/gui/button.h"
 #include "scene/gui/panel_container.h"
+#include "scene/gui/text_edit.h"
 
 class GDREFindReplaceBar : public PanelContainer {
 	GDCLASS(GDREFindReplaceBar, PanelContainer);
@@ -16,7 +16,6 @@ class GDREFindReplaceBar : public PanelContainer {
 		SEARCH_NEXT,
 		SEARCH_PREV,
 	};
-
 
 	HBoxContainer *main = nullptr;
 

@@ -5,8 +5,9 @@
 
 class GDScriptDecomp_custom : public GDScriptDecomp {
 	GDCLASS(GDScriptDecomp_custom, GDScriptDecomp);
+
 protected:
-	static void _bind_methods(){};
+	static void _bind_methods() {}
 	int bytecode_version;
 	int bytecode_rev;
 	int engine_ver_major;
@@ -38,7 +39,6 @@ public:
 	virtual bool is_custom() const override { return true; }
 	GDScriptDecomp_custom() {}
 
-	static GDScriptDecomp_custom * _create_from_json(Dictionary p_custom_def);
+	static GDScriptDecomp_custom *_create_from_json(Dictionary p_custom_def);
 	static Ref<GDScriptDecomp_custom> create_from_json(Dictionary p_custom_def);
 };
-

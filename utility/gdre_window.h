@@ -1,7 +1,7 @@
 #pragma once
 
-#include "scene/main/window.h"
 #include "scene/gui/dialogs.h"
+#include "scene/main/window.h"
 
 class GDREWindow : public Window {
 	GDCLASS(GDREWindow, Window);
@@ -12,6 +12,7 @@ protected:
 	void _notification(int p_what);
 
 	static void _bind_methods();
+
 public:
 	void call_on_next_process(const Callable &p_callable);
 
@@ -27,6 +28,7 @@ protected:
 	void _notification(int p_what);
 
 	static void _bind_methods();
+
 public:
 	void call_on_next_process(const Callable &p_callable);
 
