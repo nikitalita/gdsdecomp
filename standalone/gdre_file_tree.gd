@@ -431,9 +431,6 @@ func sort_tree(item:TreeItem, recursive: bool = true):
 			arr.sort_custom(func(a: TreeItem, b: TreeItem) -> bool:
 				return a.get_text(_info_col).filenocasecmp_to(b.get_text(_info_col)) < 0
 			)
-	var names: PackedStringArray = []
-	for i in range(arr.size()):
-		names.push_back(arr[i].get_text(_name_col))
 
 	arr[0].move_before(arr[1])
 	for i in range(1, arr.size()):
@@ -650,7 +647,7 @@ func _filter_item(filter_str: String, item: TreeItem, is_glob: bool, clear_filte
 	if clear_filter:
 		item.visible = true
 		return true
-	if (is_glob and path.matchn(filter_str)) or (!is_glob and path.contains(filter_str)):
+	if (is_glob and path.matchn(filter_str)) or (!is_glob and path.to_lower().contains(filter_str)):
 		item.visible = true
 		return true
 	else:
@@ -658,6 +655,7 @@ func _filter_item(filter_str: String, item: TreeItem, is_glob: bool, clear_filte
 		return false
 
 func _filter(filter_str):
+	filter_str = filter_str.to_lower()
 	var is_glob = filter_str.contains("*")
 	var clear_filter = filter_str.is_empty() or filter_str == "*"
 	_filter_item(filter_str, root, is_glob, clear_filter)
