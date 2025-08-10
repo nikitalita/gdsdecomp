@@ -2486,7 +2486,7 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
 	}
 	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
-	GodotMonoDecompWrapper::GodotMonoDecompSettings settings;
+	GodotMonoDecompWrapper::GodotMonoDecompSettings settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
 	settings.GodotVersionOverride = current_project->version.is_valid() ? current_project->version->as_text() : "";
 	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() }, settings);
 	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
@@ -2572,13 +2572,20 @@ bool GDRESettings::_init_bytecode_from_ephemeral_settings() {
 	return changed;
 }
 
-void GDRESettings::update_from_ephemeral_settings(bool p_force_update) {
-	if (_init_bytecode_from_ephemeral_settings()) {
+void GDRESettings::update_from_ephemeral_settings() {
+	if (_init_bytecode_from_ephemeral_settings() && is_pack_loaded()) {
 		if (detect_bytecode_revision(!has_valid_version() || current_project->suspect_version) != OK) {
 			WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
 		} else {
 			load_pack_gdscript_cache(true);
 			_ensure_script_cache_complete();
+		}
+	}
+	if (is_pack_loaded() && current_project->decompiler.is_valid()) {
+		auto new_settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
+		if (current_project->decompiler->set_settings(new_settings) != OK) {
+			ERR_PRINT("Failed to update decompiler settings, decompiler will be reset");
+			current_project->decompiler = Ref<GodotMonoDecompWrapper>();
 		}
 	}
 }
@@ -2595,6 +2602,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_encryption_key_string", "key"), &GDRESettings::set_encryption_key_string);
 	ClassDB::bind_method(D_METHOD("set_encryption_key", "key"), &GDRESettings::set_encryption_key);
 	ClassDB::bind_method(D_METHOD("reset_encryption_key"), &GDRESettings::reset_encryption_key);
+	ClassDB::bind_method(D_METHOD("had_encryption_error"), &GDRESettings::had_encryption_error);
 	ClassDB::bind_method(D_METHOD("get_file_list", "filters"), &GDRESettings::get_file_list, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_file_info_array", "filters"), &GDRESettings::get_file_info_array, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_pack_type"), &GDRESettings::get_pack_type);

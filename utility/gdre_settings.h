@@ -329,7 +329,7 @@ public:
 
 	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
 
-	void update_from_ephemeral_settings(bool p_force_update = false);
+	void update_from_ephemeral_settings();
 
 	static GDRESettings *get_singleton();
 	GDRESettings();

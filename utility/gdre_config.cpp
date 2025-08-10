@@ -68,6 +68,26 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				true)),
 		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
 		memnew(GDREConfigSetting(
+				"CSharp/write_nuget_package_references",
+				"Write NuGet package references",
+				"Detect and write NuGet package references to the project file instead of assembly references.",
+				true)),
+		memnew(GDREConfigSetting(
+				"CSharp/copy_out_of_tree_references",
+				"Copy out of tree references",
+				"Copy referenced assemblies to the project directory.",
+				true)),
+		memnew(GDREConfigSetting(
+				"CSharp/verify_nuget_package_is_from_nuget_org",
+				"Verify NuGet package is from NuGet.org",
+				"Verify that the NuGet package is from NuGet.org before writing it to the project file.\nWARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.",
+				false)),
+		memnew(GDREConfigSetting(
+				"CSharp/create_additional_projects_for_project_references",
+				"Create additional projects for project references",
+				"If a project reference is detected, create an additional project and add it to the solution.",
+				true)),
+		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/force_lossless_images",
 				"Force lossless images",
 				"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
@@ -126,7 +146,6 @@ void GDREConfig::load_config() {
 		}
 	}
 
-	// set_setting("scene_export/force_export_multi_root", false);
 	auto cfg_path = get_config_path();
 	if (FileAccess::exists(cfg_path)) {
 		Ref<ConfigFile> config = memnew(ConfigFile);

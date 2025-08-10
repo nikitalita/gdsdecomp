@@ -14,6 +14,13 @@ GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
 }
 
 Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
+	Ref<GodotMonoDecompWrapper> wrapper = memnew(GodotMonoDecompWrapper);
+	Error err = wrapper->_load(assembly_path, originalProjectFiles, assemblyReferenceDirs, settings);
+	ERR_FAIL_COND_V_MSG(err != OK, Ref<GodotMonoDecompWrapper>(), "Failed to load assembly " + assembly_path + " (Not a valid .NET assembly?)");
+	return wrapper;
+}
+
+Error GodotMonoDecompWrapper::_load(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
 	CharString assembly_path_chrstr = assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
 	String ref_path = assembly_path.get_base_dir();
@@ -33,15 +40,27 @@ Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembl
 		originalProjectFiles_c_array[i] = originalProjectFiles_chrstrs[i].get_data();
 	}
 
-	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(assembly_path_c, originalProjectFiles_c_array, originalProjectFiles.size(), ref_path_c_array, 1, godotVersionOverride_c);
+	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(
+			assembly_path_c,
+			originalProjectFiles_c_array,
+			originalProjectFiles.size(),
+			ref_path_c_array,
+			1,
+			godotVersionOverride_c,
+			settings.WriteNuGetPackageReferences,
+			settings.VerifyNuGetPackageIsFromNugetOrg,
+			settings.CopyOutOfTreeReferences,
+			settings.CreateAdditionalProjectsForProjectReferences);
 	delete[] originalProjectFiles_c_array;
 	if (decompilerHandle == nullptr) {
-		return Ref<GodotMonoDecompWrapper>();
+		return ERR_CANT_CREATE;
 	}
-	auto wrapper = memnew(GodotMonoDecompWrapper);
-	wrapper->decompilerHandle = decompilerHandle;
-	wrapper->assembly_path = assembly_path;
-	return Ref<GodotMonoDecompWrapper>(wrapper);
+	this->decompilerHandle = decompilerHandle;
+	this->assembly_path = assembly_path;
+	this->originalProjectFiles = originalProjectFiles;
+	this->assemblyReferenceDirs = assemblyReferenceDirs;
+	this->settings = settings;
+	return OK;
 }
 #include "gd_parallel_queue.h"
 #include "task_manager.h"
@@ -149,6 +168,18 @@ Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath
 	return OK;
 }
 
+GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings() {
+	auto settings = GodotMonoDecompSettings();
+	if (!GDREConfig::get_singleton()) {
+		return settings;
+	}
+	settings.WriteNuGetPackageReferences = GDREConfig::get_singleton()->get_setting("CSharp/write_nuget_package_references", true);
+	settings.VerifyNuGetPackageIsFromNugetOrg = GDREConfig::get_singleton()->get_setting("CSharp/verify_nuget_package_is_from_nuget_org", false);
+	settings.CopyOutOfTreeReferences = GDREConfig::get_singleton()->get_setting("CSharp/copy_out_of_tree_references", true);
+	settings.CreateAdditionalProjectsForProjectReferences = GDREConfig::get_singleton()->get_setting("CSharp/create_additional_projects_for_project_references", true);
+	return settings;
+}
+
 String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
 	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, "", "Decompiler handle is null");
 	CharString file_chrstr = file.utf8();
@@ -200,6 +231,23 @@ Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 	}
 	GodotMonoDecomp_FreeArray((void *)strings, num_strings);
 	return strings_strs;
+}
+
+GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
+	return settings;
+}
+
+Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
+	if (p_settings.WriteNuGetPackageReferences != settings.WriteNuGetPackageReferences ||
+			p_settings.VerifyNuGetPackageIsFromNugetOrg != settings.VerifyNuGetPackageIsFromNugetOrg ||
+			p_settings.CopyOutOfTreeReferences != settings.CopyOutOfTreeReferences ||
+			p_settings.CreateAdditionalProjectsForProjectReferences != settings.CreateAdditionalProjectsForProjectReferences ||
+			p_settings.GodotVersionOverride != settings.GodotVersionOverride) {
+		Error err = _load(assembly_path, originalProjectFiles, assemblyReferenceDirs, p_settings);
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to reload assembly " + assembly_path + " (Not a valid .NET assembly?)");
+	}
+	settings = p_settings;
+	return OK;
 }
 
 void GodotMonoDecompWrapper::_bind_methods() {

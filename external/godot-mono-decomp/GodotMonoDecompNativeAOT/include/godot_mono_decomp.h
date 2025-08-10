@@ -21,7 +21,11 @@ void* GodotMonoDecomp_CreateGodotModuleDecompiler(
     int originalProjectFilesCount,
     const char** referencePaths,
     int referencePathsCount,
-	const char* godotVersionOverride
+	const char* godotVersionOverride,
+	bool writeNuGetPackageReferences,
+	bool verifyNuGetPackageIsFromNugetOrg,
+	bool copyOutOfTreeReferences,
+	bool createAdditionalProjectsForProjectReferences
 );
 
 int GodotMonoDecomp_DecompileModule(

@@ -16,9 +16,11 @@ protected:
 public:
 	struct GodotMonoDecompSettings {
 		bool WriteNuGetPackageReferences = true;
+		bool VerifyNuGetPackageIsFromNugetOrg = false;
 		bool CopyOutOfTreeReferences = true;
 		bool CreateAdditionalProjectsForProjectReferences = true;
 		String GodotVersionOverride;
+		static GodotMonoDecompSettings get_default_settings();
 	};
 
 	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
@@ -34,7 +36,15 @@ public:
 	Vector<String> get_files_not_present_in_file_map();
 	Vector<String> get_all_strings_in_module();
 
+	GodotMonoDecompSettings get_settings() const;
+	Error set_settings(const GodotMonoDecompSettings &p_settings);
+
 private:
+	Error _load(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings);
+
+	GodotMonoDecompSettings settings;
 	String assembly_path;
 	void *decompilerHandle;
+	Vector<String> originalProjectFiles;
+	Vector<String> assemblyReferenceDirs;
 };

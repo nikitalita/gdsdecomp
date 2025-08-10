@@ -52,7 +52,11 @@ static public class Lib
 		int originalProjectFilesCount,
 		IntPtr referencePaths,
 		int referencePathsCount,
-		IntPtr GodotVersionOverride
+		IntPtr GodotVersionOverride,
+		bool writeNuGetPackageReferences,
+		bool verifyNuGetPackageIsFromNugetOrg,
+		bool copyOutOfTreeReferences,
+		bool createAdditionalProjectsForProjectReferences
 	)
 	{
 		string assemblyFileNameStr = Marshal.PtrToStringAnsi(assemblyPath) ?? string.Empty;
@@ -61,6 +65,10 @@ static public class Lib
 		var godotVersionOverrideStr = GodotVersionOverride == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(GodotVersionOverride) ?? null;
 		var settings = new GodotMonoDecompSettings
 		{
+			WriteNuGetPackageReferences = writeNuGetPackageReferences,
+			VerifyNuGetPackageIsFromNugetOrg = verifyNuGetPackageIsFromNugetOrg,
+			CopyOutOfTreeReferences = copyOutOfTreeReferences,
+			CreateAdditionalProjectsForProjectReferences = createAdditionalProjectsForProjectReferences,
 			GodotVersionOverride = godotVersionOverrideStr == null ? null : GodotStuff.ParseGodotVersionFromString(godotVersionOverrideStr)
 		};
 		try {
