@@ -200,7 +200,7 @@ func add_project(paths: PackedStringArray) -> int:
 	VERSION_TEXT.text = GDRESettings.get_version_string()
 	var arr: Array = GDRESettings.get_file_info_array()
 	FILES_TEXT.text = str(arr.size())
-	FILE_TREE.add_files_from_packed_infos(arr, true)
+	FILE_TREE.add_files_from_packed_infos(arr, true, GDRESettings.had_encryption_error())
 	return OK
 
 func clear_patch_files():

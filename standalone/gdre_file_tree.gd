@@ -18,6 +18,7 @@ enum ColType {
 @export var file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 @export var file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
 @export var file_broken: Texture2D = preload("res://gdre_icons/gdre_FileBroken.svg")
+@export var file_encrypted: Texture2D = preload("res://gdre_icons/gdre_FileEncrypted.svg")
 @export var folder_icon: Texture2D = get_theme_icon("folder", "FileDialog")
 @export var root_name: String = "res://"
 # @export var editable_only_when_checkbox_clicked: bool = true
@@ -542,15 +543,15 @@ func create_file_item(p_parent_item: TreeItem, p_fullname: String, p_name: Strin
 		item.set_text(_info_col, p_info);
 	return item
 
-func add_files_from_packed_infos(infos: Array, skipped_md5_check: bool = false):
+func add_files_from_packed_infos(infos: Array, skipped_md5_check: bool = false, had_encryption_error: bool = false):
 	# reverse alphabetical order, we want to put directories at the front in alpha order
 	for file in infos:
-		_add_file_from_packed_info(file, skipped_md5_check)
+		_add_file_from_packed_info(file, skipped_md5_check, had_encryption_error)
 	# collapse all the first level directories
 	sort_entire_tree()
 	set_fold_all_children(root, true, true)
 
-func _add_file_from_packed_info(info: PackedFileInfo, skipped_md5_check: bool = false):
+func _add_file_from_packed_info(info: PackedFileInfo, skipped_md5_check: bool = false, had_encryption_error: bool = false):
 	num_files += 1
 	var file_size = info.get_size()
 	var path = info.get_path()
@@ -564,6 +565,10 @@ func _add_file_from_packed_info(info: PackedFileInfo, skipped_md5_check: bool = 
 		icon = file_broken
 		errstr = "Malformed path"
 		num_malformed += 1
+	if ((info.is_encrypted() or path.get_extension().to_lower() == "gde") and had_encryption_error):
+		icon = file_encrypted
+		errstr = "Encryption error"
+		num_broken += 1
 	elif is_verified:
 		icon = file_ok
 	elif skipped_md5_check:
