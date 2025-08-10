@@ -809,6 +809,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		}
 	}
 
+	_init_bytecode_from_ephemeral_settings();
 	err = detect_bytecode_revision(invalid_ver);
 	if (err) {
 		if (err == ERR_UNAUTHORIZED) {
@@ -863,9 +864,6 @@ Error GDRESettings::detect_bytecode_revision(bool p_no_valid_version) {
 	if (!is_pack_loaded()) {
 		return ERR_FILE_CANT_OPEN;
 	}
-	if (current_project->bytecode_revision != 0) {
-		return OK;
-	}
 	int ver_major = -1;
 	int ver_minor = -1;
 	if (has_valid_version()) {
@@ -891,9 +889,17 @@ Error GDRESettings::detect_bytecode_revision(bool p_no_valid_version) {
 		// test this file to see if it decrypts properly
 		Vector<uint8_t> buffer;
 		Error err = GDScriptDecomp::get_buffer_encrypted(file, ver_major > 0 ? ver_major : 3, enc_key, buffer);
+		// We're not going to be able to load any bytecode files, so set the bytecode revision to 0 so we don't attempt to.
+		if (err) {
+			current_project->bytecode_revision = 0;
+		}
 		ERR_FAIL_COND_V_MSG(err, ERR_UNAUTHORIZED, "Cannot determine bytecode revision: Encryption error (Did you set the correct key?)");
 		bytecode_files.append_array(encrypted_files);
 	}
+	if (current_project->bytecode_revision != 0) {
+		return OK;
+	}
+
 	if (bytecode_files.is_empty()) {
 		return guess_from_version(ERR_PARSE_ERROR);
 	}
@@ -1117,6 +1123,9 @@ Error GDRESettings::unload_project() {
 	GDREPackedData::get_singleton()->clear();
 	reset_uid_cache();
 	reset_gdscript_cache();
+	if (GDREConfig::get_singleton()) {
+		GDREConfig::get_singleton()->reset_ephemeral_settings();
+	}
 	return OK;
 }
 
@@ -1916,6 +1925,9 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 	if (!is_pack_loaded()) {
 		return ERR_UNAVAILABLE;
 	}
+	if (p_reset) {
+		reset_gdscript_cache();
+	}
 
 	auto cache_file = get_loaded_pack_data_dir().path_join("global_script_class_cache.cfg");
 	if (!FileAccess::exists(cache_file)) {
@@ -1930,9 +1942,6 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 		return ERR_FILE_CANT_READ;
 	}
 
-	if (p_reset) {
-		reset_gdscript_cache();
-	}
 	for (int i = 0; i < global_class_list.size(); i++) {
 		Dictionary d = global_class_list[i];
 		if (d.is_empty() || !d.has("path")) {
@@ -2548,6 +2557,32 @@ String GDRESettings::get_temp_dotnet_assembly_dir() const {
 	return current_project->assembly_temp_dir;
 }
 
+bool GDRESettings::_init_bytecode_from_ephemeral_settings() {
+	bool changed = false;
+	if (GDREConfig::get_singleton()) {
+		int force_bytecode_revision = GDREConfig::get_singleton()->get_setting("Bytecode/force_bytecode_revision", 0);
+		if (is_pack_loaded()) {
+			if (force_bytecode_revision != 0) {
+				print_line("Forcing bytecode revision: " + String::num_int64(force_bytecode_revision, 16));
+			}
+			changed = current_project->bytecode_revision != force_bytecode_revision;
+			current_project->bytecode_revision = force_bytecode_revision;
+		}
+	}
+	return changed;
+}
+
+void GDRESettings::update_from_ephemeral_settings(bool p_force_update) {
+	if (_init_bytecode_from_ephemeral_settings()) {
+		if (detect_bytecode_revision(!has_valid_version() || current_project->suspect_version) != OK) {
+			WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
+		} else {
+			load_pack_gdscript_cache(true);
+			_ensure_script_cache_complete();
+		}
+	}
+}
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract", "csharp_assembly_override"), &GDRESettings::load_project, DEFVAL(false), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
@@ -2616,6 +2651,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_project_dotnet_assembly_name"), &GDRESettings::get_project_dotnet_assembly_name);
 	ClassDB::bind_method(D_METHOD("project_requires_dotnet_assembly"), &GDRESettings::project_requires_dotnet_assembly);
 	ClassDB::bind_method(D_METHOD("get_temp_dotnet_assembly_dir"), &GDRESettings::get_temp_dotnet_assembly_dir);
+	ClassDB::bind_method(D_METHOD("update_from_ephemeral_settings"), &GDRESettings::update_from_ephemeral_settings);
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues

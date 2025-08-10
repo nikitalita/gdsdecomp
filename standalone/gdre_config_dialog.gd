@@ -1,7 +1,9 @@
 class_name GDREConfigDialog
 extends GDREWindow
 
-signal config_changed()
+@export var show_ephemeral_settings: bool = false
+
+signal config_changed(changed_settings: Dictionary[String, Variant])
 
 func create_section_settings() -> LabelSettings:
 	var label_settings: LabelSettings = LabelSettings.new()
@@ -93,10 +95,18 @@ func setting_callback(setting: GDREConfigSetting, value: Variant, control: Contr
 	# check if the control is a button
 	if control is Button:
 		control.get_child(0).get_child(0).visible = value != setting.get_default_value()
+	elif control is HBoxContainer:
+		control.get_child(1).visible = value != setting.get_default_value()
 
 func reset_callback(setting: GDREConfigSetting, control: Control, reset_button: Control):
 	reset_button.visible = false
-	if control is CheckButton:
+	var default_val = setting.get_default_value()
+	if control is OptionButton:
+		for i in range(0, control.item_count):
+			if (control.get_item_metadata(i) == default_val):
+				control.selected = i
+				break
+	elif control is CheckButton:
 		control.button_pressed = setting.get_default_value()
 	elif control is SpinBox:
 		control.value = setting.get_default_value()
@@ -130,10 +140,30 @@ func add_reset_button_to_toggle_button(setting: GDREConfigSetting, button: Butto
 	hbox.add_child(reset_button)
 
 func create_setting_button(setting: GDREConfigSetting) -> Control:
-	if setting.is_hidden():
+	if setting.is_hidden() or (not show_ephemeral_settings and setting.is_ephemeral()):
 		return null
 	var control: Control = null
-	if setting.get_type() == TYPE_BOOL:
+	if setting.has_special_value():
+		var button: OptionButton = OptionButton.new()
+		var items = setting.get_list_of_possible_values()
+		for key in items.keys():
+			var value = items[key]
+			button.add_item(value, -1)
+			var idx = button.get_item_count() - 1
+			if (key == setting.get_value()):
+				button.selected = idx
+			button.set_item_metadata(idx, key)
+
+		var label: Label = make_button_label(setting.get_brief_description())
+		label.tooltip_text = setting.get_description()
+		button.tooltip_text = setting.get_description()
+		control = make_button_hbox(setting, button, label)
+		button.item_selected.connect(
+			func(idx):
+				var val = button.get_item_metadata(idx)
+				setting_callback(setting, val, control)
+		)
+	elif setting.get_type() == TYPE_BOOL:
 		var button: CheckButton = CheckButton.new()
 		button.button_pressed = setting.get_value()
 
@@ -198,7 +228,7 @@ func _render_settings():
 	var curr_vbox_index = vboxes.size() - 1
 	for setting: GDREConfigSetting in GDREConfig.get_all_settings():
 		setting_value_map[setting] = setting.get_value()
-		if setting.is_hidden():
+		if setting.is_hidden() or (not show_ephemeral_settings and setting.is_ephemeral()):
 			continue
 		var full_name: String = setting.get_full_name()
 		var parts: PackedStringArray = full_name.split("/")
@@ -227,9 +257,14 @@ func _render_settings():
 
 
 func save_settings():
+	var changed_settings: Dictionary[String, Variant] = {}
 	for setting: GDREConfigSetting in setting_value_map.keys():
-		setting.set_value(setting_value_map[setting])
+		if setting.get_value() != setting_value_map[setting]:
+			changed_settings[setting.get_full_name()] = setting_value_map[setting]
+			setting.set_value(setting_value_map[setting])
 	GDREConfig.save_config()
+	if changed_settings.size() != 0:
+		emit_signal("config_changed", changed_settings)
 
 # MUST CALL set_root_window() first!!!
 # Called when the node enters the scene tree for the first time.
@@ -253,7 +288,6 @@ func close():
 
 func confirm():
 	save_settings()
-	emit_signal("config_changed")
 	close()
 
 func cancelled():
@@ -276,7 +310,7 @@ func _close_requested():
 		print("has unsaved changes")
 		%ConfirmClose.popup_centered()
 		return
-	print("closing")
+	#print("closing")
 	close()
 
 func _process(_delta):

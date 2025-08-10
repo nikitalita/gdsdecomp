@@ -15,6 +15,10 @@ run/main_scene="res://gdre_main.tscn"
 config/features=PackedStringArray("4.5")
 config/icon="res://gdre_icon.png"
 
+[autoload]
+
+GdreGlobals="res://gdre_globals.gd"
+
 [display]
 
 window/subwindows/embed_subwindows=false

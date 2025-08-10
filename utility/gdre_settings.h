@@ -219,6 +219,8 @@ private:
 
 	Vector<String> sort_and_validate_pck_files(const Vector<String> &p_paths);
 
+	bool _init_bytecode_from_ephemeral_settings();
+
 protected:
 	static void _bind_methods();
 
@@ -326,6 +328,8 @@ public:
 	String find_dotnet_assembly_path(Vector<String> p_search_dirs) const;
 
 	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
+
+	void update_from_ephemeral_settings(bool p_force_update = false);
 
 	static GDRESettings *get_singleton();
 	GDRESettings();

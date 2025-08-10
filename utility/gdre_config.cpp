@@ -1,4 +1,5 @@
 #include "gdre_config.h"
+#include "bytecode/bytecode_versions.h"
 #include "common.h"
 #include "gdre_settings.h"
 
@@ -10,6 +11,36 @@ GDREConfig *GDREConfig::get_singleton() {
 	}
 	return singleton;
 }
+
+class GDREConfigSetting_BytecodeForceBytecodeRevision : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_BytecodeForceBytecodeRevision, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_BytecodeForceBytecodeRevision() :
+			GDREConfigSetting(
+					"Bytecode/force_bytecode_revision",
+					"Force Bytecode Revision",
+					"Forces the bytecode revision to be the specified value.",
+					0,
+					false,
+					true) {}
+
+	virtual bool has_special_value() const override { return true; }
+	virtual Dictionary get_list_of_possible_values() const override {
+		Dictionary ret;
+		int ver_major = 0;
+		if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_pack_loaded()) {
+			ver_major = GDRESettings::get_singleton()->get_ver_major();
+		}
+		auto versions = get_decomp_versions(true, ver_major);
+		ret[0] = "Auto-detect";
+		for (const auto &version : versions) {
+			String short_name = version.name.split("/")[0].strip_edges() + ")";
+			ret[version.commit] = short_name;
+		}
+		return ret;
+	}
+};
 
 Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 	return {
@@ -35,6 +66,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"",
 				"<NONE>",
 				true)),
+		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
 		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/force_lossless_images",
 				"Force lossless images",
@@ -61,8 +93,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Exporter/Scene/GLTF/replace_shader_materials",
 				"Replace shader materials",
 				"Replaces shader materials with their referenced materials when exporting the scene (this may result in inaccurate exports)",
-				false,
-				true)), // TODO: Currently only used by the standalone exporter, maybe we should expose it?
+				false)),
 	};
 }
 
@@ -74,7 +105,9 @@ GDREConfig::GDREConfig() {
 
 GDREConfig::~GDREConfig() {
 	save_config();
-	singleton = nullptr;
+	if (singleton == this) {
+		singleton = nullptr;
+	}
 	default_settings.clear();
 }
 
@@ -86,7 +119,11 @@ void GDREConfig::load_config() {
 	settings.clear();
 
 	for (const auto &setting : default_settings) {
-		set_setting(setting->get_full_name(), setting->get_default_value());
+		if (setting->is_ephemeral()) {
+			ephemeral_settings.try_emplace_l(setting->get_full_name(), [=](auto &v) { v.second = setting->get_default_value(); }, setting->get_default_value());
+		} else {
+			set_setting(setting->get_full_name(), setting->get_default_value());
+		}
 	}
 
 	// set_setting("scene_export/force_export_multi_root", false);
@@ -129,16 +166,23 @@ String get_full_name(const String &p_setting) {
 	return p_setting;
 }
 
-void GDREConfig::set_setting(const String &p_setting, const Variant &p_value) {
+void GDREConfig::set_setting(const String &p_setting, const Variant &p_value, bool p_force_ephemeral) {
+	if (p_force_ephemeral || ephemeral_settings.contains(get_full_name(p_setting))) {
+		ephemeral_settings.try_emplace_l(get_full_name(p_setting), [=](auto &v) { v.second = p_value; }, p_value);
+		return;
+	}
 	settings.try_emplace_l(get_full_name(p_setting), [=](auto &v) { v.second = p_value; }, p_value);
 }
 
 bool GDREConfig::has_setting(const String &p_setting) const {
-	return settings.contains(get_full_name(p_setting));
+	return settings.contains(get_full_name(p_setting)) || ephemeral_settings.contains(get_full_name(p_setting));
 }
 
 Variant GDREConfig::get_setting(const String &p_setting, const Variant &p_default_value) const {
 	Variant ret = p_default_value;
+	if (ephemeral_settings.if_contains(get_full_name(p_setting), [&](const auto &v) { ret = v.second; })) {
+		return ret;
+	}
 	settings.if_contains(get_full_name(p_setting), [&](const auto &v) { ret = v.second; });
 	return ret;
 }
@@ -159,12 +203,34 @@ String GDREConfig::get_name_from_key(const String &p_setting) {
 	return parts[1];
 }
 
-GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden) {
+Variant GDREConfig::get_default_value(const String &p_setting) const {
+	String full_name = get_full_name(p_setting);
+	for (const auto &setting : default_settings) {
+		if (setting->get_full_name() == full_name) {
+			return setting->get_default_value();
+		}
+	}
+	return Variant();
+}
+
+void GDREConfig::reset_ephemeral_settings() {
+	ephemeral_settings.clear();
+	for (const auto &setting : default_settings) {
+		if (setting->is_ephemeral()) {
+			Variant default_value = setting->get_default_value();
+			settings.if_contains(setting->get_full_name(), [&](const auto &v) { default_value = v.second; });
+			ephemeral_settings.try_emplace_l(setting->get_full_name(), [=](auto &v) { v.second = default_value; }, default_value);
+		}
+	}
+}
+
+GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden, bool p_ephemeral) {
 	full_name = p_full_name;
 	brief_description = p_brief;
 	description = p_description;
 	default_value = p_default_value;
 	hidden = p_hidden;
+	ephemeral = p_ephemeral;
 }
 
 String GDREConfigSetting::get_full_name() const {
@@ -199,20 +265,24 @@ Variant GDREConfigSetting::get_value() const {
 }
 
 void GDREConfigSetting::reset() {
-	GDREConfig::get_singleton()->set_setting(full_name, default_value);
+	GDREConfig::get_singleton()->set_setting(full_name, default_value, ephemeral);
 }
 
-void GDREConfigSetting::set_value(const Variant &p_value) {
-	GDREConfig::get_singleton()->set_setting(full_name, p_value);
+void GDREConfigSetting::set_value(const Variant &p_value, bool p_force_ephemeral) {
+	GDREConfig::get_singleton()->set_setting(full_name, p_value, p_force_ephemeral || ephemeral);
 }
 
 bool GDREConfigSetting::is_hidden() const {
 	return hidden;
 }
 
+bool GDREConfigSetting::is_ephemeral() const {
+	return ephemeral;
+}
+
 void GDREConfigSetting::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset"), &GDREConfigSetting::reset);
-	ClassDB::bind_method(D_METHOD("set_value", "value"), &GDREConfigSetting::set_value);
+	ClassDB::bind_method(D_METHOD("set_value", "value", "force_ephemeral"), &GDREConfigSetting::set_value, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("get_description"), &GDREConfigSetting::get_description);
 	ClassDB::bind_method(D_METHOD("get_value"), &GDREConfigSetting::get_value);
 	ClassDB::bind_method(D_METHOD("get_default_value"), &GDREConfigSetting::get_default_value);
@@ -221,13 +291,18 @@ void GDREConfigSetting::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_brief_description"), &GDREConfigSetting::get_brief_description);
 	ClassDB::bind_method(D_METHOD("get_type"), &GDREConfigSetting::get_type);
 	ClassDB::bind_method(D_METHOD("is_hidden"), &GDREConfigSetting::is_hidden);
+	ClassDB::bind_method(D_METHOD("is_ephemeral"), &GDREConfigSetting::is_ephemeral);
+	ClassDB::bind_method(D_METHOD("has_special_value"), &GDREConfigSetting::has_special_value);
+	ClassDB::bind_method(D_METHOD("get_list_of_possible_values"), &GDREConfigSetting::get_list_of_possible_values);
 }
 
 void GDREConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_all_settings"), &GDREConfig::get_all_settings);
 	ClassDB::bind_method(D_METHOD("load_config"), &GDREConfig::load_config);
 	ClassDB::bind_method(D_METHOD("save_config"), &GDREConfig::save_config);
-	ClassDB::bind_method(D_METHOD("set_setting", "setting", "value"), &GDREConfig::set_setting);
+	ClassDB::bind_method(D_METHOD("set_setting", "setting", "value", "force_ephemeral"), &GDREConfig::set_setting, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("has_setting", "setting"), &GDREConfig::has_setting);
 	ClassDB::bind_method(D_METHOD("get_setting", "setting", "default_value"), &GDREConfig::get_setting, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("get_default_value", "setting"), &GDREConfig::get_default_value);
+	ClassDB::bind_method(D_METHOD("reset_ephemeral_settings"), &GDREConfig::reset_ephemeral_settings);
 }

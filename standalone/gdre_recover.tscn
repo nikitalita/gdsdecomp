@@ -1,10 +1,11 @@
-[gd_scene load_steps=15 format=3 uid="uid://bv7816js3kr4k"]
+[gd_scene load_steps=16 format=3 uid="uid://bv7816js3kr4k"]
 
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_ljbdy"]
 [ext_resource type="Script" uid="uid://cww2hw50p8q3i" path="res://gdre_file_tree.gd" id="2_02dmf"]
 [ext_resource type="Script" uid="uid://bga3f1eshrdxt" path="res://gdre_recover.gd" id="2_edjtc"]
 [ext_resource type="Texture2D" uid="uid://byablbp3l8foe" path="res://gdre_icons/gdre_Search.svg" id="3_i5ujv"]
 [ext_resource type="PackedScene" uid="uid://bjevsw5r631f1" path="res://gdre_resource_preview.tscn" id="5_ljbdy"]
+[ext_resource type="PackedScene" uid="uid://bj0ic3tstm0sq" path="res://gdre_config_dialog.tscn" id="6_jqe2v"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_1bn3y"]
 
@@ -247,18 +248,27 @@ layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="RadioButtons" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer"]
+[node name="LeftHBox" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="ExportSettingsButton" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/LeftHBox"]
+layout_mode = 2
+text = "Export Settings..."
+
+[node name="RadioButtons" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/LeftHBox"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 2
+size_flags_horizontal = 0
 
-[node name="ExtractOnly" type="CheckBox" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/RadioButtons"]
+[node name="ExtractOnly" type="CheckBox" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/LeftHBox/RadioButtons"]
 unique_name_in_owner = true
 layout_mode = 2
 button_group = SubResource("ButtonGroup_bvmre")
 text = "Extract Only"
 
-[node name="FullRecovery" type="CheckBox" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/RadioButtons"]
+[node name="FullRecovery" type="CheckBox" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/LeftHBox/RadioButtons"]
 unique_name_in_owner = true
 layout_mode = 2
 button_pressed = true
@@ -269,11 +279,11 @@ text = "Full Recovery"
 layout_mode = 2
 text = "Extract"
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer"]
+[node name="RightHBox" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 10
 
-[node name="ShowResourcePreview" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/HBoxContainer"]
+[node name="ShowResourcePreview" type="Button" parent="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/RightHBox"]
 unique_name_in_owner = true
 layout_mode = 2
 toggle_mode = true
@@ -313,6 +323,11 @@ file_mode = 0
 access = 2
 use_native_dialog = true
 
+[node name="GDREConfigDialog" parent="." instance=ExtResource("6_jqe2v")]
+unique_name_in_owner = true
+visible = false
+show_ephemeral_settings = true
+
 [connection signal="close_requested" from="." to="." method="cancelled"]
 [connection signal="canceled" from="DownloadConfirmDialog" to="." method="_on_download_confirm_dialog_canceled"]
 [connection signal="confirmed" from="DownloadConfirmDialog" to="." method="_on_download_confirm_dialog_confirmed"]
@@ -326,6 +341,8 @@ use_native_dialog = true
 [connection signal="text_submitted" from="MarginContainer/VBoxContainer/HSplitContainer/TreeViewVBox/AssemblyPickerHBox/Assembly" to="." method="_on_assembly_text_submitted"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HSplitContainer/TreeViewVBox/AssemblyPickerHBox/AssemblyButton" to="." method="_on_assembly_button_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HSplitContainer/TreeViewVBox/dir_hbox/DirectoryButton" to="." method="_on_directory_button_pressed"]
+[connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/LeftHBox/ExportSettingsButton" to="." method="_on_export_settings_button_pressed"]
 [connection signal="pressed" from="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/ExtractButton" to="." method="confirm"]
-[connection signal="toggled" from="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/HBoxContainer/ShowResourcePreview" to="." method="_on_show_resource_preview_toggled"]
+[connection signal="toggled" from="MarginContainer/VBoxContainer/HBoxContainer/HBoxContainer/RightHBox/ShowResourcePreview" to="." method="_on_show_resource_preview_toggled"]
 [connection signal="file_selected" from="AssemblyPickerDialog" to="." method="_on_assembly_picker_dialog_file_selected"]
+[connection signal="config_changed" from="GDREConfigDialog" to="." method="_on_gdre_config_dialog_config_changed"]
