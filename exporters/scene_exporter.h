@@ -16,6 +16,7 @@ class SceneExporter : public ResourceExporter {
 	static SceneExporter *singleton;
 
 	void do_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens);
+	void do_single_threaded_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens);
 
 	String get_batch_export_description(int i, std::shared_ptr<BatchExportToken> *tokens) const;
 

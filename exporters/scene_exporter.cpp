@@ -22,6 +22,7 @@
 #include "main/main.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
+#include "utility/task_manager.h"
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
 	String dep;
@@ -2771,6 +2772,12 @@ void SceneExporter::do_batch_export_instanced_scene(int i, std::shared_ptr<Batch
 	token->batch_export_instanced_scene();
 }
 
+void SceneExporter::do_single_threaded_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens) {
+	std::shared_ptr<BatchExportToken> token = tokens[i];
+	token->batch_preload();
+	token->batch_export_instanced_scene();
+}
+
 String SceneExporter::get_batch_export_description(int i, std::shared_ptr<BatchExportToken> *tokens) const {
 	return "Exporting scene " + tokens[i]->p_src_path;
 }
@@ -2830,39 +2837,52 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	BatchExportToken::in_progress = 0;
 	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
-	auto task_id = TaskManager::get_singleton()->add_group_task(
-			this,
-			&SceneExporter::do_batch_export_instanced_scene,
-			tokens.ptrw(),
-			tokens.size(),
-			&SceneExporter::get_batch_export_description,
-			"Exporting scenes",
-			"Exporting scenes",
-			true,
-			-1,
-			true);
 
-	for (auto &token : tokens) {
-		token->batch_preload();
-		// Don't load more than the current number of tasks being processed
-		while (BatchExportToken::in_progress >= default_threads) {
+	Error err = OK;
+	if (GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
+				this,
+				&SceneExporter::do_single_threaded_batch_export_instanced_scene,
+				tokens.ptrw(),
+				tokens.size(),
+				&SceneExporter::get_batch_export_description,
+				"Exporting scenes",
+				"Exporting scenes",
+				true);
+	} else {
+		auto task_id = TaskManager::get_singleton()->add_group_task(
+				this,
+				&SceneExporter::do_batch_export_instanced_scene,
+				tokens.ptrw(),
+				tokens.size(),
+				&SceneExporter::get_batch_export_description,
+				"Exporting scenes",
+				"Exporting scenes",
+				true,
+				-1,
+				true);
+
+		for (auto &token : tokens) {
+			token->batch_preload();
+			// Don't load more than the current number of tasks being processed
+			while (BatchExportToken::in_progress >= default_threads) {
+				if (TaskManager::get_singleton()->update_progress_bg(true)) {
+					break;
+				}
+				OS::get_singleton()->delay_usec(10000);
+			}
+			// calling update_progress_bg serves three purposes:
+			// 1) updating the progress bar
+			// 2) checking if the task was cancelled
+			// 3) allowing the main loop to iterate so that the command queue is flushed
+			// Without flushing the command queue, GLTFDocument::append_from_scene will hang
 			if (TaskManager::get_singleton()->update_progress_bg(true)) {
 				break;
 			}
-			OS::get_singleton()->delay_usec(10000);
 		}
-		// calling update_progress_bg serves three purposes:
-		// 1) updating the progress bar
-		// 2) checking if the task was cancelled
-		// 3) allowing the main loop to iterate so that the command queue is flushed
-		// Without flushing the command queue, GLTFDocument::append_from_scene will hang
-		if (TaskManager::get_singleton()->update_progress_bg(true)) {
-			break;
-		}
+
+		err = TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
 	}
-
-	Error err = TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
-
 	for (auto &token : tokens) {
 		token->post_export(err);
 		reports.push_back(token->report);
