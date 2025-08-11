@@ -1370,7 +1370,7 @@ String ResourceLoaderCompatBinary::recognize_script_class(Ref<FileAccess> p_f) {
 		return "";
 	}
 
-	get_unicode_string(); // type
+	(void)get_unicode_string(); // type
 
 	f->get_64(); // Metadata offset
 	uint32_t flags = f->get_32();
@@ -2920,15 +2920,15 @@ uint64_t ResourceLoaderCompatBinary::get_metadata_size() {
 	}
 	uint64_t pos = f->get_position();
 	f->seek(importmd_ofs);
-	get_unicode_string(); // editor
+	(void)get_unicode_string(); // editor
 	int sc = f->get_32();
 	for (int i = 0; i < sc; i++) {
-		get_unicode_string(); // src
-		get_unicode_string(); // md5
+		(void)get_unicode_string(); // src
+		(void)get_unicode_string(); // md5
 	}
 	int pc = f->get_32();
 	for (int i = 0; i < pc; i++) {
-		get_unicode_string(); // name
+		(void)get_unicode_string(); // name
 		Variant val;
 		parse_variant(val); // value
 	}
