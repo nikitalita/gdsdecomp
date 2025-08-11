@@ -1910,7 +1910,7 @@ static int64_t continuity_tester(const HashMap<K, V> &p_vector, const HashMap<K,
 		p_other_arr.push_back(Pair<K, V>(it.key, it.value));
 	}
 
-	for (int i = pos; i < p_vector.size(); i++) {
+	for (int64_t i = pos; i < p_vector.size(); i++) {
 		if (i >= p_other.size()) {
 			// WARN_PRINT(name + " discontinuity at index " + itos(i));
 			return i;
@@ -2264,7 +2264,7 @@ String GDScriptDecomp::get_token_text(const ScriptState &p_script_state, uint32_
 			return VariantDecoderCompat::get_variant_type_name(token_val, get_variant_ver_major());
 		} break;
 		case G_TK_BUILT_IN_FUNC: {
-			if (token_val >= get_function_count()) {
+			if (token_val >= static_cast<uint32_t>(get_function_count())) {
 				return "ERROR: Invalid function index";
 			}
 			return get_function_name(token_val);

@@ -83,7 +83,7 @@ Error OggStrExporter::get_data_from_ogg_stream(const String &real_src, const Ref
 
 	ogg_stream_clear(&os_en);
 	ERR_FAIL_COND_V_MSG(!reached_eos, ERR_FILE_CORRUPT, "All packets consumed before EOS.");
-	ERR_FAIL_COND_V_MSG(page_cursor < page_sizes.size(), ERR_FILE_CORRUPT, "Did not write all pages before EOS.");
+	ERR_FAIL_COND_V_MSG(page_cursor < static_cast<int64_t>(page_sizes.size()), ERR_FILE_CORRUPT, "Did not write all pages before EOS.");
 	ERR_FAIL_COND_V_MSG(r_data.size() < 4, ERR_FILE_CORRUPT, "Data is too small to be an Ogg stream.");
 	ERR_FAIL_COND_V_MSG(r_data[0] != 'O' || r_data[1] != 'g' || r_data[2] != 'g' || r_data[3] != 'S', ERR_FILE_CORRUPT, "Header is missing in ogg data.");
 

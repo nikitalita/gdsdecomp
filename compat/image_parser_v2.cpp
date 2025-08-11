@@ -14,7 +14,7 @@ void _advance_padding(Ref<FileAccess> f, uint32_t p_len) {
 void _pad_buffer(Ref<FileAccess> f, uint32_t p_len) {
 	int extra = 4 - (p_len % 4);
 	if (extra < 4) {
-		for (uint32_t i = 0; i < extra; i++) {
+		for (int32_t i = 0; i < extra; i++) {
 			f->store_8(0); //pad to 32
 		}
 	}

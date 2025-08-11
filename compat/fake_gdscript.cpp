@@ -484,7 +484,7 @@ Error FakeGDScript::parse_script() {
 						}
 						if (arg_count >= 0) {
 							MethodInfo mi = MethodInfo(signal_name);
-							for (size_t j = 0; j < arg_count; j++) {
+							for (int64_t j = 0; j < arg_count; j++) {
 								mi.arguments.push_back(PropertyInfo(Variant::NIL, "arg" + itos(j)));
 							}
 							_signals[signal_name] = mi;
@@ -559,7 +559,7 @@ Error FakeGDScript::parse_script() {
 						}
 						if (arg_count >= 0) {
 							MethodInfo mi = MethodInfo(method_name);
-							for (size_t j = 0; j < arg_count; j++) {
+							for (int64_t j = 0; j < arg_count; j++) {
 								// TODO: parse argument types and names
 								mi.arguments.push_back(PropertyInfo(Variant::NIL, "arg" + itos(j)));
 							}

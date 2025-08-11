@@ -782,7 +782,7 @@ struct KeyWorker {
 		if (res_s.is_empty()) {
 			return true;
 		}
-		if (res_s.size() > max_key_len) {
+		if (res_s.size() > static_cast<size_t>(max_key_len)) {
 			return true;
 		}
 
