@@ -717,9 +717,7 @@ Ref<Image> crop_transparent(const Ref<Image> &img) {
 	int new_height = is_horizontal ? height : height / num_parts;
 
 	// now we need to find the first non-transparent pixel in the image
-	int min_x = 0;
 	int width_region_start = 0;
-	int min_y = 0;
 	int height_region_start = 0;
 
 	// first, check to see if the image is entirely transparent
@@ -738,30 +736,22 @@ Ref<Image> crop_transparent(const Ref<Image> &img) {
 	if (is_horizontal) {
 		// the transparent pixels start at either at 0,0, new_width,0, or width - new_width,0
 		if (img->get_pixel(0, 0).a == 0.0) {
-			min_x = 0;
 			width_region_start = new_width * (num_parts - 1);
 		} else if (img->get_pixel(new_width, 0).a == 0.0) {
-			min_x = new_width;
 			width_region_start = 0;
 		} else if (img->get_pixel(width - new_width, 0).a == 0.0) {
-			min_x = width - new_width;
 			width_region_start = width - (new_width * (num_parts - 1));
 		}
-		min_y = 0;
 		height_region_start = 0;
 	} else {
 		// the transparent pixels start at either at 0,0, 0,new_height, or 0,height - new_height
 		if (img->get_pixel(0, 0).a == 0.0) {
-			min_y = 0;
 			height_region_start = new_height * (num_parts - 1);
 		} else if (img->get_pixel(0, new_height).a == 0.0) {
-			min_y = new_height;
 			height_region_start = 0;
 		} else if (img->get_pixel(0, height - new_height).a == 0.0) {
-			min_y = height - new_height;
 			height_region_start = height - (new_height * (num_parts - 1));
 		}
-		min_x = 0;
 		width_region_start = 0;
 	}
 
@@ -782,15 +772,8 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 				Ref<Image> img = images[i];
 				if (img->detect_alpha()) {
 					Ref<Image> cropped = crop_transparent(img);
-					size_t new_width;
-					size_t new_height;
 					if (!cropped.is_null()) {
-						new_width = cropped->get_width();
-						new_height = cropped->get_height();
 						fixed_images.push_back(cropped);
-					} else {
-						new_width = 0;
-						new_height = 0;
 					}
 				} else {
 					// otherwise, divide it into parts based on the ratio of the width and height
