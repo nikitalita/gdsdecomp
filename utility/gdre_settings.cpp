@@ -247,6 +247,10 @@ GDRESettings::GDRESettings() {
 	if (gdre_user_path.contains("[unnamed project]")) {
 		gdre_user_path = gdre_user_path.replace("[unnamed project]", "gdre_tests");
 	}
+#ifdef TOOLS_ENABLED
+	print_line("GDRE User path: " + gdre_user_path);
+#endif
+
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
 	logger = memnew(GDRELogger);
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
