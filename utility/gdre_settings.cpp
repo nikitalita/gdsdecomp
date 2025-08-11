@@ -948,14 +948,13 @@ int GDRESettings::get_bytecode_revision() const {
 Error GDRESettings::get_version_from_bin_resources() {
 	int consistent_versions = 0;
 	int inconsistent_versions = 0;
-	int ver_major = 0;
-	int ver_minor = 0;
+	uint32_t ver_major = 0;
+	uint32_t ver_minor = 0;
 	int min_major = INT_MAX;
 	int max_major = 0;
 	int min_minor = INT_MAX;
 	int max_minor = 0;
 
-	int i;
 	int version_from_dir = get_ver_major_from_dir();
 
 	// only test the bytecode on non-encrypted 3.x files
@@ -1023,9 +1022,10 @@ Error GDRESettings::get_version_from_bin_resources() {
 		wildcards.push_back("*." + ext);
 	}
 	Vector<String> files = get_file_list(wildcards);
-	uint64_t max = files.size();
+	int64_t max = files.size();
 	bool sus_warning = false;
-	for (i = 0; i < max; i++) {
+
+	for (int64_t i = 0; i < max; i++) {
 		bool suspicious = false;
 		uint32_t res_major = 0;
 		uint32_t res_minor = 0;
@@ -2269,7 +2269,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		file_buf.resize(file_len);
 		f->get_buffer(file_buf.ptrw(), file_len);
 		// check first 8000 bytes for null bytes
-		for (int j = 0; j < MIN(file_len, 8000); j++) {
+		for (uint64_t j = 0; j < MIN(file_len, 8000ULL); j++) {
 			if (file_buf[j] == 0) {
 				return;
 			}

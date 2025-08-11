@@ -470,10 +470,11 @@ String Glob::translate(const String &pattern) {
 
 					while (true) {
 						size_t off = k;
-						k = pattern.substr(off, j - off).find("-");
-						if (k == -1) {
+						int found = pattern.substr(off, j - off).find("-");
+						if (found == String::npos) {
 							break;
 						}
+						k = found;
 						k += off;
 						chunks.push_back(pattern.substr(i, k - i));
 						i = k + 1;

@@ -782,7 +782,7 @@ struct KeyWorker {
 		if (res_s.is_empty()) {
 			return true;
 		}
-		if (res_s.size() > static_cast<size_t>(max_key_len)) {
+		if (res_s.size() > static_cast<int64_t>(max_key_len)) {
 			return true;
 		}
 
@@ -1314,14 +1314,14 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	if (empty_strings > default_messages.size() * 0.2) {
 		size_t best_empty_strings = empty_strings;
 		for (int i = 0; i < translations.size(); i++) {
-			size_t empty_strings = 0;
+			size_t empties = 0;
 			for (auto &message : translation_messages[i]) {
 				if (message.is_empty()) {
-					empty_strings++;
+					empties++;
 				}
 			}
-			if (empty_strings < best_empty_strings) {
-				best_empty_strings = empty_strings;
+			if (empties < best_empty_strings) {
+				best_empty_strings = empties;
 				default_translation = translations[i];
 				default_messages = translation_messages[i];
 			}

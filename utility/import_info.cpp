@@ -647,18 +647,18 @@ Error ImportInfov2::_load(const String &p_path) {
 	// If this is a "converted" file, then it won't have import metadata, and we expect that
 	String old_ext = p_path.get_extension().to_lower();
 
-	auto get_new_ext = [&](String old_ext) {
+	auto get_new_ext = [&](String e) {
 		String new_ext;
-		if (old_ext == "tex") {
+		if (e == "tex") {
 			new_ext = "png";
-		} else if (old_ext == "smp") {
+		} else if (e == "smp") {
 			new_ext = "wav";
-		} else if (old_ext == "cbm") {
+		} else if (e == "cbm") {
 			new_ext = "cube";
 		} else if (type == "AtlasTexture") {
 			// auto-created AtlasTexture, it would be in the project directory
 			new_ext = "png";
-		} else if (old_ext == "scn" || type == "PackedScene") {
+		} else if (e == "scn" || type == "PackedScene") {
 			new_ext = "glb";
 		} else {
 			new_ext = "fixme";
@@ -1124,18 +1124,18 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies(bool fix_rel_paths) const
 			} else {
 				if (var.get_type() == Variant::DICTIONARY) {
 					Dictionary dict = var;
-					for (int64_t i = 0; i < dict.size(); i++) {
-						deps_list.push_back(dict.get_key_at_index(i));
-						target_list.push_back(dict.get_value_at_index(i));
+					for (int64_t j = 0; j < dict.size(); j++) {
+						deps_list.push_back(dict.get_key_at_index(j));
+						target_list.push_back(dict.get_value_at_index(j));
 					}
 				}
 			}
-			for (int64_t i = 0; i < deps_list.size(); i++) {
+			for (int64_t k = 0; k < deps_list.size(); k++) {
 				SharedObject so;
-				so.path = correct_path(deps_list[i]);
-				so.path = fix_rel_paths ? correct_path(deps_list[i]) : deps_list[i];
+				so.path = correct_path(deps_list[k]);
+				so.path = fix_rel_paths ? correct_path(deps_list[k]) : deps_list[k];
 				so.tags = normalize_tags(key.split("."));
-				so.target = i < target_list.size() ? target_list[i] : "";
+				so.target = k < target_list.size() ? target_list[k] : "";
 				deps.push_back(so);
 			}
 		}

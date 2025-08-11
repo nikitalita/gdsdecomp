@@ -1302,7 +1302,7 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 	};
 
 	for (int i = 0; i < tokens.size(); i++) {
-		r_tok_max = MAX(r_tok_max, tokens[i] & TOKEN_MASK);
+		r_tok_max = MAX(r_tok_max, static_cast<int>(tokens[i] & TOKEN_MASK));
 		GlobalToken curr_token = get_global_token(tokens[i]);
 		Pair<int, int> arg_count;
 		bool test_func = false;

@@ -113,7 +113,7 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 		CharString cs;
 		cs.resize_uninitialized(slen + 1);
 		cs[slen] = 0;
-		int actual_bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
+		auto actual_bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
 		if (actual_bytes_read < slen) {
 			WARN_PRINT("Bytes read less than slen!");
 		}
@@ -135,6 +135,7 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 
 Error ProjectConfigLoader::_load_settings_text(Ref<FileAccess> f, const String &p_path, uint32_t ver_major) {
 	Error err;
+	last_builtin_order = 0;
 
 	if (f.is_null()) {
 		// FIXME: Above 'err' error code is ERR_FILE_CANT_OPEN if the file is missing
@@ -184,9 +185,9 @@ Error ProjectConfigLoader::_load_settings_text(Ref<FileAccess> f, const String &
 
 struct _VCSort {
 	String name;
-	Variant::Type type;
-	int order;
-	int flags;
+	Variant::Type type = Variant::VARIANT_MAX;
+	int order = 0;
+	int flags = 0;
 
 	bool operator<(const _VCSort &p_vcs) const { return order == p_vcs.order ? name < p_vcs.name : order < p_vcs.order; }
 };
@@ -197,16 +198,18 @@ RBMap<String, List<String>> ProjectConfigLoader::get_save_proops() const {
 	for (RBMap<StringName, VariantContainer>::Element *G = props.front(); G; G = G->next()) {
 		const VariantContainer *v = &G->get();
 
-		if (v->hide_from_editor)
+		if (v->hide_from_editor) {
 			continue;
+		}
 
 		_VCSort vc;
 		vc.name = G->key(); //*k;
 		vc.order = v->order;
 		vc.type = v->variant.get_type();
 		vc.flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_STORAGE;
-		if (v->variant == v->initial)
+		if (v->variant == v->initial) {
 			continue;
+		}
 
 		vclist.insert(vc);
 	}
@@ -218,9 +221,9 @@ RBMap<String, List<String>> ProjectConfigLoader::get_save_proops() const {
 
 		int div = category.find("/");
 
-		if (div < 0)
+		if (div < 0) {
 			category = "";
-		else {
+		} else {
 			category = category.substr(0, div);
 			name = name.substr(div + 1, name.size());
 		}
@@ -252,20 +255,20 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 }
 
 Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
-	uint32_t config_version = 2;
+	uint32_t text_config_version = 2;
 	if (ver_major > 2) {
 		if (ver_major == 3 && ver_minor == 0) {
-			config_version = 3;
+			text_config_version = 3;
 		} else if (ver_major == 3) {
-			config_version = 4;
+			text_config_version = 4;
 		} else { // v4
-			config_version = 5;
+			text_config_version = 5;
 		}
 	} else {
-		config_version = 2;
+		text_config_version = 2;
 	}
 
-	if (config_version > 2) {
+	if (text_config_version > 2) {
 		file->store_line("; Engine configuration file.");
 		file->store_line("; It's best edited using the editor UI and not directly,");
 		file->store_line("; since the parameters that go here are not all obvious.");
@@ -275,21 +278,24 @@ Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file,
 		file->store_line(";   param=value ; assign values to parameters");
 		file->store_line("");
 
-		file->store_string("config_version=" + itos(config_version) + "\n");
+		file->store_string("config_version=" + itos(text_config_version) + "\n");
 	}
 
 	file->store_string("\n");
 
 	for (RBMap<String, List<String>>::Element *E = proops.front(); E; E = E->next()) {
-		if (E != proops.front())
+		if (E != proops.front()) {
 			file->store_string("\n");
+		}
 
-		if (E->key() != "")
+		if (E->key() != "") {
 			file->store_string("[" + E->key() + "]\n\n");
+		}
 		for (List<String>::Element *F = E->get().front(); F; F = F->next()) {
 			String key = F->get();
-			if (E->key() != "")
+			if (E->key() != "") {
 				key = E->key() + "/" + key;
+			}
 			Variant value;
 			value = props[key].variant;
 

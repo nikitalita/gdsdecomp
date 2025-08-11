@@ -413,8 +413,8 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 
 		auto parse_bins = [unzupped_path](Vector<SharedObject> bins) {
 			Vector<PluginBin> plugin_bins;
-			for (auto &E : bins) {
-				auto &lib = E.path;
+			for (auto &elem : bins) {
+				auto &lib = elem.path;
 				auto paths = Glob::rglob(unzupped_path.path_join("**").path_join(lib.replace_first("res://", "")), true);
 				String real_path;
 				for (auto &p : paths) {
@@ -423,7 +423,7 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 						break;
 					}
 				}
-				auto plugin_bin = PluginSource::get_plugin_bin(real_path, E);
+				auto plugin_bin = PluginSource::get_plugin_bin(real_path, elem);
 				plugin_bins.push_back(plugin_bin);
 			}
 			return plugin_bins;

@@ -283,8 +283,8 @@ void TaskManager::DownloadTaskData::start_internal() {
 	}
 }
 
-TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool silent) :
-		download_url(p_download_url), save_path(p_save_path), silent(silent) {
+TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool p_silent) :
+		download_url(p_download_url), save_path(p_save_path), silent(p_silent) {
 	dont_update_progress_bg = true;
 	auto_start = false;
 }

@@ -34,7 +34,7 @@ TEST_CASE("[GDSDecomp][SceneState] SceneState packed version format hasn't chang
 }
 
 TEST_CASE("[GDSDecomp][ResourceLoaderText] ResourceLoaderText::FORMAT_VERSION hasn't changed") {
-	CHECK(ResourceLoaderText::FORMAT_VERSION == ResourceLoaderCompatText::FORMAT_VERSION);
+	CHECK(static_cast<int>(ResourceLoaderText::FORMAT_VERSION) == static_cast<int>(ResourceLoaderCompatText::FORMAT_VERSION));
 }
 
 TEST_CASE("[GDSDecomp][ResourceFormatLoaderCompatBinary] ResourceFormatLoaderCompatBinary can load a resource") {

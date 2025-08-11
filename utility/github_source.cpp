@@ -242,7 +242,7 @@ ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, const Stri
 	Array assets = release.get("assets", {});
 	for (int i = 0; i < assets.size(); i++) {
 		Dictionary asset = assets[i];
-		if (uint64_t(asset.get("id", 0)) == asset_id) {
+		if (int64_t(asset.get("id", 0)) == asset_id) {
 			String name = asset.get("name", "");
 			if (is_empty_or_null(name)) {
 				continue;

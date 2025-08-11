@@ -875,8 +875,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	if (has_remaps) {
 		for (auto &token : tokens) {
 			auto &iinfo = token.iinfo;
-			auto err = token.report.is_null() ? ERR_BUG : token.report->get_error();
-			if (iinfo.is_valid() && !err) {
+			auto tkerr = token.report.is_null() ? ERR_BUG : token.report->get_error();
+			if (iinfo.is_valid() && !tkerr) {
 				auto src = iinfo->get_export_dest();
 				if (success_paths.has(src)) {
 					auto dest = iinfo->get_path();

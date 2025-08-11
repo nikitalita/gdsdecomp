@@ -99,8 +99,8 @@ TEST_CASE("[GDSDecomp][ResourceExport] Export texture") {
 			exported_image->load(output_file);
 			CHECK(original_image->get_width() == exported_image->get_width());
 			CHECK(original_image->get_height() == exported_image->get_height());
-			for (size_t x = 0; x < original_image->get_width(); x++) {
-				for (size_t y = 0; y < original_image->get_height(); y++) {
+			for (int64_t x = 0; x < original_image->get_width(); x++) {
+				for (int64_t y = 0; y < original_image->get_height(); y++) {
 					Color c = original_image->get_pixel(x, y);
 					Color c2 = exported_image->get_pixel(x, y);
 					if (c != c2) {

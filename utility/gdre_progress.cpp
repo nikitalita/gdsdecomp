@@ -507,8 +507,8 @@ bool StdOutProgress::step(int p_step, bool p_force_refresh) {
 	}
 	auto current_tick = OS::get_singleton()->get_ticks_usec();
 	float progress = (float)current_step / (float)amount;
-	size_t progress_percent = MIN((size_t)(progress * 100), 100);
-	size_t prev_progress_percent = MIN((size_t)(((float)prev_step / (float)amount) * 100), 100);
+	size_t progress_percent = MIN(static_cast<size_t>(progress * 100), static_cast<size_t>(100));
+	size_t prev_progress_percent = MIN(static_cast<size_t>((static_cast<float>(prev_step) / static_cast<float>(amount)) * 100), static_cast<size_t>(100));
 	if (progress_percent != prev_progress_percent || current_tick - last_progress_tick > 500000) {
 		GDRELogger::print_status_bar(label, progress);
 		last_progress_tick = current_tick;

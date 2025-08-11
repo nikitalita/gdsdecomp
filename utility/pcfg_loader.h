@@ -38,7 +38,7 @@ class ProjectConfigLoader : public RefCounted {
 	RBMap<StringName, VariantContainer> props;
 	RBMap<StringName, PropertyInfo> custom_prop_info;
 	String cfb_path = "";
-	int last_builtin_order;
+	int last_builtin_order = 0;
 	bool loaded = false;
 	int config_version = 0;
 	uint32_t major = 0;
