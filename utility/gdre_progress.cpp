@@ -413,9 +413,9 @@ void GDREProgressDialog::main_thread_update() {
 	bool removed = _process_removals();
 	bool should_update = removed;
 	bool p_can_cancel = false;
-	bool initialized = false;
+	bool task_initialized = false;
 	bool should_force_redraw = false;
-	uint64_t size = 0;
+	uint64_t task_count = 0;
 	uint64_t last_tick = OS::get_singleton()->get_ticks_usec();
 	// if it's been more than 500ms since the last update_ui happened, force a redraw (if we have any tasks to redraw).
 	if (last_tick - last_tick_updated > 500000) {
@@ -424,7 +424,7 @@ void GDREProgressDialog::main_thread_update() {
 	tasks.for_each_m([&](TaskMap::value_type &E) {
 		Task &t = E.second;
 		if (!t.initialized) {
-			initialized = true;
+			task_initialized = true;
 			t.init(main);
 		}
 		t.force_next_redraw = t.force_next_redraw || should_force_redraw;
@@ -432,13 +432,13 @@ void GDREProgressDialog::main_thread_update() {
 			should_update = true;
 		}
 		p_can_cancel = p_can_cancel || t.can_cancel;
-		size++;
+		task_count++;
 	});
-	if (should_update || initialized) {
+	if (should_update || task_initialized) {
 		last_tick_updated = last_tick;
-		if (size == 0) {
+		if (task_count == 0) {
 			_hide();
-		} else if (initialized || removed) {
+		} else if (task_initialized || removed) {
 			_post_add_task(p_can_cancel);
 		} else {
 			_update_ui();

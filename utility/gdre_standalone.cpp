@@ -104,11 +104,11 @@ void GodotREEditorStandalone::progress_end_task(const String &p_task) {
 
 void GodotREEditorStandalone::_notification(int p_notification) {
 	if (p_notification == NOTIFICATION_ENTER_TREE) {
-		auto window = get_parent_window();
-		if (window) {
-			// progress_dialog->reparent(window);
-			window->set_theme(get_theme());
-			callable_mp((Node *)progress_dialog, &Node::reparent).call_deferred(window, false);
+		auto parent_window = get_parent_window();
+		if (parent_window) {
+			// progress_dialog->reparent(parent_window);
+			parent_window->set_theme(get_theme());
+			callable_mp((Node *)progress_dialog, &Node::reparent).call_deferred(parent_window, false);
 		}
 	}
 	if (p_notification == NOTIFICATION_PROCESS) {

@@ -20,7 +20,7 @@ String ImportInfo::as_text(bool full) {
 	auto additional_sources = get_additional_sources();
 	if (additional_sources.size() > 0) {
 		s += "\n\tadditional_sources: [";
-		for (int i = 0; i < additional_sources.size(); i++) {
+		for (int64_t i = 0; i < additional_sources.size(); i++) {
 			if (i > 0) {
 				s += ", ";
 			}
@@ -30,7 +30,7 @@ String ImportInfo::as_text(bool full) {
 	}
 	s += "\n\tdest_files: [";
 	Vector<String> dest_files = get_dest_files();
-	for (int i = 0; i < dest_files.size(); i++) {
+	for (int64_t i = 0; i < dest_files.size(); i++) {
 		if (i > 0) {
 			s += ", ";
 		}
@@ -48,7 +48,7 @@ String ImportInfo::as_text(bool full) {
 	s += "\n\tparams: {";
 	Dictionary params = get_params();
 	auto keys = params.get_key_list();
-	for (int i = 0; i < keys.size(); i++) {
+	for (int64_t i = 0; i < keys.size(); i++) {
 		const Variant &key = keys[i];
 		// skip excessively long options list
 		if (!full && i == 8) {
@@ -125,7 +125,7 @@ Ref<ConfigFile> copy_config_file(Ref<ConfigFile> p_cf) {
 	Ref<ConfigFile> r_cf;
 	r_cf.instantiate();
 	Vector<String> sections = p_cf->get_sections();
-	for (int i = sections.size() - 1; i >= 0; i--) {
+	for (int64_t i = sections.size() - 1; i >= 0; i--) {
 		String section = sections[i];
 		Vector<String> section_keys = p_cf->get_section_keys(section);
 		for (int j = 0; j < section_keys.size(); j++) {
@@ -340,7 +340,7 @@ Vector<String> get_remap_paths(const Ref<ConfigFile> &cf) {
 	Vector<String> remap_paths;
 	Vector<String> remap_keys = cf->get_section_keys("remap");
 	// iterate over keys in remap section
-	for (int i = 0; i < remap_keys.size(); i++) {
+	for (int64_t i = 0; i < remap_keys.size(); i++) {
 		// if we find a path key, we have a match
 		if (remap_keys[i].begins_with("path.") || remap_keys[i] == "path") {
 			String try_path = cf->get_value("remap", remap_keys[i], "");
@@ -351,7 +351,7 @@ Vector<String> get_remap_paths(const Ref<ConfigFile> &cf) {
 }
 Array vec_to_array(const Vector<String> &vec) {
 	Array arr;
-	for (int i = 0; i < vec.size(); i++) {
+	for (int64_t i = 0; i < vec.size(); i++) {
 		arr.push_back(vec[i]);
 	}
 	return arr;
@@ -368,7 +368,7 @@ void ImportInfoModern::set_dest_files(const Vector<String> p_dest_files) {
 		Vector<String> remap_keys = cf->get_section_keys("remap");
 		// if set, we likely have multiple paths
 		if (get_metadata_prop().has("imported_formats")) {
-			for (int i = 0; i < p_dest_files.size(); i++) {
+			for (int64_t i = 0; i < p_dest_files.size(); i++) {
 				Vector<String> spl = p_dest_files[i].split(".");
 				// second to last split
 				ERR_FAIL_COND_MSG(spl.size() < 4, "Expected to see format in path " + p_dest_files[i]);
@@ -431,7 +431,7 @@ Dictionary ImportInfoModern::get_params() const {
 	if (cf->has_section("params")) {
 		Vector<String> param_keys = cf->get_section_keys("params");
 		params = Dictionary();
-		for (int i = 0; i < param_keys.size(); i++) {
+		for (int64_t i = 0; i < param_keys.size(); i++) {
 			params[param_keys[i]] = cf->get_value("params", param_keys[i], "");
 		}
 	}
@@ -443,7 +443,7 @@ void ImportInfoModern::set_params(Dictionary params) {
 		cf->erase_section_key("params", "dummy_value_ignore_me");
 	}
 	auto param_keys = params.get_key_list();
-	for (int i = 0; i < param_keys.size(); i++) {
+	for (int64_t i = 0; i < param_keys.size(); i++) {
 		const Variant &key = param_keys[i];
 		cf->set_value("params", key, params[key]);
 	}
@@ -514,7 +514,7 @@ Error ImportInfoModern::_load(const String &p_path) {
 			dest_files = get_dest_files();
 		}
 		ERR_FAIL_COND_V_MSG(dest_files.size() == 0, ERR_FILE_CORRUPT, p_path + ": no destination files found in import data");
-		for (int i = 0; i < dest_files.size(); i++) {
+		for (int64_t i = 0; i < dest_files.size(); i++) {
 			if (FileAccess::exists(dest_files[i])) {
 				preferred_import_path = dest_files[i];
 				break;
@@ -796,7 +796,7 @@ Vector<String> ImportInfov2::get_additional_sources() const {
 
 void ImportInfov2::set_additional_sources(const Vector<String> &p_add_sources) {
 	// TODO: md5s
-	for (int i = 1; i < p_add_sources.size(); i++) {
+	for (int64_t i = 1; i < p_add_sources.size(); i++) {
 		if (v2metadata->get_source_count() >= i) {
 			v2metadata->remove_source(i);
 		}
@@ -891,7 +891,7 @@ Error ImportInfoModern::save_md5_file(const String &output_dir) {
 		return ERR_PRINTER_ON_FIRE;
 	}
 	// check if each exists
-	for (int i = 0; i < dest_files.size(); i++) {
+	for (int64_t i = 0; i < dest_files.size(); i++) {
 		if (!FileAccess::exists(dest_files[i])) {
 			//WARN_PRINT("Cannot find " + dest_files[i] + ", cannot compute dest_md5.");
 			return ERR_PRINTER_ON_FIRE;
@@ -1090,7 +1090,7 @@ String ImportInfoGDExt::correct_path(const String &p_path) const {
 
 Vector<String> normalize_tags(const Vector<String> &tags) {
 	Vector<String> new_tags;
-	for (int i = 0; i < tags.size(); i++) {
+	for (int64_t i = 0; i < tags.size(); i++) {
 		String tag = tags[i];
 		if (tag == "64") {
 			tag = "x86_64";
@@ -1114,7 +1114,7 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies(bool fix_rel_paths) const
 	Vector<SharedObject> deps;
 	if (cf->has_section("dependencies")) {
 		Vector<String> dep_keys = cf->get_section_keys("dependencies");
-		for (int i = 0; i < dep_keys.size(); i++) {
+		for (int64_t i = 0; i < dep_keys.size(); i++) {
 			String key = dep_keys[i];
 			auto var = cf->get_value("dependencies", key, Vector<String>{});
 			Vector<String> deps_list;
@@ -1124,13 +1124,13 @@ Vector<SharedObject> ImportInfoGDExt::get_dependencies(bool fix_rel_paths) const
 			} else {
 				if (var.get_type() == Variant::DICTIONARY) {
 					Dictionary dict = var;
-					for (int i = 0; i < dict.size(); i++) {
+					for (int64_t i = 0; i < dict.size(); i++) {
 						deps_list.push_back(dict.get_key_at_index(i));
 						target_list.push_back(dict.get_value_at_index(i));
 					}
 				}
 			}
-			for (int i = 0; i < deps_list.size(); i++) {
+			for (int64_t i = 0; i < deps_list.size(); i++) {
 				SharedObject so;
 				so.path = correct_path(deps_list[i]);
 				so.path = fix_rel_paths ? correct_path(deps_list[i]) : deps_list[i];
@@ -1214,7 +1214,7 @@ HashMap<String, String> ImportInfoGDExt::get_libaries_section() const {
 
 	if (cf->has_section(section_name)) {
 		Vector<String> dep_keys = cf->get_section_keys(section_name);
-		for (int i = 0; i < dep_keys.size(); i++) {
+		for (int64_t i = 0; i < dep_keys.size(); i++) {
 			deps[dep_keys[i]] = cf->get_value(section_name, dep_keys[i], String{});
 		}
 	}

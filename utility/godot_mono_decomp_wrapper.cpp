@@ -20,46 +20,46 @@ Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembl
 	return wrapper;
 }
 
-Error GodotMonoDecompWrapper::_load(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
-	CharString assembly_path_chrstr = assembly_path.utf8();
+Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<String> &p_original_project_files, const Vector<String> &p_assembly_reference_dirs, const GodotMonoDecompSettings &p_settings) {
+	CharString assembly_path_chrstr = p_assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
-	String ref_path = assembly_path.get_base_dir();
+	String ref_path = p_assembly_path.get_base_dir();
 	CharString ref_path_chrstr = ref_path.utf8();
 	const char *ref_path_c = ref_path_chrstr.get_data();
 	const char *ref_path_c_array[] = { ref_path_c };
 
-	CharString godotVersionOverride_chrstr = settings.GodotVersionOverride.is_empty() ? "" : settings.GodotVersionOverride.utf8();
-	const char *godotVersionOverride_c = settings.GodotVersionOverride.is_empty() ? nullptr : godotVersionOverride_chrstr.get_data();
+	CharString godotVersionOverride_chrstr = p_settings.GodotVersionOverride.is_empty() ? "" : p_settings.GodotVersionOverride.utf8();
+	const char *godotVersionOverride_c = p_settings.GodotVersionOverride.is_empty() ? nullptr : godotVersionOverride_chrstr.get_data();
 
-	const char **originalProjectFiles_c_array = new const char *[originalProjectFiles.size()];
+	const char **originalProjectFiles_c_array = new const char *[p_original_project_files.size()];
 	Vector<CharString> originalProjectFiles_chrstrs;
-	originalProjectFiles_chrstrs.resize(originalProjectFiles.size());
-	for (int i = 0; i < originalProjectFiles.size(); i++) {
+	originalProjectFiles_chrstrs.resize(p_original_project_files.size());
+	for (int i = 0; i < p_original_project_files.size(); i++) {
 		// to keep them from being freed
-		originalProjectFiles_chrstrs.write[i] = originalProjectFiles[i].utf8();
+		originalProjectFiles_chrstrs.write[i] = p_original_project_files[i].utf8();
 		originalProjectFiles_c_array[i] = originalProjectFiles_chrstrs[i].get_data();
 	}
 
-	auto decompilerHandle = GodotMonoDecomp_CreateGodotModuleDecompiler(
+	auto new_decompiler_handle = GodotMonoDecomp_CreateGodotModuleDecompiler(
 			assembly_path_c,
 			originalProjectFiles_c_array,
-			originalProjectFiles.size(),
+			p_original_project_files.size(),
 			ref_path_c_array,
 			1,
 			godotVersionOverride_c,
-			settings.WriteNuGetPackageReferences,
-			settings.VerifyNuGetPackageIsFromNugetOrg,
-			settings.CopyOutOfTreeReferences,
-			settings.CreateAdditionalProjectsForProjectReferences);
+			p_settings.WriteNuGetPackageReferences,
+			p_settings.VerifyNuGetPackageIsFromNugetOrg,
+			p_settings.CopyOutOfTreeReferences,
+			p_settings.CreateAdditionalProjectsForProjectReferences);
 	delete[] originalProjectFiles_c_array;
-	if (decompilerHandle == nullptr) {
+	if (new_decompiler_handle == nullptr) {
 		return ERR_CANT_CREATE;
 	}
-	this->decompilerHandle = decompilerHandle;
-	this->assembly_path = assembly_path;
-	this->originalProjectFiles = originalProjectFiles;
-	this->assemblyReferenceDirs = assemblyReferenceDirs;
-	this->settings = settings;
+	this->decompilerHandle = new_decompiler_handle;
+	this->assembly_path = p_assembly_path;
+	this->originalProjectFiles = p_original_project_files;
+	this->assemblyReferenceDirs = p_assembly_reference_dirs;
+	this->settings = p_settings;
 	return OK;
 }
 #include "gd_parallel_queue.h"

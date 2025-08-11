@@ -153,20 +153,20 @@ void save_filesystem_cache(const Vector<Ref<ExportReport>> &reports, String outp
 }
 
 void ImportExporter::rewrite_metadata(ExportToken &token) {
-	auto &report = token.report;
-	ERR_FAIL_COND_MSG(report.is_null(), "Cannot rewrite metadata for null report");
-	Error err = report->get_error();
-	auto iinfo = report->get_import_info();
+	auto &token_report = token.report;
+	ERR_FAIL_COND_MSG(token_report.is_null(), "Cannot rewrite metadata for null report");
+	Error err = token_report->get_error();
+	auto iinfo = token_report->get_import_info();
 	auto if_err_func = [&]() {
 		if (err != OK) {
-			report->set_rewrote_metadata(ExportReport::FAILED);
+			token_report->set_rewrote_metadata(ExportReport::FAILED);
 		} else {
-			report->set_rewrote_metadata(ExportReport::REWRITTEN);
+			token_report->set_rewrote_metadata(ExportReport::REWRITTEN);
 		}
 	};
 	String new_md_path = output_dir.path_join(iinfo->get_import_md_path().replace("res://", ""));
 
-	if (report->get_rewrote_metadata() == ExportReport::NOT_IMPORTABLE || !iinfo->is_import()) {
+	if (token_report->get_rewrote_metadata() == ExportReport::NOT_IMPORTABLE || !iinfo->is_import()) {
 		return;
 	}
 
@@ -179,23 +179,23 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 	}
 	// ****REWRITE METADATA****
 	bool not_in_res_tree = !iinfo->get_source_file().begins_with("res://");
-	bool export_matches_source = report->get_source_path() == report->get_new_source_path();
+	bool export_matches_source = token_report->get_source_path() == token_report->get_new_source_path();
 	if (err == OK && (not_in_res_tree || !export_matches_source)) {
 		if (iinfo->get_ver_major() <= 2 && opt_rewrite_imd_v2) {
 			// TODO: handle v2 imports with more than one source, like atlas textures
-			err = rewrite_import_source(report->get_new_source_path(), iinfo);
+			err = rewrite_import_source(token_report->get_new_source_path(), iinfo);
 			if_err_func();
-		} else if (not_in_res_tree && iinfo->get_ver_major() >= 3 && opt_rewrite_imd_v3 && (iinfo->get_source_file().find(report->get_new_source_path().replace("res://", "")) != -1)) {
+		} else if (not_in_res_tree && iinfo->get_ver_major() >= 3 && opt_rewrite_imd_v3 && (iinfo->get_source_file().find(token_report->get_new_source_path().replace("res://", "")) != -1)) {
 			// Currently, we only rewrite the import data for v3 if the source file was somehow recorded as an absolute file path,
 			// But is still in the project structure
-			err = rewrite_import_source(report->get_new_source_path(), iinfo);
+			err = rewrite_import_source(token_report->get_new_source_path(), iinfo);
 			if_err_func();
 		} else if (iinfo->is_dirty()) {
 			err = iinfo->save_to(new_md_path);
 			if (err != OK) {
-				report->set_rewrote_metadata(ExportReport::FAILED);
+				token_report->set_rewrote_metadata(ExportReport::FAILED);
 			} else if (!export_matches_source) {
-				report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+				token_report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
 			}
 		}
 	} else if (iinfo->is_dirty()) {
@@ -203,12 +203,12 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			err = iinfo->save_to(new_md_path);
 			if_err_func();
 		} else {
-			report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+			token_report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
 		}
 	} else {
-		report->set_rewrote_metadata(ExportReport::NOT_DIRTY);
+		token_report->set_rewrote_metadata(ExportReport::NOT_DIRTY);
 	}
-	auto mdat = report->get_rewrote_metadata();
+	auto mdat = token_report->get_rewrote_metadata();
 	if (mdat == ExportReport::FAILED || mdat == ExportReport::NOT_IMPORTABLE) {
 		return;
 	}
@@ -219,23 +219,23 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			err = modern_iinfo->save_md5_file(output_dir);
 		}
 		if (err) {
-			report->set_rewrote_metadata(ExportReport::MD5_FAILED);
+			token_report->set_rewrote_metadata(ExportReport::MD5_FAILED);
 		}
 	}
-	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
+	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && token_report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
 		String resource_script_class;
 		List<String> deps;
 		auto path = iinfo->get_path();
 		auto res_info = ResourceCompatLoader::get_resource_info(path);
-		report->actual_type = res_info.is_valid() ? res_info->type : iinfo->get_type();
-		report->script_class = res_info.is_valid() ? res_info->script_class : "";
+		token_report->actual_type = res_info.is_valid() ? res_info->type : iinfo->get_type();
+		token_report->script_class = res_info.is_valid() ? res_info->script_class : "";
 		ResourceCompatLoader::get_dependencies(path, &deps, false);
 		for (auto &dep : deps) {
-			report->dependencies.push_back(dep);
+			token_report->dependencies.push_back(dep);
 		}
-		report->import_md5 = FileAccess::get_md5(new_md_path);
-		report->import_modified_time = FileAccess::get_modified_time(new_md_path);
-		report->modified_time = FileAccess::get_modified_time(report->get_saved_path());
+		token_report->import_md5 = FileAccess::get_md5(new_md_path);
+		token_report->import_modified_time = FileAccess::get_modified_time(new_md_path);
+		token_report->modified_time = FileAccess::get_modified_time(token_report->get_saved_path());
 	}
 	if (!err && iinfo->get_ver_major() >= 4 && iinfo->get_metadata_prop().get("has_editor_variant", false)) {
 		// we need to make a copy of the resource with the editor variant
@@ -702,7 +702,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	if (tokens.size() > 0) {
 		last_completed = -1;
 		cancelled = false;
-		Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
+		err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&ImportExporter::_do_export,
 				tokens.ptrw(),
@@ -848,8 +848,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 				continue;
 			} else if (!ret->get_saved_path().is_empty() && ret->get_download_task_id() != -1) {
 				Ref<ImportInfoGDExt> iinfo_gdext = iinfo;
-				Error err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
-				if (err != OK) {
+				Error dl_err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
+				if (dl_err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
@@ -859,8 +859,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
-				err = unzip_and_copy_addon(iinfo, ret->get_saved_path());
-				if (err != OK) {
+				dl_err = unzip_and_copy_addon(iinfo, ret->get_saved_path());
+				if (dl_err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
@@ -1003,9 +1003,9 @@ Error ImportExporter::recreate_plugin_configs() {
 	Error err;
 	print_line("Recreating plugin configs...");
 	Vector<String> addons_dirs;
-	Ref<DirAccess> dir = DirAccess::open("res://addons/");
-	if (!dir.is_null()) {
-		addons_dirs = dir->get_directories();
+	Ref<DirAccess> da = DirAccess::open("res://addons/");
+	if (!da.is_null()) {
+		addons_dirs = da->get_directories();
 	}
 	for (int i = 0; i < enabled_plugins.size(); i++) {
 		String &path = enabled_plugins.write[i];

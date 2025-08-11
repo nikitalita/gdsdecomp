@@ -44,7 +44,8 @@ void ResourceImportMetadatav2::remove_source(int p_idx) {
 }
 
 int ResourceImportMetadatav2::get_source_count() const {
-	return sources.size();
+	// size was 32-bit in 2.0, so we need to cast to int
+	return static_cast<int>(sources.size());
 }
 void ResourceImportMetadatav2::set_option(const String &p_key, const Variant &p_value) {
 	if (p_value.get_type() == Variant::NIL) {

@@ -113,8 +113,8 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 		CharString cs;
 		cs.resize_uninitialized(slen + 1);
 		cs[slen] = 0;
-		int bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
-		if (bytes_read < slen) {
+		int actual_bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
+		if (actual_bytes_read < slen) {
 			WARN_PRINT("Bytes read less than slen!");
 		}
 		String key;
