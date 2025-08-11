@@ -185,7 +185,6 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 
 String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
 	ERR_FAIL_COND_V(!open, "");
-	uint64_t len = data.size() - pos;
 	String s;
 	s.append_utf8((const char *)data.ptr() + pos, -1, p_skip_cr);
 	return s;
@@ -193,7 +192,6 @@ String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
 
 String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
 	ERR_FAIL_COND_V(!open, "");
-	uint64_t len = data.size();
 	String s;
 	s.append_utf8((const char *)data.ptr(), -1, p_skip_cr);
 	return s;

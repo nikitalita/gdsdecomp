@@ -977,8 +977,6 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	bool detected_alpha = false;
 	err = preprocess_images(p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha, ignore_dimensions);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to preprocess images for texture " + p_path);
-	int width = tex->get_width();
-	int height = tex->get_height();
 #if 0 // This was an attempt at fixing incorrectly imported cubemaps; if it was incorrectly imported by the original author, we should just leave it be.
 	if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP || mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
 		Vector<Ref<Image>> fixed_images = fix_cross_cubemaps(images, width, height, layer_count, detected_alpha);

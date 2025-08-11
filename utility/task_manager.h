@@ -403,7 +403,6 @@ public:
 			bool p_high_priority = false,
 			bool p_progress_enabled = true,
 			bool p_runs_current_thread = false) {
-		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 		auto task = std::make_shared<TaskData<U>>(p_task_runner, p_userdata, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, p_runs_current_thread);
 		task->start();
 		bool already_exists = false;

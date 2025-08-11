@@ -534,7 +534,6 @@ struct KeyWorker {
 		}
 		char last_char = p_res_s[res_s_len - 1];
 		bool stripped_last_char = false;
-		const char *res_s = p_res_s;
 		int new_len = res_s_len;
 		while (last_char >= '0' && last_char <= '9') {
 			stripped_last_char = true;

@@ -262,7 +262,6 @@ Ref<ObjectDiffResult> ObjectDiffResult::get_diff_obj(Object *a, Object *b, bool 
 	diff.instantiate();
 	List<PropertyInfo> p_list_a;
 	List<PropertyInfo> p_list_b;
-	bool has_script_instance = false;
 	diff->set_old_object(a);
 	diff->set_new_object(b);
 	a->get_property_list(&p_list_a, false);

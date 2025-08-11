@@ -1884,7 +1884,6 @@ String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resour
 
 void ResourceFormatSaverCompatTextInstance::ensure_ids_are_unique() {
 	HashSet<String> ids;
-	size_t last = external_resources.size();
 	bool needs_renumbering = false;
 	for (KeyValue<Ref<Resource>, String> &E : external_resources) {
 		while (ids.has(E.value)) {

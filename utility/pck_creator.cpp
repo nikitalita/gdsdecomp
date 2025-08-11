@@ -514,7 +514,6 @@ Error PckCreator::_create_after_process() {
 	}
 
 	auto write_header = [&]() {
-		bool use_rel_filebase = (pack_flags & PACK_REL_FILEBASE) != 0;
 		pr->step("Header...", 0, true);
 		f->store_32(files_to_pck.size()); //amount of files
 		// used by pck version 0-1, where the file offsets include the header size; pck version 2 uses the offset from the header
