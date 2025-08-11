@@ -679,6 +679,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --pck-create=<PCK_DIR>             Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
 --pck-patch=<GAME_PCK/EXE>         Patch a PCK file with the specified files
 --list-bytecode-versions           List all available bytecode versions
+--dump-bytecode-versions=<DIR>     Dump all available bytecode definitions to the specified directory in JSON format
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 """
@@ -702,19 +703,22 @@ var GLOB_NOTES = """Notes on Include/Exclude globs:
 
 var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 
---key=<KEY>                 The Key to use if project is encrypted as a 64-character hex string,
-							e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
---output=<DIR>              Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
---scripts-only              Only extract/recover scripts
---include=<GLOB>            Include files matching the glob pattern (can be repeated)
---exclude=<GLOB>            Exclude files matching the glob pattern (can be repeated)
---ignore-checksum-errors    Ignore MD5 checksum errors when extracting/recovering
---csharp-assembly=<PATH>    Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
+--key=<KEY>                          The Key to use if project is encrypted as a 64-character hex string,
+									  e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
+--output=<DIR>                       Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
+--scripts-only                       Only extract/recover scripts
+--include=<GLOB>                     Include files matching the glob pattern (can be repeated, see notes below)
+--exclude=<GLOB>                     Exclude files matching the glob pattern (can be repeated, see notes below)
+--ignore-checksum-errors             Ignore MD5 checksum errors when extracting/recovering
+--csharp-assembly=<PATH>             Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
+--force-bytecode-version=<VERSION>   Force the bytecode version to be the specified value. Can be either a commit hash (e.g. 'f3f05dc') or version string (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>   Load a custom bytecode definition file from the specified JSON file and use it for the recovery session
 """
 # todo: handle --key option
 var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>          Either the commit hash of the bytecode revision (e.g. 'f3f05dc'),
 										   or the version of the engine (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>      Load a custom bytecode definition file from the specified JSON file and use it for the session
 --output=<DIR>                          Directory where compiled files will be output to.
 										  - If not specified, compiled files will be output to the same location
 										  (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
@@ -1244,7 +1248,61 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 	pck.pck_create(pck_file, pck_dir, includes, excludes)
 
 
+func load_custom_bytecode(json_file: String):
+	var file = FileAccess.open(json_file, FileAccess.READ)
+	if file == null:
+		print("Error: failed to open custom bytecode definition file: " + json_file)
+		return ""
+	var text = file.get_as_text()
+	var json = JSON.parse_string(text)
+	if json.is_empty():
+		print("Error: failed to parse custom bytecode definition file: " + json_file)
+		return ""
+	var commit: int = GDScriptDecomp.register_decomp_version_custom(json)
+	if commit == 0:
+		print("Error: failed to register custom bytecode definition file: " + json_file)
+		return ""
+	print("Custom bytecode definition file loaded: " + json_file)
+	print("Commit: %x" % [commit])
+	return String.num_int64(commit, 16).to_lower()
+
+func dump_bytecode_versions(output_dir: String):
+	var versions = GDScriptDecomp.get_all_decomp_versions_json()
+	var err = GDRECommon.ensure_dir(output_dir)
+	if err != OK:
+		print("Error: failed to create output directory: " + output_dir)
+		return -1
+	for json in versions:
+		var json_str = JSON.stringify(json, "\t", false)
+		var file = FileAccess.open(output_dir.path_join(json["bytecode_rev"] + ".json"), FileAccess.WRITE)
+		if file == null:
+			print("Error: failed to open file for writing: " + output_dir.path_join(json["bytecode_rev"] + ".json"))
+			return -1
+		file.store_string(json_str)
+		file.close()
+	print("Bytecode versions dumped to " + output_dir)
+	return 0
+
+
+func print_bytecode_versions():
+	var versions = GDScriptDecomp.get_bytecode_versions()
+	print("\n--- Available bytecode versions:")
+	for version in versions:
+		print(version)
+
+
+func set_bytecode_version_override(bytecode_version: String):
+	var decomp: GDScriptDecomp = get_decomp(bytecode_version)
+	if decomp == null:
+		print("Error: failed to load bytecode version: " + bytecode_version)
+		print_bytecode_versions()
+		return false
+	GDREConfig.set_setting("Bytecode/force_bytecode_revision", decomp.get_bytecode_rev(), true)
+	return true
+
+
 func handle_cli(args: PackedStringArray) -> bool:
+	var custom_bytecode_file: String = ""
 	var input_extract_file:PackedStringArray = []
 	var input_file:PackedStringArray = []
 	var pck_create_dir: String       = ""
@@ -1318,16 +1376,31 @@ func handle_cli(args: PackedStringArray) -> bool:
 			if arg.contains("="):
 				var str_val = get_arg_value(arg).to_lower()
 				val = str_val == "true" or str_val == "1" or str_val == "yes" or str_val == "on" or str_val == "y"
-			GDREConfig.set_setting("force_single_threaded", val)
+			GDREConfig.set_setting("force_single_threaded", val, true)
 			set_setting = true
 		elif arg.begins_with("--enable-experimental-plugin-downloading"):
-			GDREConfig.set_setting("download_plugins", true)
+			GDREConfig.set_setting("download_plugins", true, true)
+			set_setting = true
+		elif arg.begins_with("--load-custom-bytecode"):
+			custom_bytecode_file = get_cli_abs_path(get_arg_value(arg))
+			bytecode_version = load_custom_bytecode(custom_bytecode_file)
+			if bytecode_version == "":
+				print("Error: failed to load custom bytecode definition file: " + custom_bytecode_file)
+				return true
+			if not set_bytecode_version_override(bytecode_version):
+				return true
+			set_setting = true
+		elif arg.begins_with("--force-bytecode-version"):
+			bytecode_version = get_arg_value(arg)
+			if not set_bytecode_version_override(bytecode_version):
+				return true
 			set_setting = true
 		elif arg.begins_with("--list-bytecode-versions"):
-			var versions = GDScriptDecomp.get_bytecode_versions()
-			print("\n--- Available bytecode versions:")
-			for version in versions:
-				print(version)
+			print_bytecode_versions()
+			return true
+		elif arg.begins_with("--dump-bytecode-versions"):
+			output_dir = get_cli_abs_path(get_arg_value(arg))
+			var err = dump_bytecode_versions(output_dir)
 			return true
 		elif arg.begins_with("--bytecode"):
 			bytecode_version = get_arg_value(arg)

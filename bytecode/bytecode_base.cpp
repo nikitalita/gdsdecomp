@@ -84,6 +84,7 @@ void GDScriptDecomp::_bind_methods() {
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_bytecode_versions"), &GDScriptDecomp::get_bytecode_versions);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("_create_custom_decomp", "custom_def", "derived_from"), &GDScriptDecomp::_create_custom_decomp, DEFVAL(0));
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("register_decomp_version_custom", "custom_def", "derived_from"), &GDScriptDecomp::register_decomp_version_custom, DEFVAL(0));
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_all_decomp_versions_json"), &GDScriptDecomp::get_all_decomp_versions_json);
 }
 
 void GDScriptDecomp::_ensure_space(String &p_code) {
@@ -2710,6 +2711,19 @@ Dictionary GDScriptDecomp::to_json() const {
 	}
 	json["tk_names"] = tk_names;
 	return json;
+}
+
+TypedArray<Dictionary> GDScriptDecomp::get_all_decomp_versions_json() {
+	TypedArray<Dictionary> ret;
+	auto versions = get_decomp_versions(true, 0);
+	for (int i = 0; i < versions.size(); i++) {
+		Ref<GDScriptDecomp> decomp = versions[i].create_decomp();
+		if (decomp.is_null()) {
+			continue;
+		}
+		ret.append(decomp->to_json());
+	}
+	return ret;
 }
 
 String GDScriptDecomp::get_token_name(GlobalToken p_token) {

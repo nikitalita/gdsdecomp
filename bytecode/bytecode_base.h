@@ -275,6 +275,8 @@ public:
 	static String get_global_token_text(GlobalToken p_token);
 	static GlobalToken get_token_for_name(const String &p_name);
 
+	static TypedArray<Dictionary> get_all_decomp_versions_json();
+
 	// Intended to only be used by the custom bytecode editor
 	static Ref<GDScriptDecomp> _create_custom_decomp(Dictionary p_custom_def, int p_derived_from = 0);
 
