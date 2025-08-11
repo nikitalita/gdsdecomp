@@ -127,7 +127,7 @@ uint64_t FileAccessBuffer::get_length() const {
 
 bool FileAccessBuffer::eof_reached() const {
 	ERR_FAIL_COND_V(!open, true);
-	return pos >= data.size();
+	return pos >= static_cast<uint64_t>(data.size());
 }
 
 uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
@@ -152,7 +152,7 @@ uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
 }
 
 Error FileAccessBuffer::get_error() const {
-	return pos >= data.size() ? ERR_FILE_EOF : OK;
+	return pos >= static_cast<uint64_t>(data.size()) ? ERR_FILE_EOF : OK;
 }
 
 Error FileAccessBuffer::resize(int64_t p_length) {
@@ -173,8 +173,8 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 	ERR_FAIL_NULL_V(p_src, false);
 
 	// check if data is large enough
-	if (pos + p_length > data.size()) {
-		data.resize_initialized((pos + p_length + (MIN(p_length, 16 * 1024))));
+	if (pos + p_length > static_cast<uint64_t>(data.size())) {
+		data.resize_initialized((pos + p_length + (MIN(p_length, static_cast<uint64_t>(16 * 1024)))));
 	}
 
 	memcpy(data.ptrw() + pos, p_src, p_length);

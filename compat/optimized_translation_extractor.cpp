@@ -311,11 +311,11 @@ HashSet<uint32_t> OptimizedTranslationExtractor::get_message_hash_set() const {
 	HashSet<uint32_t> ret;
 	for (int i = 0; i < htsize; i++) {
 		uint32_t p = htptr[i];
-		if (p == -1) {
+		if (p == 0xFFFFFFFF) {
 			continue;
 		}
 		const Bucket &bucket = *(const Bucket *)&btptr[p];
-		for (uint32_t j = 0; j < bucket.size; j++) {
+		for (int j = 0; j < bucket.size; j++) {
 			String rstr;
 			// bucket.elem[j].key
 			ret.insert(bucket.elem[j].key);
@@ -340,11 +340,11 @@ void OptimizedTranslationExtractor::get_message_value_list(List<StringName> *r_m
 
 	for (int i = 0; i < htsize; i++) {
 		uint32_t p = htptr[i];
-		if (p == -1) {
+		if (p == 0xFFFFFFFF) {
 			continue;
 		}
 		const Bucket &bucket = *(const Bucket *)&btptr[p];
-		for (uint32_t j = 0; j < bucket.size; j++) {
+		for (int j = 0; j < bucket.size; j++) {
 			String rstr;
 			if (bucket.elem[j].comp_size == bucket.elem[j].uncomp_size) {
 				rstr.append_utf8(&sptr[bucket.elem[j].str_offset], bucket.elem[j].uncomp_size);

@@ -75,7 +75,7 @@ Error OggStrExporter::get_data_from_ogg_stream(const String &real_src, const Ref
 		}
 	}
 	page_cursor = playback->get_page_number();
-	if (total_actual_body_size != total_pagedata_body_size) {
+	if (static_cast<uint64_t>(total_actual_body_size) != total_pagedata_body_size) {
 		WARN_PRINT("Actual body size" + itos(total_actual_body_size) + " does not equal the pagedata body size " + itos(total_pagedata_body_size) + ".");
 	}
 	// resize to the actual size

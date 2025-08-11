@@ -609,7 +609,7 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 				// We're concatenating the images horizontally; so we have to take a width-sized slice of the image
 				// and copy it into the new image data
 				size_t start_idx = i * copy_size;
-				ERR_FAIL_COND_V(images_data[img_idx].size() < start_idx + copy_size, ERR_PARSE_ERROR);
+				ERR_FAIL_COND_V(static_cast<size_t>(images_data[img_idx].size()) < start_idx + copy_size, ERR_PARSE_ERROR);
 				memcpy(new_image_data.ptrw() + current_offset, images_data[img_idx].ptr() + start_idx, copy_size);
 				current_offset += copy_size;
 			}
@@ -808,21 +808,21 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 	}
 #endif
 	if (fixed_images.size() > 0) {
-		Vector<Ref<Image>> images;
-		images.resize(6);
+		Vector<Ref<Image>> fixed_images_array;
+		fixed_images_array.resize(6);
 		// X+, X-, Y+, Y-, Z+, Z-
 		// this is upside down;
-		images.write[0] = fixed_images[3];
-		images.write[1] = fixed_images[1];
-		images.write[2] = fixed_images[0];
-		images.write[3] = fixed_images[5];
-		images.write[4] = fixed_images[2];
-		images.write[5] = fixed_images[4];
+		fixed_images_array.write[0] = fixed_images[3];
+		fixed_images_array.write[1] = fixed_images[1];
+		fixed_images_array.write[2] = fixed_images[0];
+		fixed_images_array.write[3] = fixed_images[5];
+		fixed_images_array.write[4] = fixed_images[2];
+		fixed_images_array.write[5] = fixed_images[4];
 
 		// arrangement = is_horizontal ? CUBEMAP_FORMAT_6X1 : CUBEMAP_FORMAT_1X6;
 		// num_images_w = is_horizontal ? 6 : 1;
 		// num_images_h = is_horizontal ? 1 : 6;
-		return images;
+		return fixed_images_array;
 	} else {
 		return {};
 	}

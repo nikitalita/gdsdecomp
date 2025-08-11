@@ -1136,8 +1136,8 @@ struct KeyWorker {
 			common_prefixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			common_suffixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			pop_charstr_vectors();
-			Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
-			if (err != OK) {
+			Error stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
+			if (stage3_err != OK) {
 				return pop_keys();
 			}
 		}

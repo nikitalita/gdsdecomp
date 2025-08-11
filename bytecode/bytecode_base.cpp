@@ -564,16 +564,16 @@ Error GDScriptDecomp::debug_print(Vector<uint8_t> p_buffer) {
 	print_line("Lines count: " + itos(lines.size()));
 	print_line("Columns count: " + itos(columns.size()));
 
-	int max_line = 0;
-	int max_column = 0;
+	uint32_t max_line = 0;
+	uint32_t max_column = 0;
 	for (int i = 0; i < tokens.size(); i++) {
 		max_line = MAX(max_line, lines[i]);
 		if (columns.size() > 0) {
 			max_column = MAX(max_column, columns[i]);
 		}
 	}
-	print_line("Max line: " + itos(max_line));
-	print_line("Max column: " + itos(max_column));
+	print_line("Max line: " + uitos(max_line));
+	print_line("Max column: " + uitos(max_column));
 
 	print_line("\nIdentifiers:");
 	for (int i = 0; i < identifiers.size(); i++) {
@@ -1895,9 +1895,9 @@ static int64_t continuity_tester(const HashMap<K, V> &p_vector, const HashMap<K,
 			// WARN_PRINT(name + " size mismatch: " + itos(p_vector.size()) + " != " + itos(p_other.size()));
 		}
 	}
-	if (pos >= p_vector.size() || pos >= p_other.size()) {
+	if (pos >= static_cast<int>(p_vector.size()) || pos >= static_cast<int>(p_other.size())) {
 		// WARN_PRINT(name + " pos out of range");
-		return MIN(p_vector.size(), p_other.size());
+		return MIN(static_cast<int>(p_vector.size()), static_cast<int>(p_other.size()));
 	}
 
 	Vector<Pair<K, V>> p_vector_arr;

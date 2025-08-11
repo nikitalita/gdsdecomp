@@ -1055,12 +1055,12 @@ void GLBExporterInstance::_silence_errors(bool p_silence) {
 	}
 }
 
-#define GDRE_SCN_EXP_CHECK_CANCEL()                                                                         \
-	{                                                                                                       \
-		if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || canceled)) {               \
-			Error err = TaskManager::get_singleton()->is_current_task_timed_out() ? ERR_TIMEOUT : ERR_SKIP; \
-			return err;                                                                                     \
-		}                                                                                                   \
+#define GDRE_SCN_EXP_CHECK_CANCEL()                                                                                \
+	{                                                                                                              \
+		if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || canceled)) {                      \
+			Error cancel_err = TaskManager::get_singleton()->is_current_task_timed_out() ? ERR_TIMEOUT : ERR_SKIP; \
+			return cancel_err;                                                                                     \
+		}                                                                                                          \
 	}
 
 static const HashSet<String> shader_param_names = {
@@ -1894,8 +1894,8 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
 	tinygltf::Model model;
 	String error_string;
-	Error err = load_model(p_dest_path, model, error_string);
-	if (err != OK) {
+	Error load_err = load_model(p_dest_path, model, error_string);
+	if (load_err != OK) {
 		return ERR_FILE_CORRUPT;
 	}
 	return OK;
@@ -2454,7 +2454,7 @@ Error _check_cancelled() {
 }
 
 struct BatchExportToken {
-	static std::atomic<int> in_progress;
+	static std::atomic<size_t> in_progress;
 	GLBExporterInstance instance;
 	Ref<ExportReport> report;
 	Ref<PackedScene> _scene;
@@ -2688,7 +2688,7 @@ struct BatchExportToken {
 	}
 };
 
-std::atomic<int> BatchExportToken::in_progress = 0;
+std::atomic<size_t> BatchExportToken::in_progress = 0;
 
 Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	BatchExportToken token(output_dir, iinfo);
