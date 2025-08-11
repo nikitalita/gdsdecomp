@@ -949,9 +949,9 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			List<PropertyInfo> properties;
 			if (si) {
 				si->get_property_list(&properties);
-				for (auto &E : properties) {
+				for (auto &prop : properties) {
 					Variant value;
-					if (si->get(E.name, value)) {
+					if (si->get(prop.name, value)) {
 						// check if it's a mesh instance
 						Ref<Mesh> mesh = value;
 						if (mesh.is_valid() && !meshes_in_mesh_instances.has(mesh)) {

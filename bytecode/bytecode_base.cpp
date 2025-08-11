@@ -20,9 +20,6 @@
 #include "core/io/file_access_encrypted.h"
 #include "core/io/marshalls.h"
 #include "core/object/class_db.h"
-#include "modules/gdscript/gdscript_tokenizer_buffer.h"
-
-#include <limits.h>
 
 #define GDSDECOMP_FAIL_V_MSG(m_retval, m_msg) \
 	error_message = RTR(m_msg);               \

@@ -1153,8 +1153,8 @@ struct KeyWorker {
 				stripped_strings_set.insert({ ut, num_suffix_val });
 			}
 			auto vec = gdre::hashset_to_vector(stripped_strings_set);
-			Error err = run_stage(&KeyWorker::stage_3_5_task, vec, "Stage 3");
-			if (err != OK) {
+			Error stage3_5_err = run_stage(&KeyWorker::stage_3_5_task, vec, "Stage 3");
+			if (stage3_5_err != OK) {
 				return pop_keys();
 			}
 		}
@@ -1195,16 +1195,16 @@ struct KeyWorker {
 				}
 			}
 			if (filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS) {
-				Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
-				if (err != OK) {
+				Error stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
+				if (stage4_err != OK) {
 					return pop_keys();
 				}
 				// Stage 5: Combine resource strings with every other string
 				// If we're still missing keys, we try combining every string with every other string.
 				do_stage_5 = do_stage_5 && key_to_message.size() != default_messages.size() && filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS;
 				if (do_stage_5) {
-					Error err = run_stage(&KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
-					if (err != OK) {
+					Error stage5_err = run_stage(&KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
+					if (stage5_err != OK) {
 						return pop_keys();
 					}
 				}
@@ -1238,7 +1238,7 @@ struct KeyWorker {
 
 Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	// Implementation for exporting resources related to translations
-	Error err = OK;
+	Error export_err = OK;
 	// translation files are usually imported from one CSV and converted to multiple "<LOCALE>.translation" files
 	// TODO: make this also check for the first file in GDRESettings::get_singleton()->get_project_setting("internationalization/locale/translations")
 	const String locale_setting_key = GDRESettings::get_singleton()->get_ver_major() >= 4 ? "internationalization/locale/fallback" : "locale/fallback";
@@ -1269,8 +1269,8 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
 	report->set_error(ERR_CANT_ACQUIRE_RESOURCE);
 	for (String path : dest_files) {
-		Ref<Translation> tr = ResourceCompatLoader::non_global_load(path, "", &err);
-		ERR_FAIL_COND_V_MSG(err != OK, report, "Could not load translation file " + iinfo->get_path());
+		Ref<Translation> tr = ResourceCompatLoader::non_global_load(path, "", &export_err);
+		ERR_FAIL_COND_V_MSG(export_err != OK, report, "Could not load translation file " + iinfo->get_path());
 		ERR_FAIL_COND_V_MSG(!tr.is_valid(), report, "Translation file " + iinfo->get_path() + " was not valid");
 		String locale = tr->get_locale();
 		// TODO: put the default locale at the beginning
@@ -1352,10 +1352,10 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		}
 	}
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
-	err = gdre::ensure_dir(output_path.get_base_dir());
-	ERR_FAIL_COND_V(err, report);
-	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &err);
-	ERR_FAIL_COND_V(err, report);
+	export_err = gdre::ensure_dir(output_path.get_base_dir());
+	ERR_FAIL_COND_V(export_err, report);
+	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &export_err);
+	ERR_FAIL_COND_V(export_err, report);
 	ERR_FAIL_COND_V(f.is_null(), report);
 	// Set UTF-8 BOM (required for opening with Excel in UTF-8 format, works with all Godot versions)
 	f->store_8(0xef);

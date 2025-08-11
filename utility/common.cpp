@@ -548,14 +548,14 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	Ref<HTTPClient> client = HTTPClient::create();
 	client->set_blocking_mode(true);
 	Error err;
-	String url = p_url;
+	String request_url = p_url;
 	auto connect_to_host_and_request = [&](const String &url) {
 		WGET_CANCELLED_CHECK();
 		bool is_https = url.begins_with("https://");
 		String host = url.get_slice("://", 1).get_slice("/", 0);
 		String thingy = (is_https ? "https://" : "http://") + host;
-		Error err = client->connect_to_host(thingy, is_https ? 443 : 80);
-		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
+		Error connect_err = client->connect_to_host(thingy, is_https ? 443 : 80);
+		ERR_FAIL_COND_V_MSG(connect_err, connect_err, "Failed to connect to host " + url);
 		while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
 			WGET_CANCELLED_CHECK();
 			err = client->poll();
@@ -567,8 +567,8 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 			return ERR_CANT_CONNECT;
 		}
 		WGET_CANCELLED_CHECK();
-		err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
-		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
+		Error request_err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
+		ERR_FAIL_COND_V_MSG(request_err, request_err, "Failed to connect to host " + url);
 		return OK;
 	};
 	bool done = false;
@@ -625,7 +625,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 				client->close();
 				redirections += 1;
 				got_response = false;
-				url = new_request;
+				request_url = new_request;
 				return connect_to_host_and_request(new_request);
 			}
 		}
@@ -634,14 +634,14 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	};
 	err = connect_to_host_and_request(p_url);
 
-	auto _retry = [&](Error err) {
+	auto _retry = [&](Error retry_err) {
 		WGET_CANCELLED_CHECK();
 		if (retries <= 0) {
 			ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Failed to download file from %s", p_url));
 		}
 		// Don't bother retrying if the file doesn't exist or we don't have access to it
 		if (response_code == 404 || response_code == 403 || response_code == 401) {
-			return err;
+			return retry_err;
 		}
 		retries--;
 		response.clear();
@@ -701,15 +701,15 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 
 Error gdre::download_file_sync(const String &p_url, const String &output_path, float *p_progress, bool *p_cancelled) {
 	Vector<uint8_t> response;
-	Error err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
-	if (err) {
-		return err;
+	Error download_err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
+	if (download_err) {
+		return download_err;
 	}
-	err = ensure_dir(output_path.get_base_dir());
-	if (err) {
-		return err;
+	Error dir_err = ensure_dir(output_path.get_base_dir());
+	if (dir_err) {
+		return dir_err;
 	}
-	Ref<FileAccess> fa = FileAccess::open(output_path, FileAccess::WRITE, &err);
+	Ref<FileAccess> fa = FileAccess::open(output_path, FileAccess::WRITE, &dir_err);
 	if (fa.is_null()) {
 		return ERR_FILE_CANT_WRITE;
 	}
