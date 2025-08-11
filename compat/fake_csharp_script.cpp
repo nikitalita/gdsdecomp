@@ -350,20 +350,20 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 	base_classes = script_info.get("base_classes", Vector<String>());
 	base_type_paths = script_info.get("base_type_paths", Vector<String>());
 	base_type = base_classes.size() > 0 ? base_classes[0] : "RefCounted";
-	TypedArray<Dictionary> properties = script_info.get("properties", TypedArray<Dictionary>());
+	TypedArray<Dictionary> script_properties = script_info.get("properties", TypedArray<Dictionary>());
 	TypedArray<Dictionary> signals = script_info.get("signals", TypedArray<Dictionary>());
 	TypedArray<Dictionary> methods = script_info.get("methods", TypedArray<Dictionary>());
 
 	members.clear();
 	_signals.clear();
 	_methods.clear();
-	for (int i = 0; i < properties.size(); i++) {
-		Dictionary property = properties[i];
-		String name = property.get("name", "");
-		if (name.is_empty()) {
+	for (int i = 0; i < script_properties.size(); i++) {
+		Dictionary property = script_properties[i];
+		String prop_name = property.get("name", "");
+		if (prop_name.is_empty()) {
 			continue;
 		}
-		members.insert(name, dict_to_property_info(property));
+		members.insert(prop_name, dict_to_property_info(property));
 		String default_value = property.get("default_value", "");
 		if (!default_value.is_empty()) {
 			// quick hack for Color() with 3 arguments
@@ -379,39 +379,39 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 			int line = 0;
 			Error err = VariantParserCompat::parse(&ss, v, err_string, line);
 			if (err == OK) {
-				member_default_values.insert(name, v);
+				member_default_values.insert(prop_name, v);
 			} else {
 				if (parse_expression(default_value, v)) {
-					member_default_values.insert(name, v);
+					member_default_values.insert(prop_name, v);
 				} else {
 					default_value = replace_variant_constants(default_value);
 					if (parse_expression(default_value, v)) {
-						member_default_values.insert(name, v);
+						member_default_values.insert(prop_name, v);
 					}
 				}
 			}
-			if (!member_default_values.has(name)) {
-				member_default_values.insert(name, Variant());
+			if (!member_default_values.has(prop_name)) {
+				member_default_values.insert(prop_name, Variant());
 			}
 		}
 	}
 
 	for (int i = 0; i < signals.size(); i++) {
 		Dictionary signal = signals[i];
-		String name = signal.get("name", "");
-		if (name.is_empty()) {
+		String signal_name = signal.get("name", "");
+		if (signal_name.is_empty()) {
 			continue;
 		}
-		_signals.insert(name, dict_to_method_info(signal));
+		_signals.insert(signal_name, dict_to_method_info(signal));
 	}
 
 	for (int i = 0; i < methods.size(); i++) {
 		Dictionary method = methods[i];
-		String name = method.get("name", "");
-		if (name.is_empty()) {
+		String method_name = method.get("name", "");
+		if (method_name.is_empty()) {
 			continue;
 		}
-		_methods.insert(name, dict_to_method_info(method));
+		_methods.insert(method_name, dict_to_method_info(method));
 	}
 
 	bool is_real_load = get_load_type() == ResourceInfo::LoadType::REAL_LOAD || get_load_type() == ResourceInfo::LoadType::GLTF_LOAD;

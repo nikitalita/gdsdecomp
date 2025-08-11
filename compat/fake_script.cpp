@@ -216,9 +216,9 @@ bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
 		}
 		if (!properties.has(p_name)) {
 			// check if it's a property of the owning object
-			List<PropertyInfo> properties;
-			owner->get_property_list(&properties);
-			for (const PropertyInfo &pi : properties) {
+			List<PropertyInfo> owner_properties;
+			owner->get_property_list(&owner_properties);
+			for (const PropertyInfo &pi : owner_properties) {
 				if (pi.name == p_name) {
 					return false;
 				}

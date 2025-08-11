@@ -68,7 +68,7 @@ bool FakeGDScript::can_instantiate() const {
 }
 
 Ref<Script> FakeGDScript::load_base_script() const {
-	Ref<Script> script;
+	Ref<Script> base_script;
 	size_t len = base_type.length();
 	auto data = base_type.get_data();
 	String path;
@@ -80,8 +80,8 @@ Ref<Script> FakeGDScript::load_base_script() const {
 	if (path.is_empty()) {
 		return {};
 	}
-	script = ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type());
-	return script;
+	base_script = ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type());
+	return base_script;
 }
 
 Ref<Script> FakeGDScript::get_base_script() const {

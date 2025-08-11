@@ -584,11 +584,11 @@ struct KeyWorker {
 			res_s_copy = p_res_s;
 			res_s_copy.resize_uninitialized(new_len + 1);
 			res_s_copy[new_len] = '\0';
-			String num_str = String(p_res_s.get_data() + new_len);
+			String num_str_value = String(p_res_s.get_data() + new_len);
 			// check how many zeros are in the num_str
 			int zero_count = 0;
-			for (int i = 0; i < num_str.length(); i++) {
-				if (num_str[i] == '0') {
+			for (int i = 0; i < num_str_value.length(); i++) {
+				if (num_str_value[i] == '0') {
 					zero_count++;
 				} else {
 					break;
@@ -746,17 +746,17 @@ struct KeyWorker {
 
 	Error wait_for_task(WorkerThreadPool::GroupID group_task, const String &stage_name, size_t size, uint64_t max_time) {
 		uint64_t next_report = 5000;
-		uint64_t start_time = OS::get_singleton()->get_ticks_msec();
+		uint64_t task_start_time = OS::get_singleton()->get_ticks_msec();
 		while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
 			// wait 100ms
 			OS::get_singleton()->delay_usec(100000);
-			if (check_for_timeout(start_time, max_time)) {
+			if (check_for_timeout(task_start_time, max_time)) {
 				bl_debug("Timeout waiting for " + stage_name + " to complete...");
 				cancel = true;
 				WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
 				return ERR_TIMEOUT;
 			}
-			if (check_for_timeout(start_time, next_report)) {
+			if (check_for_timeout(task_start_time, next_report)) {
 				bl_debug("waiting for " + stage_name + " to complete... (" + itos(last_completed) + "/" + itos(size) + ")");
 				next_report += 5000;
 			}
@@ -825,10 +825,10 @@ struct KeyWorker {
 	}
 
 	template <class T>
-	Vector<String> get_sanitized_strings(const Vector<T> &default_messages) {
+	Vector<String> get_sanitized_strings(const Vector<T> &input_messages) {
 		static_assert(std::is_same<T, String>::value || std::is_same<T, StringName>::value, "T must be either String or StringName");
 		HashSet<String> new_strings;
-		for (const T &msg : default_messages) {
+		for (const T &msg : input_messages) {
 			auto msg_str = remove_removable_punct(msg).strip_escapes().strip_edges();
 			for (auto ch : punctuation) {
 				// strip edges
@@ -992,8 +992,8 @@ struct KeyWorker {
 		}
 	}
 
-	void stage_1(uint32_t i, String *resource_strings) {
-		const String &key = resource_strings[i];
+	void stage_1(uint32_t i, String *input_resource_strings) {
+		const String &key = input_resource_strings[i];
 		try_key(key);
 	}
 

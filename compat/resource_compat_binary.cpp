@@ -3320,20 +3320,20 @@ int ResourceLoaderCompatBinary::get_current_format_version() {
 	return FORMAT_VERSION;
 }
 //
-Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, HashMap<Ref<Resource>, int> &p_resource_map) {
+Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> p_imd, HashMap<Ref<Resource>, int> &p_resource_map) {
 	uint64_t md_pos = f->get_position();
-	save_unicode_string(f, imd->get_editor());
-	f->store_32(imd->get_source_count());
-	for (int i = 0; i < imd->get_source_count(); i++) {
-		save_unicode_string(f, imd->get_source_path(i));
-		save_unicode_string(f, imd->get_source_md5(i));
+	save_unicode_string(f, p_imd->get_editor());
+	f->store_32(p_imd->get_source_count());
+	for (int i = 0; i < p_imd->get_source_count(); i++) {
+		save_unicode_string(f, p_imd->get_source_path(i));
+		save_unicode_string(f, p_imd->get_source_md5(i));
 	}
 	List<String> options;
-	imd->get_options(&options);
+	p_imd->get_options(&options);
 	f->store_32(options.size());
 	for (List<String>::Element *E = options.front(); E; E = E->next()) {
 		save_unicode_string(f, E->get());
-		write_variant(f, imd->get_option(E->get()), p_resource_map, external_resources, string_map);
+		write_variant(f, p_imd->get_option(E->get()), p_resource_map, external_resources, string_map);
 	}
 
 	f->seek(md_at);
