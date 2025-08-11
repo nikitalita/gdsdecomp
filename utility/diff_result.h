@@ -18,6 +18,7 @@ class DiffResult : public RefCounted {
 
 private:
 	HashMap<String, Ref<FileDiffResult>> file_diffs;
+	static Vector<Variant> get_subresources(Ref<Resource> res);
 
 protected:
 	static void _bind_methods();

@@ -511,8 +511,9 @@ PropertyDiffResult::PropertyDiffResult(const String &p_name, const String &p_cha
 	new_object = p_new_object;
 }
 
-static Vector<Variant> get_subresources(Ref<Resource> res) {
+Vector<Variant> DiffResult::get_subresources(Ref<Resource> res) {
 	Vector<Variant> subresources;
+	return subresources;
 }
 
 bool DiffResult::deep_equals(Variant a, Variant b, bool exclude_non_storage) {

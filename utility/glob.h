@@ -36,6 +36,7 @@ protected:
 	friend void init_ver_regex();
 	friend void free_ver_regex();
 	static void _bind_methods();
+	static String normalize_path(const String &path);
 	static Ref<RegEx> magic_check;
 	static constexpr const char *magic_pattern = "([*?[])";
 	static Ref<RegEx> escapere;

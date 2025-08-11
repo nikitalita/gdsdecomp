@@ -220,6 +220,7 @@ private:
 	Vector<String> sort_and_validate_pck_files(const Vector<String> &p_paths);
 
 	bool _init_bytecode_from_ephemeral_settings();
+	static bool is_macho(const String &p_path);
 
 protected:
 	static void _bind_methods();

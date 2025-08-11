@@ -138,32 +138,6 @@ String simplify_path(const String &path) {
 	return drive + s;
 }
 
-String normalize_path(const String &path) {
-	String sanitized = path;
-	int backslash_pos = sanitized.find_char('\\');
-	if (backslash_pos != -1) {
-		return simplify_path(sanitized);
-	}
-	int slash_pos = sanitized.find_char('/');
-	bool non_windows_path = slash_pos != -1 || (!is_windows) || !path.is_absolute_path();
-
-	while (backslash_pos != -1) {
-		// check if the character after the backslash is a glob character
-		if (non_windows_path) {
-			if (glob_characters.find_char(sanitized[backslash_pos + 1]) != String::npos) {
-				sanitized[backslash_pos] = '/';
-				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
-			}
-		} else {
-			if (sanitized[backslash_pos + 1] == '*' || sanitized[backslash_pos + 1] == '?') {
-				sanitized[backslash_pos] = '/';
-				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
-			}
-		}
-	}
-	return simplify_path(sanitized);
-}
-
 int get_last_dir_sep(const String &path) {
 	// if the path contains escaped glob characters, don't use get_file()
 	int slash_sep = path.rfind_char('/');
@@ -542,6 +516,32 @@ String Glob::translate(const String &pattern) {
 		}
 	}
 	return String{ "^((" } + result_string + String{ R"()|[\r\n])$)" };
+}
+
+String Glob::normalize_path(const String &path) {
+	String sanitized = path;
+	int backslash_pos = sanitized.find_char('\\');
+	if (backslash_pos != -1) {
+		return simplify_path(sanitized);
+	}
+	int slash_pos = sanitized.find_char('/');
+	bool non_windows_path = slash_pos != -1 || (!is_windows) || !path.is_absolute_path();
+
+	while (backslash_pos != -1) {
+		// check if the character after the backslash is a glob character
+		if (non_windows_path) {
+			if (glob_characters.find_char(sanitized[backslash_pos + 1]) != String::npos) {
+				sanitized[backslash_pos] = '/';
+				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
+			}
+		} else {
+			if (sanitized[backslash_pos + 1] == '*' || sanitized[backslash_pos + 1] == '?') {
+				sanitized[backslash_pos] = '/';
+				backslash_pos = sanitized.find_char('\\', backslash_pos + 1);
+			}
+		}
+	}
+	return simplify_path(sanitized);
 }
 
 bool Glob::has_magic(const String &pathname) {

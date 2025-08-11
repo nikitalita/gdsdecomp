@@ -443,7 +443,20 @@ Error GDRESettings::unload_dir() {
 	return OK;
 }
 namespace {
-bool is_macho(const String &p_path) {
+
+bool is_executable(const String &p_path) {
+	String extension = p_path.get_extension().to_lower();
+	if (extension == "exe") {
+		return true;
+	}
+	if (extension == "pck" || extension == "apk" || extension == "zip" || extension == "ipa") {
+		return false;
+	}
+	return GDREPackedSource::is_executable(p_path);
+}
+} //namespace
+
+bool GDRESettings::is_macho(const String &p_path) {
 	Ref<FileAccess> fa = FileAccess::open(p_path, FileAccess::READ);
 	if (fa.is_null()) {
 		return false;
@@ -467,18 +480,6 @@ bool is_macho(const String &p_path) {
 
 	return false;
 }
-
-bool is_executable(const String &p_path) {
-	String extension = p_path.get_extension().to_lower();
-	if (extension == "exe") {
-		return true;
-	}
-	if (extension == "pck" || extension == "apk" || extension == "zip" || extension == "ipa") {
-		return false;
-	}
-	return GDREPackedSource::is_executable(p_path);
-}
-} //namespace
 
 Error GDRESettings::load_pck(const String &p_path) {
 	// Check if the path is already loaded
