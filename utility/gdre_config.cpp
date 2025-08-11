@@ -1,6 +1,8 @@
 #include "gdre_config.h"
+#include "bytecode/bytecode_base.h"
 #include "bytecode/bytecode_versions.h"
 #include "common.h"
+#include "core/io/json.h"
 #include "gdre_settings.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
@@ -12,6 +14,64 @@ GDREConfig *GDREConfig::get_singleton() {
 	return singleton;
 }
 
+class GDREConfigSetting_LoadCustomBytecode : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_LoadCustomBytecode, GDREConfigSetting);
+
+	String error_message;
+
+public:
+	GDREConfigSetting_LoadCustomBytecode() :
+			GDREConfigSetting(
+					"Bytecode/load_custom_bytecode",
+					"Load Custom Bytecode",
+					"Load a custom bytecode file.",
+					"",
+					false,
+					true) {
+	}
+
+	virtual bool is_filepicker() const override { return true; }
+	virtual bool is_virtual_setting() const override { return true; }
+	virtual String get_error_message() const override { return error_message; }
+	virtual void clear_error_message() override { error_message = ""; }
+	virtual Variant get_value() const override {
+		return "";
+	}
+	virtual void set_value(const Variant &p_value, bool p_force_ephemeral = false) override {
+		String path = p_value;
+		if (path.is_empty()) {
+			return;
+		}
+		if (!FileAccess::exists(path)) {
+			WARN_PRINT("Custom bytecode file does not exist: " + path);
+			error_message = "Custom bytecode file does not exist";
+			return;
+		}
+		String file_contents = FileAccess::get_file_as_string(path);
+		if (file_contents.is_empty()) {
+			WARN_PRINT("Custom bytecode file is empty: " + path);
+			error_message = "Custom bytecode file is empty";
+			return;
+		}
+		Dictionary json = JSON::parse_string(file_contents);
+		if (json.is_empty()) {
+			WARN_PRINT("Custom bytecode file is not valid JSON: " + path);
+			error_message = "Custom bytecode file is not valid JSON";
+			return;
+		}
+
+		// clears errors
+		GDRESettings::get_singleton()->get_errors();
+		int commit = GDScriptDecomp::register_decomp_version_custom(json);
+		if (commit == 0) {
+			WARN_PRINT("Failed to register custom bytecode file: " + path);
+			error_message = "Failed to register custom bytecode file: \n" + String("\n").join(GDRESettings::get_singleton()->get_errors());
+			return;
+		}
+		GDREConfig::get_singleton()->set_setting("Bytecode/force_bytecode_revision", commit, true);
+		error_message = "";
+	}
+};
 class GDREConfigSetting_BytecodeForceBytecodeRevision : public GDREConfigSetting {
 	GDSOFTCLASS(GDREConfigSetting_BytecodeForceBytecodeRevision, GDREConfigSetting);
 
@@ -32,9 +92,15 @@ public:
 		if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_pack_loaded()) {
 			ver_major = GDRESettings::get_singleton()->get_ver_major();
 		}
-		auto versions = get_decomp_versions(true, ver_major);
+		int current_setting = get_value();
+		auto versions = get_decomp_versions(true, 0);
 		ret[0] = "Auto-detect";
 		for (const auto &version : versions) {
+			if ((ver_major > 0 && version.get_major_version() != ver_major)) {
+				if (version.commit != current_setting) {
+					continue;
+				}
+			}
 			String short_name = version.name.split("/")[0].strip_edges() + ")";
 			ret[version.commit] = short_name;
 		}
@@ -67,6 +133,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"<NONE>",
 				true)),
 		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
+		memnew(GDREConfigSetting_LoadCustomBytecode()),
 		memnew(GDREConfigSetting(
 				"CSharp/write_nuget_package_references",
 				"Write NuGet package references",
@@ -311,6 +378,10 @@ void GDREConfigSetting::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_type"), &GDREConfigSetting::get_type);
 	ClassDB::bind_method(D_METHOD("is_hidden"), &GDREConfigSetting::is_hidden);
 	ClassDB::bind_method(D_METHOD("is_ephemeral"), &GDREConfigSetting::is_ephemeral);
+	ClassDB::bind_method(D_METHOD("is_filepicker"), &GDREConfigSetting::is_filepicker);
+	ClassDB::bind_method(D_METHOD("is_virtual_setting"), &GDREConfigSetting::is_virtual_setting);
+	ClassDB::bind_method(D_METHOD("get_error_message"), &GDREConfigSetting::get_error_message);
+	ClassDB::bind_method(D_METHOD("clear_error_message"), &GDREConfigSetting::clear_error_message);
 	ClassDB::bind_method(D_METHOD("has_special_value"), &GDREConfigSetting::has_special_value);
 	ClassDB::bind_method(D_METHOD("get_list_of_possible_values"), &GDREConfigSetting::get_list_of_possible_values);
 }

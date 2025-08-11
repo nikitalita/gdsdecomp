@@ -211,6 +211,14 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "OK"
 
+[node name="FileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+access = 2
+
+[node name="ErrorDialog" type="AcceptDialog" parent="."]
+unique_name_in_owner = true
+title = "Error"
+
 [connection signal="close_requested" from="." to="." method="_close_requested"]
 [connection signal="canceled" from="ConfirmClose" to="." method="_on_confirm_close_canceled"]
 [connection signal="confirmed" from="ConfirmClose" to="." method="_on_confirm_close_confirmed"]

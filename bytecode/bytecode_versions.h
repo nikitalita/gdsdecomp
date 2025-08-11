@@ -94,6 +94,27 @@ struct GDScriptDecompVersion {
 		return GodotVer::parse(max_version);
 	}
 
+	int get_major_version() const {
+		if (min_version.is_empty()) {
+			return 0;
+		}
+		switch (min_version[0]) {
+			case '0':
+			case '1':
+			case '2':
+			case '3':
+			case '4':
+			case '5':
+			case '6':
+			case '7':
+			case '8':
+			case '9':
+				return min_version[0] - '0';
+			default:
+				return 0;
+		}
+	}
+
 	static GDScriptDecompVersion create_version_from_custom_def(Dictionary p_custom_def);
 	static GDScriptDecompVersion create_derived_version_from_custom_def(int revision, Dictionary p_custom_def);
 	static int register_decomp_version_custom(Dictionary p_custom_def);

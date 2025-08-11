@@ -12,6 +12,8 @@ class GDREConfig;
 class GDREConfigSetting : public RefCounted {
 	GDCLASS(GDREConfigSetting, RefCounted);
 	friend class GDREConfig;
+
+protected:
 	String full_name;
 	String brief_description;
 	String description;
@@ -25,11 +27,15 @@ public:
 	String get_section() const;
 	String get_brief_description() const;
 	String get_description() const;
-	Variant get_value() const;
+	virtual Variant get_value() const;
 	Variant get_default_value() const;
 	bool is_hidden() const;
 	Variant::Type get_type() const;
 	bool is_ephemeral() const;
+	virtual bool is_virtual_setting() const { return false; }
+	virtual bool is_filepicker() const { return false; }
+	virtual String get_error_message() const { return ""; }
+	virtual void clear_error_message() {}
 
 	virtual bool has_special_value() const { return false; }
 	// get a list of possible values along with their descriptions
@@ -38,7 +44,7 @@ public:
 	// this calls GDREConfig::set_setting
 	void reset();
 	// this calls GDREConfig::set_setting
-	void set_value(const Variant &p_value, bool p_force_ephemeral = false);
+	virtual void set_value(const Variant &p_value, bool p_force_ephemeral = false);
 	GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden = false, bool p_ephemeral = false);
 
 protected:

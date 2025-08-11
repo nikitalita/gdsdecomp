@@ -227,7 +227,7 @@ Vector<GDScriptDecompVersion> get_decomp_versions(bool include_dev, int ver_majo
 		if (!include_dev && GDScriptDecompVersion::decomp_versions[i].is_dev) {
 			continue;
 		}
-		if (ver_major > 0 && GDScriptDecompVersion::decomp_versions[i].min_version[0] != ver_major_str[0]) {
+		if (ver_major > 0 && GDScriptDecompVersion::decomp_versions[i].get_major_version() != ver_major) {
 			continue;
 		}
 		versions.push_back(GDScriptDecompVersion(GDScriptDecompVersion::decomp_versions[i]));
@@ -266,12 +266,25 @@ GDScriptDecompVersion GDScriptDecompVersion::create_version_from_custom_def(Dict
 	}
 	int variant_ver_major = p_custom_def.get("variant_ver_major", engine_ver_major);
 
-	if (decomp_version.min_version.is_empty() || decomp_version.bytecode_version == 0 || engine_ver_major <= 0 || variant_ver_major <= 0) {
-		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "Invalid custom definition");
+	if (decomp_version.min_version.is_empty()) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "engine_version is required");
+	}
+	if (decomp_version.bytecode_version == 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "bytecode_version is required");
+	}
+	if (engine_ver_major <= 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "engine_ver_major is required");
+	}
+	if (variant_ver_major <= 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "variant_ver_major is required");
 	}
 	static constexpr const char *nameforamt = "%s (%s / UNKNOWN / Bytecode version: %d) - User defined bytecode based on %s";
 	decomp_version.name = vformat(nameforamt, decomp_version.min_version, rev_str, decomp_version.bytecode_version, parent_str);
 	decomp_version.custom = p_custom_def;
+	Ref<GDScriptDecomp> decomp = decomp_version.create_decomp();
+	if (decomp.is_null()) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "Invalid custom definition");
+	}
 	return decomp_version;
 }
 
