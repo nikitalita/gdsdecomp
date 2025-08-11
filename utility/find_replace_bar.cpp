@@ -286,7 +286,7 @@ void GDREFindReplaceBar::_replace_all() {
 
 	text_editor->set_v_scroll(vsval);
 	matches_label->add_theme_color_override(SceneStringName(font_color), rc > 0 ? get_theme_color(SceneStringName(font_color), SNAME("Label")) : get_theme_color(SNAME("error_color"), SNAME("Editor")));
-	matches_label->set_text(vformat(TTR("%d replaced."), rc));
+	matches_label->set_text(vformat(RTR("%d replaced."), rc));
 
 	callable_mp((Object *)text_editor, &Object::connect).call_deferred(SceneStringName(text_changed), callable_mp(this, &GDREFindReplaceBar::_editor_text_changed), 0U);
 	results_count = -1;
@@ -400,11 +400,11 @@ void GDREFindReplaceBar::_update_matches_display() {
 		matches_label->add_theme_color_override(SceneStringName(font_color), results_count > 0 ? get_theme_color(SceneStringName(font_color), SNAME("Label")) : get_theme_color(SNAME("error_color"), SNAME("Editor")));
 
 		if (results_count == 0) {
-			matches_label->set_text(TTR("No match"));
+			matches_label->set_text(RTR("No match"));
 		} else if (results_count_to_current == -1) {
-			matches_label->set_text(vformat(TTRN("%d match", "%d matches", results_count), results_count));
+			matches_label->set_text(vformat(RTRN("%d match", "%d matches", results_count), results_count));
 		} else {
-			matches_label->set_text(vformat(TTRN("%d of %d match", "%d of %d matches", results_count), results_count_to_current, results_count));
+			matches_label->set_text(vformat(RTRN("%d of %d match", "%d of %d matches", results_count), results_count_to_current, results_count));
 		}
 	}
 	find_prev->set_disabled(results_count < 1);
