@@ -499,7 +499,7 @@ void GodotREEditor::print_log(const String &p_text) {
 }
 
 void GodotREEditor::print_warning(const String &p_text, const String &p_title, const String &p_sub_text) {
-	char timestamp[21];
+	char timestamp[36];
 	OS::DateTime date = OS::get_singleton()->get_datetime();
 	snprintf(timestamp, sizeof(timestamp), "-%04d-%02d-%02d-%02d-%02d-%02d", (uint16_t)date.year, date.month, date.day, date.hour, date.minute, date.second);
 
