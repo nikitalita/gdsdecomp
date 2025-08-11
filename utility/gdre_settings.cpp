@@ -6,6 +6,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
+#include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/io/file_access_encrypted.h"
 #include "core/object/class_db.h"
@@ -16,6 +17,8 @@
 #include "utility/gdre_logger.h"
 #include "utility/gdre_packed_source.h"
 #include "utility/gdre_version.gen.h"
+#include "utility/glob.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/import_info.h"
 #include "utility/pcfg_loader.h"
 #include "utility/plugin_manager.h"
@@ -24,6 +27,7 @@
 #include "core/config/project_settings.h"
 #include "core/io/json.h"
 #include "core/object/script_language.h"
+#include "core/string/translation_po.h"
 #include "modules/regex/regex.h"
 #include "servers/rendering_server.h"
 
@@ -243,6 +247,10 @@ GDRESettings::GDRESettings() {
 	if (gdre_user_path.contains("[unnamed project]")) {
 		gdre_user_path = gdre_user_path.replace("[unnamed project]", "gdre_tests");
 	}
+#ifdef TOOLS_ENABLED
+	print_line("GDRE User path: " + gdre_user_path);
+#endif
+
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
 	logger = memnew(GDRELogger);
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
@@ -350,6 +358,10 @@ bool GDRESettings::is_project_config_loaded() const {
 }
 
 void GDRESettings::remove_current_pack() {
+	if (current_project.is_valid() && !current_project->assembly_temp_dir.is_empty()) {
+		gdre::rimraf(current_project->assembly_temp_dir);
+		current_project->assembly_temp_dir = "";
+	}
 	current_project = Ref<PackInfo>();
 	packs.clear();
 	import_files.clear();
@@ -434,8 +446,21 @@ Error GDRESettings::unload_dir() {
 	project_path = "";
 	return OK;
 }
+namespace {
 
-bool is_macho(const String &p_path) {
+bool is_executable(const String &p_path) {
+	String extension = p_path.get_extension().to_lower();
+	if (extension == "exe") {
+		return true;
+	}
+	if (extension == "pck" || extension == "apk" || extension == "zip" || extension == "ipa") {
+		return false;
+	}
+	return GDREPackedSource::is_executable(p_path);
+}
+} //namespace
+
+bool GDRESettings::is_macho(const String &p_path) {
 	Ref<FileAccess> fa = FileAccess::open(p_path, FileAccess::READ);
 	if (fa.is_null()) {
 		return false;
@@ -458,22 +483,6 @@ bool is_macho(const String &p_path) {
 	}
 
 	return false;
-}
-
-Error check_embedded(String &p_path) {
-	String extension = p_path.get_extension().to_lower();
-	if (extension != "pck" && extension != "apk" && extension != "zip") {
-		// check if it's a mach-o executable
-
-		if (GDREPackedSource::is_embeddable_executable(p_path)) {
-			if (!GDREPackedSource::has_embedded_pck(p_path)) {
-				return ERR_FILE_UNRECOGNIZED;
-			}
-		} else if (is_macho(p_path)) {
-			return ERR_FILE_UNRECOGNIZED;
-		}
-	}
-	return OK;
 }
 
 Error GDRESettings::load_pck(const String &p_path) {
@@ -528,8 +537,184 @@ String GDRESettings::sanitize_home_in_path(const String &p_path) {
 	}
 	return p_path;
 }
+namespace {
+bool is_godot_directory(const String &p_path) {
+	// check the directory for the presence of any of these files/dirs
+	static const Vector<String> godot_files = { "project.godot", "project.binary", ".godot", ".import", "engine.cfg", "engine.cfb" };
+	return gdre::directory_has_any_of(p_path, godot_files);
+}
+} //namespace
 
-Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract) {
+struct FileModifiedTimeSorter {
+	bool operator()(const String &p_a, const String &p_b) const {
+		return FileAccess::get_modified_time(p_a) < FileAccess::get_modified_time(p_b);
+	}
+};
+
+Vector<String> GDRESettings::sort_and_validate_pck_files(const Vector<String> &p_paths) {
+	Vector<String> pck_files;
+	String main_pck_path;
+	Vector<String> additional_main_pck_paths;
+
+	size_t dir_count = 0;
+
+	// A common pattern for games is to have DLC releases come as additional pcks that override paths in the main pck
+	// We want to ensure that the main pck comes first
+	for (int i = 0; i < p_paths.size(); i++) {
+		String path = p_paths[i];
+		String ext = path.get_extension().to_lower();
+		// directories come first
+		if (DirAccess::exists(path)) {
+			// This may be a ".app" bundle, so we need to check if it's a valid Godot app
+			// and if so, load the pck from inside the bundle
+			if (ext == "app") {
+				String resources_path = path.path_join("Contents").path_join("Resources");
+				if (DirAccess::exists(resources_path)) {
+					auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
+					ERR_CONTINUE_MSG(list.is_empty(), "Can't find pck file in .app bundle!");
+					String gamename = path.get_file().get_basename();
+					Vector<String> new_list;
+					for (auto &pck : list) {
+						// ensure it comes first
+						if (gamename.filenocasecmp_to(pck.get_file().get_basename()) == 0) {
+							main_pck_path = pck;
+						} else {
+							new_list.push_back(pck);
+						}
+					}
+					if (main_pck_path.is_empty()) {
+						main_pck_path = new_list[0];
+						new_list.remove_at(0);
+						additional_main_pck_paths = new_list;
+					} else {
+						pck_files.append_array(new_list);
+					}
+					continue; // skip the rest of the loop
+				}
+			}
+			if (dir_count > 1) {
+				ERR_FAIL_V_MSG({}, "Cannot specify multiple directories!");
+			}
+			if (!is_godot_directory(path)) {
+				// TODO: Rethink this, this may be confusing to the user and cause issues
+				// auto list = gdre::get_files_at(path, { "*.pck" });
+				// ERR_CONTINUE_MSG(list.is_empty(), "Not a Godot directory: " + sanitize_home_in_path(path));
+				// pck_files.append_array(list);
+				// continue;
+				ERR_CONTINUE_MSG(true, "Not a Godot directory: " + sanitize_home_in_path(path));
+			}
+			dir_count++;
+			// Dir ALWAYS comes first
+			if (!main_pck_path.is_empty()) {
+				pck_files.push_back(main_pck_path);
+			}
+			main_pck_path = path;
+		} else if (ext == "apk" || ext == "ipa") {
+			// APKs and IPAs are always the "main" pck
+			if (!main_pck_path.is_empty()) {
+				main_pck_path = path;
+			} else {
+				pck_files.push_back(path);
+			}
+		} else if (is_executable(path)) {
+			if (GDREPackedSource::has_embedded_pck(path)) {
+				// embedded pck in exe, ensure that this pck comes first
+				if (main_pck_path.is_empty()) {
+					main_pck_path = path;
+				} else {
+					pck_files.push_back(path);
+				}
+				continue;
+			}
+			auto san_path = sanitize_home_in_path(path);
+			String new_path = path;
+			String parent_path = path.get_base_dir();
+			if (parent_path.is_empty()) {
+				parent_path = GDRESettings::get_exec_dir();
+			}
+			Error e = ERR_FILE_NOT_FOUND;
+			if (parent_path.get_file().to_lower() == "macos") {
+				// we want to get ../Resources
+				parent_path = parent_path.get_base_dir().path_join("Resources");
+				String pck_path = parent_path.path_join(path.get_file().get_basename() + ".pck");
+				if (FileAccess::exists(pck_path)) {
+					new_path = pck_path;
+					e = OK;
+				}
+				if (pck_files.has(new_path)) {
+					// we already tried this path
+					WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
+					continue;
+				}
+			}
+			if (e != OK) {
+				String pck_path = path.get_basename() + ".pck";
+				bool only_1_path = pck_files.size() == 1;
+				bool already_has_path = pck_files.has(pck_path);
+				bool exists = FileAccess::exists(pck_path);
+				if (!only_1_path && (already_has_path || !exists)) {
+					// we already tried this path
+					WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
+					continue;
+				}
+				ERR_FAIL_COND_V_MSG(!exists, {}, "Can't find embedded pck file in executable and cannot find pck file in same directory!");
+				new_path = pck_path;
+			}
+			path = new_path;
+			WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + path);
+			if (main_pck_path.is_empty()) {
+				// pck that matches the game name, ensure that this pck comes first
+				main_pck_path = path;
+			} else {
+				pck_files.push_back(path);
+			}
+		} else {
+			pck_files.push_back(path);
+		}
+	}
+
+	if (main_pck_path.is_empty() && pck_files.size() > 1) {
+		// try and find a pck that has a binary executable in the same directory with the same name
+		HashMap<String, Vector<String>> common_base_dirs;
+		for (int i = 0; i < pck_files.size(); i++) {
+			String path = pck_files[i];
+			String base_dir = path.get_base_dir();
+			if (!common_base_dirs.has(base_dir)) {
+				common_base_dirs.insert(base_dir, gdre::get_files_at(base_dir, {}));
+			}
+			String pack_base_name = path.get_file().get_basename();
+			// check for a pck file that has a binary executable in the same directory with the same name
+			for (auto &p : common_base_dirs[base_dir]) {
+				String file = p.get_file();
+				String file_ext = file.get_extension().to_lower();
+				if (file_ext == "pck" || file_ext == "zip" || file_ext == "ipa" || file_ext == "apk") {
+					continue;
+				}
+				// has an exe with the same name; this is the "main" pck
+				if (file.nocasecmp_to(pack_base_name) == 0 || file.get_basename().filenocasecmp_to(pack_base_name) == 0) {
+					main_pck_path = path;
+					pck_files.remove_at(i);
+					break;
+				}
+			}
+			if (!main_pck_path.is_empty()) {
+				break;
+			}
+		}
+	}
+
+	if (!additional_main_pck_paths.is_empty()) {
+		additional_main_pck_paths.append_array(pck_files);
+		pck_files = additional_main_pck_paths;
+	}
+
+	if (!main_pck_path.is_empty()) {
+		pck_files.insert(0, main_pck_path);
+	}
+	return pck_files;
+}
+
+Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_extract, const String &csharp_assembly_override) {
 	GDRELogger::clear_error_queues();
 	if (is_pack_loaded()) {
 		return ERR_ALREADY_IN_USE;
@@ -546,94 +731,47 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	load_encryption_key();
 
 	Error err = ERR_CANT_OPEN;
-	Vector<String> pck_files = p_paths;
-	// This may be a ".app" bundle, so we need to check if it's a valid Godot app
-	// and if so, load the pck from inside the bundle
-	if (pck_files[0].get_extension().to_lower() == "app" && DirAccess::exists(pck_files[0])) {
-		if (pck_files.size() > 1) {
-			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
-		}
-		String resources_path = pck_files[0].path_join("Contents").path_join("Resources");
-		if (DirAccess::exists(resources_path)) {
-			auto list = gdre::get_recursive_dir_list(resources_path, { "*.pck" }, true);
-			if (!list.is_empty()) {
-				pck_files = list;
-			} else {
-				ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Can't find pck file in .app bundle!");
-			}
-		}
+	Vector<String> pck_files = sort_and_validate_pck_files(p_paths);
+
+	if (pck_files.is_empty()) {
+		ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "No valid paths provided!");
 	}
 
-	if (DirAccess::exists(pck_files[0])) {
-		if (pck_files.size() > 1) {
-			ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Cannot specify multiple directories!");
-		}
-		print_line("Opening file: " + sanitize_home_in_path(pck_files[0]));
-		err = load_dir(pck_files[0]);
-		ERR_FAIL_COND_V_MSG(err, err, "FATAL ERROR: Can't load project directory!");
-		load_pack_uid_cache();
-		load_pack_gdscript_cache();
-	} else {
-		for (auto path : pck_files) {
-			auto san_path = sanitize_home_in_path(path);
-			print_line("Opening file: " + san_path);
-			if (check_embedded(path) != OK) {
-				String new_path = path;
-				String parent_path = path.get_base_dir();
-				if (parent_path.is_empty()) {
-					parent_path = GDRESettings::get_exec_dir();
-				}
-				if (parent_path.get_file().to_lower() == "macos") {
-					// we want to get ../Resources
-					parent_path = parent_path.get_base_dir().path_join("Resources");
-					String pck_path = parent_path.path_join(path.get_file().get_basename() + ".pck");
-					if (FileAccess::exists(pck_path)) {
-						new_path = pck_path;
-						err = OK;
-					}
-					if (pck_files.has(new_path)) {
-						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
-						continue;
-					}
-				}
-				if (err != OK) {
-					String pck_path = path.get_basename() + ".pck";
-					bool only_1_path = pck_files.size() == 1;
-					bool already_has_path = pck_files.has(pck_path);
-					bool exists = FileAccess::exists(pck_path);
-					if (!only_1_path && (already_has_path || !exists)) {
-						// we already tried this path
-						WARN_PRINT("EXE does not have an embedded pck, not loading " + san_path);
-						continue;
-					}
-					ERR_FAIL_COND_V_MSG(!exists, err, "Can't find embedded pck file in executable and cannot find pck file in same directory!");
-					new_path = pck_path;
-				}
-				path = new_path;
-				WARN_PRINT("Could not find embedded pck in EXE, found pck file, loading from: " + san_path);
-			}
-			err = load_pck(path);
-			if (err || !is_pack_loaded()) {
-				unload_project();
-				ERR_FAIL_COND_V_MSG(err, err, "Can't load project!");
-			}
-			auto last_type = packs[packs.size() - 1]->type;
-			// If the last pack was an APK and has a sparse bundle, we need to load it
-			if ((last_type == PackInfo::APK || last_type == PackInfo::ZIP) && has_path_loaded("res://assets.sparsepck")) {
-				err = load_pck("res://assets.sparsepck");
-				if (err && err != ERR_ALREADY_IN_USE) {
-					unload_project();
-					if (error_encryption) {
-						ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack! (Did you set the correct key?)");
-					}
-					ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack!!");
-				}
-				err = OK;
-			}
+	// load the directory first
+	for (int i = 0; i < pck_files.size(); i++) {
+		String path = pck_files[i];
+		auto san_path = sanitize_home_in_path(path);
+		if (DirAccess::exists(path)) {
+			print_line("Opening directory: " + san_path);
+			err = load_dir(path);
+			ERR_FAIL_COND_V_MSG(err, err, "FATAL ERROR: Can't load project directory!");
 			load_pack_uid_cache();
 			load_pack_gdscript_cache();
+			continue;
 		}
+
+		print_line("Opening file: " + san_path);
+		err = load_pck(path);
+		ERR_CONTINUE_MSG(err == ERR_ALREADY_IN_USE, "Can't load PCK, already loaded from " + path);
+		if (err || !is_pack_loaded()) {
+			unload_project();
+			ERR_FAIL_COND_V_MSG(err, err, "Can't load project!");
+		}
+		auto last_type = packs[packs.size() - 1]->type;
+		// If the last pack was an APK and has a sparse bundle, we need to load it
+		if ((last_type == PackInfo::APK || last_type == PackInfo::ZIP) && has_path_loaded("res://assets.sparsepck")) {
+			err = load_pck("res://assets.sparsepck");
+			if (err && err != ERR_ALREADY_IN_USE) {
+				unload_project();
+				if (error_encryption) {
+					ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack! (Did you set the correct key?)");
+				}
+				ERR_FAIL_COND_V_MSG(err, err, "Failed to load sparse pack!!");
+			}
+			err = OK;
+		}
+		load_pack_uid_cache();
+		load_pack_gdscript_cache();
 	}
 
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_FILE_CANT_READ, "FATAL ERROR: loaded project pack, but didn't load files from it!");
@@ -676,6 +814,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		}
 	}
 
+	_init_bytecode_from_ephemeral_settings();
 	err = detect_bytecode_revision(invalid_ver);
 	if (err) {
 		if (err == ERR_UNAUTHORIZED) {
@@ -695,9 +834,24 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "FATAL ERROR: Could not load imported binary files!");
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
+
+	if (project_requires_dotnet_assembly()) {
+		if (!csharp_assembly_override.is_empty()) {
+			err = reload_dotnet_assembly(csharp_assembly_override);
+		} else {
+			err = load_project_dotnet_assembly();
+		}
+		if (err) {
+			WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
+		}
+	}
+	_ensure_script_cache_complete();
+
+	_set_shader_globals();
+
 	print_line(vformat("Detected Engine Version: %s", get_version_string()));
 	int bytecode_revision = get_bytecode_revision();
-	if (bytecode_revision > 0) {
+	if (bytecode_revision != 0) {
 		auto decomp = GDScriptDecomp::create_decomp_for_commit(bytecode_revision);
 		if (decomp.is_valid()) {
 			print_line(vformat("Detected Bytecode Revision: %s (%07x)", decomp->get_engine_version(), bytecode_revision));
@@ -714,9 +868,6 @@ constexpr bool GDRESettings::need_correct_patch(int ver_major, int ver_minor) {
 Error GDRESettings::detect_bytecode_revision(bool p_no_valid_version) {
 	if (!is_pack_loaded()) {
 		return ERR_FILE_CANT_OPEN;
-	}
-	if (current_project->bytecode_revision != 0) {
-		return OK;
 	}
 	int ver_major = -1;
 	int ver_minor = -1;
@@ -743,9 +894,17 @@ Error GDRESettings::detect_bytecode_revision(bool p_no_valid_version) {
 		// test this file to see if it decrypts properly
 		Vector<uint8_t> buffer;
 		Error err = GDScriptDecomp::get_buffer_encrypted(file, ver_major > 0 ? ver_major : 3, enc_key, buffer);
+		// We're not going to be able to load any bytecode files, so set the bytecode revision to 0 so we don't attempt to.
+		if (err) {
+			current_project->bytecode_revision = 0;
+		}
 		ERR_FAIL_COND_V_MSG(err, ERR_UNAUTHORIZED, "Cannot determine bytecode revision: Encryption error (Did you set the correct key?)");
 		bytecode_files.append_array(encrypted_files);
 	}
+	if (current_project->bytecode_revision != 0) {
+		return OK;
+	}
+
 	if (bytecode_files.is_empty()) {
 		return guess_from_version(ERR_PARSE_ERROR);
 	}
@@ -793,14 +952,13 @@ int GDRESettings::get_bytecode_revision() const {
 Error GDRESettings::get_version_from_bin_resources() {
 	int consistent_versions = 0;
 	int inconsistent_versions = 0;
-	int ver_major = 0;
-	int ver_minor = 0;
+	uint32_t ver_major = 0;
+	uint32_t ver_minor = 0;
 	int min_major = INT_MAX;
 	int max_major = 0;
 	int min_minor = INT_MAX;
 	int max_minor = 0;
 
-	int i;
 	int version_from_dir = get_ver_major_from_dir();
 
 	// only test the bytecode on non-encrypted 3.x files
@@ -868,9 +1026,10 @@ Error GDRESettings::get_version_from_bin_resources() {
 		wildcards.push_back("*." + ext);
 	}
 	Vector<String> files = get_file_list(wildcards);
-	uint64_t max = files.size();
+	int64_t max = files.size();
 	bool sus_warning = false;
-	for (i = 0; i < max; i++) {
+
+	for (int64_t i = 0; i < max; i++) {
 		bool suspicious = false;
 		uint32_t res_major = 0;
 		uint32_t res_minor = 0;
@@ -959,15 +1118,19 @@ Error GDRESettings::unload_project() {
 		return ERR_DOES_NOT_EXIST;
 	}
 	logger->stop_prebuffering();
+	_clear_shader_globals();
 	error_encryption = false;
-	reset_uid_cache();
-	reset_gdscript_cache();
 	if (get_pack_type() == PackInfo::DIR) {
 		unload_dir();
 	}
 
 	remove_current_pack();
 	GDREPackedData::get_singleton()->clear();
+	reset_uid_cache();
+	reset_gdscript_cache();
+	if (GDREConfig::get_singleton()) {
+		GDREConfig::get_singleton()->reset_ephemeral_settings();
+	}
 	return OK;
 }
 
@@ -993,7 +1156,7 @@ void GDRESettings::add_pack_info(Ref<PackInfo> packinfo) {
 }
 
 StringName GDRESettings::get_cached_script_class(const String &p_path) {
-	if (!is_pack_loaded()) {
+	if (!is_pack_loaded() || p_path.is_empty()) {
 		return "";
 	}
 	String path = p_path;
@@ -1010,7 +1173,7 @@ StringName GDRESettings::get_cached_script_class(const String &p_path) {
 }
 
 StringName GDRESettings::get_cached_script_base(const String &p_path) {
-	if (!is_pack_loaded()) {
+	if (!is_pack_loaded() || p_path.is_empty()) {
 		return "";
 	}
 	String path = p_path;
@@ -1025,6 +1188,20 @@ StringName GDRESettings::get_cached_script_base(const String &p_path) {
 	}
 	return "";
 }
+
+String GDRESettings::get_path_for_script_class(const StringName &p_class) {
+	if (!is_pack_loaded() || p_class.is_empty()) {
+		return "";
+	}
+	for (auto kv : script_cache) {
+		auto &dict = kv.value;
+		if (dict.get("class", "").operator StringName() == p_class) {
+			return kv.key;
+		}
+	}
+	return "";
+}
+
 bool GDRESettings::had_encryption_error() const {
 	return error_encryption;
 }
@@ -1503,10 +1680,10 @@ bool GDRESettings::has_project_setting(const String &p_setting) {
 	return current_project->pcfg->has_setting(p_setting);
 }
 
-Variant GDRESettings::get_project_setting(const String &p_setting) {
-	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), Variant(), "Pack not loaded!");
-	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), Variant(), "project config not loaded!");
-	return current_project->pcfg->get_setting(p_setting, Variant());
+Variant GDRESettings::get_project_setting(const String &p_setting, const Variant &default_value) const {
+	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), default_value, "Pack not loaded!");
+	ERR_FAIL_COND_V_MSG(!is_project_config_loaded(), default_value, "project config not loaded!");
+	return current_project->pcfg->get_setting(p_setting, default_value);
 }
 
 void GDRESettings::set_project_setting(const String &p_setting, Variant value) {
@@ -1691,7 +1868,12 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 			String old_path = ResourceUID::get_singleton()->get_id_path(E.second);
 			String new_path = E.first;
 			if (old_path != new_path) {
-				WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+				if (old_path.simplify_path() == new_path.simplify_path()) {
+					// Sometimes uid caches have duplicate paths when paths were not simplified before saving; this is a workaround
+					new_path = new_path.simplify_path();
+				} else {
+					WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+				}
 			}
 			ResourceUID::get_singleton()->set_id(E.second, new_path);
 		} else {
@@ -1748,6 +1930,9 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 	if (!is_pack_loaded()) {
 		return ERR_UNAVAILABLE;
 	}
+	if (p_reset) {
+		reset_gdscript_cache();
+	}
 
 	auto cache_file = get_loaded_pack_data_dir().path_join("global_script_class_cache.cfg");
 	if (!FileAccess::exists(cache_file)) {
@@ -1762,16 +1947,105 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 		return ERR_FILE_CANT_READ;
 	}
 
-	if (p_reset) {
-		reset_gdscript_cache();
-	}
 	for (int i = 0; i < global_class_list.size(); i++) {
 		Dictionary d = global_class_list[i];
+		if (d.is_empty() || !d.has("path")) {
+			continue;
+		}
 		String path = d["path"];
 		// path = path.simplify_path();
 		script_cache[path] = d;
 	}
 	return OK;
+}
+namespace {
+struct ScriptCacheTask {
+	struct ScriptCacheTaskToken {
+		String orig_path;
+		bool is_gdscript;
+		Dictionary d;
+	};
+
+	String get_description(int i, ScriptCacheTaskToken *tokens) const {
+		return tokens[i].orig_path;
+	}
+
+	void do_task(int i, ScriptCacheTaskToken *tokens) {
+		Ref<Script> script = ResourceCompatLoader::custom_load(tokens[i].orig_path, "", ResourceInfo::LoadType::NON_GLOBAL_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		if (script.is_valid()) {
+			// {
+			// 	"base": &"Node",
+			// 	"class": &"AudioManager",
+			// 	"icon": "",
+			// 	"is_abstract": false,
+			// 	"is_tool": false,
+			// 	"language": &"GDScript",
+			// 	"path": "res://source/audio/audio_manager.gd"
+			// 	}
+			tokens[i].d.set("base", script->get_instance_base_type());
+			tokens[i].d.set("class", script->get_global_name());
+			tokens[i].d.set("icon", "");
+			tokens[i].d.set("is_abstract", script->is_abstract());
+			tokens[i].d.set("is_tool", script->is_tool());
+			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
+			tokens[i].d.set("path", tokens[i].orig_path);
+		}
+	}
+};
+} //namespace
+
+void GDRESettings::_ensure_script_cache_complete() {
+	Vector<String> filters = { "*.gd", "*.gdc", "*.gde" };
+	// We don't really need this for C# scripts, and it's a significant performance hit loading them.
+	// if (has_loaded_dotnet_assembly()) {
+	// 	filters.push_back("*.cs");
+	// }
+	auto script_paths = get_file_list(filters);
+	int bytecode_revision = get_bytecode_revision();
+	Vector<ScriptCacheTask::ScriptCacheTaskToken> tokens;
+	for (auto &path : script_paths) {
+		auto ext = path.get_extension().to_lower();
+		bool bytecode_script = ext == "gdc" || ext == "gde";
+		bool is_gdscript = ext == "gd" || bytecode_script;
+		// Don't attempt to load compiled scripts if we don't have a valid version.
+		if (bytecode_script && bytecode_revision == 0) {
+			continue;
+		}
+		String orig_path = bytecode_script ? path.get_basename() + ".gd" : path;
+		if (!script_cache.has(orig_path)) {
+			tokens.push_back(ScriptCacheTask::ScriptCacheTaskToken{ orig_path, is_gdscript, {} });
+		}
+	}
+	if (tokens.size() == 0) {
+		return;
+	}
+
+	GDRELogger::set_silent_errors(true);
+	ScriptCacheTask task;
+	// any less than this and it's faster to just do it in one thread
+	if (tokens.size() > 50) {
+		TaskManager::get_singleton()->run_multithreaded_group_task(
+				&task,
+				&ScriptCacheTask::do_task,
+				tokens.ptrw(),
+				tokens.size(),
+				&ScriptCacheTask::get_description,
+				"GDRESettings::load_pack_gdscript_cache",
+				RTR("Loading GDScript cache..."),
+				false);
+
+	} else {
+		for (int i = 0; i < tokens.size(); i++) {
+			task.do_task(i, tokens.ptrw());
+		}
+	}
+	for (int i = 0; i < tokens.size(); i++) {
+		if (!tokens[i].d.is_empty()) {
+			script_cache.insert(tokens[i].orig_path, tokens[i].d);
+		}
+	}
+
+	GDRELogger::set_silent_errors(false);
 }
 
 Error GDRESettings::reset_gdscript_cache() {
@@ -1965,6 +2239,26 @@ bool GDRESettings::loaded_resource_strings() const {
 void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 	String src_ext = tokens[i].path.get_extension().to_lower();
 	// check if script
+	if (src_ext == "cs") {
+		if (has_loaded_dotnet_assembly()) {
+			Ref<GodotMonoDecompWrapper> decompiler = get_dotnet_decompiler();
+			String code = decompiler->decompile_individual_file(tokens[i].path);
+			// get all strings from the code (i.e. everything between quotes)
+			Ref<RegEx> re = RegEx::create_from_string("(?:^|[^\\\\])\"((?:\\\\\"|[^\"])+)\"");
+			TypedArray<RegExMatch> matches = re->search_all(code);
+			for (Ref<RegExMatch> match : matches) {
+				tokens[i].strings.append(match->get_string(1));
+			}
+		}
+		return;
+	}
+	if (src_ext == "dll") {
+		if (has_loaded_dotnet_assembly() && tokens[i].path == get_dotnet_assembly_path()) {
+			Ref<GodotMonoDecompWrapper> decompiler = get_dotnet_decompiler();
+			tokens[i].strings = decompiler->get_all_strings_in_module();
+		}
+		return;
+	}
 	if (src_ext == "gd" || src_ext == "gdc" || src_ext == "gde") {
 		tokens[i].err = GDScriptDecomp::get_script_strings(tokens[i].path, get_bytecode_revision(), tokens[i].strings, true);
 		return;
@@ -1979,7 +2273,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		file_buf.resize(file_len);
 		f->get_buffer(file_buf.ptrw(), file_len);
 		// check first 8000 bytes for null bytes
-		for (int j = 0; j < MIN(file_len, 8000); j++) {
+		for (uint64_t j = 0; j < MIN(file_len, 8000ULL); j++) {
 			if (file_buf[j] == 0) {
 				return;
 			}
@@ -2022,6 +2316,23 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 			gdre::get_strings_from_variant(var, tokens[i].strings, tokens[i].engine_version);
 		}
 		return;
+	} else if (src_ext == "po" || src_ext == "mo") {
+		Ref<TranslationPO> res = ResourceCompatLoader::custom_load(tokens[i].path, "", ResourceInfo::LoadType::REAL_LOAD, &tokens[i].err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		if (res.is_null()) {
+			WARN_PRINT("Failed to load resource " + tokens[i].path);
+			return;
+		}
+		List<StringName> keys;
+		res->get_message_list(&keys);
+		for (const StringName &key : keys) {
+			tokens[i].strings.push_back(key);
+		}
+		tokens[i].strings.append_array(res->get_translated_message_list());
+
+		for (const StringName &key : keys) {
+			tokens[i].strings.push_back(res->get_message(key));
+		}
+		return;
 	}
 	auto res = ResourceCompatLoader::fake_load(tokens[i].path, "", &tokens[i].err);
 	if (res.is_null()) {
@@ -2047,6 +2358,8 @@ void GDRESettings::load_all_resource_strings() {
 	}
 	wildcards.push_back("*.tres");
 	wildcards.push_back("*.tscn");
+	wildcards.push_back("*.po");
+	wildcards.push_back("*.mo");
 	wildcards.push_back("*.gd");
 	wildcards.push_back("*.gdc");
 	if (!error_encryption) {
@@ -2054,8 +2367,16 @@ void GDRESettings::load_all_resource_strings() {
 	}
 	wildcards.push_back("*.csv");
 	wildcards.push_back("*.json");
+	// wildcards.push_back("*.cs");
 
+	// just doing this so that the classdb initializes the TranslationPO class before we load the strings
+	{
+		Ref<TranslationPO> translation = memnew(TranslationPO);
+	}
 	Vector<String> r_files = get_file_list(wildcards);
+	if (has_loaded_dotnet_assembly()) {
+		r_files.push_back(get_dotnet_assembly_path());
+	}
 	Vector<StringLoadToken> tokens;
 	tokens.resize(r_files.size());
 	String engine_ver = get_version_string();
@@ -2097,9 +2418,185 @@ void GDRESettings::prepop_plugin_cache(const Vector<String> &plugins) {
 Vector<String> GDRESettings::get_errors() {
 	return GDRELogger::get_errors();
 }
+String GDRESettings::find_dotnet_assembly_path(Vector<String> p_search_dirs) const {
+	String assembly_name = get_project_dotnet_assembly_name();
+	if (assembly_name.is_empty()) {
+		return "";
+	}
+	for (String search_dir : p_search_dirs) {
+		Vector<String> paths = Glob::rglob(search_dir.path_join("**").path_join(assembly_name + ".dll"), true);
+		if (paths.size() > 0) {
+			return paths[0];
+		}
+	}
+	return "";
+}
+
+Error GDRESettings::load_project_dotnet_assembly() {
+	String assembly_name = get_project_dotnet_assembly_name();
+	ERR_FAIL_COND_V_MSG(get_project_dotnet_assembly_name().is_empty(), ERR_INVALID_PARAMETER, "Could not load dotnet assembly: could not determine assembly name");
+	String assembly_file = assembly_name + ".dll";
+	String project_dir = get_pack_path().get_base_dir();
+
+	Vector<String> search_dirs;
+	if (get_ver_major() <= 3) {
+		// Godot 3.x projects have the assembly in the PCK
+		//res://.mono/assemblies/<Debug or Release>/<assembly_name>.dll
+		search_dirs.push_back("res://.mono/assemblies/Release");
+		search_dirs.push_back("res://.mono/assemblies/Debug");
+	} else if (current_project->type == PackInfo::APK || current_project->type == PackInfo::ZIP || current_project->type == PackInfo::DIR) {
+		search_dirs.push_back("res://.godot/mono");
+	}
+	Vector<String> directories = DirAccess::get_directories_at(project_dir);
+	for (const String &directory : directories) {
+		if (directory.begins_with("data_")) {
+			search_dirs.push_back(project_dir.path_join(directory));
+		}
+	}
+	String assembly_path = find_dotnet_assembly_path(search_dirs);
+	if (assembly_path.is_empty()) {
+		ERR_FAIL_V_MSG(ERR_FILE_NOT_FOUND, "Could not load dotnet assembly: Assembly file '" + assembly_file + "' not found in any directory in " + project_dir);
+	}
+	return reload_dotnet_assembly(assembly_path);
+}
+
+Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
+	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "Pack is not loaded");
+	if (!current_project->assembly_temp_dir.is_empty()) {
+		gdre::rimraf(current_project->assembly_temp_dir);
+		current_project->assembly_temp_dir = "";
+	}
+	current_project->decompiler = Ref<GodotMonoDecompWrapper>();
+	current_project->assembly_path = p_path;
+	ERR_FAIL_COND_V_MSG(current_project->assembly_path.is_empty(), ERR_INVALID_PARAMETER, "Assembly path is empty");
+	ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
+
+	if (p_path.begins_with("res://")) {
+		// We have to copy the entire .mono folder to a temporary directory
+		// because the decompiler needs to read the assemblies and the metadata files
+		current_project->assembly_temp_dir = GDRESettings::get_singleton()->get_gdre_user_path().path_join(".tmp").path_join(get_game_name() + "_mono_temp");
+		String source_dir = p_path.get_base_dir();
+		Error err = OK;
+		if (p_path.begins_with("res://.mono")) {
+			source_dir = "res://.mono";
+		} else if (p_path.begins_with("res://.godot/mono")) {
+			source_dir = "res://.godot/mono";
+		}
+		String target_dir = current_project->assembly_temp_dir.path_join(source_dir.trim_prefix("res://"));
+		err = gdre::ensure_dir(target_dir);
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create temporary directory for assembly");
+		err = gdre::copy_dir(source_dir, target_dir);
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to copy .mono folder to temporary directory");
+		current_project->assembly_path = current_project->assembly_temp_dir.path_join(p_path.trim_prefix("res://"));
+		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
+	}
+	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
+	GodotMonoDecompWrapper::GodotMonoDecompSettings settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
+	settings.GodotVersionOverride = current_project->version.is_valid() ? current_project->version->as_text() : "";
+	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, { current_project->assembly_path.get_base_dir() }, settings);
+	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
+	current_project->decompiler = decompiler;
+	return OK;
+}
+
+void GDRESettings::set_dotnet_assembly_path(const String &p_path) {
+	if (p_path.is_empty()) {
+		return;
+	} else if (p_path == current_project->assembly_path && current_project->decompiler.is_valid()) {
+		return;
+	}
+	reload_dotnet_assembly(p_path);
+}
+
+String GDRESettings::get_dotnet_assembly_path() const {
+	if (is_pack_loaded()) {
+		return current_project->assembly_path;
+	}
+	return "";
+}
+
+Ref<GodotMonoDecompWrapper> GDRESettings::get_dotnet_decompiler() const {
+	if (!is_pack_loaded()) {
+		return Ref<GodotMonoDecompWrapper>();
+	}
+	return current_project->decompiler;
+}
+
+String GDRESettings::get_project_dotnet_assembly_name() const {
+	if (!is_pack_loaded()) {
+		return "";
+	}
+	if (!is_project_config_loaded()) {
+		// fallback in case this is a add-on pck
+		return current_project->assembly_path.get_file().get_basename();
+	}
+	if (get_ver_major() <= 3) {
+		return get_project_setting("mono/project/assembly_name", get_game_name());
+	}
+	return get_project_setting("dotnet/project/assembly_name", get_game_name());
+}
+
+bool GDRESettings::has_loaded_dotnet_assembly() const {
+	return is_pack_loaded() && !current_project->decompiler.is_null();
+}
+
+bool GDRESettings::project_requires_dotnet_assembly() const {
+	if (!is_pack_loaded()) {
+		return false;
+	}
+	bool has_assembly_setting = true;
+	if (is_project_config_loaded()) {
+		has_assembly_setting = !get_project_setting("dotnet/project/assembly_name", String()).operator String().is_empty() ||
+				!get_project_setting("mono/project/assembly_name", String()).operator String().is_empty() ||
+				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
+				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
+	}
+	// fallback in case this is a add-on pck
+	return has_assembly_setting && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+}
+
+String GDRESettings::get_temp_dotnet_assembly_dir() const {
+	if (!is_pack_loaded()) {
+		return "";
+	}
+	return current_project->assembly_temp_dir;
+}
+
+bool GDRESettings::_init_bytecode_from_ephemeral_settings() {
+	bool changed = false;
+	if (GDREConfig::get_singleton()) {
+		int force_bytecode_revision = GDREConfig::get_singleton()->get_setting("Bytecode/force_bytecode_revision", 0);
+		if (is_pack_loaded()) {
+			if (force_bytecode_revision != 0) {
+				print_line("Forcing bytecode revision: " + String::num_int64(force_bytecode_revision, 16));
+			}
+			changed = current_project->bytecode_revision != force_bytecode_revision;
+			current_project->bytecode_revision = force_bytecode_revision;
+		}
+	}
+	return changed;
+}
+
+void GDRESettings::update_from_ephemeral_settings() {
+	if (_init_bytecode_from_ephemeral_settings() && is_pack_loaded()) {
+		if (detect_bytecode_revision(!has_valid_version() || current_project->suspect_version) != OK) {
+			WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
+		} else {
+			load_pack_gdscript_cache(true);
+			_ensure_script_cache_complete();
+		}
+	}
+	if (is_pack_loaded() && current_project->decompiler.is_valid()) {
+		auto new_settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
+		if (current_project->decompiler->set_settings(new_settings) != OK) {
+			ERR_PRINT("Failed to update decompiler settings, decompiler will be reset");
+			current_project->decompiler = Ref<GodotMonoDecompWrapper>();
+		}
+	}
+}
 
 void GDRESettings::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract"), &GDRESettings::load_project, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract", "csharp_assembly_override"), &GDRESettings::load_project, DEFVAL(false), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("unload_project"), &GDRESettings::unload_project);
 	ClassDB::bind_method(D_METHOD("get_gdre_resource_path"), &GDRESettings::get_gdre_resource_path);
 	ClassDB::bind_method(D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);
@@ -2110,6 +2607,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_encryption_key_string", "key"), &GDRESettings::set_encryption_key_string);
 	ClassDB::bind_method(D_METHOD("set_encryption_key", "key"), &GDRESettings::set_encryption_key);
 	ClassDB::bind_method(D_METHOD("reset_encryption_key"), &GDRESettings::reset_encryption_key);
+	ClassDB::bind_method(D_METHOD("had_encryption_error"), &GDRESettings::had_encryption_error);
 	ClassDB::bind_method(D_METHOD("get_file_list", "filters"), &GDRESettings::get_file_list, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_file_info_array", "filters"), &GDRESettings::get_file_info_array, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("get_pack_type"), &GDRESettings::get_pack_type);
@@ -2133,7 +2631,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("has_remap", "src", "dst"), &GDRESettings::has_remap);
 	ClassDB::bind_method(D_METHOD("add_remap", "src", "dst"), &GDRESettings::add_remap);
 	ClassDB::bind_method(D_METHOD("remove_remap", "src", "dst", "output_dir"), &GDRESettings::remove_remap);
-	ClassDB::bind_method(D_METHOD("get_project_setting", "p_setting"), &GDRESettings::get_project_setting);
+	ClassDB::bind_method(D_METHOD("get_project_setting", "p_setting", "default_value"), &GDRESettings::get_project_setting, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("set_project_setting", "p_setting", "value"), &GDRESettings::set_project_setting);
 	ClassDB::bind_method(D_METHOD("has_project_setting", "p_setting"), &GDRESettings::has_project_setting);
 	ClassDB::bind_method(D_METHOD("get_project_config_path"), &GDRESettings::get_project_config_path);
@@ -2159,6 +2657,14 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);
 	ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
+	ClassDB::bind_method(D_METHOD("set_dotnet_assembly_path", "p_path"), &GDRESettings::set_dotnet_assembly_path);
+	ClassDB::bind_method(D_METHOD("get_dotnet_assembly_path"), &GDRESettings::get_dotnet_assembly_path);
+	ClassDB::bind_method(D_METHOD("get_dotnet_decompiler"), &GDRESettings::get_dotnet_decompiler);
+	ClassDB::bind_method(D_METHOD("has_loaded_dotnet_assembly"), &GDRESettings::has_loaded_dotnet_assembly);
+	ClassDB::bind_method(D_METHOD("get_project_dotnet_assembly_name"), &GDRESettings::get_project_dotnet_assembly_name);
+	ClassDB::bind_method(D_METHOD("project_requires_dotnet_assembly"), &GDRESettings::project_requires_dotnet_assembly);
+	ClassDB::bind_method(D_METHOD("get_temp_dotnet_assembly_dir"), &GDRESettings::get_temp_dotnet_assembly_dir);
+	ClassDB::bind_method(D_METHOD("update_from_ephemeral_settings"), &GDRESettings::update_from_ephemeral_settings);
 }
 
 // This is at the bottom to account for the platform header files pulling in their respective OS headers and creating all sorts of issues
@@ -2237,4 +2743,42 @@ void GDRESettings::add_logger() {
 	loggers.push_back(logger);
 	GDREOS<PLATFORM_OS>::do_set_logger(_gdre_os, memnew(CompositeLogger(loggers)));
 	// GDREOS<PLATFORM_OS>::do_add_logger(_gdre_os, logger);
+}
+
+void GDRESettings::_set_shader_globals() {
+	if (is_project_config_loaded() && ProjectSettings::get_singleton()) {
+		Dictionary shader_globals = current_project->pcfg->get_section("shader_globals");
+		if (!shader_globals.is_empty()) {
+			for (const auto &E : shader_globals) {
+				String key = "shader_globals/" + String(E.key);
+				ProjectSettings::get_singleton()->set_setting(key, E.value);
+			}
+
+			bool previous = ResourceCompatLoader::is_globally_available();
+			if (!previous) {
+				ResourceCompatLoader::make_globally_available();
+			}
+			if (RenderingServer::get_singleton()) {
+				RenderingServer::get_singleton()->global_shader_parameters_load_settings(true);
+			}
+			if (!previous) {
+				ResourceCompatLoader::unmake_globally_available();
+			}
+		}
+	}
+}
+
+void GDRESettings::_clear_shader_globals() {
+	if (is_project_config_loaded() && ProjectSettings::get_singleton()) {
+		Dictionary shader_globals = current_project->pcfg->get_section("shader_globals");
+		if (!shader_globals.is_empty()) {
+			for (const auto &E : shader_globals) {
+				String key = "shader_globals/" + String(E.key);
+				ProjectSettings::get_singleton()->clear(key);
+			}
+			if (RenderingServer::get_singleton()) {
+				RenderingServer::get_singleton()->global_shader_parameters_load_settings(true);
+			}
+		}
+	}
 }

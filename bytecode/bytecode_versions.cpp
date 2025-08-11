@@ -66,9 +66,10 @@ void register_decomp_versions() {
 	ClassDB::register_class<GDScriptDecomp_8c1731b>();
 	ClassDB::register_class<GDScriptDecomp_0b806ee>();
 
+	ClassDB::register_class<GDScriptDecomp_custom>();
 }
 
-GDScriptDecomp *create_decomp_for_commit(uint64_t p_commit_hash) {
+GDScriptDecomp *create_decomp_for_commit(int p_commit_hash) {
 	switch (p_commit_hash) {
 		case 0xebc36a7: return memnew(GDScriptDecomp_ebc36a7);
 		case 0x2e216b5: return memnew(GDScriptDecomp_2e216b5);
@@ -130,15 +131,87 @@ GDScriptDecomp *create_decomp_for_commit(uint64_t p_commit_hash) {
 		case 0x0b806ee: return memnew(GDScriptDecomp_0b806ee);
 
 		default:
+			for (int i = 0; i < GDScriptDecompVersion::decomp_versions.size(); i++) {
+				if (GDScriptDecompVersion::decomp_versions[i].commit == p_commit_hash) {
+					if (GDScriptDecompVersion::decomp_versions[i].is_custom()){
+						return GDScriptDecompVersion::decomp_versions[i].create_decomp();
+					}
+					ERR_FAIL_V_MSG(nullptr, "Bytecode version is not custom?!!?!?!?!?!?!?!?!?!?!?");
+				}
+			}
 			return nullptr;
 	}
 }
 
+Vector<GDScriptDecompVersion> GDScriptDecompVersion::decomp_versions = {
+	{ 0xebc36a7, "4.5-beta.2 (ebc36a7 / 2025-06-27 / Bytecode version: 101) - Removed `ABSTRACT` token.", 101, false, "4.5-beta.2", "", 0x2e216b5 },
+	{ 0x2e216b5, "	4.5-dev.6 (2e216b5 / 2025-06-10 / Bytecode version: 101) - content header size changed", 101, true, "4.5-dev.6", "", 0xee121ef },
+	{ 0xee121ef, "	4.5-dev.5 (ee121ef / 2025-06-09 / Bytecode version: 100) - Added `PERIOD_PERIOD_PERIOD` token.", 100, true, "4.5-dev.5", "", 0xb59d6be },
+	{ 0xb59d6be, "	4.5-dev.4 (b59d6be / 2025-05-18 / Bytecode version: 100) - Added `ABSTRACT` token.", 100, true, "4.5-dev.4", "", 0x77af6ca },
+	{ 0x77af6ca, "4.3.0-stable (77af6ca / 2024-02-09 / Bytecode version: 100) - initial version", 100, false, "4.3.0-stable", "4.4.9-stable", 0x0 },
+	{ 0xf3f05dc, "	4.0-dev2 (f3f05dc / 2020-02-13 / Bytecode version: 13) - Removed `SYNC`, `SLAVE` tokens.", 13, true, "4.0-dev2", "", 0x506df14 },
+	{ 0x506df14, "	4.0-dev1 (506df14 / 2020-02-12 / Bytecode version: 13) - Removed `decimals` function.", 13, true, "4.0-dev1", "", 0x5565f55 },
+	{ 0xa7aad78, "3.5.0-stable (a7aad78 / 2020-10-07 / Bytecode version: 13) - Added `deep_equal` function.", 13, false, "3.5.0-stable", "3.6.0-stable", 0x5565f55 },
+	{ 0x5565f55, "3.2.0-stable (5565f55 / 2019-08-26 / Bytecode version: 13) - Added `ord` function.", 13, false, "3.2.0-stable", "3.4.5-stable", 0x6694c11 },
+	{ 0x6694c11, "	3.2-dev5 (6694c11 / 2019-07-20 / Bytecode version: 13) - Added `lerp_angle` function.", 13, true, "3.2-dev5", "", 0xa60f242 },
+	{ 0xa60f242, "	3.2-dev4 (a60f242 / 2019-07-19 / Bytecode version: 13) - Added `posmod` function.", 13, true, "3.2-dev4", "", 0xc00427a },
+	{ 0xc00427a, "	3.2-dev3 (c00427a / 2019-06-01 / Bytecode version: 13) - Added `move_toward` function.", 13, true, "3.2-dev3", "", 0x620ec47 },
+	{ 0x620ec47, "	3.2-dev2 (620ec47 / 2019-05-01 / Bytecode version: 13) - Added `step_decimals` function.", 13, true, "3.2-dev2", "", 0x7f7d97f },
+	{ 0x7f7d97f, "	3.2-dev1 (7f7d97f / 2019-04-29 / Bytecode version: 13) - Added `is_equal_approx`, `is_zero_approx` functions.", 13, true, "3.2-dev1", "", 0x514a3fb },
+	{ 0x514a3fb, "3.1.1-stable (514a3fb / 2019-03-19 / Bytecode version: 13) - Added `smoothstep` function, changed argument count for `var2bytes`, `bytes2var` functions.", 13, false, "3.1.1-stable", "3.1.2-stable", 0x1a36141 },
+	{ 0x1a36141, "3.1.0-stable (1a36141 / 2019-02-20 / Bytecode version: 13) - Removed `DO`, `CASE`, `SWITCH` tokens.", 13, false, "3.1.0-stable", "", 0x1ca61a3 },
+	{ 0x1ca61a3, "3.1-beta1 (1ca61a3 / 2018-10-31 / Bytecode version: 13) - Added `push_error`, `push_warning` functions.", 13, false, "3.1-beta1", "3.1-beta5", 0xd6b31da },
+	{ 0xd6b31da, "	3.1-dev7 (d6b31da / 2018-09-15 / Bytecode version: 13) - Added `PUPPET` token, renamed token `SLAVESYNC` to `PUPPETSYNC`.", 13, true, "3.1-dev7", "", 0x8aab9a0 },
+	{ 0x8aab9a0, "	3.1-dev6 (8aab9a0 / 2018-07-20 / Bytecode version: 13) - Added `AS`, `VOID`, `FORWARD_ARROW` tokens.", 13, true, "3.1-dev6", "", 0xa3f1ee5 },
+	{ 0xa3f1ee5, "	3.1-dev5 (a3f1ee5 / 2018-07-15 / Bytecode version: 13) - Added `CLASS_NAME` token.", 13, true, "3.1-dev5", "", 0x8e35d93 },
+	{ 0x8e35d93, "	3.1-dev4 (8e35d93 / 2018-05-29 / Bytecode version: 12) - Added `REMOTESYNC`, `MASTERSYNC`, `SLAVESYNC` tokens.", 12, true, "3.1-dev4", "", 0x3ea6d9f },
+	{ 0x3ea6d9f, "	3.1-dev3 (3ea6d9f / 2018-05-28 / Bytecode version: 12) - Added `print_debug` function.", 12, true, "3.1-dev3", "", 0xa56d6ff },
+	{ 0xa56d6ff, "	3.1-dev2 (a56d6ff / 2018-05-17 / Bytecode version: 12) - Added `get_stack` function.", 12, true, "3.1-dev2", "", 0xff1e7cf },
+	{ 0xff1e7cf, "	3.1-dev1 (ff1e7cf / 2018-05-07 / Bytecode version: 12) - Added `is_instance_valid` function.", 12, true, "3.1-dev1", "", 0x054a2ac },
+	{ 0x054a2ac, "3.0.0-stable (054a2ac / 2017-11-20 / Bytecode version: 12) - Added `polar2cartesian`, `cartesian2polar` functions.", 12, false, "3.0.0-stable", "3.0.6-stable", 0x91ca725 },
+	{ 0x91ca725, "	3.0-dev14 (91ca725 / 2017-11-12 / Bytecode version: 12) - Added `CONST_TAU` token.", 12, true, "3.0-dev14", "", 0x216a8aa },
+	{ 0x216a8aa, "	3.0-dev13 (216a8aa / 2017-10-13 / Bytecode version: 12) - Added `wrapi`, `wrapf` functions.", 12, true, "3.0-dev13", "", 0xd28da86 },
+	{ 0xd28da86, "	3.0-dev12 (d28da86 / 2017-08-18 / Bytecode version: 12) - Added `inverse_lerp`, `range_lerp` functions.", 12, true, "3.0-dev12", "", 0xc6120e7 },
+	{ 0xc6120e7, "	3.0-dev11 (c6120e7 / 2017-08-07 / Bytecode version: 12) - Added `len` function.", 12, true, "3.0-dev11", "", 0x015d36d },
+	{ 0x015d36d, "	3.0-dev10 (015d36d / 2017-05-27 / Bytecode version: 12) - Added `IS` token.", 12, true, "3.0-dev10", "", 0x5e938f0 },
+	{ 0x5e938f0, "	3.0-dev9 (5e938f0 / 2017-02-28 / Bytecode version: 12) - Added `CONST_INF`, `CONST_NAN` tokens.", 12, true, "3.0-dev9", "", 0xc24c739 },
+	{ 0xc24c739, "	3.0-dev8 (c24c739 / 2017-01-20 / Bytecode version: 12) - Added `WILDCARD` token.", 12, true, "3.0-dev8", "", 0xf8a7c46 },
+	{ 0xf8a7c46, "	3.0-dev7 (f8a7c46 / 2017-01-11 / Bytecode version: 12) - Added `MATCH` token.", 12, true, "3.0-dev7", "", 0x62273e5 },
+	{ 0x62273e5, "	3.0-dev6 (62273e5 / 2017-01-08 / Bytecode version: 12) - Added `validate_json`, `parse_json`, `to_json` functions.", 12, true, "3.0-dev6", "", 0x8b912d1 },
+	{ 0x8b912d1, "	3.0-dev5 (8b912d1 / 2017-01-08 / Bytecode version: 11) - Added `DOLLAR` token.", 11, true, "3.0-dev5", "", 0x23381a5 },
+	{ 0x23381a5, "	3.0-dev4 (23381a5 / 2016-12-17 / Bytecode version: 11) - Added `ColorN` function.", 11, true, "3.0-dev4", "", 0x513c026 },
+	{ 0x513c026, "	3.0-dev3 (513c026 / 2016-10-03 / Bytecode version: 11) - Added `char` function.", 11, true, "3.0-dev3", "", 0x4ee82a2 },
+	{ 0x4ee82a2, "	3.0-dev2 (4ee82a2 / 2016-08-27 / Bytecode version: 11) - Added `ENUM` token.", 11, true, "3.0-dev2", "", 0x1add52b },
+	{ 0x1add52b, "	3.0-dev1 (1add52b / 2016-08-19 / Bytecode version: 11) - Added `REMOTE`, `SYNC`, `MASTER`, `SLAVE` tokens.", 11, true, "3.0-dev1", "", 0x7124599 },
+	{ 0xed80f45, "2.1.3-stable (ed80f45 / 2017-04-06 / Bytecode version: 10) - Added `ENUM` token.", 10, false, "2.1.3-stable", "2.1.6-stable", 0x85585c7 },
+	{ 0x85585c7, "2.1.2-stable (85585c7 / 2017-01-12 / Bytecode version: 10) - Added `ColorN` function.", 10, false, "2.1.2-stable", "", 0x7124599 },
+	{ 0x7124599, "2.1.0-stable (7124599 / 2016-06-18 / Bytecode version: 10) - Added `type_exists` function.", 10, false, "2.1.0-stable", "2.1.1-stable", 0x23441ec },
+	{ 0x23441ec, "2.0.0-stable (23441ec / 2016-01-02 / Bytecode version: 10) - Added `var2bytes`, `bytes2var` functions.", 10, false, "2.0.0-stable", "2.0.4-stable", 0x6174585 },
+	{ 0x6174585, "	2.0-dev5 (6174585 / 2016-01-02 / Bytecode version: 9) - Added `CONST_PI` token.", 9, true, "2.0-dev5", "", 0x64872ca },
+	{ 0x64872ca, "	2.0-dev4 (64872ca / 2015-12-31 / Bytecode version: 8) - Added `Color8` function.", 8, true, "2.0-dev4", "", 0x7d2d144 },
+	{ 0x7d2d144, "	2.0-dev3 (7d2d144 / 2015-12-29 / Bytecode version: 7) - Added `BREAKPOINT` token.", 7, true, "2.0-dev3", "", 0x30c1229 },
+	{ 0x30c1229, "	2.0-dev2 (30c1229 / 2015-12-28 / Bytecode version: 6) - Added `ONREADY` token.", 6, true, "2.0-dev2", "", 0x48f1d02 },
+	{ 0x48f1d02, "	2.0-dev1 (48f1d02 / 2015-06-24 / Bytecode version: 5) - Added `SIGNAL` token.", 5, true, "2.0-dev1", "", 0x65d48d6 },
+	{ 0x65d48d6, "1.1.0-stable (65d48d6 / 2015-05-09 / Bytecode version: 4) - Added `prints` function.", 4, false, "1.1.0-stable", "", 0xbe46be7 },
+	{ 0xbe46be7, "	1.1-dev3 (be46be7 / 2015-04-18 / Bytecode version: 3) - Renamed function get_inst to instance_from_id.", 3, true, "1.1-dev3", "", 0x97f34a1 },
+	{ 0x97f34a1, "	1.1-dev2 (97f34a1 / 2015-03-25 / Bytecode version: 3) - Added `seed`, `get_inst` functions.", 3, true, "1.1-dev2", "", 0x2185c01 },
+	{ 0x2185c01, "	1.1-dev1 (2185c01 / 2015-02-15 / Bytecode version: 3) - Added `var2str`, `str2var` functions.", 3, true, "1.1-dev1", "", 0xe82dc40 },
+	{ 0xe82dc40, "1.0.0-stable (e82dc40 / 2014-10-27 / Bytecode version: 3) - Added `SETGET` token.", 3, false, "1.0.0-stable", "", 0x8cab401 },
+	{ 0x8cab401, "	1.0-dev5 (8cab401 / 2014-09-15 / Bytecode version: 2) - Added `YIELD` token.", 2, true, "1.0-dev5", "", 0x703004f },
+	{ 0x703004f, "	1.0-dev4 (703004f / 2014-06-16 / Bytecode version: 2) - Added `hash` function.", 2, true, "1.0-dev4", "", 0x31ce3c5 },
+	{ 0x31ce3c5, "	1.0-dev3 (31ce3c5 / 2014-03-13 / Bytecode version: 2) - Added `funcref` function.", 2, true, "1.0-dev3", "", 0x8c1731b },
+	{ 0x8c1731b, "	1.0-dev2 (8c1731b / 2014-02-15 / Bytecode version: 2) - Added `load` function.", 2, true, "1.0-dev2", "", 0x0b806ee },
+	{ 0x0b806ee, "	1.0-dev1 (0b806ee / 2014-02-09 / Bytecode version: 1) - bytecode version changed", 1, true, "1.0-dev1", "", 0x0 },
+
+};
+
+int GDScriptDecompVersion::number_of_custom_versions = 0;
+
 Vector<Ref<GDScriptDecomp>> get_decomps_for_bytecode_ver(int bytecode_version, bool include_dev) {
 	Vector<Ref<GDScriptDecomp>> decomps;
-	for (int i = 0; i < num_decomp_versions; i++) {
-		if (decomp_versions[i].bytecode_version == bytecode_version && (include_dev || !decomp_versions[i].is_dev)) {
-			decomps.push_back(Ref<GDScriptDecomp>(create_decomp_for_commit(decomp_versions[i].commit)));
+	for (int i = 0; i < GDScriptDecompVersion::decomp_versions.size(); i++) {
+		if (GDScriptDecompVersion::decomp_versions[i].bytecode_version == bytecode_version && (include_dev || !GDScriptDecompVersion::decomp_versions[i].is_dev)) {
+			decomps.push_back(Ref<GDScriptDecomp>(create_decomp_for_commit(GDScriptDecompVersion::decomp_versions[i].commit)));
 		}
 	}
 	return decomps;
@@ -147,17 +220,104 @@ Vector<Ref<GDScriptDecomp>> get_decomps_for_bytecode_ver(int bytecode_version, b
 Vector<GDScriptDecompVersion> get_decomp_versions(bool include_dev, int ver_major) {
 	Vector<GDScriptDecompVersion> versions;
 	String ver_major_str = itos(ver_major);
-	for (int i = 0; i < num_decomp_versions; i++) {
-		if (decomp_versions[i].commit == 0xfffffff || decomp_versions[i].commit == 0x0000000) {
+	for (int i = 0; i < GDScriptDecompVersion::decomp_versions.size(); i++) {
+		if (GDScriptDecompVersion::decomp_versions[i].commit == 0xfffffff || GDScriptDecompVersion::decomp_versions[i].commit == 0x0000000) {
 			continue;
 		}
-		if (!include_dev && decomp_versions[i].is_dev) {
+		if (!include_dev && GDScriptDecompVersion::decomp_versions[i].is_dev) {
 			continue;
 		}
-		if (ver_major > 0 && decomp_versions[i].min_version[0] != ver_major_str[0]) {
+		if (ver_major > 0 && GDScriptDecompVersion::decomp_versions[i].get_major_version() != ver_major) {
 			continue;
 		}
-		versions.push_back(GDScriptDecompVersion(decomp_versions[i]));
+		versions.push_back(GDScriptDecompVersion(GDScriptDecompVersion::decomp_versions[i]));
 	}
 	return versions;
+}
+
+GDScriptDecomp *GDScriptDecompVersion::create_decomp() const {
+	if (is_custom()) {
+		return GDScriptDecomp_custom::_create_from_json(custom);
+	}
+	return create_decomp_for_commit(commit);
+}
+
+GDScriptDecompVersion GDScriptDecompVersion::create_version_from_custom_def(Dictionary p_custom_def){
+	static constexpr int CUSTOM_PREFIX = 0xf0000000;
+	int revision = GDScriptDecompVersion::number_of_custom_versions | CUSTOM_PREFIX;
+	String rev_str = String::num_int64(static_cast<uint32_t>(revision), 16).to_lower();
+	p_custom_def["bytecode_rev"] = rev_str;
+	GDScriptDecompVersion decomp_version;
+	String custom_prefix = "-custom." + itos(GDScriptDecompVersion::number_of_custom_versions);
+	decomp_version.commit = revision;
+	decomp_version.min_version = p_custom_def.get("engine_version", "").operator String().split("-")[0] + custom_prefix;
+	decomp_version.bytecode_version = p_custom_def.get("bytecode_version", 0);
+	String parent_str = p_custom_def.get("parent", "");
+	decomp_version.parent = parent_str.hex_to_int();
+	decomp_version.is_dev = true;
+	decomp_version.max_version = p_custom_def.get("max_engine_version", "");
+	if (!decomp_version.max_version.is_empty()) {
+		decomp_version.max_version = decomp_version.max_version.split("-")[0] + custom_prefix;
+	}
+	int engine_ver_major = p_custom_def.get("engine_ver_major", 0);
+	if (engine_ver_major <= 0) {
+		engine_ver_major = decomp_version.min_version.get_slice(".", 0).to_int();
+		p_custom_def.set("engine_ver_major", engine_ver_major);
+	}
+	int variant_ver_major = p_custom_def.get("variant_ver_major", engine_ver_major);
+
+	if (decomp_version.min_version.is_empty()) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "engine_version is required");
+	}
+	if (decomp_version.bytecode_version == 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "bytecode_version is required");
+	}
+	if (engine_ver_major <= 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "engine_ver_major is required");
+	}
+	if (variant_ver_major <= 0) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "variant_ver_major is required");
+	}
+	static constexpr const char *nameforamt = "%s (%s / UNKNOWN / Bytecode version: %d) - User defined bytecode based on %s";
+	decomp_version.name = vformat(nameforamt, decomp_version.min_version, rev_str, decomp_version.bytecode_version, parent_str);
+	decomp_version.custom = p_custom_def;
+	Ref<GDScriptDecomp> decomp = decomp_version.create_decomp();
+	if (decomp.is_null()) {
+		ERR_FAIL_V_MSG(GDScriptDecompVersion(), "Invalid custom definition");
+	}
+	return decomp_version;
+}
+
+GDScriptDecompVersion GDScriptDecompVersion::create_derived_version_from_custom_def(int revision, Dictionary p_custom_def){
+	Ref<GDScriptDecomp> decomp = create_decomp_for_commit(revision);
+	ERR_FAIL_COND_V(decomp.is_null(), GDScriptDecompVersion());
+	Dictionary ref_def = decomp->to_json();
+	ERR_FAIL_COND_V(ref_def.is_empty(), GDScriptDecompVersion());
+	int parent = decomp->get_bytecode_rev();
+	for (auto &E : p_custom_def) {
+		ref_def.set(E.key, E.value);
+	}
+	ref_def["parent"] = String::num_int64(parent, 16).to_lower();
+	return create_version_from_custom_def(ref_def);
+}
+
+
+int GDScriptDecompVersion::register_decomp_version_custom(Dictionary p_custom_def) {
+	auto version = create_version_from_custom_def(p_custom_def);
+	if (version.name.is_empty()) {
+		return 0;
+	}
+	GDScriptDecompVersion::decomp_versions.push_back(version);
+	GDScriptDecompVersion::number_of_custom_versions++;
+	return version.commit;
+}
+
+int GDScriptDecompVersion::register_derived_decomp_version_custom(int revision, Dictionary p_custom_def) {
+	auto version = create_derived_version_from_custom_def(revision, p_custom_def);
+	if (version.name.is_empty()) {
+		return 0;
+	}
+	GDScriptDecompVersion::decomp_versions.push_back(version);
+	GDScriptDecompVersion::number_of_custom_versions++;
+	return version.commit;
 }

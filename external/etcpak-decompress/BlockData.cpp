@@ -788,7 +788,7 @@ static etcpak_force_inline void DecodeRGBA1Part( uint64_t d, uint32_t* dst, uint
 
     uint32_t br[2], bg[2], bb[2];
     uint8_t opaque = d & 0x2;
-    
+
     int32_t dr, dg, db;
 
     uint32_t r0 = ( d & 0xF8000000 ) >> 27;
@@ -857,11 +857,11 @@ static etcpak_force_inline void DecodeRGBA1Part( uint64_t d, uint32_t* dst, uint
         for( int i=0; i<4; i++ )
         {
             for( int j=0; j<4; j++ )
-            {   
-                // The alpha component is decoded using the ‘opaque’-bit, which is positioned in bit 33 
-                // (see Table 22.7 part (b)). If the ‘opaque’-bit is set, alpha is always 255. 
-                // However, if the ‘opaque’-bit is zero, the alpha-value depends on the pixel indices; 
-                // if MSB==1 and LSB==0, the alpha value will be zero, otherwise it will be 255. 
+            {
+                // The alpha component is decoded using the ‘opaque’-bit, which is positioned in bit 33
+                // (see Table 22.7 part (b)). If the ‘opaque’-bit is set, alpha is always 255.
+                // However, if the ‘opaque’-bit is zero, the alpha-value depends on the pixel indices;
+                // if MSB==1 and LSB==0, the alpha value will be zero, otherwise it will be 255.
                 // Finally, if the alpha value equals 0, the red, green and blue components will also be zero.
                 if ((opaque == 0 && (idx & 0x3) == 2)) {
                     dst[j*w+i] = 0;
@@ -983,8 +983,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 	switch (format) {
 		case EtcFormat::Etc1:
 		case EtcFormat::Etc2_RGB: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t d = *src++;
 					DecodeRGBPart(d, dst, width);
 					dst += 4;
@@ -993,8 +993,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 			}
 		} break;
         case EtcFormat::Etc2_RGBA1: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t d = *src++;
 					DecodeRGBA1Part(d, dst, width);
 					dst += 4;
@@ -1003,8 +1003,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 			}
 		} break;
 		case EtcFormat::Etc2_RGBA: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t a = *src++;
 					uint64_t d = *src++;
 					DecodeRGBAPart(d, a, dst, width);
@@ -1015,8 +1015,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 
 		} break;
 		case EtcFormat::Etc2_R11: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t r = *src++;
 					DecodeRPart(r, dst, width);
 					dst += 4;
@@ -1025,8 +1025,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 			}
 		} break;
         case EtcFormat::Etc2_R11S: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t r = *src++;
 					DecodeRSignedPart(r, dst, width);
 					dst += 4;
@@ -1036,8 +1036,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 		} break;
 
 		case EtcFormat::Etc2_RG11: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t r = *src++;
 					uint64_t g = *src++;
 					DecodeRGPart(r, g, dst, width);
@@ -1047,8 +1047,8 @@ void etcpak_decompress::decompress_image(EtcFormat format, const void *dsrc, voi
 			}
 		} break;
         case EtcFormat::Etc2_RG11S: {
-			for (int y = 0; y < height / 4; y++) {
-				for (int x = 0; x < width / 4; x++) {
+			for (uint64_t y = 0; y < height / 4; y++) {
+				for (uint64_t x = 0; x < width / 4; x++) {
 					uint64_t r = *src++;
 					uint64_t g = *src++;
 					DecodeRGSignedPart(r, g, dst, width);

@@ -97,13 +97,13 @@ Error FileAccessEncryptedv3::open_and_parse(Ref<FileAccess> p_base, const Vector
 Error FileAccessEncryptedv3::open_and_parse_password(Ref<FileAccess> p_base, const String &p_key, Mode p_mode) {
 	String cs = p_key.md5_text();
 	ERR_FAIL_COND_V(cs.length() != 32, ERR_INVALID_PARAMETER);
-	Vector<uint8_t> key;
-	key.resize(32);
+	Vector<uint8_t> derived_key;
+	derived_key.resize(32);
 	for (int i = 0; i < 32; i++) {
-		key.write[i] = cs[i];
+		derived_key.write[i] = cs[i];
 	}
 
-	return open_and_parse(p_base, key, p_mode);
+	return open_and_parse(p_base, derived_key, p_mode);
 }
 
 Error FileAccessEncryptedv3::open_internal(const String &p_path, int p_mode_flags) {

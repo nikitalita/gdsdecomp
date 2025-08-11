@@ -1,5 +1,5 @@
 class_name GDRENewPck
-extends Window
+extends GDREAcceptDialogBase
 
 const file_icon: Texture2D = preload("res://gdre_icons/gdre_File.svg")
 const file_ok: Texture2D = preload("res://gdre_icons/gdre_FileOk.svg")
@@ -32,7 +32,7 @@ var DESKTOP_DIR = OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP)
 
 var ver_info = Engine.get_version_info()
 # TODO: make this use something dynamic (GDRESettings?)
-const PCK_VERSION_DEFAULT = 2 
+const PCK_VERSION_DEFAULT = 2
 var DEFAULT_VER_MAJOR = ver_info["major"]
 var DEFAULT_VER_MINOR = ver_info["minor"]
 var DEFAULT_VER_PATCH = ver_info["patch"]
@@ -104,6 +104,7 @@ func show_window(window: Window):
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 	var center = (safe_area.position + safe_area.size - NEW_PCK_WINDOW.size) / 2
 	window.set_position(center)
+	window.set_exclusive(true)
 	window.show()
 
 
@@ -183,12 +184,15 @@ func _on_save_pressed() -> void:
 
 func _on_save_dialog_file_selected(path: String) -> void:
 	SAVE_DIALOG.hide()
+	self.call_on_next_process(func(): _do_save(path))
+
+func _do_save(path: String):
 	# remove extra extension that macos adds
 	var ext = path.get_extension()
 	var dot_ext = "." + ext
 	if (path.ends_with(dot_ext + dot_ext)):
 		path = path.trim_suffix(dot_ext + dot_ext) + dot_ext
-		
+
 	emit_signal("save_pck_requested", path)
 	# var creator = PckCreator.new()
 	# creator.encrypt = ENCRYPT.is_pressed()
@@ -203,7 +207,7 @@ func _on_save_dialog_file_selected(path: String) -> void:
 	# var excludes = EXCLUDES.text.split(",")
 	# creator.pck_create(path, DIRECTORY.text, includes, excludes)
 	# close()
-	
+
 
 
 func _on_close_requested() -> void:

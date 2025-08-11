@@ -189,7 +189,6 @@ bool GDREPackedSource::_get_exe_embedded_pck_info(Ref<FileAccess> f, const Strin
 			magic = f->get_32();
 			if (magic == PACK_HEADER_MAGIC) {
 				uint64_t ret_pos = f->get_position();
-				uint64_t magic_pos = ret_pos - 4;
 				f->seek(r_info.pck_embed_off + r_info.pck_embed_size - 4);
 				if (f->get_32() == PACK_HEADER_MAGIC) {
 					f->seek(r_info.pck_embed_off + r_info.pck_embed_size - 12);

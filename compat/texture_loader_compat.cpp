@@ -780,9 +780,9 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
-		auto res = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
-		info->set_on_resource(res);
-		return res;
+		auto compressed_texture = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
+		info->set_on_resource(compressed_texture);
+		return compressed_texture;
 	}
 	if (p_type == ResourceInfo::GLTF_LOAD || p_type == ResourceInfo::REAL_LOAD) {
 		texture = ResourceCompatLoader::custom_load(load_path, type, p_type, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
@@ -793,7 +793,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 		existing_dict = merge_resource_info(existing_dict, info, flags);
 		existing_dict->set_on_resource(texture);
 	} else {
-		WARN_PRINT("ResourceInfo is not valid for MissingResource???!1!!!!!1111!");
+		WARN_PRINT("ResourceInfo is not valid for MissingResource?!?!1!!!!!1111!");
 		info->set_on_resource(texture);
 	}
 	return texture;
@@ -1114,7 +1114,7 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 
 	auto convert_image = [&](const Ref<Resource> &image_res) -> Ref<Image> {
 		Ref<Image> img = image_res;
-		if (img.is_null() && image_res->get_class() == "MissingResource") {
+		if (img.is_null() && !image_res.is_null() && image_res->get_class() == "MissingResource") {
 			ImageConverterCompat ic;
 			if (ic.handles_type("Image", ver_major)) {
 				img = ic.convert(image_res, p_type, ver_major, r_error);

@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://cww2hw50p8q3i" path="res://gdre_file_tree.gd" id="3_aruht"]
 [ext_resource type="Texture2D" uid="uid://byablbp3l8foe" path="res://gdre_icons/gdre_Search.svg" id="4_gm62x"]
 
-[node name="GdrePatchPck" type="AcceptDialog"]
+[node name="GdrePatchPck" type="GDREAcceptDialogBase"]
 oversampling_override = 1.0
 title = "Patch PCK"
 position = Vector2i(0, 24)

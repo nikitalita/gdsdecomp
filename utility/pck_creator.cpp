@@ -349,7 +349,7 @@ Error PckCreator::read_and_write_file(size_t i, Ref<FileAccess> write_handle) {
 	if (!fa.is_valid()) {
 		return error ? error : ERR_FILE_CANT_OPEN;
 	}
-	int64_t rq_size = files_to_pck[i].size;
+	uint64_t rq_size = files_to_pck[i].size;
 	uint8_t buf[piecemeal_read_size];
 	while (rq_size > 0) {
 		uint64_t got = fa->get_buffer(buf, MIN(piecemeal_read_size, rq_size));
@@ -369,39 +369,39 @@ String PckCreator::get_file_description(int64_t i, File *userdata) {
 	return userdata[i].src_path;
 }
 
-void PckCreator::_do_write_file(uint32_t i, File *files_to_pck) {
+void PckCreator::_do_write_file(uint32_t i, File *p_files_to_pck) {
 	if (unlikely(cancelled)) {
 		return;
 	}
 	if (encryption_error != OK) {
 		return;
 	}
-	DEV_ASSERT(f->get_position() == files_start + files_to_pck[i].ofs);
+	DEV_ASSERT(f->get_position() == files_start + p_files_to_pck[i].ofs);
 	Ref<FileAccessEncrypted> fae;
 	Ref<FileAccess> ftmp = f;
 	if (encrypt) {
 		fae.instantiate();
 
-		files_to_pck[i].err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
-		if (files_to_pck[i].err != OK) {
-			encryption_error = files_to_pck[i].err;
+		p_files_to_pck[i].err = fae->open_and_parse(f, key, FileAccessEncrypted::MODE_WRITE_AES256, false);
+		if (p_files_to_pck[i].err != OK) {
+			encryption_error = p_files_to_pck[i].err;
 			broken_cnt++;
 			cancelled = true;
 			return;
 		}
 		ftmp = fae;
 	}
-	files_to_pck[i].err = read_and_write_file(i, ftmp);
-	if (files_to_pck[i].err != OK) {
-		switch (files_to_pck[i].err) {
+	p_files_to_pck[i].err = read_and_write_file(i, ftmp);
+	if (p_files_to_pck[i].err != OK) {
+		switch (p_files_to_pck[i].err) {
 			case ERR_FILE_CANT_OPEN:
-				error_string += files_to_pck[i].path + " (File read error)\n";
+				error_string += p_files_to_pck[i].path + " (File read error)\n";
 				break;
 			case ERR_FILE_CANT_WRITE:
-				error_string += files_to_pck[i].path + " (File write error)\n";
+				error_string += p_files_to_pck[i].path + " (File write error)\n";
 				break;
 			default:
-				error_string += files_to_pck[i].path + " (Unknown error)\n";
+				error_string += p_files_to_pck[i].path + " (Unknown error)\n";
 				break;
 		}
 		broken_cnt++;
@@ -447,11 +447,11 @@ Error PckCreator::_create_after_process() {
 		error_string = ("Error opening PCK file: ") + temp_path;
 		return ERR_FILE_CANT_WRITE;
 	}
-	int64_t embedded_start = 0;
-	int64_t embedded_size = 0;
+	uint64_t embedded_start = 0;
+	uint64_t embedded_size = 0;
 
 	GDREPackedSource::EXEPCKInfo exe_pck_info;
-	int64_t absolute_exe_end = 0;
+	uint64_t absolute_exe_end = 0;
 	if (embed) {
 		// append to exe
 
@@ -464,7 +464,7 @@ Error PckCreator::_create_after_process() {
 
 		fs->seek_end();
 		absolute_exe_end = fs->get_position();
-		int64_t exe_end;
+		uint64_t exe_end;
 		if (GDREPackedSource::get_exe_embedded_pck_info(exe_to_embed, exe_pck_info)) {
 			exe_end = exe_pck_info.pck_embed_off;
 		} else {
@@ -472,7 +472,7 @@ Error PckCreator::_create_after_process() {
 		}
 		fs->seek(0);
 		// copy executable data
-		for (size_t i = 0; i < exe_end; i++) {
+		for (uint64_t i = 0; i < exe_end; i++) {
 			f->store_8(fs->get_8());
 		}
 
@@ -514,7 +514,6 @@ Error PckCreator::_create_after_process() {
 	}
 
 	auto write_header = [&]() {
-		bool use_rel_filebase = (pack_flags & PACK_REL_FILEBASE) != 0;
 		pr->step("Header...", 0, true);
 		f->store_32(files_to_pck.size()); //amount of files
 		// used by pck version 0-1, where the file offsets include the header size; pck version 2 uses the offset from the header
@@ -681,13 +680,13 @@ Error PckCreator::_create_after_process() {
 	f->store_32(0x43504447); //GDPK
 	if (embed) {
 		// ensure embedded data ends at a 64-bit multiple
-		int64_t embed_end = f->get_position() - embedded_start + 12;
+		uint64_t embed_end = f->get_position() - embedded_start + 12;
 		uint64_t pad = embed_end % 8;
-		for (int64_t i = 0; i < pad; i++) {
+		for (uint64_t i = 0; i < pad; i++) {
 			f->store_8(0);
 		}
 
-		int64_t pck_size = f->get_position() - pck_start_pos;
+		uint64_t pck_size = f->get_position() - pck_start_pos;
 		f->store_64(pck_size);
 		f->store_32(0x43504447); //GDPC
 
@@ -737,10 +736,10 @@ Error PckCreator::_create_after_process() {
 			return ERR_FILE_CANT_OPEN;
 		}
 		da->remove(pck_path.get_file());
-		Error err = da->rename(temp_path.get_file(), pck_path.get_file());
-		if (err != OK) {
+		Error ren_err = da->rename(temp_path.get_file(), pck_path.get_file());
+		if (ren_err != OK) {
 			error_string = "Error renaming PCK file: " + pck_path;
-			return err;
+			return ren_err;
 		}
 	}
 	bl_print("PCK write took " + itos(OS::get_singleton()->get_ticks_msec() - start_time) + "ms");

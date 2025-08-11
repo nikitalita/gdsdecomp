@@ -1,7 +1,5 @@
 extends GodotREEditorStandalone
 
-var ver_major = 0
-var ver_minor = 0
 var scripts_only = false
 var config: ConfigFile = null
 var last_error = ""
@@ -182,8 +180,8 @@ func close_recover_file_dialog():
 	if _file_dialog:
 		last_dir = _file_dialog.current_dir
 		_file_dialog.hide()
-		_file_dialog.set_transient(false)
-		_file_dialog.set_exclusive(false)
+		# _file_dialog.set_transient(false)
+		# _file_dialog.set_exclusive(false)
 
 
 func launch_recovery_window(paths: PackedStringArray):
@@ -314,7 +312,7 @@ func _on_REToolsMenu_item_selected(id):
 		REToolsMenuID.ABOUT:  # about
 			open_about_window()
 		REToolsMenuID.REPORT_BUG:  # Report a bug
-			OS.shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
+			OS.shell_open("https://github.com/GDRETools/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
 		REToolsMenuID.QUIT:  # Quit
 			get_tree().quit()
 
@@ -410,8 +408,8 @@ func register_dropped_files():
 		print("name: " + str(self.get_name()))
 
 
-var repo_url = "https://github.com/bruvzg/gdsdecomp"
-var latest_release_url = "https://github.com/bruvzg/gdsdecomp/releases/latest"
+var repo_url = "https://github.com/GDRETools/gdsdecomp"
+var latest_release_url = "https://github.com/GDRETools/gdsdecomp/releases/latest"
 
 func _on_setenc_key_ok_pressed():
 	# get the current text in the line edit
@@ -573,7 +571,9 @@ func _ready():
 	# If CLI arguments were passed in, just quit
 	var args = get_sanitized_args()
 	if handle_cli(args):
-		get_tree().quit()
+		deferred_calls.push_back(func():
+			get_tree().quit()
+		)
 		return
 	var show_disclaimer = should_show_disclaimer()
 	show_disclaimer = show_disclaimer and len(args) == 0
@@ -646,8 +646,9 @@ func test_decomp(fname):
 
 func export_imports(output_dir:String, files: PackedStringArray):
 	var importer:ImportExporter = ImportExporter.new()
-	importer.export_imports(output_dir, files)
+	var ret = importer.export_imports(output_dir, files)
 	importer.reset()
+	return ret
 
 
 func dump_files(output_dir:String, files: PackedStringArray, ignore_checksum_errors: bool = false) -> int:
@@ -678,6 +679,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --pck-create=<PCK_DIR>             Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
 --pck-patch=<GAME_PCK/EXE>         Patch a PCK file with the specified files
 --list-bytecode-versions           List all available bytecode versions
+--dump-bytecode-versions=<DIR>     Dump all available bytecode definitions to the specified directory in JSON format
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 """
@@ -701,18 +703,22 @@ var GLOB_NOTES = """Notes on Include/Exclude globs:
 
 var RECOVER_OPTS_NOTES = """Recover/Extract Options:
 
---key=<KEY>                 The Key to use if project is encrypted as a 64-character hex string,
-							e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
---output=<DIR>              Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
---scripts-only              Only extract/recover scripts
---include=<GLOB>            Include files matching the glob pattern (can be repeated)
---exclude=<GLOB>            Exclude files matching the glob pattern (can be repeated)
---ignore-checksum-errors    Ignore MD5 checksum errors when extracting/recovering
+--key=<KEY>                          The Key to use if project is encrypted as a 64-character hex string,
+									  e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
+--output=<DIR>                       Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
+--scripts-only                       Only extract/recover scripts
+--include=<GLOB>                     Include files matching the glob pattern (can be repeated, see notes below)
+--exclude=<GLOB>                     Exclude files matching the glob pattern (can be repeated, see notes below)
+--ignore-checksum-errors             Ignore MD5 checksum errors when extracting/recovering
+--csharp-assembly=<PATH>             Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
+--force-bytecode-version=<VERSION>   Force the bytecode version to be the specified value. Can be either a commit hash (e.g. 'f3f05dc') or version string (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>   Load a custom bytecode definition file from the specified JSON file and use it for the recovery session
 """
 # todo: handle --key option
 var COMPILE_OPTS_NOTES = """Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>          Either the commit hash of the bytecode revision (e.g. 'f3f05dc'),
 										   or the version of the engine (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>      Load a custom bytecode definition file from the specified JSON file and use it for the session
 --output=<DIR>                          Directory where compiled files will be output to.
 										  - If not specified, compiled files will be output to the same location
 										  (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
@@ -793,7 +799,8 @@ func recovery(  input_files:PackedStringArray,
 				extract_only: bool,
 				ignore_checksum_errors: bool = false,
 				excludes: PackedStringArray = [],
-				includes: PackedStringArray = []):
+				includes: PackedStringArray = [],
+				csharp_assembly: String = ""):
 	var _new_files = []
 	for file in input_files:
 		file = get_cli_abs_path(file)
@@ -856,15 +863,15 @@ func recovery(  input_files:PackedStringArray,
 			print("Error: failed to set key!")
 			return
 
-	err = GDRESettings.load_project(input_files, extract_only)
+	err = GDRESettings.load_project(input_files, extract_only, csharp_assembly)
 	if (err != OK):
 		print_usage()
 		print("Error: failed to open ", (GDREGlobals.get_files_for_paths(input_files)))
 		return
 
 	print("Successfully loaded PCK!")
-	ver_major = GDRESettings.get_ver_major()
-	ver_minor = GDRESettings.get_ver_minor()
+	var ver_major = GDRESettings.get_ver_major()
+	var ver_minor = GDRESettings.get_ver_minor()
 	var version:String = GDRESettings.get_version_string()
 	print("Version: " + version)
 	var files: PackedStringArray = []
@@ -941,7 +948,9 @@ func recovery(  input_files:PackedStringArray,
 		secs_taken = (end_time - start_time) / 1000
 		print("Extraction operation complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 		return
-	export_imports(output_dir, files)
+	err = export_imports(output_dir, files)
+	if err != OK:
+		print("Error: failed to export imports: " + GDREGlobals.get_recent_error_string())
 	end_time = Time.get_ticks_msec()
 	secs_taken = (end_time - start_time) / 1000
 	print("Recovery complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
@@ -1239,7 +1248,61 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 	pck.pck_create(pck_file, pck_dir, includes, excludes)
 
 
+func load_custom_bytecode(json_file: String):
+	var file = FileAccess.open(json_file, FileAccess.READ)
+	if file == null:
+		print("Error: failed to open custom bytecode definition file: " + json_file)
+		return ""
+	var text = file.get_as_text()
+	var json = JSON.parse_string(text)
+	if json.is_empty():
+		print("Error: failed to parse custom bytecode definition file: " + json_file)
+		return ""
+	var commit: int = GDScriptDecomp.register_decomp_version_custom(json)
+	if commit == 0:
+		print("Error: failed to register custom bytecode definition file: " + json_file)
+		return ""
+	print("Custom bytecode definition file loaded: " + json_file)
+	print("Commit: %x" % [commit])
+	return String.num_int64(commit, 16).to_lower()
+
+func dump_bytecode_versions(output_dir: String):
+	var versions = GDScriptDecomp.get_all_decomp_versions_json()
+	var err = GDRECommon.ensure_dir(output_dir)
+	if err != OK:
+		print("Error: failed to create output directory: " + output_dir)
+		return -1
+	for json in versions:
+		var json_str = JSON.stringify(json, "\t", false)
+		var file = FileAccess.open(output_dir.path_join(json["bytecode_rev"] + ".json"), FileAccess.WRITE)
+		if file == null:
+			print("Error: failed to open file for writing: " + output_dir.path_join(json["bytecode_rev"] + ".json"))
+			return -1
+		file.store_string(json_str)
+		file.close()
+	print("Bytecode versions dumped to " + output_dir)
+	return 0
+
+
+func print_bytecode_versions():
+	var versions = GDScriptDecomp.get_bytecode_versions()
+	print("\n--- Available bytecode versions:")
+	for version in versions:
+		print(version)
+
+
+func set_bytecode_version_override(bytecode_version: String):
+	var decomp: GDScriptDecomp = get_decomp(bytecode_version)
+	if decomp == null:
+		print("Error: failed to load bytecode version: " + bytecode_version)
+		print_bytecode_versions()
+		return false
+	GDREConfig.set_setting("Bytecode/force_bytecode_revision", decomp.get_bytecode_rev(), true)
+	return true
+
+
 func handle_cli(args: PackedStringArray) -> bool:
+	var custom_bytecode_file: String = ""
 	var input_extract_file:PackedStringArray = []
 	var input_file:PackedStringArray = []
 	var pck_create_dir: String       = ""
@@ -1260,6 +1323,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var excludes: PackedStringArray = []
 	var includes: PackedStringArray = []
 	var prepop: PackedStringArray = []
+	var csharp_assembly: String = ""
 	var set_setting: bool = false
 	if (args.size() == 0):
 		return false
@@ -1312,16 +1376,31 @@ func handle_cli(args: PackedStringArray) -> bool:
 			if arg.contains("="):
 				var str_val = get_arg_value(arg).to_lower()
 				val = str_val == "true" or str_val == "1" or str_val == "yes" or str_val == "on" or str_val == "y"
-			GDREConfig.set_setting("force_single_threaded", val)
+			GDREConfig.set_setting("force_single_threaded", val, true)
 			set_setting = true
 		elif arg.begins_with("--enable-experimental-plugin-downloading"):
-			GDREConfig.set_setting("download_plugins", true)
+			GDREConfig.set_setting("download_plugins", true, true)
+			set_setting = true
+		elif arg.begins_with("--load-custom-bytecode"):
+			custom_bytecode_file = get_cli_abs_path(get_arg_value(arg))
+			bytecode_version = load_custom_bytecode(custom_bytecode_file)
+			if bytecode_version == "":
+				print("Error: failed to load custom bytecode definition file: " + custom_bytecode_file)
+				return true
+			if not set_bytecode_version_override(bytecode_version):
+				return true
+			set_setting = true
+		elif arg.begins_with("--force-bytecode-version"):
+			bytecode_version = get_arg_value(arg)
+			if not set_bytecode_version_override(bytecode_version):
+				return true
 			set_setting = true
 		elif arg.begins_with("--list-bytecode-versions"):
-			var versions = GDScriptDecomp.get_bytecode_versions()
-			print("\n--- Available bytecode versions:")
-			for version in versions:
-				print(version)
+			print_bytecode_versions()
+			return true
+		elif arg.begins_with("--dump-bytecode-versions"):
+			output_dir = get_cli_abs_path(get_arg_value(arg))
+			var err = dump_bytecode_versions(output_dir)
 			return true
 		elif arg.begins_with("--bytecode"):
 			bytecode_version = get_arg_value(arg)
@@ -1361,6 +1440,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 				print(patch_files)
 				return true
 			patch_map[get_cli_abs_path(dequote(patch_files[0]).strip_edges())] = dequote(patch_files[1]).strip_edges()
+		elif arg.begins_with("--csharp-assembly"):
+			csharp_assembly = get_arg_value(arg)
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
@@ -1374,38 +1455,43 @@ func handle_cli(args: PackedStringArray) -> bool:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
 		return true
-	if prepop.size() > 0:
-		var start_time = Time.get_ticks_msec()
-		GDRESettings.prepop_plugin_cache(prepop)
-		var end_time = Time.get_ticks_msec()
-		var secs_taken = (end_time - start_time) / 1000
-		print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
-	elif compile_files.size() > 0:
-		compile(compile_files, bytecode_version, output_dir)
-	elif decompile_files.size() > 0:
-		decompile(decompile_files, bytecode_version, output_dir, enc_key)
-	elif not input_file.is_empty():
-		recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes)
-		GDRESettings.unload_project()
-		close_log()
-	elif not input_extract_file.is_empty():
-		recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes)
-		GDRESettings.unload_project()
-		close_log()
-	elif txt_to_bin.is_empty() == false:
-		text_to_bin(txt_to_bin, output_dir)
-	elif bin_to_txt.is_empty() == false:
-		bin_to_text(bin_to_txt, output_dir)
-	elif not pck_create_dir.is_empty():
-		create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
-	elif not pck_patch_pck.is_empty():
-		patch_pck(pck_patch_pck, output_dir, patch_map, includes, excludes, enc_key, embed_pck)
-		GDRESettings.unload_project()
-	elif set_setting:
-		return false # don't quit
-	else:
-		print_usage()
-		print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
+
+	if set_setting and main_cmds.size() == 0:
+		return false
+	deferred_calls.push_back(func():
+		if prepop.size() > 0:
+			var start_time = Time.get_ticks_msec()
+			GDRESettings.prepop_plugin_cache(prepop)
+			var end_time = Time.get_ticks_msec()
+			var secs_taken = (end_time - start_time) / 1000
+			print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
+		elif compile_files.size() > 0:
+			compile(compile_files, bytecode_version, output_dir)
+		elif decompile_files.size() > 0:
+			decompile(decompile_files, bytecode_version, output_dir, enc_key)
+		elif not input_file.is_empty():
+			print("Recovery started")
+			print("input_file: ", input_file)
+			recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, csharp_assembly)
+			GDRESettings.unload_project()
+			close_log()
+		elif not input_extract_file.is_empty():
+			recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes)
+			GDRESettings.unload_project()
+			close_log()
+		elif txt_to_bin.is_empty() == false:
+			text_to_bin(txt_to_bin, output_dir)
+		elif bin_to_txt.is_empty() == false:
+			bin_to_text(bin_to_txt, output_dir)
+		elif not pck_create_dir.is_empty():
+			create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
+		elif not pck_patch_pck.is_empty():
+			patch_pck(pck_patch_pck, output_dir, patch_map, includes, excludes, enc_key, embed_pck)
+			GDRESettings.unload_project()
+		else:
+			print_usage()
+			print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
+	)
 	return true
 
 func _start_patch_pck(dest_pck: String, pack_info: PackInfo, embed_pck: String = ""):

@@ -1,6 +1,8 @@
 #include "gdre_standalone.h"
+#include "core/object/callable_method_pointer.h"
 #include "gdre_version.gen.h"
 #include "scene/gui/rich_text_label.h"
+#include "scene/main/node.h"
 #include "utility/gdre_audio_stream_preview.h"
 #include "utility/gdre_logger.h"
 
@@ -101,6 +103,14 @@ void GodotREEditorStandalone::progress_end_task(const String &p_task) {
 }
 
 void GodotREEditorStandalone::_notification(int p_notification) {
+	if (p_notification == NOTIFICATION_ENTER_TREE) {
+		auto parent_window = get_parent_window();
+		if (parent_window) {
+			// progress_dialog->reparent(parent_window);
+			parent_window->set_theme(get_theme());
+			callable_mp((Node *)progress_dialog, &Node::reparent).call_deferred(parent_window, false);
+		}
+	}
 	if (p_notification == NOTIFICATION_PROCESS) {
 		if (log_message_buffer.size() > 0 && OS::get_singleton()->get_ticks_msec() - last_log_message_time > 200) {
 			write_log_message("");
@@ -114,7 +124,7 @@ void GodotREEditorStandalone::tree_set_edit_checkbox_cell_only_when_checkbox_is_
 }
 
 void GodotREEditorStandalone::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("write_log_message"), &GodotREEditorStandalone::write_log_message);
+	ClassDB::bind_method(D_METHOD("write_log_message", "message"), &GodotREEditorStandalone::write_log_message);
 	ClassDB::bind_method(D_METHOD("pck_select_request", "path"), &GodotREEditorStandalone::pck_select_request);
 	ClassDB::bind_method(D_METHOD("get_version"), &GodotREEditorStandalone::get_version);
 	ClassDB::bind_method(D_METHOD("show_about_dialog"), &GodotREEditorStandalone::show_about_dialog);

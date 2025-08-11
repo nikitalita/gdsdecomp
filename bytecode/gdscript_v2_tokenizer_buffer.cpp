@@ -260,14 +260,14 @@ Vector<uint8_t> GDScriptV2TokenizerBufferCompat::parse_code_string(const String 
 	int last_token_line = 0;
 	int token_counter = 0;
 
-	for (const Token &current : tokens) {
-		int token_len = _token_to_binary(current, token_buffer, token_pos, identifier_map, constant_map, p_decomp);
+	for (const Token &token : tokens) {
+		int token_len = _token_to_binary(token, token_buffer, token_pos, identifier_map, constant_map, p_decomp);
 		token_pos += token_len;
-		if (token_counter > 0 && current.start_line > last_token_line) {
-			token_lines[token_counter] = current.start_line;
-			token_columns[token_counter] = current.start_column;
+		if (token_counter > 0 && token.start_line > last_token_line) {
+			token_lines[token_counter] = token.start_line;
+			token_columns[token_counter] = token.start_column;
 		}
-		last_token_line = current.end_line;
+		last_token_line = token.end_line;
 
 		// current = tokenizer.scan();
 		token_counter++;

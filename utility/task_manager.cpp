@@ -1,4 +1,5 @@
 #include "task_manager.h"
+#include "main/main.h"
 #include "utility/common.h"
 
 TaskManager *TaskManager::singleton = nullptr;
@@ -16,11 +17,177 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
-Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
+void TaskManager::BaseTemplateTaskData::start() {
+	if (started) {
+		return;
+	}
+	start_internal();
+	started = true;
+}
+bool TaskManager::BaseTemplateTaskData::is_started() const {
+	return started;
+}
+bool TaskManager::BaseTemplateTaskData::is_canceled() const {
+	return canceled;
+}
+void TaskManager::BaseTemplateTaskData::cancel() {
+	canceled = true;
+	cancel_internal();
+}
+void TaskManager::BaseTemplateTaskData::finish_progress() {
+	progress = nullptr;
+}
+bool TaskManager::BaseTemplateTaskData::is_progress_enabled() const {
+	return progress_enabled;
+}
+
+bool TaskManager::BaseTemplateTaskData::wait_update_progress(bool p_force_refresh) {
+	bool bg_ret = false;
+	if (!dont_update_progress_bg) {
+		// We only want to force a redraw for the other tasks if the progress is not enabled, since `update_progress` can force the redraw itself
+		bool force_redraw_bg = !progress_enabled ? p_force_refresh : false;
+		// This will not update this task's progress, as `is_waiting` is true here.
+		bg_ret = TaskManager::get_singleton()->update_progress_bg(force_redraw_bg);
+	}
+	update_progress(p_force_refresh);
+	// Only use the cancel value if the progress is not enabled
+	if (!progress_enabled && bg_ret && !is_canceled()) {
+		cancel();
+	}
+
+	return is_canceled();
+}
+
+String TaskManager::BaseTemplateTaskData::_get_task_description() {
+	if (is_canceled()) {
+		return "Cancelling...";
+	}
+	return get_current_task_step_description();
+}
+
+// returns true if the task was cancelled before completion
+bool TaskManager::BaseTemplateTaskData::update_progress(bool p_force_refresh) {
+	if (progress_enabled && progress.is_valid() && progress->step(_get_task_description(), get_current_task_step_value(), p_force_refresh)) {
+		if (!is_canceled()) {
+			cancel();
+		}
+	}
+
+	return is_canceled();
+}
+bool TaskManager::BaseTemplateTaskData::is_timed_out() const {
+	return timed_out;
+}
+
+bool TaskManager::BaseTemplateTaskData::_is_aborted() const {
+	return _aborted;
+}
+
+bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
+	bool is_main_thread = Thread::is_main_thread();
+	if (progress_enabled && progress.is_valid()) {
+		progress->set_indeterminate(true);
+		wait_update_progress(is_main_thread);
+	}
+
+	auto curr_time = OS::get_singleton()->get_ticks_msec();
+	constexpr uint64_t ABORT_THRESHOLD_MS = 10000;
+	while (!is_done() && OS::get_singleton()->get_ticks_msec() - curr_time < ABORT_THRESHOLD_MS) {
+		OS::get_singleton()->delay_usec(10000);
+		wait_update_progress(is_main_thread);
+	}
+	if (is_done()) {
+		wait_for_task_completion_internal();
+		return true;
+	} else {
+		WARN_PRINT("Couldn't wait for task completion!!!!!");
+		_aborted = true;
+	}
+	return false;
+}
+
+bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_no_progress) {
+	bool is_main_thread = Thread::is_main_thread();
+	_aborted = false;
+	if (is_canceled()) {
+		if (started && !runs_current_thread) {
+			_wait_after_cancel();
+		}
+		return true;
+	}
+	if (!started) {
+		if (auto_start) {
+			start();
+		} else {
+			while (!started && !is_canceled()) {
+				OS::get_singleton()->delay_usec(10000);
+				if (!dont_update_progress_bg) {
+					if (TaskManager::get_singleton()->update_progress_bg(is_main_thread)) {
+						break;
+					}
+				}
+			}
+		}
+	}
+	if (is_canceled()) {
+		if (started && !runs_current_thread) {
+			_wait_after_cancel();
+		}
+		return true;
+	}
+	if (runs_current_thread) {
+		run_on_current_thread();
+	} else {
+		if (!is_main_thread) {
+			WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
+		}
+		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
+		auto last_progress = get_current_task_step_value();
+		bool printed_warning = false;
+		while (!is_done()) {
+			OS::get_singleton()->delay_usec(10000);
+			if (timeout_s_no_progress != 0) {
+				auto curr_progress = get_current_task_step_value();
+				auto curr_time = OS::get_singleton()->get_ticks_msec();
+				if (curr_progress != last_progress) {
+					last_progress_made = curr_time;
+					last_progress = curr_progress;
+				} else {
+					auto delta = curr_time - last_progress_made;
+					if (!printed_warning && delta > (timeout_s_no_progress - 5) * 1000) {
+						print_line("Task is taking an unusually long time to complete, cancelling in 5 seconds...");
+						printed_warning = true;
+					} else if (delta > timeout_s_no_progress * 1000) {
+						ERR_PRINT("Task is taking too long to complete, cancelling...");
+						timed_out = true;
+						cancel();
+						break;
+					}
+				}
+			}
+			wait_update_progress(is_main_thread);
+			if (is_canceled()) {
+				break;
+			}
+		}
+		if (!is_canceled()) {
+			wait_for_task_completion_internal();
+		} else {
+			_wait_after_cancel();
+		}
+	}
+	finish_progress();
+	return is_canceled();
+}
+
+TaskManager::BaseTemplateTaskData::~BaseTemplateTaskData() {}
+
+Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t timeout_s_no_progress) {
 	if (p_group_id == -1) {
 		return ERR_INVALID_PARAMETER;
 	}
 	Error err = OK;
+	bool erase = true;
 	{
 		std::shared_ptr<BaseTemplateTaskData> task;
 		bool already_waiting = false;
@@ -34,20 +201,41 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
 		} else if (already_waiting) {
 			return ERR_ALREADY_IN_USE;
 		}
-		if (task->wait_for_completion()) {
-			err = ERR_SKIP;
+		if (task->wait_for_completion(timeout_s_no_progress)) {
+			if (task->is_timed_out()) {
+				err = ERR_TIMEOUT;
+			} else {
+				err = ERR_SKIP;
+			}
+			if (task->_is_aborted()) {
+				erase = false;
+			}
 		}
 	}
-	group_id_to_description.erase(p_group_id);
+	if (erase) {
+		group_id_to_description.erase(p_group_id);
+	}
 	return err;
 }
 
-void TaskManager::update_progress_bg() {
+bool TaskManager::update_progress_bg(bool p_force_refresh) {
+	bool main_loop_iterating = false;
+	bool canceled = false;
 	group_id_to_description.for_each_m([&](auto &v) {
-		if (!v.second->is_waiting) {
-			v.second->update_progress();
+		if (v.second->is_progress_enabled() && v.second->is_started()) {
+			main_loop_iterating = true;
+			if (!v.second->is_waiting) {
+				v.second->update_progress(p_force_refresh);
+			}
+		}
+		if (v.second->is_canceled()) {
+			canceled = true;
 		}
 	});
+	if (!main_loop_iterating && !Main::is_iterating() && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing()) {
+		Main::iteration();
+	}
+	return canceled;
 }
 
 TaskManager::DownloadTaskID TaskManager::add_download_task(const String &p_download_url, const String &p_save_path, bool silent) {
@@ -63,6 +251,10 @@ int TaskManager::DownloadTaskData::get_current_task_step_value() {
 }
 
 void TaskManager::DownloadTaskData::run_on_current_thread() {
+	if (canceled) {
+		done = true;
+		return;
+	}
 	callback_data(nullptr);
 }
 
@@ -91,8 +283,9 @@ void TaskManager::DownloadTaskData::start_internal() {
 	}
 }
 
-TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool silent) :
-		download_url(p_download_url), save_path(p_save_path), silent(silent) {
+TaskManager::DownloadTaskData::DownloadTaskData(const String &p_download_url, const String &p_save_path, bool p_silent) :
+		download_url(p_download_url), save_path(p_save_path), silent(p_silent) {
+	dont_update_progress_bg = true;
 	auto_start = false;
 }
 
@@ -230,4 +423,31 @@ bool TaskManager::is_current_task_canceled() {
 		}
 	});
 	return canceled;
+}
+
+bool TaskManager::is_current_task_timed_out() {
+	bool timed_out = false;
+	group_id_to_description.for_each([&](auto &v) {
+		if (v.second->is_timed_out()) {
+			timed_out = true;
+		}
+	});
+	return timed_out;
+}
+
+bool TaskManager::is_current_task_completed(TaskManagerID p_task_id) const {
+	bool done = false;
+	group_id_to_description.if_contains(p_task_id, [&](auto &v) {
+		auto task = v.second;
+		if (task->is_done()) {
+			done = true;
+		}
+	});
+	return done;
+}
+
+void TaskManager::cancel_all() {
+	group_id_to_description.for_each_m([&](auto &v) {
+		v.second->cancel();
+	});
 }

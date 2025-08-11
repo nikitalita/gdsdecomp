@@ -18,6 +18,7 @@ protected:
 	static constexpr const char *bytecode_rev_str = "5565f55";
 	static constexpr const char *engine_version = "3.2.0-stable";
 	static constexpr const char *max_engine_version = "3.4.5-stable";
+	static constexpr const char *date = "2019-08-26";
 	static constexpr int parent = 0x6694c11;
 
 	virtual Vector<String> get_added_functions() const override { return {"ord"}; }
@@ -36,6 +37,7 @@ public:
 	virtual int get_parent() const override { return parent; }
 	virtual String get_engine_version() const override { return engine_version; }
 	virtual String get_max_engine_version() const override { return max_engine_version; }
+	virtual String get_date() const override { return date; }
 	GDScriptDecomp_5565f55() {}
 };
 

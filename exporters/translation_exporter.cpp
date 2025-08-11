@@ -534,7 +534,6 @@ struct KeyWorker {
 		}
 		char last_char = p_res_s[res_s_len - 1];
 		bool stripped_last_char = false;
-		const char *res_s = p_res_s;
 		int new_len = res_s_len;
 		while (last_char >= '0' && last_char <= '9') {
 			stripped_last_char = true;
@@ -584,11 +583,11 @@ struct KeyWorker {
 			res_s_copy = p_res_s;
 			res_s_copy.resize_uninitialized(new_len + 1);
 			res_s_copy[new_len] = '\0';
-			String num_str = String(p_res_s.get_data() + new_len);
+			String num_str_value = String(p_res_s.get_data() + new_len);
 			// check how many zeros are in the num_str
 			int zero_count = 0;
-			for (int i = 0; i < num_str.length(); i++) {
-				if (num_str[i] == '0') {
+			for (int i = 0; i < num_str_value.length(); i++) {
+				if (num_str_value[i] == '0') {
 					zero_count++;
 				} else {
 					break;
@@ -746,17 +745,17 @@ struct KeyWorker {
 
 	Error wait_for_task(WorkerThreadPool::GroupID group_task, const String &stage_name, size_t size, uint64_t max_time) {
 		uint64_t next_report = 5000;
-		uint64_t start_time = OS::get_singleton()->get_ticks_msec();
+		uint64_t task_start_time = OS::get_singleton()->get_ticks_msec();
 		while (!WorkerThreadPool::get_singleton()->is_group_task_completed(group_task)) {
 			// wait 100ms
 			OS::get_singleton()->delay_usec(100000);
-			if (check_for_timeout(start_time, max_time)) {
+			if (check_for_timeout(task_start_time, max_time)) {
 				bl_debug("Timeout waiting for " + stage_name + " to complete...");
 				cancel = true;
 				WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
 				return ERR_TIMEOUT;
 			}
-			if (check_for_timeout(start_time, next_report)) {
+			if (check_for_timeout(task_start_time, next_report)) {
 				bl_debug("waiting for " + stage_name + " to complete... (" + itos(last_completed) + "/" + itos(size) + ")");
 				next_report += 5000;
 			}
@@ -783,7 +782,7 @@ struct KeyWorker {
 		if (res_s.is_empty()) {
 			return true;
 		}
-		if (res_s.size() > max_key_len) {
+		if (res_s.size() > static_cast<int64_t>(max_key_len)) {
 			return true;
 		}
 
@@ -825,10 +824,10 @@ struct KeyWorker {
 	}
 
 	template <class T>
-	Vector<String> get_sanitized_strings(const Vector<T> &default_messages) {
+	Vector<String> get_sanitized_strings(const Vector<T> &input_messages) {
 		static_assert(std::is_same<T, String>::value || std::is_same<T, StringName>::value, "T must be either String or StringName");
 		HashSet<String> new_strings;
-		for (const T &msg : default_messages) {
+		for (const T &msg : input_messages) {
 			auto msg_str = remove_removable_punct(msg).strip_escapes().strip_edges();
 			for (auto ch : punctuation) {
 				// strip edges
@@ -992,8 +991,8 @@ struct KeyWorker {
 		}
 	}
 
-	void stage_1(uint32_t i, String *resource_strings) {
-		const String &key = resource_strings[i];
+	void stage_1(uint32_t i, String *input_resource_strings) {
+		const String &key = input_resource_strings[i];
 		try_key(key);
 	}
 
@@ -1137,8 +1136,8 @@ struct KeyWorker {
 			common_prefixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			common_suffixes = get_sanitized_strings(STANDARD_SUFFIXES);
 			pop_charstr_vectors();
-			Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
-			if (err != OK) {
+			Error stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 3");
+			if (stage3_err != OK) {
 				return pop_keys();
 			}
 		}
@@ -1154,8 +1153,8 @@ struct KeyWorker {
 				stripped_strings_set.insert({ ut, num_suffix_val });
 			}
 			auto vec = gdre::hashset_to_vector(stripped_strings_set);
-			Error err = run_stage(&KeyWorker::stage_3_5_task, vec, "Stage 3");
-			if (err != OK) {
+			Error stage3_5_err = run_stage(&KeyWorker::stage_3_5_task, vec, "Stage 3");
+			if (stage3_5_err != OK) {
 				return pop_keys();
 			}
 		}
@@ -1196,16 +1195,16 @@ struct KeyWorker {
 				}
 			}
 			if (filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS) {
-				Error err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
-				if (err != OK) {
+				Error stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2, filtered_resource_strings_t, "Stage 4");
+				if (stage4_err != OK) {
 					return pop_keys();
 				}
 				// Stage 5: Combine resource strings with every other string
 				// If we're still missing keys, we try combining every string with every other string.
 				do_stage_5 = do_stage_5 && key_to_message.size() != default_messages.size() && filtered_resource_strings.size() <= MAX_FILT_RES_STRINGS;
 				if (do_stage_5) {
-					Error err = run_stage(&KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
-					if (err != OK) {
+					Error stage5_err = run_stage(&KeyWorker::stage_5_task_2, filtered_resource_strings_t, "Stage 5");
+					if (stage5_err != OK) {
 						return pop_keys();
 					}
 				}
@@ -1239,7 +1238,7 @@ struct KeyWorker {
 
 Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	// Implementation for exporting resources related to translations
-	Error err = OK;
+	Error export_err = OK;
 	// translation files are usually imported from one CSV and converted to multiple "<LOCALE>.translation" files
 	// TODO: make this also check for the first file in GDRESettings::get_singleton()->get_project_setting("internationalization/locale/translations")
 	const String locale_setting_key = GDRESettings::get_singleton()->get_ver_major() >= 4 ? "internationalization/locale/fallback" : "locale/fallback";
@@ -1270,8 +1269,8 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	Ref<ExportReport> report = memnew(ExportReport(iinfo));
 	report->set_error(ERR_CANT_ACQUIRE_RESOURCE);
 	for (String path : dest_files) {
-		Ref<Translation> tr = ResourceCompatLoader::non_global_load(path, "", &err);
-		ERR_FAIL_COND_V_MSG(err != OK, report, "Could not load translation file " + iinfo->get_path());
+		Ref<Translation> tr = ResourceCompatLoader::non_global_load(path, "", &export_err);
+		ERR_FAIL_COND_V_MSG(export_err != OK, report, "Could not load translation file " + iinfo->get_path());
 		ERR_FAIL_COND_V_MSG(!tr.is_valid(), report, "Translation file " + iinfo->get_path() + " was not valid");
 		String locale = tr->get_locale();
 		// TODO: put the default locale at the beginning
@@ -1315,14 +1314,14 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	if (empty_strings > default_messages.size() * 0.2) {
 		size_t best_empty_strings = empty_strings;
 		for (int i = 0; i < translations.size(); i++) {
-			size_t empty_strings = 0;
+			size_t empties = 0;
 			for (auto &message : translation_messages[i]) {
 				if (message.is_empty()) {
-					empty_strings++;
+					empties++;
 				}
 			}
-			if (empty_strings < best_empty_strings) {
-				best_empty_strings = empty_strings;
+			if (empties < best_empty_strings) {
+				best_empty_strings = empties;
 				default_translation = translations[i];
 				default_messages = translation_messages[i];
 			}
@@ -1348,13 +1347,15 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	// The reason for this threshold is that the translations may contain keys that are not currently in use in the project.
 	bool resave = missing_keys > (default_messages.size() * threshold);
 	if (resave) {
-		iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
+		if (!export_dest.begins_with("res://.assets/")) {
+			iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
+		}
 	}
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
-	err = gdre::ensure_dir(output_path.get_base_dir());
-	ERR_FAIL_COND_V(err, report);
-	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &err);
-	ERR_FAIL_COND_V(err, report);
+	export_err = gdre::ensure_dir(output_path.get_base_dir());
+	ERR_FAIL_COND_V(export_err, report);
+	Ref<FileAccess> f = FileAccess::open(output_path, FileAccess::WRITE, &export_err);
+	ERR_FAIL_COND_V(export_err, report);
 	ERR_FAIL_COND_V(f.is_null(), report);
 	// Set UTF-8 BOM (required for opening with Excel in UTF-8 format, works with all Godot versions)
 	f->store_8(0xef);

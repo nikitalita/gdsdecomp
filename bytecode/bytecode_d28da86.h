@@ -18,6 +18,7 @@ protected:
 	static constexpr const char *bytecode_rev_str = "d28da86";
 	static constexpr const char *engine_version = "3.0-dev12";
 	static constexpr const char *max_engine_version = "";
+	static constexpr const char *date = "2017-08-18";
 	static constexpr int parent = 0xc6120e7;
 
 	virtual Vector<String> get_added_functions() const override { return {"inverse_lerp", "range_lerp"}; }
@@ -36,6 +37,7 @@ public:
 	virtual int get_parent() const override { return parent; }
 	virtual String get_engine_version() const override { return engine_version; }
 	virtual String get_max_engine_version() const override { return max_engine_version; }
+	virtual String get_date() const override { return date; }
 	GDScriptDecomp_d28da86() {}
 };
 

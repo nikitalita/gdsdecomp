@@ -2,6 +2,7 @@
 #include "import_exporter.h"
 
 #include "bytecode/bytecode_base.h"
+#include "compat/fake_gdscript.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
@@ -10,11 +11,15 @@
 #include "core/string/print_string.h"
 #include "exporters/export_report.h"
 #include "exporters/resource_exporter.h"
+#include "exporters/scene_exporter.h"
 #include "gdre_logger.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
 #include "utility/glob.h"
+#include "utility/godot_mono_decomp_wrapper.h"
+
+#include "godot_mono_decomp_wrapper.h"
 
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
@@ -148,20 +153,20 @@ void save_filesystem_cache(const Vector<Ref<ExportReport>> &reports, String outp
 }
 
 void ImportExporter::rewrite_metadata(ExportToken &token) {
-	auto &report = token.report;
-	ERR_FAIL_COND_MSG(report.is_null(), "Cannot rewrite metadata for null report");
-	Error err = report->get_error();
-	auto iinfo = report->get_import_info();
+	auto &token_report = token.report;
+	ERR_FAIL_COND_MSG(token_report.is_null(), "Cannot rewrite metadata for null report");
+	Error err = token_report->get_error();
+	auto iinfo = token_report->get_import_info();
 	auto if_err_func = [&]() {
 		if (err != OK) {
-			report->set_rewrote_metadata(ExportReport::FAILED);
+			token_report->set_rewrote_metadata(ExportReport::FAILED);
 		} else {
-			report->set_rewrote_metadata(ExportReport::REWRITTEN);
+			token_report->set_rewrote_metadata(ExportReport::REWRITTEN);
 		}
 	};
 	String new_md_path = output_dir.path_join(iinfo->get_import_md_path().replace("res://", ""));
 
-	if (report->get_rewrote_metadata() == ExportReport::NOT_IMPORTABLE || !iinfo->is_import()) {
+	if (token_report->get_rewrote_metadata() == ExportReport::NOT_IMPORTABLE || !iinfo->is_import()) {
 		return;
 	}
 
@@ -174,23 +179,23 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 	}
 	// ****REWRITE METADATA****
 	bool not_in_res_tree = !iinfo->get_source_file().begins_with("res://");
-	bool export_matches_source = report->get_source_path() == report->get_new_source_path();
+	bool export_matches_source = token_report->get_source_path() == token_report->get_new_source_path();
 	if (err == OK && (not_in_res_tree || !export_matches_source)) {
 		if (iinfo->get_ver_major() <= 2 && opt_rewrite_imd_v2) {
 			// TODO: handle v2 imports with more than one source, like atlas textures
-			err = rewrite_import_source(report->get_new_source_path(), iinfo);
+			err = rewrite_import_source(token_report->get_new_source_path(), iinfo);
 			if_err_func();
-		} else if (not_in_res_tree && iinfo->get_ver_major() >= 3 && opt_rewrite_imd_v3 && (iinfo->get_source_file().find(report->get_new_source_path().replace("res://", "")) != -1)) {
+		} else if (not_in_res_tree && iinfo->get_ver_major() >= 3 && opt_rewrite_imd_v3 && (iinfo->get_source_file().find(token_report->get_new_source_path().replace("res://", "")) != -1)) {
 			// Currently, we only rewrite the import data for v3 if the source file was somehow recorded as an absolute file path,
 			// But is still in the project structure
-			err = rewrite_import_source(report->get_new_source_path(), iinfo);
+			err = rewrite_import_source(token_report->get_new_source_path(), iinfo);
 			if_err_func();
 		} else if (iinfo->is_dirty()) {
 			err = iinfo->save_to(new_md_path);
 			if (err != OK) {
-				report->set_rewrote_metadata(ExportReport::FAILED);
+				token_report->set_rewrote_metadata(ExportReport::FAILED);
 			} else if (!export_matches_source) {
-				report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+				token_report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
 			}
 		}
 	} else if (iinfo->is_dirty()) {
@@ -198,12 +203,12 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			err = iinfo->save_to(new_md_path);
 			if_err_func();
 		} else {
-			report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+			token_report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
 		}
 	} else {
-		report->set_rewrote_metadata(ExportReport::NOT_DIRTY);
+		token_report->set_rewrote_metadata(ExportReport::NOT_DIRTY);
 	}
-	auto mdat = report->get_rewrote_metadata();
+	auto mdat = token_report->get_rewrote_metadata();
 	if (mdat == ExportReport::FAILED || mdat == ExportReport::NOT_IMPORTABLE) {
 		return;
 	}
@@ -214,23 +219,23 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 			err = modern_iinfo->save_md5_file(output_dir);
 		}
 		if (err) {
-			report->set_rewrote_metadata(ExportReport::MD5_FAILED);
+			token_report->set_rewrote_metadata(ExportReport::MD5_FAILED);
 		}
 	}
-	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
+	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && token_report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
 		String resource_script_class;
 		List<String> deps;
 		auto path = iinfo->get_path();
 		auto res_info = ResourceCompatLoader::get_resource_info(path);
-		report->actual_type = res_info.is_valid() ? res_info->type : iinfo->get_type();
-		report->script_class = res_info.is_valid() ? res_info->script_class : "";
+		token_report->actual_type = res_info.is_valid() ? res_info->type : iinfo->get_type();
+		token_report->script_class = res_info.is_valid() ? res_info->script_class : "";
 		ResourceCompatLoader::get_dependencies(path, &deps, false);
 		for (auto &dep : deps) {
-			report->dependencies.push_back(dep);
+			token_report->dependencies.push_back(dep);
 		}
-		report->import_md5 = FileAccess::get_md5(new_md_path);
-		report->import_modified_time = FileAccess::get_modified_time(new_md_path);
-		report->modified_time = FileAccess::get_modified_time(report->get_saved_path());
+		token_report->import_md5 = FileAccess::get_md5(new_md_path);
+		token_report->import_modified_time = FileAccess::get_modified_time(new_md_path);
+		token_report->modified_time = FileAccess::get_modified_time(token_report->get_saved_path());
 	}
 	if (!err && iinfo->get_ver_major() >= 4 && iinfo->get_metadata_prop().get("has_editor_variant", false)) {
 		// we need to make a copy of the resource with the editor variant
@@ -318,20 +323,8 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 		return;
 	}
 	auto &token = tokens[i];
-	bool has_file = false;
-	auto dest_files = token.iinfo->get_dest_files();
-	for (const String &dest : dest_files) {
-		if (GDRESettings::get_singleton()->has_path_loaded(dest)) {
-			has_file = true;
-			break;
-		}
-	}
-	if (!has_file) {
-		token.report.instantiate(token.iinfo);
-		token.report->set_error(ERR_FILE_NOT_FOUND);
-		token.report->set_message("No existing resources found for this import");
-		token.report->append_message_detail({ "Possibles:" });
-		token.report->append_message_detail(dest_files);
+	token.report = ResourceExporter::_check_for_existing_resources(token.iinfo);
+	if (token.report.is_valid()) {
 		last_completed++;
 		return;
 	}
@@ -418,7 +411,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	report = Ref<ImportExporterReport>(memnew(ImportExporterReport(get_settings()->get_version_string())));
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
-	output_dir = !p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path();
+	output_dir = gdre::get_full_path(!p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path(), DirAccess::ACCESS_FILESYSTEM);
+	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(output_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create output directory " + output_dir);
 	Error err = OK;
 	// TODO: make this use "copy"
 	Array _files = get_settings()->get_import_files();
@@ -429,7 +423,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_count());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
-	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
+	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {
@@ -448,14 +442,51 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		}
 	}
 
-	Ref<DirAccess> dir = DirAccess::open(output_dir);
-	Vector<String> addon_first_level_dirs = Glob::glob("res://addons/*", true);
-	if (addon_first_level_dirs.size() > 0) {
-		if (partial_export) {
-			addon_first_level_dirs = Glob::dirs_in_names(files_to_export, addon_first_level_dirs);
+	// check if the pack has .cs files
+	auto cs_files = GDRESettings::get_singleton()->get_file_list({ "*.cs" });
+	if (cs_files.size() > 0) {
+		report->mono_detected = true;
+		Vector<String> exclude_files;
+		for (int i = 0; i < cs_files.size(); i++) {
+			if (!files_to_export_set.has(cs_files[i])) {
+				exclude_files.push_back(cs_files[i]);
+			}
 		}
-		recreate_plugin_configs(addon_first_level_dirs);
+		if (exclude_files.size() == cs_files.size()) {
+			// nothing to do
+		} else if (GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
+
+			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
+			err = decompiler->decompile_module_with_progress(csproj_path, exclude_files);
+			if (err != OK) {
+				if (err == ERR_SKIP) {
+					return ERR_SKIP;
+				}
+				ERR_PRINT("Failed to decompile C# scripts!");
+				report->failed_scripts.append_array(cs_files);
+			} else {
+				auto failed = decompiler->get_files_not_present_in_file_map();
+				for (int i = 0; i < cs_files.size(); i++) {
+					if (!failed.has(cs_files[i])) {
+						report->decompiled_scripts.push_back(cs_files[i]);
+					}
+				}
+				report->failed_scripts.append_array(failed);
+			}
+		} else {
+			if (get_ver_major() < 4) {
+				report_unsupported_resource("CSharpScript", "3.x C# scripts", cs_files[0]);
+			}
+			report->failed_scripts.append_array(cs_files);
+		}
 	}
+
+	Ref<EditorProgressGDDC> pr = memnew(EditorProgressGDDC("export_imports", "Exporting resources...", export_files_count, true));
+
+	Ref<DirAccess> dir = DirAccess::open(output_dir);
+
+	recreate_plugin_configs();
 
 	if (pr->step("Exporting resources...", 0, true)) {
 		return ERR_SKIP;
@@ -471,9 +502,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
-	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
+	Vector<Ref<ImportInfo>> scene_tokens;
 	HashMap<String, Vector<Ref<ImportInfo>>> export_dest_to_iinfo;
 	HashSet<String> dupes;
+	constexpr bool MULTITHREADED_SCENE_EXPORT = true;
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
 		if (partial_export && !hashset_intersects_vector(files_to_export_set, iinfo->get_dest_files())) {
@@ -525,7 +557,12 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		bool supports_multithreading = !GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 		bool is_high_priority = importer == "gdextension" || importer == "gdnative";
 		if (exporter_map.has(importer)) {
-			if (!exporter_map.get(importer)->supports_multithread()) {
+			auto &exporter = exporter_map.get(importer);
+			if (exporter->get_name() == "PackedScene" && MULTITHREADED_SCENE_EXPORT) {
+				scene_tokens.push_back(iinfo);
+				export_dest_to_iinfo.insert(iinfo->get_export_dest(), Vector<Ref<ImportInfo>>({ iinfo }));
+				continue;
+			} else if (!exporter->supports_multithread()) {
 				supports_multithreading = false;
 			}
 		} else {
@@ -665,7 +702,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	if (tokens.size() > 0) {
 		last_completed = -1;
 		cancelled = false;
-		Error err = TaskManager::get_singleton()->run_multithreaded_group_task(
+		err = TaskManager::get_singleton()->run_multithreaded_group_task(
 				this,
 				&ImportExporter::_do_export,
 				tokens.ptrw(),
@@ -689,6 +726,19 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			"ImportExporter::export_imports",
 			"Exporting resources...",
 			true, pr, num_multithreaded_tokens);
+	if (err != OK) {
+		print_line("Export cancelled!");
+		return err;
+	}
+
+	if (scene_tokens.size() > 0) {
+		auto reports = SceneExporter::get_singleton()->batch_export_files(output_dir, scene_tokens);
+		for (int i = 0; i < reports.size(); i++) {
+			ExportToken token = { scene_tokens[i], reports[i], false };
+			rewrite_metadata(token);
+			non_multithreaded_tokens.push_back(token);
+		}
+	}
 
 	if (err != OK) {
 		print_line("Export cancelled!");
@@ -795,10 +845,11 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (iinfo->get_importer() == "gdextension" || iinfo->get_importer() == "gdnative") {
 			if (!ret->get_message().is_empty()) {
 				report->failed_gdnative_copy.push_back(ret->get_message());
+				continue;
 			} else if (!ret->get_saved_path().is_empty() && ret->get_download_task_id() != -1) {
 				Ref<ImportInfoGDExt> iinfo_gdext = iinfo;
-				Error err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
-				if (err != OK) {
+				Error dl_err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
+				if (dl_err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
@@ -808,8 +859,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
-				err = unzip_and_copy_addon(iinfo, ret->get_saved_path());
-				if (err != OK) {
+				dl_err = unzip_and_copy_addon(iinfo, ret->get_saved_path());
+				if (dl_err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					continue;
 				}
@@ -824,8 +875,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	if (has_remaps) {
 		for (auto &token : tokens) {
 			auto &iinfo = token.iinfo;
-			auto err = token.report.is_null() ? ERR_BUG : token.report->get_error();
-			if (iinfo.is_valid() && !err) {
+			auto tkerr = token.report.is_null() ? ERR_BUG : token.report->get_error();
+			if (iinfo.is_valid() && !tkerr) {
 				auto src = iinfo->get_export_dest();
 				if (success_paths.has(src)) {
 					auto dest = iinfo->get_path();
@@ -882,14 +933,15 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	return OK;
 }
 
-Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
+Error ImportExporter::recreate_plugin_config(const String &plugin_cfg_path) {
 	Error err;
-	if (GDRESettings::get_singleton()->get_bytecode_revision() == 0) {
-		return ERR_UNCONFIGURED;
-	}
 	static const Vector<String> wildcards = { "*.gdc", "*.gde", "*.gd" };
-	String rel_plugin_path = String("addons").path_join(plugin_dir);
-	auto gd_scripts = gdre::get_recursive_dir_list(String("res://").path_join(rel_plugin_path), wildcards, false);
+	String abs_plugin_path = plugin_cfg_path.get_base_dir();
+	String rel_plugin_path = abs_plugin_path.trim_prefix("res://");
+	String plugin_dir = rel_plugin_path.trim_prefix("addons/").trim_prefix("Addons/");
+	String plugin_name = plugin_dir.replace("_", " ").replace(".", " ").replace("/", " ");
+
+	auto gd_scripts = gdre::get_recursive_dir_list(abs_plugin_path, wildcards, false);
 	String main_script;
 
 	if (gd_scripts.is_empty()) {
@@ -905,7 +957,7 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 			cant_decompile = true;
 			continue;
 		}
-		String gd_script_abs_path = String("res://").path_join(rel_plugin_path).path_join(gd_scripts[j]);
+		String gd_script_abs_path = abs_plugin_path.path_join(gd_scripts[j]);
 		Ref<FakeGDScript> gd_script = ResourceCompatLoader::non_global_load(gd_script_abs_path, "", &err);
 		if (gd_script.is_valid()) {
 			if (gd_script->get_instance_base_type() == "EditorPlugin") {
@@ -918,15 +970,17 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 		}
 	}
 	if (main_script == "") {
-		// No tool scripts found, this is not a plugin
-		if (!tool_scripts_found && !cant_decompile) {
-			return OK;
+		if (cant_decompile) {
+			return ERR_UNCONFIGURED;
+		} else if (!tool_scripts_found) {
+			return ERR_UNAVAILABLE;
+		} else {
+			return ERR_CANT_CREATE;
 		}
-		return ERR_UNAVAILABLE;
 	}
 	String plugin_cfg_text = String("[plugin]\n\n") +
-			"name=\"" + plugin_dir.replace("_", " ").replace(".", " ") + "\"\n" +
-			"description=\"" + plugin_dir.replace("_", " ").replace(".", " ") + " plugin\"\n" +
+			"name=\"" + plugin_name + "\"\n" +
+			"description=\"" + plugin_name + " plugin\"\n" +
 			"author=\"Unknown\"\n" +
 			"version=\"1.0\"\n" +
 			"script=\"" + main_script + "\"";
@@ -935,38 +989,55 @@ Error ImportExporter::recreate_plugin_config(const String &plugin_dir) {
 	Ref<FileAccess> f = FileAccess::open(output_plugin_path.path_join("plugin.cfg"), FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err || f.is_null(), ERR_FILE_CANT_WRITE, "can't open plugin.cfg for writing");
 	ERR_FAIL_COND_V_MSG(!f->store_string(plugin_cfg_text), ERR_FILE_CANT_WRITE, "can't write plugin.cfg");
-	print_verbose("Recreated plugin config for " + plugin_dir);
+	print_verbose("Recreated plugin config for " + plugin_name);
 	return OK;
 }
 
 // Recreates the "plugin.cfg" files for each plugin to avoid loading errors.
-Error ImportExporter::recreate_plugin_configs(const Vector<String> &plugin_dirs) {
-	Error err;
-	if (!DirAccess::exists("res://addons")) {
+Error ImportExporter::recreate_plugin_configs() {
+	Vector<String> enabled_plugins = GDRESettings::get_singleton()->get_project_setting("editor_plugins/enabled");
+	if (enabled_plugins.is_empty()) {
 		return OK;
 	}
+
+	Error err;
 	print_line("Recreating plugin configs...");
-	Vector<String> dirs;
-	if (plugin_dirs.is_empty()) {
-		dirs = Glob::glob("res://addons/*", true);
-	} else {
-		dirs = plugin_dirs;
-		for (int i = 0; i < dirs.size(); i++) {
-			if (!dirs[i].is_absolute_path()) {
-				dirs.write[i] = String("res://addons/").path_join(dirs[i]);
+	Vector<String> addons_dirs;
+	Ref<DirAccess> da = DirAccess::open("res://addons/");
+	if (!da.is_null()) {
+		addons_dirs = da->get_directories();
+	}
+	for (int i = 0; i < enabled_plugins.size(); i++) {
+		String &path = enabled_plugins.write[i];
+		String dir = path.get_base_dir();
+		if (dir.is_empty()) {
+			bool found = false;
+			for (int j = 0; j < addons_dirs.size(); j++) {
+				if (addons_dirs[j].filenocasecmp_to(path) == 0) {
+					path = "res://addons/" + addons_dirs[j];
+					found = true;
+					break;
+				}
+			}
+			if (found) {
+				if (!path.ends_with("plugin.cfg")) {
+					path = path.path_join("plugin.cfg");
+				}
+				dir = path.get_base_dir();
+			} else {
+				report->failed_plugin_cfg_create.push_back(path);
+				continue;
 			}
 		}
-	}
-	for (int i = 0; i < dirs.size(); i++) {
-		String path = dirs[i];
-		if (!DirAccess::dir_exists_absolute(path)) {
+		// plugin was not included in the project
+		if (!DirAccess::dir_exists_absolute(dir)) {
+			report->failed_plugin_cfg_create.push_back(path.get_base_dir().get_file());
 			continue;
 		}
-		String dir = dirs[i].get_file();
-		err = recreate_plugin_config(dir);
+		err = recreate_plugin_config(path);
 		if (err) {
 			WARN_PRINT("Failed to recreate plugin.cfg for " + dir);
-			report->failed_plugin_cfg_create.push_back(dir);
+			report->failed_plugin_cfg_create.push_back(path.get_base_dir().get_file());
 		}
 	}
 	return OK;
@@ -1382,7 +1453,17 @@ String ImportExporterReport::get_report_string() {
 }
 String ImportExporterReport::get_editor_message_string() {
 	String report = "";
-	report += "Use Godot editor version " + ver->as_text() + String(godotsteam_detected ? " (steam version)" : "") + " to edit the project." + String("\n");
+	String version_text = ver->as_text();
+	if (godotsteam_detected) {
+		if (mono_detected) {
+			version_text += " (Steam Mono edition)";
+		} else {
+			version_text += " (Steam edition)";
+		}
+	} else if (mono_detected) {
+		version_text += " (Mono)";
+	}
+	report += "Use Godot editor version " + version_text + " to edit the project." + String("\n");
 	if (godotsteam_detected) {
 		report += "GodotSteam can be found here: https://github.com/CoaguCo-Industries/GodotSteam/releases \n";
 	}
@@ -1492,6 +1573,10 @@ bool ImportExporterReport::is_steam_detected() const {
 	return godotsteam_detected;
 }
 
+bool ImportExporterReport::is_mono_detected() const {
+	return mono_detected;
+}
+
 void ImportExporterReport::print_report() {
 	print_line("\n\n********************************EXPORT REPORT********************************" + String("\n"));
 	print_line(get_report_string());
@@ -1532,4 +1617,5 @@ void ImportExporterReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ver", "ver"), &ImportExporterReport::set_ver);
 	ClassDB::bind_method(D_METHOD("get_ver"), &ImportExporterReport::get_ver);
 	ClassDB::bind_method(D_METHOD("is_steam_detected"), &ImportExporterReport::is_steam_detected);
+	ClassDB::bind_method(D_METHOD("is_mono_detected"), &ImportExporterReport::is_mono_detected);
 }

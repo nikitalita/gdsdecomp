@@ -38,15 +38,22 @@ class ProjectConfigLoader : public RefCounted {
 	RBMap<StringName, VariantContainer> props;
 	RBMap<StringName, PropertyInfo> custom_prop_info;
 	String cfb_path = "";
-	int last_builtin_order;
+	int last_builtin_order = 0;
 	bool loaded = false;
 	int config_version = 0;
+	uint32_t major = 0;
+	uint32_t minor = 0;
 
 protected:
 	static void _bind_methods();
 
+	RBMap<String, List<String>> get_save_proops() const;
+	Error _save_settings_text_file(const Ref<FileAccess> &file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor);
+
 public:
 	static constexpr int CURRENT_CONFIG_VERSION = 5;
+
+	static String get_project_settings_as_string(const String &p_path);
 
 	Error load_cfb(const String path, uint32_t ver_major, uint32_t ver_minor);
 	Error save_cfb(const String dir, uint32_t ver_major, uint32_t ver_minor);
@@ -56,7 +63,7 @@ public:
 
 	Error save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor);
 	Error _save_settings_text(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor);
-	Error _save_settings_text(const String &p_file);
+	String get_as_text(bool p_skip_cr = false);
 	Error _save_settings_binary(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
 	bool is_loaded() const { return loaded; }
 	bool has_setting(String p_var) const;
@@ -66,6 +73,7 @@ public:
 	String get_cfg_path() const { return cfb_path; }
 	int get_config_version() const { return config_version; }
 	Variant g_set(const String &p_var, const Variant &p_default, bool p_restart_if_changed = false);
+	Dictionary get_section(const String &p_var) const;
 	ProjectConfigLoader();
 	~ProjectConfigLoader();
 };

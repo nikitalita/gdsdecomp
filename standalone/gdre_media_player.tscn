@@ -53,7 +53,7 @@ step = 0.1
 
 [node name="MediaControlsHBox" type="HBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 7
+anchors_preset = -1
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
@@ -89,7 +89,6 @@ flat = true
 [node name="AudioViewBox" type="Control" parent="."]
 visible = false
 layout_mode = 1
-anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = -1.0
@@ -106,7 +105,7 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.129412, 0.14902, 0.176471, 1)
 script = ExtResource("3_ooril")
-metadata/_custom_type_script = ExtResource("3_ooril")
+metadata/_custom_type_script = "uid://qmyh4wh5voec"
 
 [node name="AudioStreamInfo" type="Label" parent="AudioViewBox"]
 layout_direction = 2
@@ -129,7 +128,6 @@ Loop: No"
 
 [node name="VideoViewBox" type="Control" parent="."]
 layout_mode = 1
-anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_bottom = -103.0

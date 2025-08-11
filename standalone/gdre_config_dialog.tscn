@@ -18,7 +18,7 @@ outline_size = 1
 [sub_resource type="LabelSettings" id="LabelSettings_twpvv"]
 font_size = 18
 
-[node name="GDREConfigDialog" type="Window"]
+[node name="GDREConfigDialog" type="GDREWindow"]
 oversampling_override = 1.0
 title = "Settings"
 position = Vector2i(0, 24)
@@ -41,7 +41,7 @@ oversampling_override = 1.0
 size = Vector2i(339, 100)
 
 [node name="Label" type="Label" parent="ConfirmClose"]
-anchors_preset = 15
+anchors_preset = -1
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 8.0
@@ -106,7 +106,7 @@ text = "Do more stuff"
 
 [node name="ResetHBox" type="HBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer/CheckButton2"]
 layout_mode = 1
-anchors_preset = 6
+anchors_preset = -1
 anchor_left = 1.0
 anchor_top = 0.5
 anchor_right = 1.0
@@ -210,6 +210,14 @@ text = "Cancel"
 unique_name_in_owner = true
 layout_mode = 2
 text = "OK"
+
+[node name="FileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+access = 2
+
+[node name="ErrorDialog" type="AcceptDialog" parent="."]
+unique_name_in_owner = true
+title = "Error"
 
 [connection signal="close_requested" from="." to="." method="_close_requested"]
 [connection signal="canceled" from="ConfirmClose" to="." method="_on_confirm_close_canceled"]

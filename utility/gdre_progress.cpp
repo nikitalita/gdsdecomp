@@ -32,6 +32,7 @@
 
 #include "core/os/os.h"
 #include "main/main.h"
+#include "scene/gui/file_dialog.h"
 #include "servers/display_server.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_standalone.h"
@@ -179,28 +180,86 @@ bool GDREProgressDialog::Task::should_redraw(uint64_t curr_time_us) const {
 	return force_next_redraw || curr_time_us - last_progress_tick >= 200000;
 }
 
+void GDREProgressDialog::Task::set_indeterminate(bool p_indeterminate) {
+	indeterminate = p_indeterminate;
+}
+
 bool GDREProgressDialog::Task::update() {
 	ERR_FAIL_COND_V(!initialized, false);
-	if (!should_redraw(OS::get_singleton()->get_ticks_usec())) {
-		return false;
+	auto curr_time_us = OS::get_singleton()->get_ticks_usec();
+	if (!should_redraw(curr_time_us)) {
+		if (!(vb && curr_time_us - last_progress_tick >= 50000 &&
+					(progress->get_value() != current_step.step ||
+							state->get_text() != current_step.state ||
+							indeterminate != progress->is_indeterminate()))) {
+			return false;
+		}
 	}
-	bool was_forced = force_next_redraw;
-	force_next_redraw = false;
 	if (!vb) {
 		return false;
 	}
-	if (!indeterminate) {
-		if (!was_forced && state->get_text() == current_step.state && progress->get_value() == current_step.step) {
-			return false;
-		}
-		progress->set_value(current_step.step);
+	force_next_redraw = false;
+
+	if (indeterminate != progress->is_indeterminate()) {
+		progress->set_indeterminate(indeterminate);
 	}
-	state->set_text(current_step.state);
+	if (!indeterminate) {
+		if (progress->get_value() != current_step.step) {
+			progress->set_value(current_step.step);
+		}
+	}
+	if (state->get_text() != current_step.state) {
+		state->set_text(current_step.state);
+	}
 	last_progress_tick = OS::get_singleton()->get_ticks_usec();
 	return true;
 }
 
 void GDREProgressDialog::_popup() {
+	// 	if (GodotREEditorStandalone::get_singleton()) {
+	// 		GodotREEditorStandalone::get_singleton()->set_process_input(true);
+	// 	}
+	// #ifdef TOOLS_ENABLED
+	// 	else if (EditorNode::get_singleton()) {
+	// 		EditorNode::get_singleton()->set_process_input(true);
+	// 	}
+	// #endif
+
+	// 	// Disable all other windows to prevent interaction with them.
+	// 	for (Window *w : host_windows) {
+	// 		w->set_process_mode(PROCESS_MODE_DISABLED);
+	// 	}
+
+	if (is_ready()) {
+		_reparent_and_show();
+	} else {
+		callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	}
+}
+
+void GDREProgressDialog::_parent_visible_changed(Window *p_window) {
+	if (!Thread::is_main_thread()) {
+		callable_mp(this, &GDREProgressDialog::_parent_visible_changed).call_deferred(p_window);
+	} else {
+		if (p_window) {
+			p_window->disconnect(SceneStringName(visibility_changed), callable_mp(this, &GDREProgressDialog::_parent_visible_changed).bind(p_window));
+		}
+		if (is_visible()) {
+			_popup();
+		}
+	}
+}
+
+void GDREProgressDialog::_reparent_and_show() {
+	Window *current_window = SceneTree::get_singleton()->get_root()->get_last_exclusive_window();
+	ERR_FAIL_NULL(current_window);
+
+	FileDialog *file_dialog = Object::cast_to<FileDialog>(current_window);
+	if (file_dialog && file_dialog->get_use_native_dialog()) {
+		WARN_PRINT("File dialog is using native dialog, so we can't show progress dialog, attempting to show it again...");
+		callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	}
+
 	Size2 ms = main->get_combined_minimum_size();
 	ms.width = MAX(500 * GDRESettings::get_singleton()->get_auto_display_scale(), ms.width);
 
@@ -211,41 +270,53 @@ void GDREProgressDialog::_popup() {
 	main->set_offset(SIDE_RIGHT, -style->get_margin(SIDE_RIGHT));
 	main->set_offset(SIDE_TOP, style->get_margin(SIDE_TOP));
 	main->set_offset(SIDE_BOTTOM, -style->get_margin(SIDE_BOTTOM));
+
 	if (is_inside_tree()) {
+		if (this != current_window && get_parent() != current_window) {
+			reparent(current_window);
+		}
+	}
+
+	if (!is_inside_tree()) {
+		popup_exclusive_centered(current_window, ms);
+	} else {
 		Rect2i adjust = _popup_adjust_rect();
 		if (adjust != Rect2i()) {
 			set_position(adjust.position);
 			set_size(adjust.size);
 		}
 		popup_centered(ms);
-	} else {
-		for (Window *window : host_windows) {
-			if (window->has_focus()) {
-				if (!is_inside_tree()) {
-					popup_exclusive_centered(window, ms);
-				} else if (get_parent() != window) {
-					reparent(window);
-					popup_centered(ms);
-				}
-				return;
-			}
-		}
-		// No host window found, use main window.
-		if (GodotREEditorStandalone::get_singleton()) {
-			if (!is_inside_tree()) {
-				popup_exclusive_centered(GodotREEditorStandalone::get_singleton(), ms);
-			} else {
-				reparent(GodotREEditorStandalone::get_singleton()->get_parent_window());
-				popup_centered(ms);
-			}
-		} else {
-#ifdef TOOLS_ENABLED
-			EditorInterface::get_singleton()->popup_dialog_centered(this, ms);
-#endif
-		}
 	}
-	set_process_input(true);
+	auto callable = callable_mp(this, &GDREProgressDialog::_parent_visible_changed).bind(current_window);
+	if (!current_window->is_connected(SceneStringName(visibility_changed), callable)) {
+		current_window->connect(SceneStringName(visibility_changed), callable);
+	}
+
+	// if (!is_inside_tree()) {
+	// 	callable_mp(this, &GDREProgressDialog::_reparent_and_show).call_deferred();
+	// 	return;
+	// }
+	// Ensures that events are properly released before the dialog blocks input.
+	// bool window_is_input_disabled = current_window->is_input_disabled();
+	// current_window->set_disable_input(!window_is_input_disabled);
+	// current_window->set_disable_input(window_is_input_disabled);
+
 	show();
+}
+
+void GDREProgressDialog::_hide() {
+	hide();
+	// 	if (GodotREEditorStandalone::get_singleton()) {
+	// 		GodotREEditorStandalone::get_singleton()->set_process_input(false);
+	// 	}
+	// #ifdef TOOLS_ENABLED
+	// 	else if (EditorNode::get_singleton()) {
+	// 		EditorNode::get_singleton()->set_process_input(false);
+	// 	}
+	// #endif
+	// 	for (Window *w : host_windows) {
+	// 		w->set_process_mode(PROCESS_MODE_INHERIT);
+	// 	}
 }
 
 void GDREProgressDialog::_post_add_task(bool p_can_cancel) {
@@ -281,18 +352,28 @@ void GDREProgressDialog::add_task(const String &p_task, const String &p_label, i
 bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, int p_step, bool p_force_redraw) {
 	ERR_FAIL_COND_V(!tasks.contains(p_task), canceled);
 	bool is_main_thread = is_safe_to_redraw();
-	bool do_update = false;
+	bool do_update = p_force_redraw;
 	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
 		t.second.set_step(p_state, p_step, p_force_redraw);
 		if (is_main_thread) {
-			do_update = t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
+			do_update = do_update || t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
 		}
 	});
-	if (do_update) {
+	if (do_update && is_main_thread) {
 		main_thread_update();
 	}
 
 	return canceled;
+}
+
+void GDREProgressDialog::task_set_indeterminate(const String &p_task, bool p_indeterminate) {
+	ERR_FAIL_COND(!tasks.contains(p_task));
+	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
+		t.second.set_indeterminate(p_indeterminate);
+	});
+	if (is_safe_to_redraw()) {
+		main_thread_update();
+	}
 }
 
 bool GDREProgressDialog::_process_removals() {
@@ -329,11 +410,12 @@ void GDREProgressDialog::main_thread_update() {
 		return;
 	}
 	is_updating = true;
-	bool should_update = _process_removals();
+	bool removed = _process_removals();
+	bool should_update = removed;
 	bool p_can_cancel = false;
-	bool initialized = false;
+	bool task_initialized = false;
 	bool should_force_redraw = false;
-	uint64_t size = 0;
+	uint64_t task_count = 0;
 	uint64_t last_tick = OS::get_singleton()->get_ticks_usec();
 	// if it's been more than 500ms since the last update_ui happened, force a redraw (if we have any tasks to redraw).
 	if (last_tick - last_tick_updated > 500000) {
@@ -342,7 +424,7 @@ void GDREProgressDialog::main_thread_update() {
 	tasks.for_each_m([&](TaskMap::value_type &E) {
 		Task &t = E.second;
 		if (!t.initialized) {
-			initialized = true;
+			task_initialized = true;
 			t.init(main);
 		}
 		t.force_next_redraw = t.force_next_redraw || should_force_redraw;
@@ -350,13 +432,13 @@ void GDREProgressDialog::main_thread_update() {
 			should_update = true;
 		}
 		p_can_cancel = p_can_cancel || t.can_cancel;
-		size++;
+		task_count++;
 	});
-	if (should_update || initialized) {
+	if (should_update || task_initialized) {
 		last_tick_updated = last_tick;
-		if (size == 0) {
-			hide();
-		} else if (initialized) {
+		if (task_count == 0) {
+			_hide();
+		} else if (task_initialized || removed) {
 			_post_add_task(p_can_cancel);
 		} else {
 			_update_ui();
@@ -399,11 +481,13 @@ GDREProgressDialog::GDREProgressDialog() {
 	cancel->set_text(RTR("Cancel"));
 	cancel_hb->add_spacer();
 	cancel->connect(SceneStringName(pressed), callable_mp(this, &GDREProgressDialog::_cancel_pressed));
-	set_process(true);
+	// set_process(true);
 }
 
 GDREProgressDialog::~GDREProgressDialog() {
-	singleton = nullptr;
+	if (singleton == this) {
+		singleton = nullptr;
+	}
 }
 
 String EditorProgressGDDC::get_task() {
@@ -423,13 +507,13 @@ bool StdOutProgress::step(int p_step, bool p_force_refresh) {
 	}
 	auto current_tick = OS::get_singleton()->get_ticks_usec();
 	float progress = (float)current_step / (float)amount;
-	size_t progress_percent = MIN((size_t)(progress * 100), 100);
-	size_t prev_progress_percent = MIN((size_t)(((float)prev_step / (float)amount) * 100), 100);
-	if (progress_percent != prev_progress_percent || current_tick - last_progress_tick > 1000000) {
+	size_t progress_percent = MIN(static_cast<size_t>(progress * 100), static_cast<size_t>(100));
+	size_t prev_progress_percent = MIN(static_cast<size_t>((static_cast<float>(prev_step) / static_cast<float>(amount)) * 100), static_cast<size_t>(100));
+	if (progress_percent != prev_progress_percent || current_tick - last_progress_tick > 500000) {
 		GDRELogger::print_status_bar(label, progress);
 		last_progress_tick = current_tick;
 	}
-	if (current_tick - last_iteration_tick > 200000 && GDREProgressDialog::is_safe_to_redraw()) {
+	if (current_tick - last_iteration_tick > 10000 && GDREProgressDialog::is_safe_to_redraw()) {
 		// force the main loop to iterate; this is needed to allow for input events to be processed and the command queue to be flushed.
 		Main::iteration();
 		last_iteration_tick = current_tick;
@@ -445,6 +529,7 @@ void StdOutProgress::end() {
 void EditorProgressGDDC::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("step", "state", "step", "force_refresh"), &EditorProgressGDDC::step, DEFVAL(-1), DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("get_task"), &EditorProgressGDDC::get_task);
+	ClassDB::bind_method(D_METHOD("set_indeterminate", "indeterminate"), &EditorProgressGDDC::set_indeterminate);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("create", "parent", "task", "label", "amount", "can_cancel"), &EditorProgressGDDC::create, DEFVAL(false));
 }
 
@@ -466,6 +551,15 @@ bool EditorProgressGDDC::step(const String &p_state, int p_step, bool p_force_re
 	}
 	return false;
 }
+
+void EditorProgressGDDC::set_indeterminate(bool p_indeterminate) {
+	if (GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless()) {
+		// stdout_progress.set_indeterminate(p_indeterminate);
+	} else if (GDREProgressDialog::get_singleton()) {
+		GDREProgressDialog::get_singleton()->task_set_indeterminate(task, p_indeterminate);
+	}
+}
+
 EditorProgressGDDC::EditorProgressGDDC() {}
 EditorProgressGDDC::EditorProgressGDDC(const String &p_task, const String &p_label, int p_amount, bool p_can_cancel) :
 		EditorProgressGDDC(nullptr, p_task, p_label, p_amount, p_can_cancel) {}

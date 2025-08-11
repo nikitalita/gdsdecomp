@@ -1,0 +1,936 @@
+﻿// Copyright (c) 2016 Daniel Grunwald
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this
+// software and associated documentation files (the "Software"), to deal in the Software
+// without restriction, including without limitation the rights to use, copy, modify, merge,
+// publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+// to whom the Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all copies or
+// substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+// INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+// PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
+// FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+// DEALINGS IN THE SOFTWARE.
+
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Reflection.Metadata;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using ICSharpCode.Decompiler;
+using ICSharpCode.Decompiler.CSharp;
+using ICSharpCode.Decompiler.CSharp.OutputVisitor;
+using ICSharpCode.Decompiler.CSharp.Syntax;
+using ICSharpCode.Decompiler.CSharp.Transforms;
+using ICSharpCode.Decompiler.DebugInfo;
+using ICSharpCode.Decompiler.Metadata;
+using ICSharpCode.Decompiler.Semantics;
+using ICSharpCode.Decompiler.Solution;
+using ICSharpCode.Decompiler.TypeSystem;
+using ICSharpCode.Decompiler.Util;
+using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
+
+using static ICSharpCode.Decompiler.Metadata.MetadataExtensions;
+
+namespace GodotMonoDecomp
+{
+	/// <summary>
+	/// Decompiles an assembly into a visual studio project file.
+	/// </summary>
+	public class GodotProjectDecompiler : IGodotProjectWithSettingsProvider
+	{
+		const int maxSegmentLength = 255;
+
+		#region Settings
+		/// <summary>
+		/// Gets the setting this instance uses for decompiling.
+		/// </summary>
+		public GodotMonoDecompSettings Settings { get; }
+
+		LanguageVersion? languageVersion;
+
+		public LanguageVersion LanguageVersion {
+			get { return languageVersion ?? Settings.GetMinimumRequiredVersion(); }
+			set {
+				var minVersion = Settings.GetMinimumRequiredVersion();
+				if (value < minVersion)
+					throw new InvalidOperationException($"The chosen settings require at least {minVersion}." +
+						$" Please change the DecompilerSettings accordingly.");
+				languageVersion = value;
+			}
+		}
+
+		// copied from ICSharpCode.Decompiler.CSharp.ProjectDecompiler.RemoveEmbeddedAttributes
+		internal static readonly HashSet<string> EmbeddedAttributeNames = new HashSet<string>() {
+			"System.Runtime.CompilerServices.IsReadOnlyAttribute",
+			"System.Runtime.CompilerServices.IsByRefLikeAttribute",
+			"System.Runtime.CompilerServices.IsUnmanagedAttribute",
+			"System.Runtime.CompilerServices.NullableAttribute",
+			"System.Runtime.CompilerServices.NullableContextAttribute",
+			"System.Runtime.CompilerServices.NativeIntegerAttribute",
+			"System.Runtime.CompilerServices.RefSafetyRulesAttribute",
+			"System.Runtime.CompilerServices.ScopedRefAttribute",
+			"System.Runtime.CompilerServices.RequiresLocationAttribute",
+			"Microsoft.CodeAnalysis.EmbeddedAttribute",
+		};
+
+
+		// bool IProjectInfoProvider.CheckForOverflowUnderflow => Settings.CheckForOverflowUnderflow;
+
+		public IAssemblyResolver AssemblyResolver { get; }
+
+		public AssemblyReferenceClassifier AssemblyReferenceClassifier { get; }
+
+		public IDebugInfoProvider? DebugInfoProvider { get; set;}
+
+		/// <summary>
+		/// The MSBuild ProjectGuid to use for the new project.
+		/// </summary>
+		public Guid ProjectGuid { get; }
+
+		/// <summary>
+		/// The target directory that the decompiled files are written to.
+		/// </summary>
+		/// <remarks>
+		/// This property is set by DecompileProject() and protected so that overridden protected members
+		/// can access it.
+		/// </remarks>
+		public string TargetDirectory { get; protected set; }
+
+		/// <summary>
+		/// Path to the snk file to use for signing.
+		/// <c>null</c> to not sign.
+		/// </summary>
+		public string? StrongNameKeyFile { get; set; }
+
+		public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
+
+
+
+		public IProgress<DecompilationProgress>? ProgressIndicator { get; set; }
+		#endregion
+
+		public GodotProjectDecompiler(
+			GodotMonoDecompSettings settings,
+			IAssemblyResolver assemblyResolver,
+			AssemblyReferenceClassifier assemblyReferenceClassifier,
+			IDebugInfoProvider? debugInfoProvider)
+			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider)
+		{
+		}
+
+		protected GodotProjectDecompiler(
+			GodotMonoDecompSettings settings,
+			Guid projectGuid,
+			IAssemblyResolver assemblyResolver,
+			AssemblyReferenceClassifier assemblyReferenceClassifier,
+			IDebugInfoProvider? debugInfoProvider)
+		{
+			TargetDirectory = "";
+			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+			ProjectGuid = projectGuid;
+			AssemblyResolver = assemblyResolver ?? throw new ArgumentNullException(nameof(assemblyResolver));
+			AssemblyReferenceClassifier = assemblyReferenceClassifier ?? new AssemblyReferenceClassifier();
+			DebugInfoProvider = debugInfoProvider;
+			Settings.UseNestedDirectoriesForNamespaces = true;
+		}
+
+		// per-run members
+		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
+		IProjectFileWriter projectWriter;
+		HashSet<TypeDefinitionHandle> excludeTypes = [];
+		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
+		DotNetCoreDepInfo? depInfo;
+
+		public ProjectId DecompileGodotProject(MetadataFile file,
+											string targetDirectory,
+											TextWriter? projectFileWriter = null,
+											IEnumerable<TypeDefinitionHandle>? excludeTypes = null,
+											Dictionary<TypeDefinitionHandle, string> handleToFileMap = default,
+											DotNetCoreDepInfo? depInfo = null,
+											CancellationToken cancellationToken = default(CancellationToken))
+		{
+			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
+			this.handleToFileMap = handleToFileMap ?? [];
+			this.depInfo = depInfo;
+			ProjectId projectId;
+			if (projectFileWriter == null)
+			{
+				using (var writer = CreateFile(Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj")))){
+					projectId = DecompileProject(file, targetDirectory, writer, cancellationToken);
+				}
+			} else {
+				projectId = DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);
+			}
+			this.excludeTypes.Clear();
+			this.handleToFileMap.Clear();
+			this.depInfo = null;
+			return projectId;
+		}
+
+		protected ProjectId DecompileProject(MetadataFile file, string targetDirectory, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			string projectFileName = Path.Combine(targetDirectory, CleanUpFileName(file.Name, ".csproj"));
+			using (var writer = CreateFile(projectFileName))
+			{
+				return DecompileProject(file, targetDirectory, writer, cancellationToken);
+			}
+		}
+
+		protected ProjectId DecompileProject(MetadataFile file, string targetDirectory, TextWriter projectFileWriter, CancellationToken cancellationToken = default(CancellationToken))
+		{
+			if (string.IsNullOrEmpty(targetDirectory))
+			{
+				throw new InvalidOperationException("Must set TargetDirectory");
+			}
+			projectWriter = ProjectFileWriterGodotStyle.Create();
+			if (projectWriter is ProjectFileWriterGodotStyle writer)
+			{
+				writer.DepInfo = depInfo;
+			}
+
+			TargetDirectory = targetDirectory;
+			directories.Clear();
+			var resources = WriteResourceFilesInProject(file).ToList();
+			var files = WriteCodeFilesInProject(file, resources.SelectMany(r => r.PartialTypes ?? Enumerable.Empty<PartialTypeInfo>()).ToList(), cancellationToken).ToList();
+			files.AddRange(resources);
+			var module = file as PEFile;
+			if (module != null)
+			{
+				files.AddRange(WriteMiscellaneousFilesInProject(module));
+			}
+			if (StrongNameKeyFile != null)
+			{
+				File.Copy(StrongNameKeyFile, Path.Combine(targetDirectory, Path.GetFileName(StrongNameKeyFile)), overwrite: true);
+			}
+
+			projectWriter.Write(projectFileWriter, this, files, file);
+
+			string platformName = module != null ? TargetServices.GetPlatformName(module) : "AnyCPU";
+			return new ProjectId(platformName, ProjectGuid, ProjectTypeGuids.CSharpWindows);
+		}
+
+		#region WriteCodeFilesInProject
+		private bool IncludeTypeWhenDecompilingProject(MetadataFile module, TypeDefinitionHandle type)
+		{
+			var metadata = module.Metadata;
+			var typeDef = metadata.GetTypeDefinition(type);
+			string name = metadata.GetString(typeDef.Name);
+			string ns = metadata.GetString(typeDef.Namespace);
+			if (name == "<Module>" || CSharpDecompiler.MemberIsHidden(module, type, Settings))
+				return false;
+			if (ns == "XamlGeneratedNamespace" && name == "GeneratedInternalTypeHelper")
+				return false;
+			if (!typeDef.IsNested && EmbeddedAttributeNames.Contains(ns + "." + name))
+				return false;
+			// Godot stuff
+			if (GodotStuff.IsGodotGameMainClass(module, type))
+			{
+				return false;
+			}
+			if (excludeTypes.Contains(type))
+			{
+				return false;
+			}
+			return true;
+		}
+
+		protected virtual TextWriter CreateFile(string path)
+		{
+			return new StreamWriter(path);
+		}
+
+		protected virtual void CreateDirectory(string path)
+		{
+			try
+			{
+				Directory.CreateDirectory(path);
+			}
+			catch (IOException)
+			{
+				File.Delete(path);
+				Directory.CreateDirectory(path);
+			}
+		}
+
+		public DecompilerTypeSystem CreateTypeSystem(MetadataFile module)
+		{
+			return new DecompilerTypeSystem(module, AssemblyResolver, Settings);
+		}
+
+		public CSharpDecompiler CreateDecompilerWithPartials(MetadataFile module,
+			IEnumerable<TypeDefinitionHandle> typesToDecompile)
+		{
+			var ts = CreateTypeSystem(module);
+			var decompiler = CreateDecompiler(ts);
+			GodotStuff.GetPartialGodotTypes(ts, typesToDecompile).ForEach(p => decompiler.AddPartialTypeDefinition(p));
+			return decompiler;
+		}
+
+		protected virtual CSharpDecompiler CreateDecompiler(DecompilerTypeSystem ts)
+		{
+			var decompiler = new CSharpDecompiler(ts, Settings);
+			decompiler.DebugInfoProvider = DebugInfoProvider;
+			decompiler.AstTransforms.Add(new EscapeInvalidIdentifiers());
+			decompiler.AstTransforms.Add(new RemoveCLSCompliantAttribute());
+			decompiler.AstTransforms.Add(new RemoveGodotScriptPathAttribute());
+			decompiler.AstTransforms.Add(new RemoveAutoAccessor());
+			return decompiler;
+		}
+
+		IEnumerable<ProjectItemInfo> WriteAssemblyInfo(DecompilerTypeSystem ts, CancellationToken cancellationToken)
+		{
+			var decompiler = CreateDecompiler(ts);
+			decompiler.CancellationToken = cancellationToken;
+			decompiler.AstTransforms.Add(new RemoveCompilerGeneratedAssemblyAttributes());
+			SyntaxTree syntaxTree = decompiler.DecompileModuleAndAssemblyAttributes();
+
+			const string prop = "Properties";
+			if (directories.Add(prop))
+				CreateDirectory(Path.Combine(TargetDirectory, prop));
+			string assemblyInfo = Path.Combine(prop, "AssemblyInfo.cs");
+			using (var w = CreateFile(Path.Combine(TargetDirectory, assemblyInfo)))
+			{
+				syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, Settings.CSharpFormattingOptions));
+			}
+			return new[] { new ProjectItemInfo("Compile", assemblyInfo) };
+		}
+
+		public List<TypeDefinitionHandle> GetTypesToDecompile(MetadataFile module)
+		{
+			return module.Metadata.GetTopLevelTypeDefinitions()
+				.Where(td => IncludeTypeWhenDecompilingProject(module, td)).ToList();
+		}
+
+		protected virtual string GetFileNameForHandle(MetadataFile module, TypeDefinitionHandle h)
+		{
+			var metadata = module.Metadata;
+			if (handleToFileMap.TryGetValue(h, out var fileName))
+			{
+				if (fileName.StartsWith("res://", StringComparison.OrdinalIgnoreCase))
+				{
+					// remove the "res://" prefix
+					fileName = fileName.Substring(6);
+				}
+				fileName = fileName.Replace('/', Path.DirectorySeparatorChar);
+				return fileName;
+			}
+			var type = metadata.GetTypeDefinition(h);
+			string file = CleanUpFileName(metadata.GetString(type.Name), ".cs");
+			string ns = metadata.GetString(type.Namespace);
+			string path;
+			if (string.IsNullOrEmpty(ns))
+			{
+				path = file;
+			}
+			else
+			{
+				string dir = Settings.UseNestedDirectoriesForNamespaces ? CleanUpPath(ns) : CleanUpDirectoryName(ns);
+				path = Path.Combine(dir, file);
+			}
+			return path;
+		}
+
+		IEnumerable<ProjectItemInfo> WriteCodeFilesInProject(MetadataFile module, IList<PartialTypeInfo> partialTypes, CancellationToken cancellationToken)
+		{
+			var metadata = module.Metadata;
+			var paths_found_in_attributes = new HashSet<string>();
+			var typesToDecompile = GetTypesToDecompile(module);
+			DecompilerTypeSystem ts = new DecompilerTypeSystem(module, AssemblyResolver, Settings);
+			var files = typesToDecompile.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
+			var progressReporter = ProgressIndicator;
+			var progress = new DecompilationProgress { TotalUnits = files.Count, Title = "Exporting project..." };
+			var workList = new HashSet<TypeDefinitionHandle>();
+			var processedTypes = new HashSet<TypeDefinitionHandle>();
+			ProcessFiles(files);
+			while (workList.Count > 0)
+			{
+				var additionalTypes = workList.Where(h => !excludeTypes.Contains(h)).ToList();
+				workList.Clear();
+				if (!additionalTypes.Any())
+					break;
+				partialTypes = partialTypes.Concat(GodotStuff.GetPartialGodotTypes(ts, additionalTypes)).ToList();
+				var additionalFiles = additionalTypes
+					.GroupBy(GetFileFileNameForHandle, StringComparer.OrdinalIgnoreCase).ToList();
+				ProcessFiles(additionalFiles);
+				files.AddRange(additionalFiles);
+				progress.TotalUnits = files.Count;
+			}
+
+			return files.Select(f => new ProjectItemInfo("Compile", f.Key));//.Concat(WriteAssemblyInfo(ts, cancellationToken));
+
+			string GetFileFileNameForHandle(TypeDefinitionHandle h)
+			{
+				var path = GetFileNameForHandle(module, h);
+				var dir = Path.GetDirectoryName(path);
+				if (dir != null && directories.Add(dir))
+				{
+					CreateDirectory(Path.Combine(TargetDirectory, dir));
+				}
+				return path;
+			}
+
+			void ProcessFiles(List<IGrouping<string, TypeDefinitionHandle>> files)
+			{
+				if (files.Count == 0)
+					return;
+
+				processedTypes.AddRange(files.SelectMany(f => f));
+				Parallel.ForEach(
+					Partitioner.Create(files, loadBalance: true),
+					new ParallelOptions {
+						MaxDegreeOfParallelism = this.MaxDegreeOfParallelism,
+						CancellationToken = cancellationToken
+					},
+					delegate (IGrouping<string, TypeDefinitionHandle> file) {
+						try
+						{
+							// using var w = CreateFile(Path.Combine(TargetDirectory, file.Key));
+							CSharpDecompiler decompiler = CreateDecompiler(ts);
+
+							foreach (var partialType in partialTypes)
+							{
+								decompiler.AddPartialTypeDefinition(partialType);
+							}
+
+							decompiler.CancellationToken = cancellationToken;
+							var declaredTypes = file.ToArray();
+							var syntaxTree = decompiler.DecompileTypes(declaredTypes);
+
+							foreach (var node in syntaxTree.Descendants)
+							{
+								var td = (node.GetResolveResult() as TypeResolveResult)?.Type.GetDefinition();
+								if (td?.ParentModule != ts.MainModule)
+									continue;
+								while (td?.DeclaringTypeDefinition != null)
+								{
+									td = td.DeclaringTypeDefinition;
+								}
+								if (td != null && td.MetadataToken is { IsNil: false } token && !processedTypes.Contains((TypeDefinitionHandle)token))
+								{
+									lock (workList)
+									{
+										workList.Add((TypeDefinitionHandle)token);
+									}
+								}
+							}
+
+							var path = Path.Combine(TargetDirectory, file.Key);
+							using StreamWriter w = new StreamWriter(path);
+							syntaxTree.AcceptVisitor(new CSharpOutputVisitor(w, Settings.CSharpFormattingOptions));
+						}
+						catch (Exception innerException) when (!(innerException is OperationCanceledException || innerException is DecompilerException))
+						{
+							throw new DecompilerException(module, $"Error decompiling for '{file.Key}'", innerException);
+						}
+						progress.Status = file.Key;
+						Interlocked.Increment(ref progress.UnitsCompleted);
+						progressReporter?.Report(progress);
+					});
+			}
+		}
+		#endregion
+
+		#region WriteResourceFilesInProject
+		protected virtual IEnumerable<ProjectItemInfo> WriteResourceFilesInProject(MetadataFile module)
+		{
+			foreach (var r in module.Resources.Where(r => r.ResourceType == ResourceType.Embedded))
+			{
+				Stream stream = r.TryOpenStream();
+				if (stream == null)
+					continue;
+
+				stream.Position = 0;
+
+				if (r.Name.EndsWith(".resources", StringComparison.OrdinalIgnoreCase))
+				{
+					bool decodedIntoIndividualFiles;
+					var individualResources = new List<ProjectItemInfo>();
+					try
+					{
+						var resourcesFile = new ResourcesFile(stream);
+						// if (resourcesFile.AllEntriesAreStreams())
+						if (true)
+						{
+							foreach (var (name, value) in resourcesFile)
+							{
+								string fileName = SanitizeFileName(name);
+								string dirName = Path.GetDirectoryName(fileName);
+								if (!string.IsNullOrEmpty(dirName) && directories.Add(dirName))
+								{
+									CreateDirectory(Path.Combine(TargetDirectory, dirName));
+								}
+								Stream entryStream = (Stream)value;
+								entryStream.Position = 0;
+								individualResources.AddRange(
+									WriteResourceToFile(fileName, name, entryStream));
+							}
+							decodedIntoIndividualFiles = true;
+						}
+						else
+						{
+							decodedIntoIndividualFiles = false;
+						}
+					}
+					catch (BadImageFormatException)
+					{
+						decodedIntoIndividualFiles = false;
+					}
+					catch (EndOfStreamException)
+					{
+						decodedIntoIndividualFiles = false;
+					}
+					if (decodedIntoIndividualFiles)
+					{
+						foreach (var entry in individualResources)
+						{
+							yield return entry;
+						}
+					}
+					else
+					{
+						stream.Position = 0;
+						string fileName = GetFileNameForResource(r.Name);
+						foreach (var entry in WriteResourceToFile(fileName, r.Name, stream))
+						{
+							yield return entry;
+						}
+					}
+				}
+				else
+				{
+					string fileName = GetFileNameForResource(r.Name);
+					using (FileStream fs = new FileStream(Path.Combine(TargetDirectory, fileName), FileMode.Create, FileAccess.Write))
+					{
+						stream.Position = 0;
+						stream.CopyTo(fs);
+					}
+					yield return new ProjectItemInfo("EmbeddedResource", fileName).With("LogicalName", r.Name);
+				}
+			}
+			var dummy = new ProjectItemInfo("DummyGodotPartials", "");
+			dummy.PartialTypes = GodotStuff.GetPartialGodotTypes(new DecompilerTypeSystem(module, AssemblyResolver, Settings), GetTypesToDecompile(module));
+			yield return dummy;
+		}
+
+		protected virtual IEnumerable<ProjectItemInfo> WriteResourceToFile(string fileName, string resourceName, Stream entryStream)
+		{
+			if (fileName.EndsWith(".resources", StringComparison.OrdinalIgnoreCase))
+			{
+				string resx = Path.ChangeExtension(fileName, ".resx");
+				try
+				{
+					using (FileStream fs = new FileStream(Path.Combine(TargetDirectory, resx), FileMode.Create, FileAccess.Write))
+					using (ResXResourceWriter writer = new ResXResourceWriter(fs))
+					{
+						foreach (var entry in new ResourcesFile(entryStream))
+						{
+							writer.AddResource(entry.Key, entry.Value);
+						}
+					}
+					return new[] { new ProjectItemInfo("EmbeddedResource", resx).With("LogicalName", resourceName) };
+				}
+				catch (BadImageFormatException)
+				{
+					// if the .resources can't be decoded, just save them as-is
+				}
+				catch (EndOfStreamException)
+				{
+					// if the .resources can't be decoded, just save them as-is
+				}
+			}
+			using (FileStream fs = new FileStream(Path.Combine(TargetDirectory, fileName), FileMode.Create, FileAccess.Write))
+			{
+				entryStream.CopyTo(fs);
+			}
+			return new[] { new ProjectItemInfo("EmbeddedResource", fileName).With("LogicalName", resourceName) };
+		}
+
+		string GetFileNameForResource(string fullName)
+		{
+			// Clean up the name first and ensure the length does not exceed the maximum length
+			// supported by the OS.
+			fullName = SanitizeFileName(fullName);
+			// The purpose of the below algorithm is to "maximize" the directory name and "minimize" the file name.
+			// That is, a full name of the form "Namespace1.Namespace2{...}.NamespaceN.ResourceName" is split such that
+			// the directory part Namespace1\Namespace2\... reuses as many existing directories as
+			// possible, and only the remaining name parts are used as prefix for the filename.
+			// This is not affected by the UseNestedDirectoriesForNamespaces setting.
+			string[] splitName = fullName.Split('\\', '/');
+			string fileName = string.Join(".", splitName);
+			string separator = Path.DirectorySeparatorChar.ToString();
+			for (int i = splitName.Length - 1; i > 0; i--)
+			{
+				string ns = string.Join(separator, splitName, 0, i);
+				if (directories.Contains(ns))
+				{
+					string name = string.Join(".", splitName, i, splitName.Length - i);
+					fileName = Path.Combine(ns, name);
+					break;
+				}
+			}
+			return fileName;
+		}
+		#endregion
+
+		#region WriteMiscellaneousFilesInProject
+		protected virtual IEnumerable<ProjectItemInfo> WriteMiscellaneousFilesInProject(PEFile module)
+		{
+			var resources = module.Reader.ReadWin32Resources();
+			if (resources == null)
+				yield break;
+
+			byte[] appIcon = CreateApplicationIcon(resources);
+			if (appIcon != null)
+			{
+				File.WriteAllBytes(Path.Combine(TargetDirectory, "app.ico"), appIcon);
+				yield return new ProjectItemInfo("ApplicationIcon", "app.ico");
+			}
+
+			byte[] appManifest = CreateApplicationManifest(resources);
+			if (appManifest != null && !IsDefaultApplicationManifest(appManifest))
+			{
+				File.WriteAllBytes(Path.Combine(TargetDirectory, "app.manifest"), appManifest);
+				yield return new ProjectItemInfo("ApplicationManifest", "app.manifest");
+			}
+
+			var appConfig = module.FileName + ".config";
+			if (File.Exists(appConfig))
+			{
+				File.Copy(appConfig, Path.Combine(TargetDirectory, "app.config"), overwrite: true);
+				yield return new ProjectItemInfo("ApplicationConfig", Path.GetFileName(appConfig));
+			}
+		}
+
+		const int RT_ICON = 3;
+		const int RT_GROUP_ICON = 14;
+
+		unsafe static byte[] CreateApplicationIcon(Win32ResourceDirectory resources)
+		{
+			var iconGroup = resources.Find(new Win32ResourceName(RT_GROUP_ICON))?.FirstDirectory()?.FirstData()?.Data;
+			if (iconGroup == null)
+				return null;
+
+			var iconDir = resources.Find(new Win32ResourceName(RT_ICON));
+			if (iconDir == null)
+				return null;
+
+			using var outStream = new MemoryStream();
+			using var writer = new BinaryWriter(outStream);
+			fixed (byte* pIconGroupData = iconGroup)
+			{
+				var pIconGroup = (GRPICONDIR*)pIconGroupData;
+				writer.Write(pIconGroup->idReserved);
+				writer.Write(pIconGroup->idType);
+				writer.Write(pIconGroup->idCount);
+
+				int iconCount = pIconGroup->idCount;
+				uint offset = (2 * 3) + ((uint)iconCount * 0x10);
+				for (int i = 0; i < iconCount; i++)
+				{
+					var pIconEntry = pIconGroup->idEntries + i;
+					writer.Write(pIconEntry->bWidth);
+					writer.Write(pIconEntry->bHeight);
+					writer.Write(pIconEntry->bColorCount);
+					writer.Write(pIconEntry->bReserved);
+					writer.Write(pIconEntry->wPlanes);
+					writer.Write(pIconEntry->wBitCount);
+					writer.Write(pIconEntry->dwBytesInRes);
+					writer.Write(offset);
+					offset += pIconEntry->dwBytesInRes;
+				}
+
+				for (int i = 0; i < iconCount; i++)
+				{
+					var icon = iconDir.FindDirectory(new Win32ResourceName(pIconGroup->idEntries[i].nID))?.FirstData()?.Data;
+					if (icon == null)
+						return null;
+					writer.Write(icon);
+				}
+			}
+
+			return outStream.ToArray();
+		}
+
+		[StructLayout(LayoutKind.Sequential, Pack = 2)]
+		unsafe struct GRPICONDIR
+		{
+			public ushort idReserved;
+			public ushort idType;
+			public ushort idCount;
+			private fixed byte _idEntries[1];
+			[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "<Pending>")]
+			public GRPICONDIRENTRY* idEntries {
+				get {
+					fixed (byte* p = _idEntries)
+						return (GRPICONDIRENTRY*)p;
+				}
+			}
+		};
+
+		[StructLayout(LayoutKind.Sequential, Pack = 2)]
+		struct GRPICONDIRENTRY
+		{
+			public byte bWidth;
+			public byte bHeight;
+			public byte bColorCount;
+			public byte bReserved;
+			public ushort wPlanes;
+			public ushort wBitCount;
+			public uint dwBytesInRes;
+			public short nID;
+		};
+
+		const int RT_MANIFEST = 24;
+
+		unsafe static byte[] CreateApplicationManifest(Win32ResourceDirectory resources)
+		{
+			return resources.Find(new Win32ResourceName(RT_MANIFEST))?.FirstDirectory()?.FirstData()?.Data;
+		}
+
+		static bool IsDefaultApplicationManifest(byte[] appManifest)
+		{
+			const string DEFAULT_APPMANIFEST =
+				"<?xmlversion=\"1.0\"encoding=\"UTF-8\"standalone=\"yes\"?><assemblyxmlns=\"urn:schemas-microsoft-com" +
+				":asm.v1\"manifestVersion=\"1.0\"><assemblyIdentityversion=\"1.0.0.0\"name=\"MyApplication.app\"/><tr" +
+				"ustInfoxmlns=\"urn:schemas-microsoft-com:asm.v2\"><security><requestedPrivilegesxmlns=\"urn:schemas-" +
+				"microsoft-com:asm.v3\"><requestedExecutionLevellevel=\"asInvoker\"uiAccess=\"false\"/></requestedPri" +
+				"vileges></security></trustInfo></assembly>";
+
+			string s = CleanUpApplicationManifest(appManifest);
+			return s == DEFAULT_APPMANIFEST;
+		}
+
+		static string CleanUpApplicationManifest(byte[] appManifest)
+		{
+			bool bom = appManifest.Length >= 3 && appManifest[0] == 0xEF && appManifest[1] == 0xBB && appManifest[2] == 0xBF;
+			string s = Encoding.UTF8.GetString(appManifest, bom ? 3 : 0, appManifest.Length - (bom ? 3 : 0));
+			var sb = new StringBuilder(s.Length);
+			for (int i = 0; i < s.Length; i++)
+			{
+				char c = s[i];
+				switch (c)
+				{
+					case '\t':
+					case '\n':
+					case '\r':
+					case ' ':
+						continue;
+				}
+				sb.Append(c);
+			}
+			return sb.ToString();
+		}
+		#endregion
+
+		/// <summary>
+		/// Cleans up a node name for use as a file name.
+		/// </summary>
+		public static string CleanUpFileName(string text, string extension)
+		{
+			Debug.Assert(!string.IsNullOrEmpty(extension));
+			if (!extension.StartsWith("."))
+				extension = "." + extension;
+			text = text + extension;
+
+			return CleanUpName(text, separateAtDots: false, treatAsFileName: !string.IsNullOrEmpty(extension), treatAsPath: false);
+		}
+
+		/// <summary>
+		/// Removes invalid characters from file names and reduces their length,
+		/// but keeps file extensions and path structure intact.
+		/// </summary>
+		public static string SanitizeFileName(string fileName)
+		{
+			return CleanUpName(fileName, separateAtDots: false, treatAsFileName: true, treatAsPath: true);
+		}
+
+		/// <summary>
+		/// Cleans up a node name for use as a file system name. If <paramref name="separateAtDots"/> is active,
+		/// dots are seen as segment separators. Each segment is limited to maxSegmentLength characters.
+		/// If <paramref name="treatAsFileName"/> is active, we check for file a extension and try to preserve it,
+		/// if it's valid.
+		/// </summary>
+		static string CleanUpName(string text, bool separateAtDots, bool treatAsFileName, bool treatAsPath)
+		{
+			string extension = null;
+			int currentSegmentLength = 0;
+			// Extract extension from the end of the name, if valid
+			if (treatAsFileName)
+			{
+				// Check if input is a file name, i.e., has a valid extension
+				// If yes, preserve extension and append it at the end.
+				// But only, if the extension length does not exceed maxSegmentLength,
+				// if that's the case we just give up and treat the extension no different
+				// from the file name.
+				int lastDot = text.LastIndexOf('.');
+				if (lastDot >= 0 && text.Length - lastDot < maxSegmentLength)
+				{
+					string originalText = text;
+					extension = text.Substring(lastDot);
+					text = text.Remove(lastDot);
+					foreach (var c in extension)
+					{
+						if (!(char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.'))
+						{
+							// extension contains an invalid character, therefore cannot be a valid extension.
+							extension = null;
+							text = originalText;
+							break;
+						}
+					}
+				}
+			}
+			// Remove anything that could be confused with a rooted path.
+			int pos = text.IndexOf(':');
+			if (pos > 0)
+				text = text.Substring(0, pos);
+			text = text.Trim();
+			// Remove generics
+			pos = text.IndexOf('`');
+			if (pos > 0)
+			{
+				text = text.Substring(0, pos).Trim();
+			}
+			// Whitelist allowed characters, replace everything else:
+			StringBuilder b = new StringBuilder(text.Length + (extension?.Length ?? 0));
+			foreach (var c in text)
+			{
+				currentSegmentLength++;
+				if (char.IsLetterOrDigit(c) || c == '-' || c == '_')
+				{
+					// if the current segment exceeds maxSegmentLength characters,
+					// skip until the end of the segment.
+					if (currentSegmentLength <= maxSegmentLength)
+						b.Append(c);
+				}
+				else if (c == '.' && b.Length > 0 && b[b.Length - 1] != '.')
+				{
+					// if the current segment exceeds maxSegmentLength characters,
+					// skip until the end of the segment.
+					if (separateAtDots || currentSegmentLength <= maxSegmentLength)
+						b.Append('.'); // allow dot, but never two in a row
+
+					// Reset length at end of segment.
+					if (separateAtDots)
+						currentSegmentLength = 0;
+				}
+				else if (treatAsPath && (c is '/' or '\\') && currentSegmentLength > 1)
+				{
+					// if we treat this as a file name, we've started a new segment
+					b.Append(Path.DirectorySeparatorChar);
+					currentSegmentLength = 0;
+				}
+				else
+				{
+					// if the current segment exceeds maxSegmentLength characters,
+					// skip until the end of the segment.
+					if (currentSegmentLength <= maxSegmentLength)
+						b.Append('-');
+				}
+			}
+			if (b.Length == 0)
+				b.Append('-');
+			string name = b.ToString();
+			if (extension != null)
+			{
+				// make sure that adding the extension to the filename
+				// does not exceed maxSegmentLength.
+				// trim the name, if necessary.
+				if (name.Length + extension.Length > maxSegmentLength)
+					name = name.Remove(name.Length - extension.Length);
+				name += extension;
+			}
+
+			if (IsReservedFileSystemName(name))
+				return name + "_";
+			else if (name == ".")
+				return "_";
+			else
+				return name;
+		}
+
+		/// <summary>
+		/// Cleans up a node name for use as a directory name.
+		/// </summary>
+		public static string CleanUpDirectoryName(string text)
+		{
+			return CleanUpName(text, separateAtDots: false, treatAsFileName: false, treatAsPath: false);
+		}
+
+		public static string CleanUpPath(string text)
+		{
+			return CleanUpName(text, separateAtDots: true, treatAsFileName: false, treatAsPath: true)
+				.Replace('.', Path.DirectorySeparatorChar);
+		}
+
+		static bool IsReservedFileSystemName(string name)
+		{
+			switch (name.ToUpperInvariant())
+			{
+				case "AUX":
+				case "COM1":
+				case "COM2":
+				case "COM3":
+				case "COM4":
+				case "COM5":
+				case "COM6":
+				case "COM7":
+				case "COM8":
+				case "COM9":
+				case "CON":
+				case "LPT1":
+				case "LPT2":
+				case "LPT3":
+				case "LPT4":
+				case "LPT5":
+				case "LPT6":
+				case "LPT7":
+				case "LPT8":
+				case "LPT9":
+				case "NUL":
+				case "PRN":
+					return true;
+				default:
+					return false;
+			}
+		}
+
+		public static bool CanUseSdkStyleProjectFormat(MetadataFile module)
+		{
+			return TargetServices.DetectTargetFramework(module).Moniker != null;
+		}
+	}
+
+	// public record struct ProjectItemInfo(string ItemType, string FileName)
+	// {
+	// 	public List<PartialTypeInfo> PartialTypes { get; set; } = null;
+	//
+	// 	public Dictionary<string, string> AdditionalProperties { get; set; } = null;
+	//
+	// 	public ProjectItemInfo With(string name, string value)
+	// 	{
+	// 		AdditionalProperties ??= new Dictionary<string, string>();
+	// 		AdditionalProperties.Add(name, value);
+	// 		return this;
+	// 	}
+	//
+	// 	public ProjectItemInfo With(IEnumerable<KeyValuePair<string, string>> pairs)
+	// 	{
+	// 		AdditionalProperties ??= new Dictionary<string, string>();
+	// 		AdditionalProperties.AddRange(pairs);
+	// 		return this;
+	// 	}
+	// }
+}

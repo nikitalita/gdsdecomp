@@ -344,6 +344,8 @@ public:
 	virtual Error save_to(const String &p_path) override { return ERR_UNAVAILABLE; }
 
 	virtual Error reload() override { return _load(import_md_path); }
+
+	static Ref<ImportInfo> create_dummy(const String &p_path);
 	ImportInfoDummy();
 };
 

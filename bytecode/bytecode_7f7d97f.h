@@ -18,6 +18,7 @@ protected:
 	static constexpr const char *bytecode_rev_str = "7f7d97f";
 	static constexpr const char *engine_version = "3.2-dev1";
 	static constexpr const char *max_engine_version = "";
+	static constexpr const char *date = "2019-04-29";
 	static constexpr int parent = 0x514a3fb;
 
 	virtual Vector<String> get_added_functions() const override { return {"is_equal_approx", "is_zero_approx"}; }
@@ -36,6 +37,7 @@ public:
 	virtual int get_parent() const override { return parent; }
 	virtual String get_engine_version() const override { return engine_version; }
 	virtual String get_max_engine_version() const override { return max_engine_version; }
+	virtual String get_date() const override { return date; }
 	GDScriptDecomp_7f7d97f() {}
 };
 

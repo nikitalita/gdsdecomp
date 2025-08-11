@@ -806,8 +806,8 @@ Error ResourceLoaderCompatBinary::load() {
 		}
 		bool is_scene = false;
 		bool fake_script = false;
-		auto init_missing_resource([&]() {
-			auto nres = main ? CompatFormatLoader::create_missing_main_resource(path, t, uid) : CompatFormatLoader::create_missing_internal_resource(path, t, id);
+		auto init_missing_resource([&](bool no_fake_script) {
+			auto nres = main ? CompatFormatLoader::create_missing_main_resource(path, t, uid, no_fake_script) : CompatFormatLoader::create_missing_internal_resource(path, t, id, no_fake_script);
 			res = Ref<Resource>(nres);
 			if (res->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(res.ptr());
@@ -830,12 +830,12 @@ Error ResourceLoaderCompatBinary::load() {
 				is_scene = true;
 			}
 			if (load_type == ResourceInfo::FAKE_LOAD) {
-				init_missing_resource();
+				init_missing_resource(false);
 			} else if (res.is_null()) {
 				converter = ResourceCompatLoader::get_converter_for_type(t, ver_major);
 				if (converter.is_valid()) {
 					// We pass a missing resource to the converter, so it can set the properties correctly.
-					init_missing_resource();
+					init_missing_resource(true);
 				} // else, we will try to load it normally
 			}
 
@@ -1370,7 +1370,7 @@ String ResourceLoaderCompatBinary::recognize_script_class(Ref<FileAccess> p_f) {
 		return "";
 	}
 
-	get_unicode_string(); // type
+	(void)get_unicode_string(); // type
 
 	f->get_64(); // Metadata offset
 	uint32_t flags = f->get_32();
@@ -2389,7 +2389,6 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 		WARN_PRINT("Resource does not have compat metadata set?!?!?!?!");
 		ERR_FAIL_V_MSG(ERR_INVALID_DATA, "Resource does not have compat metadata set?!?!?!?!");
 	}
-	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
 
 	Error err;
 
@@ -2397,7 +2396,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	ResourceUID::ID uid = res_uid;
 
 	Ref<FileAccess> f;
-	bool using_compression = p_flags & ResourceSaver::FLAG_COMPRESS || compat->is_compressed;
+	using_compression = using_compression || p_flags & ResourceSaver::FLAG_COMPRESS;
 	if (using_compression) {
 		Ref<FileAccessCompressed> fac;
 		fac.instantiate();
@@ -2921,15 +2920,15 @@ uint64_t ResourceLoaderCompatBinary::get_metadata_size() {
 	}
 	uint64_t pos = f->get_position();
 	f->seek(importmd_ofs);
-	get_unicode_string(); // editor
+	(void)get_unicode_string(); // editor
 	int sc = f->get_32();
 	for (int i = 0; i < sc; i++) {
-		get_unicode_string(); // src
-		get_unicode_string(); // md5
+		(void)get_unicode_string(); // src
+		(void)get_unicode_string(); // md5
 	}
 	int pc = f->get_32();
 	for (int i = 0; i < pc; i++) {
-		get_unicode_string(); // name
+		(void)get_unicode_string(); // name
 		Variant val;
 		parse_variant(val); // value
 	}
@@ -3321,20 +3320,20 @@ int ResourceLoaderCompatBinary::get_current_format_version() {
 	return FORMAT_VERSION;
 }
 //
-Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> imd, HashMap<Ref<Resource>, int> &p_resource_map) {
+Error ResourceFormatSaverCompatBinaryInstance::write_v2_import_metadata(Ref<FileAccess> f, Ref<ResourceImportMetadatav2> p_imd, HashMap<Ref<Resource>, int> &p_resource_map) {
 	uint64_t md_pos = f->get_position();
-	save_unicode_string(f, imd->get_editor());
-	f->store_32(imd->get_source_count());
-	for (int i = 0; i < imd->get_source_count(); i++) {
-		save_unicode_string(f, imd->get_source_path(i));
-		save_unicode_string(f, imd->get_source_md5(i));
+	save_unicode_string(f, p_imd->get_editor());
+	f->store_32(p_imd->get_source_count());
+	for (int i = 0; i < p_imd->get_source_count(); i++) {
+		save_unicode_string(f, p_imd->get_source_path(i));
+		save_unicode_string(f, p_imd->get_source_md5(i));
 	}
 	List<String> options;
-	imd->get_options(&options);
+	p_imd->get_options(&options);
 	f->store_32(options.size());
 	for (List<String>::Element *E = options.front(); E; E = E->next()) {
 		save_unicode_string(f, E->get());
-		write_variant(f, imd->get_option(E->get()), p_resource_map, external_resources, string_map);
+		write_variant(f, p_imd->get_option(E->get()), p_resource_map, external_resources, string_map);
 	}
 
 	f->seek(md_at);
@@ -3455,6 +3454,7 @@ Error ResourceFormatSaverCompatBinaryInstance::set_save_settings(const Ref<Resou
 		String format = compat->resource_format;
 		script_class = compat->script_class;
 		using_script_class = compat->using_script_class();
+		using_compression = compat->is_compressed;
 		big_endian = compat->stored_big_endian;
 		using_uids = compat->using_uids;
 		using_named_scene_ids = compat->using_named_scene_ids;

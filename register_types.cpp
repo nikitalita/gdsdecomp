@@ -17,6 +17,8 @@
 #endif
 
 #include "bytecode/bytecode_versions.h"
+#include "compat/fake_csharp_script.h"
+#include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/resource_compat_binary.h"
@@ -40,11 +42,14 @@
 #include "exporters/translation_exporter.h"
 #include "utility/asset_library_source.h"
 #include "utility/common.h"
+#include "utility/find_replace_bar.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
+#include "utility/gdre_window.h"
 #include "utility/github_source.h"
 #include "utility/gitlab_source.h"
 #include "utility/glob.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/godotver.h"
 #include "utility/import_exporter.h"
 #include "utility/mesh_previewer.h"
@@ -52,6 +57,7 @@
 #include "utility/pck_creator.h"
 #include "utility/pck_dumper.h"
 #include "utility/plugin_manager.h"
+#include "utility/scene_previewer.h"
 #include "utility/task_manager.h"
 
 #include "module_etc_decompress/register_types.h"
@@ -83,6 +89,7 @@ static Ref<ImageConverterCompat> image_converter = nullptr;
 static Ref<ImageTextureConverterCompat> image_texture_converter = nullptr;
 static Ref<OggStreamConverterCompat> ogg_converter = nullptr;
 static Ref<LargeTextureConverterCompat> large_texture_converter = nullptr;
+static Ref<FakeScriptConverterCompat> fake_script_converter = nullptr;
 
 //exporters
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
@@ -129,6 +136,7 @@ void init_loaders() {
 	image_texture_converter = memnew(ImageTextureConverterCompat);
 	ogg_converter = memnew(OggStreamConverterCompat);
 	large_texture_converter = memnew(LargeTextureConverterCompat);
+	fake_script_converter = memnew(FakeScriptConverterCompat);
 	ResourceCompatLoader::add_resource_format_loader(binary_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(text_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(texture_loader, true);
@@ -141,6 +149,7 @@ void init_loaders() {
 	ResourceCompatLoader::add_resource_object_converter(image_texture_converter, true);
 	ResourceCompatLoader::add_resource_object_converter(ogg_converter, true);
 	ResourceCompatLoader::add_resource_object_converter(large_texture_converter, true);
+	ResourceCompatLoader::add_resource_object_converter(fake_script_converter, true);
 }
 
 void init_exporters() {
@@ -279,6 +288,9 @@ void deinit_loaders() {
 	if (large_texture_converter.is_valid()) {
 		ResourceCompatLoader::remove_resource_object_converter(large_texture_converter);
 	}
+	if (fake_script_converter.is_valid()) {
+		ResourceCompatLoader::remove_resource_object_converter(fake_script_converter);
+	}
 	text_loader = nullptr;
 	binary_loader = nullptr;
 	texture_loader = nullptr;
@@ -291,6 +303,7 @@ void deinit_loaders() {
 	image_texture_converter = nullptr;
 	ogg_converter = nullptr;
 	large_texture_converter = nullptr;
+	fake_script_converter = nullptr;
 }
 
 void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
@@ -305,6 +318,9 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ScriptDecompDialog>();
 
 #endif
+
+	ClassDB::register_class<GDREWindow>();
+	ClassDB::register_class<GDREAcceptDialogBase>();
 
 	ClassDB::register_class<SemVer>();
 	ClassDB::register_class<GodotVer>();
@@ -353,8 +369,10 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ImageConverterCompat>();
 	ClassDB::register_class<ImageTextureConverterCompat>();
 	ClassDB::register_class<OggStreamConverterCompat>();
-	ClassDB::register_class<FakeEmbeddedScript>();
+	ClassDB::register_class<FakeScriptConverterCompat>();
+	ClassDB::register_class<FakeScript>();
 	ClassDB::register_class<FakeGDScript>();
+	ClassDB::register_class<FakeCSharpScript>();
 	ClassDB::register_class<FakeMesh>();
 	ClassDB::register_class<ImportInfoModern>();
 	ClassDB::register_class<ImportInfov2>();
@@ -382,6 +400,11 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GitLabSource>();
 	ClassDB::register_class<ResourceInfo>();
 	ClassDB::register_class<MeshPreviewer>();
+	ClassDB::register_class<ScenePreviewer3D>();
+	ClassDB::register_class<ScenePreviewer2D>();
+	ClassDB::register_class<ScenePreviewer>();
+	ClassDB::register_class<GDREFindReplaceBar>();
+	ClassDB::register_class<GodotMonoDecompWrapper>();
 
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();

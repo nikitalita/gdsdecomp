@@ -18,6 +18,7 @@ protected:
 	static constexpr const char *bytecode_rev_str = "a60f242";
 	static constexpr const char *engine_version = "3.2-dev4";
 	static constexpr const char *max_engine_version = "";
+	static constexpr const char *date = "2019-07-19";
 	static constexpr int parent = 0xc00427a;
 
 	virtual Vector<String> get_added_functions() const override { return {"posmod"}; }
@@ -36,6 +37,7 @@ public:
 	virtual int get_parent() const override { return parent; }
 	virtual String get_engine_version() const override { return engine_version; }
 	virtual String get_max_engine_version() const override { return max_engine_version; }
+	virtual String get_date() const override { return date; }
 	GDScriptDecomp_a60f242() {}
 };
 

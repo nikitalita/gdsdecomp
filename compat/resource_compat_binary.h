@@ -198,6 +198,7 @@ class ResourceFormatSaverCompatBinaryInstance {
 	bool using_script_class = false;
 	bool using_real_t_double = false;
 	bool stored_use_real64 = false;
+	bool using_compression = false;
 	String script_class;
 	size_t md_at = 0;
 

@@ -22,6 +22,7 @@ public:
 
 class GDRELogger;
 class GDREPackedData;
+class GodotMonoDecompWrapper;
 class GDRESettings : public Object {
 	GDCLASS(GDRESettings, Object);
 	_THREAD_SAFE_CLASS_
@@ -121,6 +122,9 @@ public:
 		String pack_file;
 		int bytecode_revision = 0;
 		bool suspect_version = false;
+		String assembly_path;
+		Ref<GodotMonoDecompWrapper> decompiler;
+		String assembly_temp_dir;
 		ProjectInfo() {
 			pcfg.instantiate();
 		}
@@ -194,6 +198,7 @@ private:
 
 	Error load_pack_gdscript_cache(bool p_reset = false);
 	Error reset_gdscript_cache();
+	void _ensure_script_cache_complete();
 
 	Error detect_bytecode_revision(bool p_no_valid_version);
 
@@ -206,12 +211,22 @@ private:
 
 	void load_encryption_key();
 	void unload_encryption_key();
+	Error reload_dotnet_assembly(const String &p_path);
+	Error load_project_dotnet_assembly();
+
+	void _set_shader_globals();
+	void _clear_shader_globals();
+
+	Vector<String> sort_and_validate_pck_files(const Vector<String> &p_paths);
+
+	bool _init_bytecode_from_ephemeral_settings();
+	static bool is_macho(const String &p_path);
 
 protected:
 	static void _bind_methods();
 
 public:
-	Error load_project(const Vector<String> &p_paths, bool cmd_line_extract = false);
+	Error load_project(const Vector<String> &p_paths, bool cmd_line_extract = false, const String &csharp_assembly_override = "");
 	Error load_pck(const String &p_path);
 
 	Error unload_project();
@@ -233,6 +248,7 @@ public:
 
 	StringName get_cached_script_class(const String &p_path);
 	StringName get_cached_script_base(const String &p_path);
+	String get_path_for_script_class(const StringName &p_class);
 
 	Vector<String> get_file_list(const Vector<String> &filters = Vector<String>());
 	Array get_file_info_array(const Vector<String> &filters = Vector<String>());
@@ -262,7 +278,7 @@ public:
 	String get_remap(const String &src) const;
 	String get_mapped_path(const String &src) const;
 	Error remove_remap(const String &src, const String &dst, const String &output_dir = "");
-	Variant get_project_setting(const String &p_setting);
+	Variant get_project_setting(const String &p_setting, const Variant &default_value = Variant()) const;
 	bool has_project_setting(const String &p_setting);
 	void set_project_setting(const String &p_setting, Variant value);
 	String get_project_config_path();
@@ -300,6 +316,21 @@ public:
 	String get_remapped_source_path(const String &p_dst) const;
 
 	Vector<String> get_errors();
+
+	void set_dotnet_assembly_path(const String &p_path);
+	String get_dotnet_assembly_path() const;
+
+	bool has_loaded_dotnet_assembly() const;
+	String get_project_dotnet_assembly_name() const;
+
+	bool project_requires_dotnet_assembly() const;
+
+	String get_temp_dotnet_assembly_dir() const;
+	String find_dotnet_assembly_path(Vector<String> p_search_dirs) const;
+
+	Ref<GodotMonoDecompWrapper> get_dotnet_decompiler() const;
+
+	void update_from_ephemeral_settings();
 
 	static GDRESettings *get_singleton();
 	GDRESettings();

@@ -4,6 +4,8 @@
 
 #include "core/io/file_access.h"
 #include "core/variant/variant_parser.h"
+#include "utility/file_access_buffer.h"
+#include "utility/gdre_settings.h"
 #include <core/config/project_settings.h>
 #include <core/templates/rb_set.h>
 
@@ -21,6 +23,8 @@ Error ProjectConfigLoader::load_cfb(const String path, const uint32_t ver_major,
 		err = _load_settings_binary(f, path, ver_major);
 	}
 	ERR_FAIL_COND_V(err, err);
+	major = ver_major;
+	minor = ver_minor;
 	loaded = true;
 	return OK;
 }
@@ -60,6 +64,21 @@ Variant ProjectConfigLoader::get_setting(String p_var, Variant default_value) co
 	return default_value;
 }
 
+Dictionary ProjectConfigLoader::get_section(const String &p_var) const {
+	Dictionary section;
+	String section_name = p_var;
+	if (!section_name.ends_with("/")) {
+		section_name += "/";
+	}
+	for (const auto &E : props) {
+		String key = E.key;
+		if (key.begins_with(section_name)) {
+			section[key.trim_prefix(section_name)] = E.value.variant;
+		}
+	}
+	return section;
+}
+
 Error ProjectConfigLoader::remove_setting(String p_var) {
 	if (props.has(p_var)) {
 		props.erase(p_var);
@@ -94,8 +113,8 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 		CharString cs;
 		cs.resize_uninitialized(slen + 1);
 		cs[slen] = 0;
-		int bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
-		if (bytes_read < slen) {
+		auto actual_bytes_read = f->get_buffer((uint8_t *)cs.ptr(), slen);
+		if (actual_bytes_read < slen) {
 			WARN_PRINT("Bytes read less than slen!");
 		}
 		String key;
@@ -116,6 +135,7 @@ Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String
 
 Error ProjectConfigLoader::_load_settings_text(Ref<FileAccess> f, const String &p_path, uint32_t ver_major) {
 	Error err;
+	last_builtin_order = 0;
 
 	if (f.is_null()) {
 		// FIXME: Above 'err' error code is ERR_FILE_CANT_OPEN if the file is missing
@@ -165,31 +185,31 @@ Error ProjectConfigLoader::_load_settings_text(Ref<FileAccess> f, const String &
 
 struct _VCSort {
 	String name;
-	Variant::Type type;
-	int order;
-	int flags;
+	Variant::Type type = Variant::VARIANT_MAX;
+	int order = 0;
+	int flags = 0;
 
 	bool operator<(const _VCSort &p_vcs) const { return order == p_vcs.order ? name < p_vcs.name : order < p_vcs.order; }
 };
 
-Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor) {
-	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
-
+RBMap<String, List<String>> ProjectConfigLoader::get_save_proops() const {
 	RBSet<_VCSort> vclist;
 
 	for (RBMap<StringName, VariantContainer>::Element *G = props.front(); G; G = G->next()) {
 		const VariantContainer *v = &G->get();
 
-		if (v->hide_from_editor)
+		if (v->hide_from_editor) {
 			continue;
+		}
 
 		_VCSort vc;
 		vc.name = G->key(); //*k;
 		vc.order = v->order;
 		vc.type = v->variant.get_type();
 		vc.flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_STORAGE;
-		if (v->variant == v->initial)
+		if (v->variant == v->initial) {
 			continue;
+		}
 
 		vclist.insert(vc);
 	}
@@ -201,15 +221,21 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 
 		int div = category.find("/");
 
-		if (div < 0)
+		if (div < 0) {
 			category = "";
-		else {
+		} else {
 			category = category.substr(0, div);
 			name = name.substr(div + 1, name.size());
 		}
 		proops[category].push_back(name);
 	}
+	return proops;
+}
 
+Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor) {
+	ERR_FAIL_COND_V_MSG(p_path == "", ERR_INVALID_PARAMETER, "Project settings save path cannot be empty.");
+
+	RBMap<String, List<String>> proops = get_save_proops();
 	String ext = p_path.get_extension().to_lower();
 
 	if (ext == "godot" || ext == "cfg") {
@@ -224,22 +250,25 @@ Error ProjectConfigLoader::save_custom(const String &p_path, const uint32_t ver_
 Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
 	Error err;
 	Ref<FileAccess> file = FileAccess::open(p_file, FileAccess::WRITE, &err);
-	uint32_t config_version = 2;
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Couldn't save project.godot - " + p_file + ".");
+	return _save_settings_text_file(file, proops, ver_major, ver_minor);
+}
+
+Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file, const RBMap<String, List<String>> &proops, const uint32_t ver_major, const uint32_t ver_minor) {
+	uint32_t text_config_version = 2;
 	if (ver_major > 2) {
 		if (ver_major == 3 && ver_minor == 0) {
-			config_version = 3;
+			text_config_version = 3;
 		} else if (ver_major == 3) {
-			config_version = 4;
+			text_config_version = 4;
 		} else { // v4
-			config_version = 5;
+			text_config_version = 5;
 		}
 	} else {
-		config_version = 2;
+		text_config_version = 2;
 	}
 
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Couldn't save project.godot - " + p_file + ".");
-
-	if (config_version > 2) {
+	if (text_config_version > 2) {
 		file->store_line("; Engine configuration file.");
 		file->store_line("; It's best edited using the editor UI and not directly,");
 		file->store_line("; since the parameters that go here are not all obvious.");
@@ -249,21 +278,24 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 		file->store_line(";   param=value ; assign values to parameters");
 		file->store_line("");
 
-		file->store_string("config_version=" + itos(config_version) + "\n");
+		file->store_string("config_version=" + itos(text_config_version) + "\n");
 	}
 
 	file->store_string("\n");
 
 	for (RBMap<String, List<String>>::Element *E = proops.front(); E; E = E->next()) {
-		if (E != proops.front())
+		if (E != proops.front()) {
 			file->store_string("\n");
+		}
 
-		if (E->key() != "")
+		if (E->key() != "") {
 			file->store_string("[" + E->key() + "]\n\n");
+		}
 		for (List<String>::Element *F = E->get().front(); F; F = F->next()) {
 			String key = F->get();
-			if (E->key() != "")
+			if (E->key() != "") {
 				key = E->key() + "/" + key;
+			}
 			Variant value;
 			value = props[key].variant;
 
@@ -342,6 +374,48 @@ Error ProjectConfigLoader::_save_settings_binary(const String &p_file, const RBM
 	}
 
 	return OK;
+}
+
+String ProjectConfigLoader::get_as_text(bool p_skip_cr) {
+	RBMap<String, List<String>> proops = get_save_proops();
+	Ref<FileAccessBuffer> f;
+	f.instantiate();
+	f->open_new();
+
+	Error err = _save_settings_text_file(f, proops, major, minor);
+	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save project.godot");
+	return f->get_as_text(p_skip_cr);
+}
+
+String ProjectConfigLoader::get_project_settings_as_string(const String &p_path) {
+	int ver_major = GDRESettings::get_singleton()->get_ver_major();
+	int ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+	Error err;
+	Ref<ProjectConfigLoader> loader = Ref<ProjectConfigLoader>(memnew(ProjectConfigLoader));
+	if (ver_major > 0) {
+		err = loader->load_cfb(p_path, ver_major, ver_minor);
+		ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to load project.godot");
+	} else {
+		if (p_path.get_file() == "engine.cfb") {
+			ver_major = 2;
+			err = loader->load_cfb(p_path, ver_major, ver_minor);
+			if (err != OK) {
+				return "";
+			}
+		} else {
+			err = loader->load_cfb(p_path, 4, 3);
+			if (err == OK) {
+				ver_major = 4;
+			} else {
+				err = loader->load_cfb(p_path, 3, 3);
+				if (err != OK) {
+					return "";
+				}
+				ver_major = 3;
+			}
+		}
+	}
+	return loader->get_as_text();
 }
 
 ProjectConfigLoader::ProjectConfigLoader() {

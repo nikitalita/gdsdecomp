@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <RootNamespace>GodotMonoDecomp</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+      <PackageReference Include="ICSharpCode.Decompiler" Version="9.1.0.7988" />
+      <PackageReference Include="ICSharpCode.ILSpyX" Version="9.1.0.7988" />
+      <PackageReference Include="NuGet.Packaging" Version="6.14.0" />
+    </ItemGroup>
+
+</Project>

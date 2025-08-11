@@ -609,7 +609,7 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 				// We're concatenating the images horizontally; so we have to take a width-sized slice of the image
 				// and copy it into the new image data
 				size_t start_idx = i * copy_size;
-				ERR_FAIL_COND_V(images_data[img_idx].size() < start_idx + copy_size, ERR_PARSE_ERROR);
+				ERR_FAIL_COND_V(static_cast<size_t>(images_data[img_idx].size()) < start_idx + copy_size, ERR_PARSE_ERROR);
 				memcpy(new_image_data.ptrw() + current_offset, images_data[img_idx].ptr() + start_idx, copy_size);
 				current_offset += copy_size;
 			}
@@ -717,9 +717,7 @@ Ref<Image> crop_transparent(const Ref<Image> &img) {
 	int new_height = is_horizontal ? height : height / num_parts;
 
 	// now we need to find the first non-transparent pixel in the image
-	int min_x = 0;
 	int width_region_start = 0;
-	int min_y = 0;
 	int height_region_start = 0;
 
 	// first, check to see if the image is entirely transparent
@@ -738,30 +736,22 @@ Ref<Image> crop_transparent(const Ref<Image> &img) {
 	if (is_horizontal) {
 		// the transparent pixels start at either at 0,0, new_width,0, or width - new_width,0
 		if (img->get_pixel(0, 0).a == 0.0) {
-			min_x = 0;
 			width_region_start = new_width * (num_parts - 1);
 		} else if (img->get_pixel(new_width, 0).a == 0.0) {
-			min_x = new_width;
 			width_region_start = 0;
 		} else if (img->get_pixel(width - new_width, 0).a == 0.0) {
-			min_x = width - new_width;
 			width_region_start = width - (new_width * (num_parts - 1));
 		}
-		min_y = 0;
 		height_region_start = 0;
 	} else {
 		// the transparent pixels start at either at 0,0, 0,new_height, or 0,height - new_height
 		if (img->get_pixel(0, 0).a == 0.0) {
-			min_y = 0;
 			height_region_start = new_height * (num_parts - 1);
 		} else if (img->get_pixel(0, new_height).a == 0.0) {
-			min_y = new_height;
 			height_region_start = 0;
 		} else if (img->get_pixel(0, height - new_height).a == 0.0) {
-			min_y = height - new_height;
 			height_region_start = height - (new_height * (num_parts - 1));
 		}
-		min_x = 0;
 		width_region_start = 0;
 	}
 
@@ -782,15 +772,8 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 				Ref<Image> img = images[i];
 				if (img->detect_alpha()) {
 					Ref<Image> cropped = crop_transparent(img);
-					size_t new_width;
-					size_t new_height;
 					if (!cropped.is_null()) {
-						new_width = cropped->get_width();
-						new_height = cropped->get_height();
 						fixed_images.push_back(cropped);
-					} else {
-						new_width = 0;
-						new_height = 0;
 					}
 				} else {
 					// otherwise, divide it into parts based on the ratio of the width and height
@@ -825,21 +808,21 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 	}
 #endif
 	if (fixed_images.size() > 0) {
-		Vector<Ref<Image>> images;
-		images.resize(6);
+		Vector<Ref<Image>> fixed_images_array;
+		fixed_images_array.resize(6);
 		// X+, X-, Y+, Y-, Z+, Z-
 		// this is upside down;
-		images.write[0] = fixed_images[3];
-		images.write[1] = fixed_images[1];
-		images.write[2] = fixed_images[0];
-		images.write[3] = fixed_images[5];
-		images.write[4] = fixed_images[2];
-		images.write[5] = fixed_images[4];
+		fixed_images_array.write[0] = fixed_images[3];
+		fixed_images_array.write[1] = fixed_images[1];
+		fixed_images_array.write[2] = fixed_images[0];
+		fixed_images_array.write[3] = fixed_images[5];
+		fixed_images_array.write[4] = fixed_images[2];
+		fixed_images_array.write[5] = fixed_images[4];
 
 		// arrangement = is_horizontal ? CUBEMAP_FORMAT_6X1 : CUBEMAP_FORMAT_1X6;
 		// num_images_w = is_horizontal ? 6 : 1;
 		// num_images_h = is_horizontal ? 1 : 6;
-		return images;
+		return fixed_images_array;
 	} else {
 		return {};
 	}
@@ -977,8 +960,6 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	bool detected_alpha = false;
 	err = preprocess_images(p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha, ignore_dimensions);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to preprocess images for texture " + p_path);
-	int width = tex->get_width();
-	int height = tex->get_height();
 #if 0 // This was an attempt at fixing incorrectly imported cubemaps; if it was incorrectly imported by the original author, we should just leave it be.
 	if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP || mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
 		Vector<Ref<Image>> fixed_images = fix_cross_cubemaps(images, width, height, layer_count, detected_alpha);

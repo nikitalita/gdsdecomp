@@ -68,6 +68,7 @@ Recover/Extract Options:
 --include=<GLOB>                         Include files matching the glob pattern (can be repeated)
 --exclude=<GLOB>                         Exclude files matching the glob pattern (can be repeated)
 --ignore-checksum-errors                 Ignore MD5 checksum errors when extracting/recovering
+--csharp-assembly=<PATH>                 Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
 
 Decompile/Compile Options:
 --bytecode=<COMMIT_OR_VERSION>           Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')
@@ -130,7 +131,7 @@ For ease of bootstrapping development, we have included launch, build, and setti
 
 ### Requirements
 
-Godot 4.0 (master branch) @ 1d8e738499fc10ae248bcb11653a681de42dc964
+Godot 4.0 (master branch) @ a3b42d85d27668f8992c0779ed3cc82d13db3dd9
 
 - Support for building on 3.x has been dropped and no new features are being pushed
   - Godot RE Tools still retains the ability to decompile 3.x and 2.x projects, however.

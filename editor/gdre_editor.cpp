@@ -475,7 +475,7 @@ void GodotREEditor::menu_option_pressed(int p_id) {
 			show_about_dialog();
 		} break;
 		case MENU_REPORT_ISSUE: {
-			OS::get_singleton()->shell_open("https://github.com/bruvzg/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings::get_singleton()->get_sys_info_string());
+			OS::get_singleton()->shell_open("https://github.com/GDRETools/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings::get_singleton()->get_sys_info_string());
 		} break;
 		case MENU_EXIT_RE: {
 			get_tree()->quit();
@@ -499,7 +499,7 @@ void GodotREEditor::print_log(const String &p_text) {
 }
 
 void GodotREEditor::print_warning(const String &p_text, const String &p_title, const String &p_sub_text) {
-	char timestamp[21];
+	char timestamp[36];
 	OS::DateTime date = OS::get_singleton()->get_datetime();
 	snprintf(timestamp, sizeof(timestamp), "-%04d-%02d-%02d-%02d-%02d-%02d", (uint16_t)date.year, date.month, date.day, date.hour, date.minute, date.second);
 

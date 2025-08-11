@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://c7lxsiwyifr8f" path="res://gdre_compile.gd" id="2_uacfi"]
 [ext_resource type="Texture2D" uid="uid://70wmkccoq7gp" path="res://gdre_icons/gdre_GuiTabMenuHl.svg" id="4_rcglc"]
 
-[node name="GdreCompile" type="AcceptDialog"]
+[node name="GdreCompile" type="GDREAcceptDialogBase"]
 oversampling_override = 1.0
 title = "Compile GDScript"
 position = Vector2i(0, 24)

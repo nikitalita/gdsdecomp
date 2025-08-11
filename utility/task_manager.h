@@ -23,16 +23,22 @@ public:
 
 	class BaseTemplateTaskData {
 	protected:
+		bool dont_update_progress_bg = false;
 		bool canceled = false;
 		bool runs_current_thread = false;
 		bool started = false;
 		bool auto_start = true;
 		bool progress_enabled = true;
+		bool timed_out = false;
+		bool _aborted = false;
 		Ref<EditorProgressGDDC> progress;
 
 		virtual void wait_for_task_completion_internal() = 0;
 		virtual void start_internal() = 0;
 		virtual void cancel_internal() {}
+		bool _wait_after_cancel();
+		String _get_task_description();
+		bool wait_update_progress(bool p_force_refresh = false);
 
 	public:
 		std::atomic<bool> is_waiting = false;
@@ -42,68 +48,20 @@ public:
 		virtual String get_current_task_step_description() = 0;
 		virtual void run_on_current_thread() = 0;
 
-		void start() {
-			if (started) {
-				return;
-			}
-			start_internal();
-			started = true;
-		}
-		bool is_started() const { return started; }
-		bool is_canceled() const { return canceled; }
-		void cancel() {
-			canceled = true;
-			cancel_internal();
-		}
-		void finish_progress() {
-			progress = nullptr;
-		}
+		void start();
+		bool is_started() const;
+		bool is_canceled() const;
+		void cancel();
+		void finish_progress();
+		bool is_progress_enabled() const;
 		// returns true if the task was cancelled before completion
-		bool update_progress(bool p_force_refresh = false) {
-			if (!is_canceled() && progress.is_valid() && progress->step(get_current_task_step_description(), get_current_task_step_value(), p_force_refresh)) {
-				cancel();
-				return true;
-			}
+		bool update_progress(bool p_force_refresh = false);
+		bool is_timed_out() const;
+		bool _is_aborted() const;
 
-			return is_canceled();
-		}
-		virtual bool wait_for_completion() {
-			if (is_canceled()) {
-				return true;
-			}
-			if (!started) {
-				if (auto_start) {
-					start();
-				} else {
-					while (!started && !is_canceled()) {
-						OS::get_singleton()->delay_usec(10000);
-					}
-				}
-			}
-			if (is_canceled()) {
-				return true;
-			}
-			if (runs_current_thread) {
-				run_on_current_thread();
-			} else {
-				bool is_main_thread = Thread::is_main_thread();
-				if (!is_main_thread) {
-					WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
-				}
-				while (!is_done()) {
-					OS::get_singleton()->delay_usec(10000);
-					update_progress(is_main_thread);
-					if (is_canceled()) {
-						break;
-					}
-				}
-				wait_for_task_completion_internal();
-			}
-			finish_progress();
-			return is_canceled();
-		}
+		virtual bool wait_for_completion(uint64_t timeout_s_no_progress = 0);
 
-		virtual ~BaseTemplateTaskData() {}
+		virtual ~BaseTemplateTaskData();
 	};
 
 	template <typename C, typename M, typename U, typename R>
@@ -212,6 +170,9 @@ public:
 		}
 
 		void run_on_current_thread() override {
+			if (canceled) {
+				return;
+			}
 			uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
 			for (int i = 0; i < elements; i++) {
 				if (group_task_callback(i, userdata) || OS::get_singleton()->get_ticks_usec() - last_progress_upd > 50000) {
@@ -281,6 +242,9 @@ public:
 			cb_struct->run(p_data);
 		}
 		virtual void run_on_current_thread() override {
+			if (canceled) {
+				return;
+			}
 			run_internal(userdata);
 		}
 		virtual int get_current_task_step_value() override {
@@ -439,7 +403,6 @@ public:
 			bool p_high_priority = false,
 			bool p_progress_enabled = true,
 			bool p_runs_current_thread = false) {
-		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 		auto task = std::make_shared<TaskData<U>>(p_task_runner, p_userdata, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, p_runs_current_thread);
 		task->start();
 		bool already_exists = false;
@@ -466,9 +429,12 @@ public:
 
 	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
-	Error wait_for_task_completion(TaskManagerID p_task_id);
+	Error wait_for_task_completion(TaskManagerID p_task_id, uint64_t timeout_s_no_progress = 0);
+	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
-	void update_progress_bg();
+	bool is_current_task_timed_out();
+	bool update_progress_bg(bool p_force_refresh = false);
+	void cancel_all();
 };
 
 class DownloadToken {

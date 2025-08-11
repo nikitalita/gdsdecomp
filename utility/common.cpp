@@ -1,5 +1,6 @@
 #include "utility/common.h"
 #include "bytecode/bytecode_base.h"
+#include "compat/file_access_encrypted_v3.h"
 #include "compat/variant_decoder_compat.h"
 #include "external/tga/tga.h"
 #include "utility/glob.h"
@@ -466,6 +467,51 @@ Error gdre::unzip_file_to_dir(const String &zip_path, const String &output_dir) 
 	}
 	return OK;
 }
+namespace {
+String get_sha256_for_dir(const String &dir) {
+	auto p_file = Glob::rglob(dir.path_join("**/*"), true);
+
+	CryptoCore::SHA256Context ctx;
+	ctx.start();
+
+	for (int i = 0; i < p_file.size(); i++) {
+		Ref<FileAccess> f = FileAccess::open(p_file[i], FileAccess::READ);
+		if (f.is_null()) {
+			continue;
+		}
+
+		unsigned char step[32768];
+
+		while (true) {
+			uint64_t br = f->get_buffer(step, 32768);
+			if (br > 0) {
+				ctx.update(step, br);
+			}
+			if (br < 4096) {
+				break;
+			}
+		}
+	}
+
+	unsigned char hash[32];
+	ctx.finish(hash);
+
+	return String::hex_encode_buffer(hash, 32);
+}
+} //namespace
+
+String gdre::get_sha256(const String &dir) {
+	if (dir.is_empty()) {
+		return "";
+	}
+	auto da = DirAccess::create_for_path(dir);
+	if (da->dir_exists(dir)) {
+		return get_sha256_for_dir(dir);
+	} else if (da->file_exists(dir)) {
+		return FileAccess::get_sha256(dir);
+	}
+	return "";
+}
 
 String gdre::get_md5(const String &dir, bool ignore_code_signature) {
 	if (dir.is_empty()) {
@@ -502,14 +548,14 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	Ref<HTTPClient> client = HTTPClient::create();
 	client->set_blocking_mode(true);
 	Error err;
-	String url = p_url;
+	String request_url = p_url;
 	auto connect_to_host_and_request = [&](const String &url) {
 		WGET_CANCELLED_CHECK();
 		bool is_https = url.begins_with("https://");
 		String host = url.get_slice("://", 1).get_slice("/", 0);
 		String thingy = (is_https ? "https://" : "http://") + host;
-		Error err = client->connect_to_host(thingy, is_https ? 443 : 80);
-		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
+		Error connect_err = client->connect_to_host(thingy, is_https ? 443 : 80);
+		ERR_FAIL_COND_V_MSG(connect_err, connect_err, "Failed to connect to host " + url);
 		while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
 			WGET_CANCELLED_CHECK();
 			err = client->poll();
@@ -521,8 +567,8 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 			return ERR_CANT_CONNECT;
 		}
 		WGET_CANCELLED_CHECK();
-		err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
-		ERR_FAIL_COND_V_MSG(err, err, "Failed to connect to host " + url);
+		Error request_err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
+		ERR_FAIL_COND_V_MSG(request_err, request_err, "Failed to connect to host " + url);
 		return OK;
 	};
 	bool done = false;
@@ -579,7 +625,7 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 				client->close();
 				redirections += 1;
 				got_response = false;
-				url = new_request;
+				request_url = new_request;
 				return connect_to_host_and_request(new_request);
 			}
 		}
@@ -588,14 +634,14 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 	};
 	err = connect_to_host_and_request(p_url);
 
-	auto _retry = [&](Error err) {
+	auto _retry = [&](Error retry_err) {
 		WGET_CANCELLED_CHECK();
 		if (retries <= 0) {
 			ERR_FAIL_V_MSG(ERR_CONNECTION_ERROR, vformat("Failed to download file from %s", p_url));
 		}
 		// Don't bother retrying if the file doesn't exist or we don't have access to it
 		if (response_code == 404 || response_code == 403 || response_code == 401) {
-			return err;
+			return retry_err;
 		}
 		retries--;
 		response.clear();
@@ -655,15 +701,15 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 
 Error gdre::download_file_sync(const String &p_url, const String &output_path, float *p_progress, bool *p_cancelled) {
 	Vector<uint8_t> response;
-	Error err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
-	if (err) {
-		return err;
+	Error download_err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
+	if (download_err) {
+		return download_err;
 	}
-	err = ensure_dir(output_path.get_base_dir());
-	if (err) {
-		return err;
+	Error dir_err = ensure_dir(output_path.get_base_dir());
+	if (dir_err) {
+		return dir_err;
 	}
-	Ref<FileAccess> fa = FileAccess::open(output_path, FileAccess::WRITE, &err);
+	Ref<FileAccess> fa = FileAccess::open(output_path, FileAccess::WRITE, &dir_err);
 	if (fa.is_null()) {
 		return ERR_FILE_CANT_WRITE;
 	}
@@ -1056,6 +1102,85 @@ bool gdre::store_var_compat(Ref<FileAccess> f, const Variant &p_var, int ver_maj
 	return f->store_32(uint32_t(len)) && f->store_buffer(buff);
 }
 
+Ref<FileAccess> gdre::open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key) {
+	Ref<FileAccess> p_base = FileAccess::open(p_path, p_mode);
+	ERR_FAIL_COND_V(p_base.is_null(), Ref<FileAccess>());
+
+	Ref<FileAccessEncryptedv3> fae;
+	fae.instantiate();
+	Error err = fae->open_and_parse(p_base, p_key, (p_mode == FileAccess::WRITE) ? FileAccessEncryptedv3::MODE_WRITE_AES256 : FileAccessEncryptedv3::MODE_READ);
+	if (err != OK) {
+		return Ref<FileAccess>();
+	}
+	return fae;
+}
+
+String gdre::get_full_path(const String &p_path, DirAccess::AccessType p_access) {
+	String path = p_path.simplify_path();
+	bool is_dir = DirAccess::exists(path);
+	if (!(is_dir || FileAccess::exists(path))) {
+		return path;
+	}
+	Ref<DirAccess> da = DirAccess::create(p_access);
+	ERR_FAIL_COND_V_MSG(da.is_null(), path, "Failed to create DirAccess.");
+	ERR_FAIL_COND_V_MSG(da->change_dir(p_path.get_base_dir()) != OK, path, "Failed to change directory.");
+	String real_base_dir = da->get_current_dir();
+	da->list_dir_begin();
+	String file = da->get_next();
+	Vector<String> potential_paths;
+	String new_path;
+	while (file != "") {
+		if (file == p_path.get_file()) {
+			new_path = real_base_dir.path_join(file);
+			break;
+		} else if (file.to_lower() == p_path.get_file().to_lower()) {
+			potential_paths.push_back(real_base_dir.path_join(file));
+		}
+		file = da->get_next();
+	}
+	if (new_path.is_empty()) {
+		if (potential_paths.size() >= 1) {
+			if (potential_paths.size() > 1) {
+				WARN_PRINT(vformat("Multiple files found for %s, using %s", p_path, potential_paths[0]));
+			}
+			new_path = potential_paths[0];
+		}
+	}
+	if (!new_path.is_empty()) {
+		if (is_dir) {
+			return DirAccess::get_full_path(new_path, p_access);
+		}
+		return new_path;
+	}
+	return path;
+}
+
+bool gdre::directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files_or_dirs) {
+	for (auto &file_or_dir : p_files_or_dirs) {
+		if (FileAccess::exists(p_dir_path.path_join(file_or_dir)) || DirAccess::exists(p_dir_path.path_join(file_or_dir))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+Vector<String> gdre::get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute) {
+	Vector<String> ret = DirAccess::get_files_at(p_dir);
+	for (auto &wc : wildcards) {
+		for (int i = ret.size() - 1; i >= 0; i--) {
+			if (!ret[i].get_file().matchn(wc)) {
+				ret.remove_at(i);
+			}
+		}
+	}
+	if (absolute) {
+		for (int i = 0; i < ret.size(); i++) {
+			ret.write[i] = p_dir.path_join(ret[i]);
+		}
+	}
+	return ret;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
@@ -1075,4 +1200,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("split_multichar", "str", "splitters", "allow_empty", "maxsplit"), &gdre::_split_multichar);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("rsplit_multichar", "str", "splitters", "allow_empty", "maxsplit"), &gdre::_rsplit_multichar);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("copy_dir", "src", "dst"), &gdre::copy_dir);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("open_encrypted_v3", "path", "mode", "key"), &gdre::open_encrypted_v3);
 }

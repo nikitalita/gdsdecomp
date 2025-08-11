@@ -3,13 +3,13 @@
 #include "compat/resource_loader_compat.h"
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
+#include "core/variant/variant.h"
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
 #include "scene/3d/mesh_instance_3d.h"
-#include "scene/resources/image_texture.h"
 #include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
@@ -19,9 +19,10 @@
 #include "core/crypto/crypto_core.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
-#include "core/io/json.h"
+#include "main/main.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
+#include "utility/task_manager.h"
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
 	String dep;
@@ -212,7 +213,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 				info.uid_in_uid_cache = info.uid != ResourceUID::INVALID_ID && ResourceUID::get_singleton()->has_id(info.uid);
 				auto uid_path = info.uid_in_uid_cache ? ResourceUID::get_singleton()->get_id_path(info.uid) : "";
 				info.orig_remap = GDRESettings::get_singleton()->get_mapped_path(info.dep);
-				if (info.uid_in_uid_cache && uid_path != info.dep) {
+				if (info.uid_in_uid_cache && uid_path != info.dep && uid_path != info.orig_remap) {
 					info.uid_in_uid_cache_matches_dep = false;
 					info.remap = GDRESettings::get_singleton()->get_mapped_path(uid_path);
 					if (!FileAccess::exists(info.remap)) {
@@ -276,7 +277,7 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 	}
 }
 
-bool SceneExporter::using_threaded_load() const {
+bool GLBExporterInstance::using_threaded_load() const {
 	// If the scenes are being exported using the worker task pool, we can't use threaded load
 	return !supports_multithread();
 }
@@ -313,29 +314,6 @@ inline void _merge_resources(HashSet<Ref<Resource>> &merged, const HashSet<Ref<R
 	}
 }
 
-void SceneExporter::rewrite_global_mesh_import_params(Ref<ImportInfo> p_import_info, const ObjExporter::MeshInfo &p_mesh_info) {
-	auto ver_major = p_import_info->get_ver_major();
-	auto ver_minor = p_import_info->get_ver_minor();
-	if (ver_major == 4) {
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/ensure_tangents"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/generate_lods"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/create_shadow_meshes"), true));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "meshes/light_baking", PROPERTY_HINT_ENUM, "Disabled,Static,Static Lightmaps,Dynamic", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 1));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::FLOAT, "meshes/lightmap_texel_size", PROPERTY_HINT_RANGE, "0.001,100,0.001"), 0.2));
-		// r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "meshes/force_disable_compression"), false));
-
-		// 4.x removes the import params, so we need to rewrite all of them
-		p_import_info->set_param("meshes/ensure_tangents", p_mesh_info.has_tangents);
-		p_import_info->set_param("meshes/generate_lods", p_mesh_info.has_lods);
-		p_import_info->set_param("meshes/create_shadow_meshes", p_mesh_info.has_shadow_meshes);
-		p_import_info->set_param("meshes/light_baking", p_mesh_info.has_lightmap_uv2 ? 2 : 1);
-		p_import_info->set_param("meshes/lightmap_texel_size", p_mesh_info.lightmap_uv2_texel_size);
-		if (ver_minor >= 2) {
-			p_import_info->set_param("meshes/force_disable_compression", !p_mesh_info.compression_enabled);
-		}
-	}
-	// 2.x doesn't require this
-}
 HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, int ver_major) {
 	HashSet<Ref<Resource>> resources;
 	switch (p_variant.get_type()) {
@@ -415,7 +393,7 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 	return resources;
 }
 
-Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
+Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path, Vector<String> &r_buffer_paths) {
 	auto state_buffers = p_state->get_buffers();
 	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
 
@@ -441,6 +419,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
 		if (file.is_null()) {
 			return err;
 		}
+		r_buffer_paths.push_back(path);
 		if (buffer_data.is_empty()) {
 			return OK;
 		}
@@ -455,7 +434,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path) {
 	return OK;
 }
 
-Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
+Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path, Vector<String> &r_buffer_paths) {
 	auto state_buffers = p_state->get_buffers();
 	print_verbose("glTF: Total buffers: " + itos(state_buffers.size()));
 
@@ -474,6 +453,7 @@ Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
 		if (file.is_null()) {
 			return err;
 		}
+		r_buffer_paths.push_back(path);
 		if (buffer_data.is_empty()) {
 			return OK;
 		}
@@ -488,10 +468,10 @@ Error _encode_buffer_bins(Ref<GLTFState> p_state, const String &p_path) {
 	return OK;
 }
 
-Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_single_precision) {
+Error _serialize_file(Ref<GLTFState> p_state, const String p_path, Vector<String> &r_buffer_paths, bool p_force_single_precision) {
 	Error err = FAILED;
 	if (p_path.to_lower().ends_with("glb")) {
-		err = _encode_buffer_glb(p_state, p_path);
+		err = _encode_buffer_glb(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V(file.is_null(), FAILED);
@@ -545,7 +525,7 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_
 #if DEBUG_ENABLED
 		indent = "  ";
 #endif
-		err = _encode_buffer_bins(p_state, p_path);
+		err = _encode_buffer_bins(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V(file.is_null(), FAILED);
@@ -557,122 +537,215 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, bool p_force_
 	return err;
 }
 
-Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
-	String dest_ext = p_dest_path.get_extension().to_lower();
-	Ref<ImportInfo> iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
-	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
-	if (dest_ext == "escn" || dest_ext == "tscn") {
-		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
-	} else if (dest_ext == "obj") {
-		ObjExporter::MeshInfo mesh_info;
-		Error err = export_file_to_obj(p_dest_path, p_src_path, ver_major, mesh_info);
-		if (err != OK) {
-			return err;
-		}
-		if (iinfo.is_valid()) {
-			ObjExporter::rewrite_import_params(iinfo, mesh_info);
-		}
-		return OK;
-	} else if (dest_ext != "glb" && dest_ext != "gltf") {
-		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .escn, .tscn, .obj, .glb, and .gltf formats are supported for export.");
+int GLBExporterInstance::get_ver_major(const String &res_path) {
+	Error err;
+	auto info = ResourceCompatLoader::get_resource_info(res_path, "", &err);
+	ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to get resource info for " + res_path);
+	return info->ver_major; // Placeholder return value
+}
+
+String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_msg) {
+	String step;
+	switch (p_err) {
+		case ERR_FILE_MISSING_DEPENDENCIES:
+			step = "dependency resolution";
+			break;
+		case ERR_FILE_CANT_OPEN:
+			step = "scene resource load";
+			break;
+		case ERR_CANT_ACQUIRE_RESOURCE:
+			step = "instancing scene resource";
+			break;
+		case ERR_COMPILATION_FAILED:
+			step = "appending to GLTF document";
+			break;
+		case ERR_FILE_CANT_WRITE:
+			step = "serializing GLTF document";
+			break;
+		case ERR_FILE_CORRUPT:
+			step = "GLTF is empty or corrupt";
+			break;
+		case ERR_BUG:
+			step = "GLTF conversion";
+			break;
+		case ERR_PRINTER_ON_FIRE:
+			step = "rewriting import settings";
+			break;
+		default:
+			step = "unknown";
+			break;
 	}
-	ObjExporter::MeshInfo r_mesh_info;
-	Vector<uint64_t> texture_uids;
-	Error err = OK;
-	bool has_script = false;
-	bool has_shader = false;
-	bool has_external_animation = false;
-	bool has_external_materials = false;
-	bool has_external_images = false;
-	bool has_external_meshes = false;
-	bool had_images = false;
-	Vector<CompressedTexture2D::DataFormat> image_formats;
-	const bool after_4_1 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 1)));
-	const bool after_4_3 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 3)));
-	const bool after_4_4 = (iinfo.is_null() ? false : (iinfo->get_ver_major() > 4 || (iinfo->get_ver_major() == 4 && iinfo->get_ver_minor() > 4)));
+	String desc;
+	if (has_script && has_shader) {
+		desc = "scripts and shaders";
+	} else if (has_script) {
+		desc = "scripts";
+	} else if (has_shader) {
+		desc = "shaders";
+	}
+	auto err_message = vformat("Errors during %s", step);
+	if (p_err == ERR_SKIP) {
+		err_message = "Export was cancelled";
+	} else if (p_err == ERR_TIMEOUT) {
+		err_message = "Export timed out";
+	}
+	if (!err_msg.is_empty()) {
+		err_message += ":\n  " + err_msg;
+	}
+	if (!desc.is_empty()) {
+		err_message += "\n  Scene had " + desc;
+	}
+	error_statement = err_message;
+	Vector<String> errors;
+	if (scene_instantiation_error_messages.size() > 0) {
+		errors.append("** Errors during scene instantiation:");
+		errors.append_array(scene_instantiation_error_messages);
+	}
+	if (gltf_serialization_error_messages.size() > 0) {
+		errors.append("** Errors during GLTF conversion:");
+		errors.append_array(gltf_serialization_error_messages);
+	}
+	if (import_param_error_messages.size() > 0) {
+		errors.append("** Errors during import parameter setting:");
+		errors.append_array(import_param_error_messages);
+	}
+	other_error_messages.append_array(_get_logged_error_messages());
+	if (other_error_messages.size() > 0) {
+		errors.append("** Other errors:");
+		errors.append_array(other_error_messages);
+	}
+	for (const auto &E : get_deps_map) {
+		dependency_resolution_list.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
+	}
+	bool validation_error = p_err == ERR_PRINTER_ON_FIRE || p_err == ERR_BUG;
 
-	String game_name = GDRESettings::get_singleton()->get_game_name();
-	String copyright_string = vformat("The Creators of '%s'", game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
-
-	bool set_all_externals = false;
-	List<String> get_deps;
-	// We need to preload any Texture resources that are used by the scene with our own loader
-	HashMap<String, dep_info> get_deps_map;
-	HashSet<String> script_or_shader_deps;
-	HashSet<String> need_to_be_updated;
-	HashSet<String> animation_deps_needed;
-	HashSet<String> external_deps_updated;
-	HashSet<String> animation_deps_updated;
-
-	Vector<String> error_messages;
-	Vector<String> image_extensions;
-	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
-	auto append_error_messages = [&](Error p_err, const String &err_msg = "") {
-		String step;
-		switch (p_err) {
-			case ERR_FILE_MISSING_DEPENDENCIES:
-				step = "dependency resolution";
-				break;
-			case ERR_FILE_CANT_OPEN:
-				step = "load";
-				break;
-			case ERR_COMPILATION_FAILED:
-				step = "appending to GLTF document";
-				break;
-			case ERR_FILE_CANT_WRITE:
-				step = "serializing GLTF document";
-				break;
-			case ERR_BUG:
-				step = "GLTF export";
-				break;
-			case ERR_FILE_CORRUPT:
-				step = "GLTF validation";
-				break;
-			case ERR_PRINTER_ON_FIRE:
-				step = "rewriting import settings";
-				break;
-			default:
-				step = "unknown";
-				break;
-		}
-		String desc;
-		if (has_script && has_shader) {
-			desc = "scripts and shaders";
-		} else if (has_script) {
-			desc = "scripts";
-		} else if (has_shader) {
-			desc = "shaders";
-		}
-		auto err_message = vformat("Errors during %s", step);
-		if (!err_msg.is_empty()) {
-			err_message += ":\n  " + err_msg;
-		}
-		if (!desc.is_empty()) {
-			err_message += "\n  Scene had " + desc;
-		}
-
-		if (p_report.is_valid()) {
-			auto message = err_message + "\n";
-			Vector<String> message_detail;
-			message_detail.append("Dependencies:");
-			for (const auto &E : get_deps_map) {
-				message_detail.append(vformat("  %s -> %s, exists: %s", E.key, E.value.remap, E.value.exists ? "yes" : "no"));
+	if (report.is_valid()) {
+		if (validation_error) {
+			if (!project_recovery) {
+				// Only relevant for project recovery mode
+				p_err = OK;
+			} else {
+				// TODO: make the metadata rewriter in import exporter not require ERR_PRINTER_ON_FIRE to be set to write dirty metadata when there are errors
+				p_err = ERR_PRINTER_ON_FIRE;
 			}
-			p_report->set_message(message);
-			p_report->append_message_detail(message_detail);
-			p_report->set_error(p_err);
-			error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
-			p_report->append_error_messages(error_messages);
 		}
+		report->set_message(error_statement + "\n");
+		report->append_message_detail({ "Dependencies:" });
+		report->append_message_detail(dependency_resolution_list);
+		report->set_error(p_err);
+		report->append_error_messages(errors);
+	}
+	String printed_error_message = (!validation_error ? vformat("Failed to export scene %s:\n  %s", source_path, err_message) : vformat("GLTF validation failed for scene %s:\n  %s", source_path, err_message));
 
-		return vformat("Failed to export scene %s:\n  %s", p_src_path, err_message);
-	};
+	return printed_error_message;
+}
 
-#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)                                                    \
-	{                                                                                        \
-		ERR_PRINT(append_error_messages(err, msg));                                          \
-		supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors(); \
-		return err;                                                                          \
+void GLBExporterInstance::set_path_options(Dictionary &import_opts, const String &path, const String &prefix) {
+	if (after_4_4) {
+		ResourceUID::ID uid = path.is_empty() ? ResourceUID::INVALID_ID : GDRESettings::get_singleton()->get_uid_for_path(path);
+		if (uid != ResourceUID::INVALID_ID) {
+			import_opts[prefix + "/path"] = ResourceUID::get_singleton()->id_to_text(uid);
+		} else {
+			import_opts[prefix + "/path"] = path;
+		}
+		import_opts[prefix + "/fallback_path"] = path;
+	} else {
+		import_opts[prefix + "/path"] = path;
+	}
+}
+
+String GLBExporterInstance::get_path_options(const Dictionary &import_opts) {
+	if (after_4_4) {
+		return import_opts.get("save_to_file/fallback_path", import_opts.get("save_to_file/path", ""));
+	}
+	return import_opts.get("save_to_file/path", "");
+}
+
+void GLBExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace) {
+	if (texture.is_null() || (!force_replace && ResourceCache::get_ref(info.dep).is_valid())) {
+		return;
+	}
+#ifdef TOOLS_ENABLED
+	texture->set_import_path(info.remap);
+#endif
+	// reset the path cache, then set the path so it loads it into cache.
+	texture->set_path_cache("");
+	texture->set_path(info.dep, true);
+	loaded_deps.push_back(texture);
+}
+
+String GLBExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
+	String name = dict.get("name", String());
+	if (name.is_empty()) {
+		name = res->get_name();
+		if (name.is_empty()) {
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+			if (info.is_valid() && !info->resource_name.is_empty()) {
+				name = info->resource_name;
+			} else {
+				// name = res->get_class() + "_" + String::num_int64(idx);
+			}
+		}
+	}
+	return name;
+}
+
+String GLBExporterInstance::get_path_res(const Ref<Resource> &res) {
+	String path = res->get_path();
+	if (path.is_empty()) {
+		Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+		if (info.is_valid() && !info->original_path.is_empty()) {
+			path = info->original_path;
+		}
+	}
+	return path;
+}
+
+ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params() {
+	ObjExporter::MeshInfo global_mesh_info;
+	Vector<bool> global_has_tangents;
+	Vector<bool> global_has_lods;
+	Vector<bool> global_has_shadow_meshes;
+	Vector<bool> global_has_lightmap_uv2;
+	Vector<float> global_lightmap_uv2_texel_size;
+	Vector<int> global_bake_mode;
+	// push them back
+	for (auto &E : id_to_mesh_info) {
+		global_has_tangents.push_back(E.has_tangents);
+		global_has_lods.push_back(E.has_lods);
+		global_has_shadow_meshes.push_back(E.has_shadow_meshes);
+		global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
+		global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
+		global_bake_mode.push_back(E.bake_mode);
+		// compression enabled is used for forcing disabling, so if ANY of them have it on, we need to set it on
+		global_mesh_info.compression_enabled = global_mesh_info.compression_enabled || E.compression_enabled;
+	}
+	global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
+	global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
+	global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
+	global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
+	global_mesh_info.lightmap_uv2_texel_size = gdre::get_most_popular_value(global_lightmap_uv2_texel_size);
+	global_mesh_info.bake_mode = gdre::get_most_popular_value(global_bake_mode);
+
+	return global_mesh_info;
+}
+
+String GLBExporterInstance::get_resource_path(const Ref<Resource> &res) {
+	String path = res->get_path();
+	if (path.is_empty()) {
+		Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
+		if (compat.is_valid()) {
+			path = compat->original_path;
+		}
+	}
+	return path;
+}
+
+#define GDRE_SCN_EXP_FAIL_V_MSG(err, msg)          \
+	{                                              \
+		ERR_PRINT(add_errors_to_report(err, msg)); \
+		_get_logged_error_messages();              \
+		return err;                                \
 	}
 
 #define GDRE_SCN_EXP_FAIL_COND_V_MSG(cond, err, msg) \
@@ -680,904 +753,1534 @@ Error SceneExporter::_export_file(const String &p_dest_path, const String &p_src
 		GDRE_SCN_EXP_FAIL_V_MSG(err, msg);           \
 	}
 
-	const auto set_path_options = [after_4_4](Dictionary &options, const String &path, const String &prefix = "save_to_file") {
-		if (after_4_4) {
-			ResourceUID::ID uid = path.is_empty() ? ResourceUID::INVALID_ID : GDRESettings::get_singleton()->get_uid_for_path(path);
-			if (uid != ResourceUID::INVALID_ID) {
-				options[prefix + "/path"] = ResourceUID::get_singleton()->id_to_text(uid);
-			} else {
-				options[prefix + "/path"] = path;
-			}
-			options[prefix + "/fallback_path"] = path;
+void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportReport> p_report) {
+	report = p_report;
+	iinfo = p_report.is_valid() ? p_report->get_import_info() : nullptr;
+	res_info = ResourceCompatLoader::get_resource_info(p_src_path, "");
+	if (iinfo.is_valid()) {
+		ver_major = iinfo->get_ver_major();
+		ver_minor = iinfo->get_ver_minor();
+	} else {
+		if (res_info.is_valid() && res_info->get_resource_format() != "text") {
+			ver_major = res_info->ver_major;
+			ver_minor = res_info->ver_minor;
 		} else {
-			options[prefix + "/path"] = path;
+			ver_major = GDRESettings::get_singleton()->get_ver_major();
+			ver_minor = GDRESettings::get_singleton()->get_ver_minor();
 		}
-	};
+	}
+	source_path = p_src_path;
+	after_4_1 = (ver_major > 4 || (ver_major == 4 && ver_minor > 1));
+	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
+	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
+	updating_import_info = !force_no_update_import_params && iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+}
 
-	const auto get_path_options = [after_4_4](const Dictionary &options) -> String {
-		if (after_4_4) {
-			return options.get("save_to_file/fallback_path", options.get("save_to_file/path", ""));
+Error GLBExporterInstance::_load_deps() {
+	get_deps_recursive(source_path, get_deps_map);
+
+	for (auto &E : get_deps_map) {
+		dep_info &info = E.value;
+		if (info.type == "Script") {
+			has_script = true;
+		} else if (info.dep.get_extension().to_lower().contains("shader")) {
+			has_shader = true;
+		} else {
+			if (info.parent_is_script_or_shader) {
+				script_or_shader_deps.insert(info.dep);
+			}
+			if (info.type.contains("Animation")) {
+				animation_deps_needed.insert(info.dep);
+				need_to_be_updated.insert(info.dep);
+			} else if (info.type.contains("Material")) {
+				if (info.real_type == "ShaderMaterial") {
+					has_shader = true;
+				}
+				need_to_be_updated.insert(info.dep);
+			} else if (info.type.contains("Texture")) {
+				image_deps_needed.insert(info.dep);
+				String ext = info.dep.get_extension().to_upper();
+				if (ext == "JPG") {
+					ext = "JPEG";
+				}
+				image_extensions.append(ext);
+				need_to_be_updated.insert(info.dep);
+			} else if (info.type.contains("Mesh")) {
+				need_to_be_updated.insert(info.dep);
+			}
 		}
-		return options.get("save_to_file/path", "");
-	};
+	}
 
-	bool no_threaded_load = false;
-	{
-		get_deps_recursive(p_src_path, get_deps_map);
+	if (report.is_valid()) {
+		Dictionary extra_info = report->get_extra_info();
+		extra_info["has_script"] = has_script;
+		extra_info["has_shader"] = has_shader;
+		report->set_extra_info(extra_info);
+	}
 
-		Vector<Ref<Resource>> textures;
-
-		for (auto &E : get_deps_map) {
-			dep_info &info = E.value;
+	// Don't need this right now, we just instance shader to a missing resource
+	// If GLTF exporter somehow starts making use of them, we'll have to do this
+	// bool is_default_gltf_load = ResourceCompatLoader::is_default_gltf_load();
+	// if (has_shader) {
+	// 	print_line("This scene has shaders, which may not be compatible with the exporter.");
+	// 	// if it has a shader, we have to set gltf_load to false and do a real load on the textures, otherwise shaders will not be applied to the textures
+	// 	ResourceCompatLoader::set_default_gltf_load(false);
+	// }
+	for (auto &E : get_deps_map) {
+		dep_info &info = E.value;
+		// Never set a Shader, they're not used by the GLTF writer and cause errors
+		if ((info.type == "Script" && info.dep.get_extension().to_lower() == "cs" && !GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) || (info.type == "Shader" && !replace_shader_materials)) {
+			auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
 			if (info.type == "Script") {
-				has_script = true;
-			} else if (info.dep.get_extension().to_lower().contains("shader")) {
-				has_shader = true;
-			} else {
-				if (info.parent_is_script_or_shader) {
-					script_or_shader_deps.insert(info.dep);
-				}
-				if (info.type.contains("Animation")) {
-					has_external_animation = true;
-					animation_deps_needed.insert(info.dep);
-					need_to_be_updated.insert(info.dep);
-				} else if (info.type.contains("Material")) {
-					if (info.real_type == "ShaderMaterial") {
-						has_shader = true;
-					}
-					has_external_materials = true;
-					need_to_be_updated.insert(info.dep);
-				} else if (info.type.contains("Texture")) {
-					has_external_images = true;
-					String ext = info.dep.get_extension().to_upper();
-					if (ext == "JPG") {
-						ext = "JPEG";
-					}
-					image_extensions.append(ext);
-					need_to_be_updated.insert(info.dep);
-				} else if (info.type.contains("Mesh")) {
-					has_external_meshes = true;
-					need_to_be_updated.insert(info.dep);
-				}
+				Ref<FakeScript> script = texture;
+				script->set_can_instantiate(true);
+				script->set_load_type(ResourceCompatLoader::get_default_load_type());
 			}
+			set_cache_res(info, texture, false);
+			continue;
 		}
-		// Don't need this right now, we just instance shader to a missing resource
-		// If GLTF exporter somehow starts making use of them, we'll have to do this
-		// bool is_default_gltf_load = ResourceCompatLoader::is_default_gltf_load();
-		// if (has_shader) {
-		// 	print_line("This scene has shaders, which may not be compatible with the exporter.");
-		// 	// if it has a shader, we have to set gltf_load to false and do a real load on the textures, otherwise shaders will not be applied to the textures
-		// 	ResourceCompatLoader::set_default_gltf_load(false);
-		// }
-		auto set_cache_res = [&](const dep_info &info, const Ref<Resource> &texture, bool force_replace) {
-			if (texture.is_null() || (!force_replace && ResourceCache::get_ref(info.dep).is_valid())) {
-				return;
-			}
-#ifdef TOOLS_ENABLED
-			texture->set_import_path(info.remap);
-#endif
-			// reset the path cache, then set the path so it loads it into cache.
-			texture->set_path_cache("");
-			texture->set_path(info.dep, true);
-			textures.push_back(texture);
-		};
-		for (auto &E : get_deps_map) {
-			dep_info &info = E.value;
-			// Never set Script or Shader, they're not used by the GLTF writer and cause errors
-			if (info.type == "Script" || info.type == "Shader") {
-				auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
-				set_cache_res(info, texture, false);
-				continue;
-			}
-			if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
-				GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
-						vformat("Dependency %s -> %s does not exist.", info.dep, info.remap));
-			} else if (info.uid != ResourceUID::INVALID_ID) {
-				if (!info.uid_in_uid_cache) {
-					ResourceUID::get_singleton()->add_id(info.uid, info.remap);
-					texture_uids.push_back(info.uid);
-				} else if (!info.uid_in_uid_cache_matches_dep) {
-					if (info.uid_remap_path_exists) {
-						WARN_PRINT(vformat("Dependency %s:%s is not mapped to the same path: %s (%s)", info.dep, info.remap, info.orig_remap, ResourceUID::get_singleton()->id_to_text(info.uid)));
-						ResourceUID::get_singleton()->set_id(info.uid, info.remap);
-					}
-				}
+		if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
+					vformat("Dependency %s -> %s does not exist.", info.dep, info.remap));
+		} else if (info.uid != ResourceUID::INVALID_ID) {
+			if (!info.uid_in_uid_cache) {
+				ResourceUID::get_singleton()->add_id(info.uid, info.remap);
+				loaded_dep_uids.push_back(info.uid);
+			} else if (!info.uid_in_uid_cache_matches_dep) {
 				if (info.uid_remap_path_exists) {
-					continue;
-					// else fall through
+					WARN_PRINT(vformat("Dependency %s:%s is not mapped to the same path: %s (%s)", info.dep, info.remap, info.orig_remap, ResourceUID::get_singleton()->id_to_text(info.uid)));
+					ResourceUID::get_singleton()->set_id(info.uid, info.remap);
 				}
 			}
-
-			if (info.dep != info.remap) {
-				String our_path = GDRESettings::get_singleton()->get_mapped_path(info.dep);
-				if (our_path != info.remap) {
-					WARN_PRINT(vformat("Dependency %s:%s is not mapped to the same path: %s", info.dep, info.remap, our_path));
-					if (!ResourceCache::has(info.dep)) {
-						auto texture = ResourceCompatLoader::custom_load(
-								info.remap, "",
-								ResourceCompatLoader::get_default_load_type(),
-								&err,
-								using_threaded_load(),
-								ResourceFormatLoader::CACHE_MODE_IGNORE); // not ignore deep, we want to reuse dependencies if they exist
-						if (err || texture.is_null()) {
-							GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
-									vformat("Dependency %s:%s failed to load.", info.dep, info.remap));
-						}
-						if (!ResourceCache::has(info.dep)) {
-							set_cache_res(info, texture, false);
-						}
-					}
-				} else { // if mapped_path logic changes, we have to set this to true
-					// no_threaded_load = true;
-				}
+			if (info.uid_remap_path_exists) {
+				continue;
+				// else fall through
 			}
 		}
 
-		Vector<String> id_to_texture_path;
-		Dictionary image_path_to_data_hash;
-		Vector<Pair<String, String>> id_to_material_path;
-		// Vector<Pair<String, String>> id_to_meshes_path;
-		Vector<ObjExporter::MeshInfo> id_to_mesh_info;
-		HashMap<String, String> animation_map;
-		HashMap<String, ObjExporter::MeshInfo> mesh_info_map;
-		HashMap<String, Dictionary> animation_options;
-
-		// export/import settings
-		bool has_reset_track = false;
-		bool has_skinned_meshes = false;
-		bool has_non_skeleton_transforms = false;
-		bool has_physics_nodes = false;
-		String root_type;
-		String root_name;
-		String export_image_format = image_extensions.is_empty() ? "PNG" : gdre::get_most_popular_value(image_extensions);
-		bool lossy = false;
-		if (export_image_format == "WEBP") {
-			// Only 3.4 and above supports lossless WebP
-			if (iinfo.is_valid() && (iinfo->get_ver_major() > 3 || (iinfo->get_ver_major() == 3 && iinfo->get_ver_minor() >= 4))) {
-				export_image_format = "Lossless WebP";
-			} else {
-				if (GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false)) {
-					export_image_format = "PNG";
-				} else {
-					export_image_format = "Lossy WebP";
-					lossy = true;
+		if (info.dep != info.remap) {
+			String our_path = GDRESettings::get_singleton()->get_mapped_path(info.dep);
+			if (our_path != info.remap) {
+				WARN_PRINT(vformat("Dependency %s:%s is not mapped to the same path: %s", info.dep, info.remap, our_path));
+				if (!ResourceCache::has(info.dep)) {
+					auto texture = ResourceCompatLoader::custom_load(
+							info.remap, "",
+							ResourceCompatLoader::get_default_load_type(),
+							&err,
+							using_threaded_load(),
+							ResourceFormatLoader::CACHE_MODE_IGNORE); // not ignore deep, we want to reuse dependencies if they exist
+					if (err || texture.is_null()) {
+						GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
+								vformat("Dependency %s:%s failed to load.", info.dep, info.remap));
+					}
+					if (!ResourceCache::has(info.dep)) {
+						set_cache_res(info, texture, false);
+					}
 				}
+			} else { // if mapped_path logic changes, we have to set this to true
+				// no_threaded_load = true;
 			}
-			// TODO: add setting to force PNG?
-		} else if (export_image_format == "JPEG") {
-			if (GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false)) {
+		}
+	}
+
+	// export/import settings
+	export_image_format = image_extensions.is_empty() ? "PNG" : gdre::get_most_popular_value(image_extensions);
+	has_lossy_images = false;
+	if (export_image_format == "WEBP") {
+		// Only 3.4 and above supports lossless WebP
+		if (ver_major > 3 || (ver_major == 3 && ver_minor >= 4)) {
+			export_image_format = "Lossless WebP";
+		} else {
+			if (force_lossless_images) {
 				export_image_format = "PNG";
 			} else {
-				lossy = true;
+				export_image_format = "Lossy WebP";
+				has_lossy_images = true;
 			}
-		} else {
-			// the GLTF exporter doesn't support anything other than PNG, JPEG, and WEBP
+		}
+		// TODO: add setting to force PNG?
+	} else if (export_image_format == "JPEG") {
+		if (force_lossless_images) {
 			export_image_format = "PNG";
+		} else {
+			has_lossy_images = true;
 		}
-		if (lossy && p_report.is_valid()) {
-			p_report->set_loss_type(ImportInfo::STORED_LOSSY);
-		}
-
-		auto get_resource_path = [&](const Ref<Resource> &res) {
-			String path = res->get_path();
-			if (path.is_empty()) {
-				Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
-				if (compat.is_valid()) {
-					path = compat->original_path;
-				}
-			}
-			return path;
-		};
-
-		auto errors_before = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
-		auto _export_scene = [&]() {
-			Error p_err;
-			auto mode_type = ResourceCompatLoader::get_default_load_type();
-			Ref<PackedScene> scene;
-			// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-			if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
-				scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &p_err);
-			} else {
-				scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", mode_type, &p_err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
-			}
-			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
-			p_err = gdre::ensure_dir(p_dest_path.get_base_dir());
-			auto deps = _find_resources(scene, true, ver_major);
-			Node *root = scene->instantiate();
-			TypedArray<Node> animation_player_nodes = root->find_children("*", "AnimationPlayer");
-			TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
-			HashSet<Node *> skinned_mesh_instances;
-			for (auto &E : mesh_instances) {
-				MeshInstance3D *mesh_instance = cast_to<MeshInstance3D>(E);
-				ERR_CONTINUE(!mesh_instance);
-				auto skin = mesh_instance->get_skin();
-				if (skin.is_valid()) {
-					has_skinned_meshes = true;
-					skinned_mesh_instances.insert(mesh_instance);
-				}
-			}
-			for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
-				// Force re-compute animation tracks.
-				Vector<Ref<AnimationLibrary>> anim_libs;
-				AnimationPlayer *player = cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
-				List<StringName> anim_lib_names;
-				player->get_animation_library_list(&anim_lib_names);
-				for (auto &lib_name : anim_lib_names) {
-					Ref<AnimationLibrary> lib = player->get_animation_library(lib_name);
-					if (lib.is_valid()) {
-						anim_libs.push_back(lib);
-					}
-				}
-				ERR_CONTINUE(!player);
-				auto current_anmation = player->get_current_animation();
-				auto current_pos = current_anmation.is_empty() ? 0 : player->get_current_animation_position();
-				for (auto &anim_lib : anim_libs) {
-					List<StringName> anim_names;
-					anim_lib->get_animation_list(&anim_names);
-					if (ver_major <= 3 && anim_names.size() > 0) {
-						// force re-compute animation tracks.
-						player->set_current_animation(anim_names.front()->get());
-						player->advance(0);
-						player->set_current_animation(current_anmation);
-						if (!current_anmation.is_empty()) {
-							player->seek(current_pos);
-						}
-					}
-					for (auto &anim_name : anim_names) {
-						Ref<Animation> anim = anim_lib->get_animation(anim_name);
-						auto path = get_resource_path(anim);
-						String name = anim_name;
-						if (name == "RESET") {
-							has_reset_track = true;
-						}
-						size_t num_tracks = anim->get_track_count();
-						// check for a transform that affects a non-skeleton node
-						for (size_t i = 0; i < num_tracks; i++) {
-							if (anim->track_get_type(i) == Animation::TYPE_SCALE_3D || anim->track_get_type(i) == Animation::TYPE_ROTATION_3D || anim->track_get_type(i) == Animation::TYPE_POSITION_3D) {
-								if (anim->track_get_path(i).get_subname_count() == 0) {
-									has_non_skeleton_transforms = true;
-								}
-							}
-							if (!anim->track_is_imported(i)) {
-								external_animation_nodepaths.insert(anim->track_get_path(i));
-							}
-						}
-						if (ver_major == 4) {
-							int i = 1;
-							while (animation_options.has(name)) {
-								// append _001, _002, etc.
-								name = vformat("%s_%03d", anim_name, i);
-								i++;
-							}
-							animation_options[name] = Dictionary();
-							auto &options = animation_options[name];
-							options["settings/loop_mode"] = (int)anim->get_loop_mode();
-							if (!(path.is_empty() || path.get_file().contains("::"))) {
-								options["save_to_file/enabled"] = true;
-								set_path_options(options, path);
-								options["save_to_file/keep_custom_tracks"] = true;
-								// TODO: slices??
-							} else {
-								options["save_to_file/enabled"] = false;
-								set_path_options(options, "");
-								options["save_to_file/keep_custom_tracks"] = false;
-							}
-							options["slices/amount"] = 0;
-						}
-					}
-				}
-			}
-
-			String scene_name;
-			if (p_report.is_valid()) {
-				scene_name = iinfo->get_source_file().get_file().get_basename();
-			} else {
-				scene_name = p_src_path.get_file().get_slice(".", 0);
-			}
-			auto pop_res_path_vec = [](Array arr, Vector<String> &paths) {
-				paths.clear();
-				paths.resize(arr.size());
-				for (int i = 0; i < arr.size(); i++) {
-					Ref<Resource> res = arr[i];
-					if (res.is_null()) {
-						paths.write[i] = "";
-					} else {
-						paths.write[i] = res->get_path();
-					}
-				}
-			};
-
-			// TODO: handle Godot version <= 4.2 image naming scheme?
-			auto demangle_name = [scene_name](const String &path) {
-				return path.trim_prefix(scene_name + "_");
-			};
-
-			{
-				List<String> deps;
-				Ref<GLTFDocument> doc;
-				doc.instantiate();
-				Ref<GLTFState> state;
-				state.instantiate();
-				state->set_scene_name(scene_name);
-				state->set_copyright(copyright_string);
-				doc->set_image_format(export_image_format);
-				doc->set_lossy_quality(1.0f);
-
-				if (has_non_skeleton_transforms && has_skinned_meshes) {
-					// WARN_PRINT("Skinned meshes have non-skeleton transforms, exporting as non-single-root.");
-					doc->set_root_node_mode(GLTFDocument::RootNodeMode::ROOT_NODE_MODE_MULTI_ROOT);
-					TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
-					TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
-					has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
-					if (has_physics_nodes) {
-						WARN_PRINT("Skinned meshes have physics nodes, but still exporting as non-single-root.");
-					}
-				}
-				int32_t flags = 0;
-				auto exts = doc->get_supported_gltf_extensions();
-				flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
-				// root = scene->instantiate();
-				root_type = root->get_class();
-				root_name = root->get_name();
-				bool was_silenced = GDRELogger::is_silencing_errors();
-				GDRELogger::set_silent_errors(true);
-				p_err = doc->append_from_scene(root, state, flags);
-				if (p_err) {
-					GDRELogger::set_silent_errors(was_silenced);
-					memdelete(root);
-					ERR_FAIL_COND_V_MSG(p_err, ERR_COMPILATION_FAILED, "Failed to append scene " + p_src_path + " to glTF document");
-				}
-				Vector<String> original_mesh_names;
-				Vector<String> original_image_names;
-
-				p_err = doc->_serialize(state);
-				GDRELogger::set_silent_errors(was_silenced);
-				if (p_err) {
-					ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
-				}
-
-				auto get_name_res = [](const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
-					String name = dict.get("name", String());
-					if (name.is_empty()) {
-						name = res->get_name();
-						if (name.is_empty()) {
-							Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
-							if (info.is_valid() && !info->resource_name.is_empty()) {
-								name = info->resource_name;
-							} else {
-								name = res->get_class() + "_" + String::num_int64(idx);
-							}
-						}
-					}
-					return name;
-				};
-
-				auto get_path_res = [](const Ref<Resource> &res) {
-					String path = res->get_path();
-					if (path.is_empty()) {
-						Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
-						if (info.is_valid() && !info->original_path.is_empty()) {
-							path = info->original_path;
-						}
-					}
-					return path;
-				};
-
-				{
-					auto json = state->get_json();
-					auto materials = state->get_materials();
-					Array images = state->get_images();
-					Array json_images = json.has("images") ? (Array)json["images"] : Array();
-					HashMap<String, Vector<int>> image_map;
-					bool has_duped_images = false;
-					static const HashMap<String, Vector<BaseMaterial3D::TextureParam>> generated_tex_suffixes = {
-						{ "emission", { BaseMaterial3D::TEXTURE_EMISSION } },
-						{ "normal", { BaseMaterial3D::TEXTURE_NORMAL } },
-						// These are imported into the same texture, and the materials use that same texture for each of these params.
-						{ "orm", { BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D::TEXTURE_ROUGHNESS, BaseMaterial3D::TEXTURE_METALLIC } },
-						{ "albedo", { BaseMaterial3D::TEXTURE_ALBEDO } }
-					};
-					for (int i = 0; i < json_images.size(); i++) {
-						Dictionary image_dict = json_images[i];
-						Ref<Texture2D> image = images[i];
-						auto path = get_path_res(image);
-						String name;
-						if (path.is_empty()) {
-							name = get_name_res(image_dict, image, i);
-							auto parts = name.rsplit("_", false, 1);
-							String material_name = parts.size() > 0 ? parts[0] : String();
-							String suffix;
-							Vector<BaseMaterial3D::TextureParam> params;
-							if (parts.size() > 1 && generated_tex_suffixes.has(parts[1])) {
-								suffix = parts[1];
-								params = generated_tex_suffixes[suffix];
-							}
-							if (!suffix.is_empty()) {
-								for (auto E : materials) {
-									Ref<Material> material = E;
-									if (!material.is_valid()) {
-										continue;
-									}
-
-									String mat_name = material->get_name();
-									if (material_name != mat_name && material_name != mat_name.replace(".", "_")) {
-										continue;
-									}
-									Ref<BaseMaterial3D> base_material = material;
-									if (base_material.is_valid()) {
-										for (auto param : params) {
-											auto tex = base_material->get_texture(param);
-											if (tex.is_valid()) {
-												path = tex->get_path();
-												break;
-											}
-										}
-									}
-								}
-							}
-						}
-						bool is_internal = path.is_empty() || path.get_file().contains("::");
-						if (is_internal) {
-							name = get_name_res(image_dict, image, i);
-							if (!image_map.has(name)) {
-								image_map[name] = Vector<int>();
-							} else {
-								has_duped_images = true;
-							}
-							image_map[name].push_back(i);
-						} else {
-							name = path.get_file().get_basename();
-							external_deps_updated.insert(path);
-							if (!image_map.has(name)) {
-								image_map[name] = Vector<int>();
-							} else {
-								has_duped_images = true;
-							}
-							image_map[name].push_back(i);
-							unsigned char md5_hash[16];
-							Ref<Image> img = image->get_image();
-							auto img_data = img->get_data();
-							CryptoCore::md5(img_data.ptr(), img_data.size(), md5_hash);
-							String new_md5 = String::hex_encode_buffer(md5_hash, 16);
-							image_path_to_data_hash[path] = new_md5;
-						}
-						if (!name.is_empty()) {
-							image_dict["name"] = demangle_name(name);
-						}
-						Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(image);
-						Dictionary extras = info.is_valid() ? info->extra : Dictionary();
-						had_images = true;
-						if (extras.has("data_format")) {
-							image_formats.push_back(CompressedTexture2D::DataFormat(int(extras["data_format"])));
-						}
-					}
-					HashMap<int, int> removal_to_replacement;
-					Vector<int> to_remove;
-					if (has_duped_images) {
-						for (auto &E : image_map) {
-							auto &indices = E.value;
-							if (indices.size() <= 1) {
-								continue;
-							}
-							int replacement = indices[0];
-							for (int i = 1; i < indices.size(); i++) {
-								Dictionary image_dict = json_images[indices[i]];
-								Ref<Texture2D> image = images[indices[i]];
-								to_remove.push_back(indices[i]);
-								removal_to_replacement[indices[i]] = replacement;
-							}
-						}
-						Array json_textures = json["textures"];
-						for (Dictionary texture_dict : json_textures) {
-							if (texture_dict.has("source")) {
-								// image idx
-								int image_idx = texture_dict["source"];
-								if (removal_to_replacement.has(image_idx)) {
-									texture_dict["source"] = removal_to_replacement[image_idx];
-								}
-							}
-						}
-						to_remove.sort();
-						to_remove.reverse();
-						for (int i = 0; i < to_remove.size(); i++) {
-							json_images.remove_at(to_remove[i]);
-						}
-						json["textures"] = json_textures;
-					}
-					if (json_images.size() > 0) {
-						json["images"] = json_images;
-					}
-
-					if (json.has("meshes")) {
-						auto default_light_map_size = Vector2i(0, 0);
-						Vector<String> mesh_names;
-						Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
-						Vector<bool> mesh_is_shadow;
-						auto gltf_meshes = state->get_meshes();
-						Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
-						for (int i = 0; i < gltf_meshes.size(); i++) {
-							Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
-							auto mesh = gltf_mesh->get_mesh();
-							auto original_name = gltf_mesh->get_original_name();
-							Dictionary mesh_dict = json_meshes[i];
-							ObjExporter::MeshInfo mesh_info;
-							if (mesh.is_null()) {
-								id_to_mesh_info.push_back(mesh_info);
-								continue;
-							}
-							String path = get_path_res(mesh);
-							String name;
-							bool is_internal = path.is_empty() || path.get_file().contains("::");
-							if (is_internal) {
-								name = get_name_res(mesh_dict, mesh, i);
-							} else {
-								name = path.get_file().get_basename();
-							}
-							if (!name.is_empty()) {
-								mesh_dict["name"] = demangle_name(name);
-							} else if (!original_name.is_empty()) {
-								mesh_dict["name"] = original_name;
-							}
-							if (original_name.is_empty()) {
-								gltf_mesh->set_original_name(name);
-							}
-							mesh_info.path = path;
-							mesh_info.name = name;
-
-							mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
-							mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
-							for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
-								auto format = mesh->get_surface_format(surf_idx);
-								mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
-								mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
-								mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
-								// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
-							}
-
-							id_to_mesh_info.push_back(mesh_info);
-						}
-						json["meshes"] = json_meshes;
-					}
-					if (json.has("materials")) {
-						Array json_materials = json["materials"];
-						for (int i = 0; i < materials.size(); i++) {
-							Dictionary material_dict = json_materials[i];
-							Ref<Material> material = materials[i];
-							auto path = get_path_res(material);
-							String name;
-							bool is_internal = path.is_empty() || path.get_file().contains("::");
-							if (is_internal) {
-								name = get_name_res(material_dict, material, i);
-							} else {
-								name = path.get_file().get_basename();
-							}
-							if (!name.is_empty()) {
-								material_dict["name"] = demangle_name(name);
-							}
-							id_to_material_path.push_back({ name, path });
-						}
-					}
-					auto gltf_nodes = state->get_nodes();
-					// rename animation player nodes to avoid name clashes when reimporting
-					if (gltf_nodes.size() > 0) {
-						Array json_nodes = json["nodes"];
-						Array json_scenes = json["scenes"];
-						Vector<GLTFNodeIndex> nodes_to_remove;
-						for (int node_idx = gltf_nodes.size() - 1; node_idx >= 0; node_idx--) {
-							Ref<GLTFNode> node = gltf_nodes[node_idx];
-							Dictionary json_node = json_nodes[node_idx];
-							if (node.is_valid()) {
-								auto original_name = node->get_original_name();
-								if (!original_name.is_empty() && original_name.contains("AnimationPlayer")) {
-									if (node_idx == json_nodes.size() - 1 && (json_node.size() == 0 || (json_node.size() == 1 && json_node.has("name")))) {
-										// useless node, remove it
-										auto parent = node->get_parent();
-										if (parent != -1) {
-											Dictionary parent_node = json_nodes[parent];
-											Array children = parent_node.get("children", Array());
-											if (children.has(node_idx)) {
-												children.erase(node_idx);
-												parent_node["children"] = children;
-											}
-										}
-										for (int j = 0; j < json_scenes.size(); j++) {
-											Dictionary scene_json = json_scenes[j];
-											Array scene_nodes = scene_json.get("nodes", Array());
-											if (scene_nodes.has(node_idx)) {
-												scene_nodes.erase(node_idx);
-												scene_json["nodes"] = scene_nodes;
-												json_scenes[j] = scene_json;
-											}
-										}
-										json_nodes.remove_at(node_idx);
-										nodes_to_remove.push_back(node_idx);
-										continue;
-									} else {
-										json_node["name"] = original_name + "_ORIG_" + String::num_int64(node_idx);
-									}
-								}
-							}
-						}
-						// nodes_to_remove.sort();
-						// nodes_to_remove.reverse();
-						json["nodes"] = json_nodes;
-						json["scenes"] = json_scenes;
-					}
-
-					Dictionary gltf_asset = json["asset"];
-#if DEBUG_ENABLED
-					// less file churn when testing
-					gltf_asset["generator"] = "GDRE Tools";
-#else
-					gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_singleton()->get_gdre_version();
-#endif
-
-					json["asset"] = gltf_asset;
-				}
-#if DEBUG_ENABLED
-				if (p_dest_path.get_extension() == "glb") {
-					// save a gltf copy for debugging
-					auto gltf_path = p_dest_path.get_base_dir().path_join("GLTF/" + p_dest_path.get_file().get_basename() + ".gltf");
-					gdre::ensure_dir(gltf_path.get_base_dir());
-					_serialize_file(state, gltf_path, !GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false));
-				}
-#endif
-				p_err = _serialize_file(state, p_dest_path, !GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false));
-			}
-			memdelete(root);
-			ERR_FAIL_COND_V_MSG(p_err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
-			tinygltf::Model model;
-			String error_string;
-			// load it just to verify that it's valid
-			p_err = load_model(p_dest_path, model, error_string);
-			if (p_err != OK) {
-				return ERR_FILE_CORRUPT;
-			}
-			return OK;
-		};
-		err = _export_scene();
-		auto errors_after = using_threaded_load() ? GDRELogger::get_error_count() : GDRELogger::get_thread_error_count();
-		if (err == OK && errors_after > errors_before) {
-			err = ERR_BUG;
-		}
-		auto iinfo = p_report.is_valid() ? p_report->get_import_info() : Ref<ImportInfo>();
-		if (iinfo.is_valid() && iinfo->get_ver_major() >= 4) {
-			ObjExporter::MeshInfo global_mesh_info;
-			Vector<bool> global_has_tangents;
-			Vector<bool> global_has_lods;
-			Vector<bool> global_has_shadow_meshes;
-			Vector<bool> global_has_lightmap_uv2;
-			Vector<float> global_lightmap_uv2_texel_size;
-			Vector<int> global_bake_mode;
-			// push them back
-			for (auto &E : id_to_mesh_info) {
-				global_has_tangents.push_back(E.has_tangents);
-				global_has_lods.push_back(E.has_lods);
-				global_has_shadow_meshes.push_back(E.has_shadow_meshes);
-				global_has_lightmap_uv2.push_back(E.has_lightmap_uv2);
-				global_lightmap_uv2_texel_size.push_back(E.lightmap_uv2_texel_size);
-				global_bake_mode.push_back(E.bake_mode);
-				// compression enabled is used for forcing disabling, so if ANY of them have it on, we need to set it on
-				global_mesh_info.compression_enabled = global_mesh_info.compression_enabled || E.compression_enabled;
-			}
-			global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
-			global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
-			global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
-			global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
-			global_mesh_info.lightmap_uv2_texel_size = gdre::get_most_popular_value(global_lightmap_uv2_texel_size);
-			global_mesh_info.bake_mode = gdre::get_most_popular_value(global_bake_mode);
-
-			int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
-			if (had_images) {
-				if (has_external_images) {
-					image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
-				} else {
-					auto most_common_format = gdre::get_most_popular_value(image_formats);
-					if (most_common_format == CompressedTexture2D::DATA_FORMAT_BASIS_UNIVERSAL) {
-						image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_BASISU;
-					} else {
-						image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_UNCOMPRESSED;
-					}
-				}
-			}
-
-			// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_type", PROPERTY_HINT_TYPE_STRING, "Node"), ""));
-			// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_name"), ""));
-			iinfo->set_param("nodes/root_type", root_type);
-			iinfo->set_param("nodes/root_name", root_name);
-
-			iinfo->set_param("nodes/apply_root_scale", true);
-			iinfo->set_param("nodes/root_scale", 1.0);
-			iinfo->set_param("nodes/import_as_skeleton_bones", false);
-			if (after_4_4) {
-				iinfo->set_param("nodes/use_name_suffixes", true);
-			}
-			if (after_4_3) {
-				iinfo->set_param("nodes/use_node_type_suffixes", true);
-			}
-			iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
-			iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
-			iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
-			iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
-			iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
-			iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
-			iinfo->set_param("skins/use_named_skins", true);
-			iinfo->set_param("animation/import", true);
-			iinfo->set_param("animation/fps", 30);
-			iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
-			iinfo->set_param("animation/remove_immutable_tracks", true);
-			iinfo->set_param("animation/import_rest_as_RESET", has_reset_track);
-			iinfo->set_param("import_script/path", "");
-			// 		r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/naming_version", PROPERTY_HINT_ENUM, "Godot 4.1 or 4.0,Godot 4.2 or later"), 1));
-			// r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/embedded_image_handling", PROPERTY_HINT_ENUM, "Discard All Textures,Extract Textures,Embed as Basis Universal,Embed as Uncompressed", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES));
-			// Godot 4.2 and above blow out the import params, so we need to update them to point to the external resources.
-			Dictionary _subresources_dict = Dictionary();
-			if (iinfo->has_param("_subresources")) {
-				_subresources_dict = iinfo->get_param("_subresources");
-			} else {
-				iinfo->set_param("_subresources", _subresources_dict);
-			}
-
-			if (after_4_1) {
-				iinfo->set_param("gltf/naming_version", after_4_1 ? 1 : 0);
-			}
-
-			iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
-
-			if (animation_options.size() > 0) {
-				if (!_subresources_dict.has("animations")) {
-					_subresources_dict["animations"] = Dictionary();
-				}
-				Dictionary animations_dict = _subresources_dict["animations"];
-				for (auto &E : animation_options) {
-					// "save_to_file/enabled": true,
-					// "save_to_file/keep_custom_tracks": true,
-					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
-					animations_dict[E.key] = E.value;
-					String path = get_path_options(E.value);
-					if (!(path.is_empty() || path.get_file().contains("::"))) {
-						external_deps_updated.insert(path);
-						animation_deps_updated.insert(path);
-					}
-				}
-			}
-			auto get_default_mesh_opt = [](bool global_opt, bool local_opt) {
-				if (global_opt == local_opt) {
-					return 0;
-				}
-				if (local_opt) {
-					return 1;
-				}
-				return 2;
-			};
-			if (id_to_mesh_info.size() > 0) {
-				if (!_subresources_dict.has("meshes")) {
-					_subresources_dict["meshes"] = Dictionary();
-				}
-
-				Dictionary mesh_Dict = _subresources_dict["meshes"];
-				for (auto &E : id_to_mesh_info) {
-					auto name = E.name;
-					auto path = E.path;
-					if (name.is_empty() || mesh_Dict.has(name)) {
-						ERR_CONTINUE(name.is_empty());
-						continue;
-					}
-					// "save_to_file/enabled": true,
-					// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
-					mesh_Dict[name] = Dictionary();
-					Dictionary subres = mesh_Dict[name];
-					if (path.is_empty() || path.get_file().contains("::")) {
-						subres["save_to_file/enabled"] = false;
-						set_path_options(subres, "");
-					} else {
-						subres["save_to_file/enabled"] = true;
-						set_path_options(subres, path);
-						external_deps_updated.insert(path);
-					}
-					subres["generate/shadow_meshes"] = get_default_mesh_opt(global_mesh_info.has_shadow_meshes, E.has_shadow_meshes);
-					subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.has_lightmap_uv2, E.has_lightmap_uv2);
-					subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
-					// TODO: get these somehow??
-					if (!after_4_3) {
-						subres["lods/normal_split_angle"] = 25.0f;
-					}
-					subres["lods/normal_merge_angle"] = 60.0f;
-					// Doesn't look like this ever made it in?
-					// if (!after_4_3) {
-					// 	subres["lods/raycast_normals"] = false;
-					// }
-				}
-			}
-			if (id_to_material_path.size() > 0) {
-				if (!_subresources_dict.has("materials")) {
-					_subresources_dict["materials"] = Dictionary();
-				}
-
-				Dictionary mat_Dict = _subresources_dict["materials"];
-				for (auto &E : id_to_material_path) {
-					auto name = E.first;
-					auto path = E.second;
-					if (name.is_empty() || mat_Dict.has(name)) {
-						continue;
-					}
-					mat_Dict[name] = Dictionary();
-					Dictionary subres = mat_Dict[name];
-					if (path.is_empty() || path.get_file().contains("::")) {
-						subres["use_external/enabled"] = false;
-						set_path_options(subres, "", "use_external");
-					} else {
-						subres["use_external/enabled"] = true;
-						set_path_options(subres, path, "use_external");
-						external_deps_updated.insert(path);
-					}
-				}
-			}
-
-			iinfo->set_param("_subresources", _subresources_dict);
-			Dictionary extra_info;
-			extra_info["image_path_to_data_hash"] = image_path_to_data_hash;
-			p_report->set_extra_info(extra_info);
-		}
-		textures.clear();
+	} else {
+		// the GLTF exporter doesn't support anything other than PNG, JPEG, and WEBP
+		export_image_format = "PNG";
 	}
+	if (has_lossy_images && report.is_valid()) {
+		report->set_loss_type(ImportInfo::STORED_LOSSY);
+	}
+
+	return OK;
+}
+
+void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
+	root_type = root->get_class();
+	root_name = root->get_name();
+
+	TypedArray<Node> animation_player_nodes = root->find_children("*", "AnimationPlayer");
+	TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
+	HashSet<Node *> skinned_mesh_instances;
+	HashSet<Ref<Mesh>> meshes_in_mesh_instances;
+	for (auto &E : mesh_instances) {
+		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
+		ERR_CONTINUE(!mesh_instance);
+		auto skin = mesh_instance->get_skin();
+		if (skin.is_valid()) {
+			has_skinned_meshes = true;
+			skinned_mesh_instances.insert(mesh_instance);
+			auto mesh = mesh_instance->get_mesh();
+			if (mesh.is_valid()) {
+				meshes_in_mesh_instances.insert(mesh);
+			}
+		}
+	}
+	TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
+	TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
+	has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
+
+	if (has_script) {
+		TypedArray<Node> nodes = { root };
+		nodes.append_array(root->get_children());
+		for (auto &E : nodes) {
+			Node *node = static_cast<Node *>(E.operator Object *());
+			ScriptInstance *si = node->get_script_instance();
+			List<PropertyInfo> properties;
+			if (si) {
+				si->get_property_list(&properties);
+				for (auto &prop : properties) {
+					Variant value;
+					if (si->get(prop.name, value)) {
+						// check if it's a mesh instance
+						Ref<Mesh> mesh = value;
+						if (mesh.is_valid() && !meshes_in_mesh_instances.has(mesh)) {
+							// create a new mesh instance
+							auto mesh_instance = memnew(MeshInstance3D());
+							mesh_instance->set_mesh(mesh);
+							mesh_instance->set_name(mesh->get_name());
+							node->add_child(mesh_instance);
+							// meshes_in_mesh_instances.insert(mesh);
+						}
+					}
+				}
+			}
+		}
+	}
+	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
+		// Force re-compute animation tracks.
+		Vector<Ref<AnimationLibrary>> anim_libs;
+		AnimationPlayer *player = Object::cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
+		List<StringName> anim_lib_names;
+		player->get_animation_library_list(&anim_lib_names);
+		for (auto &lib_name : anim_lib_names) {
+			Ref<AnimationLibrary> lib = player->get_animation_library(lib_name);
+			if (lib.is_valid()) {
+				anim_libs.push_back(lib);
+			}
+		}
+		ERR_CONTINUE(!player);
+		auto current_anmation = player->get_current_animation();
+		auto current_pos = current_anmation.is_empty() ? 0 : player->get_current_animation_position();
+		for (auto &anim_lib : anim_libs) {
+			List<StringName> anim_names;
+			anim_lib->get_animation_list(&anim_names);
+			if (ver_major <= 3 && anim_names.size() > 0) {
+				// force re-compute animation tracks.
+				player->set_current_animation(anim_names.front()->get());
+				player->advance(0);
+				player->set_current_animation(current_anmation);
+				if (!current_anmation.is_empty()) {
+					player->seek(current_pos);
+				}
+			}
+			for (auto &anim_name : anim_names) {
+				Ref<Animation> anim = anim_lib->get_animation(anim_name);
+				auto path = get_resource_path(anim);
+				String name = anim_name;
+				if (name == "RESET") {
+					has_reset_track = true;
+				}
+				size_t num_tracks = anim->get_track_count();
+				// check for a transform that affects a non-skeleton node
+				for (size_t i = 0; i < num_tracks; i++) {
+					if (anim->track_get_type(i) == Animation::TYPE_SCALE_3D || anim->track_get_type(i) == Animation::TYPE_ROTATION_3D || anim->track_get_type(i) == Animation::TYPE_POSITION_3D) {
+						if (anim->track_get_path(i).get_subname_count() == 0) {
+							has_non_skeleton_transforms = true;
+						}
+					}
+					if (!anim->track_is_imported(i)) {
+						external_animation_nodepaths.insert(anim->track_get_path(i));
+					}
+				}
+				if (ver_major == 4) {
+					int i = 1;
+					while (animation_options.has(name)) {
+						// append _001, _002, etc.
+						name = vformat("%s_%03d", anim_name, i);
+						i++;
+					}
+					animation_options[name] = Dictionary();
+					auto &anim_options = animation_options[name];
+					anim_options["settings/loop_mode"] = (int)anim->get_loop_mode();
+					if (!(path.is_empty() || path.get_file().contains("::"))) {
+						anim_options["save_to_file/enabled"] = true;
+						set_path_options(anim_options, path);
+						anim_options["save_to_file/keep_custom_tracks"] = true;
+						// TODO: slices??
+					} else {
+						anim_options["save_to_file/enabled"] = false;
+						set_path_options(anim_options, "");
+						anim_options["save_to_file/keep_custom_tracks"] = false;
+					}
+					anim_options["slices/amount"] = 0;
+				}
+			}
+		}
+	}
+}
+
+bool GLBExporterInstance::_is_logger_silencing_errors() const {
+	if (supports_multithread()) {
+		return GDRELogger::is_thread_local_silencing_errors();
+	}
+	return GDRELogger::is_silencing_errors();
+}
+
+void GLBExporterInstance::_silence_errors(bool p_silence) {
+	if (supports_multithread()) {
+		GDRELogger::set_thread_local_silent_errors(p_silence);
+	} else {
+		GDRELogger::set_silent_errors(p_silence);
+	}
+}
+
+#define GDRE_SCN_EXP_CHECK_CANCEL()                                                                                \
+	{                                                                                                              \
+		if (unlikely(TaskManager::get_singleton()->is_current_task_canceled() || canceled)) {                      \
+			Error cancel_err = TaskManager::get_singleton()->is_current_task_timed_out() ? ERR_TIMEOUT : ERR_SKIP; \
+			return cancel_err;                                                                                     \
+		}                                                                                                          \
+	}
+
+static const HashSet<String> shader_param_names = {
+	"albedo",
+	"specular",
+	"metallic",
+	"roughness",
+	"emission",
+	"emission_energy",
+	"normal_scale",
+	"rim",
+	"rim_tint",
+	"clearcoat",
+	"clearcoat_roughness",
+	"anisotropy",
+	"heightmap_scale",
+	"subsurface_scattering_strength",
+	"transmittance_color",
+	"transmittance_depth",
+	"transmittance_boost",
+	"backlight",
+	"refraction",
+	"point_size",
+	"uv1_scale",
+	"uv1_offset",
+	"uv2_scale",
+	"uv2_offset",
+	"particles_anim_h_frames",
+	"particles_anim_v_frames",
+	"particles_anim_loop",
+	"heightmap_min_layers",
+	"heightmap_max_layers",
+	"heightmap_flip",
+	"uv1_blend_sharpness",
+	"uv2_blend_sharpness",
+	"grow",
+	"proximity_fade_distance",
+	"msdf_pixel_range",
+	"msdf_outline_size",
+	"distance_fade_min",
+	"distance_fade_max",
+	"ao_light_affect",
+	"metallic_texture_channel",
+	"ao_texture_channel",
+	"clearcoat_texture_channel",
+	"rim_texture_channel",
+	"heightmap_texture_channel",
+	"refraction_texture_channel",
+	"alpha_scissor_threshold",
+	"alpha_hash_scale",
+	"alpha_antialiasing_edge",
+	"albedo_texture_size",
+	"z_clip_scale",
+	"fov_override",
+};
+
+// { "name": "RefCounted", "class_name": &"", "type": 0, "hint": 0, "hint_string": "RefCounted", "usage": 128 }
+// { "name": "Resource", "class_name": &"", "type": 0, "hint": 0, "hint_string": "Resource", "usage": 128 }
+// { "name": "Resource", "class_name": &"", "type": 0, "hint": 0, "hint_string": "resource_", "usage": 64 }
+// { "name": "resource_local_to_scene", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "resource_path", "class_name": &"", "type": 4, "hint": 0, "hint_string": "", "usage": 4 }
+// { "name": "resource_name", "class_name": &"", "type": 4, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "resource_scene_unique_id", "class_name": &"", "type": 4, "hint": 0, "hint_string": "", "usage": 0 }
+// { "name": "Material", "class_name": &"", "type": 0, "hint": 0, "hint_string": "Material", "usage": 128 }
+// { "name": "render_priority", "class_name": &"", "type": 2, "hint": 1, "hint_string": "-128,127,1", "usage": 6 }
+// { "name": "next_pass", "class_name": &"Material", "type": 24, "hint": 17, "hint_string": "Material", "usage": 6 }
+// { "name": "BaseMaterial3D", "class_name": &"", "type": 0, "hint": 0, "hint_string": "BaseMaterial3D", "usage": 128 }
+// { "name": "Transparency", "class_name": &"", "type": 0, "hint": 0, "hint_string": "", "usage": 64 }
+// { "name": "transparency", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Disabled,Alpha,Alpha Scissor,Alpha Hash,Depth Pre-Pass", "usage": 6 }
+// { "name": "alpha_scissor_threshold", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.001", "usage": 0 }
+// { "name": "alpha_hash_scale", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,2,0.01", "usage": 0 }
+// { "name": "alpha_antialiasing_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Disabled,Alpha Edge Blend,Alpha Edge Clip", "usage": 0 }
+// { "name": "alpha_antialiasing_edge", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 0 }
+// { "name": "blend_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Mix,Add,Subtract,Multiply,Premultiplied Alpha", "usage": 6 }
+// { "name": "cull_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Back,Front,Disabled", "usage": 6 }
+// { "name": "depth_draw_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Opaque Only,Always,Never", "usage": 6 }
+// { "name": "no_depth_test", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Shading", "class_name": &"", "type": 0, "hint": 0, "hint_string": "", "usage": 64 }
+// { "name": "shading_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Unshaded,Per-Pixel", "usage": 6 }
+// { "name": "diffuse_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Burley,Lambert,Lambert Wrap,Toon", "usage": 6 }
+// { "name": "specular_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "SchlickGGX,Toon,Disabled", "usage": 6 }
+// { "name": "disable_ambient_light", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "disable_fog", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Vertex Color", "class_name": &"", "type": 0, "hint": 0, "hint_string": "vertex_color", "usage": 64 }
+// { "name": "vertex_color_use_as_albedo", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "vertex_color_is_srgb", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Albedo", "class_name": &"", "type": 0, "hint": 0, "hint_string": "albedo_", "usage": 64 }
+// { "name": "albedo_color", "class_name": &"", "type": 20, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "albedo_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 6 }
+// { "name": "albedo_texture_force_srgb", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "albedo_texture_msdf", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "ORM", "class_name": &"", "type": 0, "hint": 0, "hint_string": "orm_", "usage": 64 }
+// { "name": "orm_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 6 }
+// { "name": "Metallic", "class_name": &"", "type": 0, "hint": 0, "hint_string": "metallic_", "usage": 64 }
+// { "name": "metallic", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 0 }
+// { "name": "metallic_specular", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 0 }
+// { "name": "metallic_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 0 }
+// { "name": "metallic_texture_channel", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Red,Green,Blue,Alpha,Gray", "usage": 0 }
+// { "name": "Roughness", "class_name": &"", "type": 0, "hint": 0, "hint_string": "roughness_", "usage": 64 }
+// { "name": "roughness", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 0 }
+// { "name": "roughness_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 0 }
+// { "name": "roughness_texture_channel", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Red,Green,Blue,Alpha,Gray", "usage": 0 }
+// { "name": "Emission", "class_name": &"", "type": 0, "hint": 0, "hint_string": "emission_", "usage": 64 }
+// { "name": "emission_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "emission", "class_name": &"", "type": 20, "hint": 21, "hint_string": "", "usage": 2 }
+// { "name": "emission_energy_multiplier", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,16,0.01,or_greater", "usage": 2 }
+// { "name": "emission_intensity", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,100000.0,0.01,or_greater,suffix:nt", "usage": 0 }
+// { "name": "emission_operator", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Add,Multiply", "usage": 2 }
+// { "name": "emission_on_uv2", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "emission_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Normal Map", "class_name": &"", "type": 0, "hint": 0, "hint_string": "normal_", "usage": 64 }
+// { "name": "normal_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "normal_scale", "class_name": &"", "type": 3, "hint": 1, "hint_string": "-16,16,0.01", "usage": 2 }
+// { "name": "normal_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Rim", "class_name": &"", "type": 0, "hint": 0, "hint_string": "rim_", "usage": 64 }
+// { "name": "rim_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "rim", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "rim_tint", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "rim_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Clearcoat", "class_name": &"", "type": 0, "hint": 0, "hint_string": "clearcoat_", "usage": 64 }
+// { "name": "clearcoat_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "clearcoat", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "clearcoat_roughness", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "clearcoat_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Anisotropy", "class_name": &"", "type": 0, "hint": 0, "hint_string": "anisotropy_", "usage": 64 }
+// { "name": "anisotropy_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "anisotropy", "class_name": &"", "type": 3, "hint": 1, "hint_string": "-1,1,0.01", "usage": 2 }
+// { "name": "anisotropy_flowmap", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Ambient Occlusion", "class_name": &"", "type": 0, "hint": 0, "hint_string": "ao_", "usage": 64 }
+// { "name": "ao_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "ao_light_affect", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "ao_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 0 }
+// { "name": "ao_on_uv2", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "ao_texture_channel", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Red,Green,Blue,Alpha,Gray", "usage": 0 }
+// { "name": "Height", "class_name": &"", "type": 0, "hint": 0, "hint_string": "heightmap_", "usage": 64 }
+// { "name": "heightmap_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "heightmap_scale", "class_name": &"", "type": 3, "hint": 1, "hint_string": "-16,16,0.001", "usage": 2 }
+// { "name": "heightmap_deep_parallax", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "heightmap_min_layers", "class_name": &"", "type": 2, "hint": 1, "hint_string": "1,64,1", "usage": 0 }
+// { "name": "heightmap_max_layers", "class_name": &"", "type": 2, "hint": 1, "hint_string": "1,64,1", "usage": 0 }
+// { "name": "heightmap_flip_tangent", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "heightmap_flip_binormal", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "heightmap_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "heightmap_flip_texture", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "Subsurface Scattering", "class_name": &"", "type": 0, "hint": 0, "hint_string": "subsurf_scatter_", "usage": 64 }
+// { "name": "subsurf_scatter_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "subsurf_scatter_strength", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,1,0.01", "usage": 2 }
+// { "name": "subsurf_scatter_skin_mode", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "subsurf_scatter_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Transmittance", "class_name": &"", "type": 0, "hint": 0, "hint_string": "subsurf_scatter_transmittance_", "usage": 256 }
+// { "name": "subsurf_scatter_transmittance_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "subsurf_scatter_transmittance_color", "class_name": &"", "type": 20, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "subsurf_scatter_transmittance_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "subsurf_scatter_transmittance_depth", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0.001,8,0.001,or_greater", "usage": 2 }
+// { "name": "subsurf_scatter_transmittance_boost", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0.00,1.0,0.01", "usage": 2 }
+// { "name": "Back Lighting", "class_name": &"", "type": 0, "hint": 0, "hint_string": "backlight_", "usage": 64 }
+// { "name": "backlight_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "backlight", "class_name": &"", "type": 20, "hint": 21, "hint_string": "", "usage": 2 }
+// { "name": "backlight_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "Refraction", "class_name": &"", "type": 0, "hint": 0, "hint_string": "refraction_", "usage": 64 }
+// { "name": "refraction_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "refraction_scale", "class_name": &"", "type": 3, "hint": 1, "hint_string": "-1,1,0.01", "usage": 2 }
+// { "name": "refraction_texture", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "refraction_texture_channel", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Red,Green,Blue,Alpha,Gray", "usage": 2 }
+// { "name": "Detail", "class_name": &"", "type": 0, "hint": 0, "hint_string": "detail_", "usage": 64 }
+// { "name": "detail_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "detail_mask", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "detail_blend_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Mix,Add,Subtract,Multiply", "usage": 2 }
+// { "name": "detail_uv_layer", "class_name": &"", "type": 2, "hint": 2, "hint_string": "UV1,UV2", "usage": 2 }
+// { "name": "detail_albedo", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "detail_normal", "class_name": &"Texture2D", "type": 24, "hint": 17, "hint_string": "Texture2D", "usage": 2 }
+// { "name": "UV1", "class_name": &"", "type": 0, "hint": 0, "hint_string": "uv1_", "usage": 64 }
+// { "name": "uv1_scale", "class_name": &"", "type": 9, "hint": 5, "hint_string": "", "usage": 6 }
+// { "name": "uv1_offset", "class_name": &"", "type": 9, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "uv1_triplanar", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "uv1_triplanar_sharpness", "class_name": &"", "type": 3, "hint": 4, "hint_string": "", "usage": 2 }
+// { "name": "uv1_world_triplanar", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "UV2", "class_name": &"", "type": 0, "hint": 0, "hint_string": "uv2_", "usage": 64 }
+// { "name": "uv2_scale", "class_name": &"", "type": 9, "hint": 5, "hint_string": "", "usage": 6 }
+// { "name": "uv2_offset", "class_name": &"", "type": 9, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "uv2_triplanar", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "uv2_triplanar_sharpness", "class_name": &"", "type": 3, "hint": 4, "hint_string": "", "usage": 2 }
+// { "name": "uv2_world_triplanar", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "Sampling", "class_name": &"", "type": 0, "hint": 0, "hint_string": "texture_", "usage": 64 }
+// { "name": "texture_filter", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Nearest,Linear,Nearest Mipmap,Linear Mipmap,Nearest Mipmap Anisotropic,Linear Mipmap Anisotropic", "usage": 6 }
+// { "name": "texture_repeat", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Shadows", "class_name": &"", "type": 0, "hint": 0, "hint_string": "", "usage": 64 }
+// { "name": "disable_receive_shadows", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "shadow_to_opacity", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Billboard", "class_name": &"", "type": 0, "hint": 0, "hint_string": "billboard_", "usage": 64 }
+// { "name": "billboard_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Disabled,Enabled,Y-Billboard,Particle Billboard", "usage": 6 }
+// { "name": "billboard_keep_scale", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 2 }
+// { "name": "Particles Anim", "class_name": &"", "type": 0, "hint": 0, "hint_string": "particles_anim_", "usage": 64 }
+// { "name": "particles_anim_h_frames", "class_name": &"", "type": 2, "hint": 1, "hint_string": "1,128,1", "usage": 0 }
+// { "name": "particles_anim_v_frames", "class_name": &"", "type": 2, "hint": 1, "hint_string": "1,128,1", "usage": 0 }
+// { "name": "particles_anim_loop", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 0 }
+// { "name": "Grow", "class_name": &"", "type": 0, "hint": 0, "hint_string": "grow_", "usage": 64 }
+// { "name": "grow", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "grow_amount", "class_name": &"", "type": 3, "hint": 1, "hint_string": "-16,16,0.001,suffix:m", "usage": 2 }
+// { "name": "Transform", "class_name": &"", "type": 0, "hint": 0, "hint_string": "", "usage": 64 }
+// { "name": "fixed_size", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "use_point_size", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "point_size", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0.1,128,0.1,suffix:px", "usage": 2 }
+// { "name": "use_particle_trails", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "Proximity Fade", "class_name": &"", "type": 0, "hint": 0, "hint_string": "proximity_fade_", "usage": 64 }
+// { "name": "proximity_fade_enabled", "class_name": &"", "type": 1, "hint": 0, "hint_string": "", "usage": 6 }
+// { "name": "proximity_fade_distance", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0.01,4096,0.01,suffix:m", "usage": 2 }
+// { "name": "MSDF", "class_name": &"", "type": 0, "hint": 0, "hint_string": "msdf_", "usage": 64 }
+// { "name": "msdf_pixel_range", "class_name": &"", "type": 3, "hint": 1, "hint_string": "1,100,1", "usage": 2 }
+// { "name": "msdf_outline_size", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,250,1", "usage": 2 }
+// { "name": "Distance Fade", "class_name": &"", "type": 0, "hint": 0, "hint_string": "distance_fade_", "usage": 64 }
+// { "name": "distance_fade_mode", "class_name": &"", "type": 2, "hint": 2, "hint_string": "Disabled,PixelAlpha,PixelDither,ObjectDither", "usage": 6 }
+// { "name": "distance_fade_min_distance", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,4096,0.01,suffix:m", "usage": 2 }
+// { "name": "distance_fade_max_distance", "class_name": &"", "type": 3, "hint": 1, "hint_string": "0,4096,0.01,suffix:m", "usage": 2 }
+// { "name": "ORMMaterial3D", "class_name": &"", "type": 0, "hint": 0, "hint_string": "ORMMaterial3D", "usage": 128 }
+// { "name": "script", "class_name": &"Script", "type": 24, "hint": 17, "hint_string": "Script", "usage": 1048582 }
+
+Ref<BaseMaterial3D> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material) {
+	// we need to manually create a BaseMaterial3D from the shader material
+	// We do this by getting the shader uniforms and then mapping them to the BaseMaterial3D properties
+	// We also need to handle the texture parameters and features
+	List<StringName> list;
+	Ref<Shader> shader = p_shader_material->get_shader();
+	List<PropertyInfo> prop_list;
+	Vector<String> shader_uniforms;
+	shader->get_shader_uniform_list(&prop_list, false);
+	for (auto &E : prop_list) {
+		shader_uniforms.push_back(E.name);
+	}
+
+	Ref<BaseMaterial3D> base_material = memnew(BaseMaterial3D(false));
+
+	// this is initialized with the 3.x params that are still valid in 4.x (`_set()` handles the remapping) but won't show up in the property list
+	HashSet<String> base_material_params = {
+		"flags_use_shadow_to_opacity",
+		"flags_use_shadow_to_opacity",
+		"flags_no_depth_test",
+		"flags_use_point_size",
+		"flags_fixed_size",
+		"flags_albedo_tex_force_srgb",
+		"flags_do_not_receive_shadows",
+		"flags_disable_ambient_light",
+		"params_diffuse_mode",
+		"params_specular_mode",
+		"params_blend_mode",
+		"params_cull_mode",
+		"params_depth_draw_mode",
+		"params_point_size",
+		"params_billboard_mode",
+		"params_billboard_keep_scale",
+		"params_grow",
+		"params_grow_amount",
+		"params_alpha_scissor_threshold",
+		"params_alpha_hash_scale",
+		"params_alpha_antialiasing_edge",
+		"depth_scale",
+		"depth_deep_parallax",
+		"depth_min_layers",
+		"depth_max_layers",
+		"depth_flip_tangent",
+		"depth_flip_binormal",
+		"depth_texture",
+		"emission_energy",
+		"flags_transparent",
+		"flags_unshaded",
+		"flags_vertex_lighting",
+		"params_use_alpha_scissor",
+		"params_use_alpha_hash",
+		"depth_enabled",
+	};
+	List<PropertyInfo> base_material_prop_list;
+	base_material->get_property_list(&base_material_prop_list);
+	bool hit_base_material_group = false;
+	for (auto &E : base_material_prop_list) {
+		if (E.usage == PROPERTY_USAGE_CATEGORY && E.name == "BaseMaterial3D") {
+			hit_base_material_group = true;
+		}
+		if (!hit_base_material_group) {
+			continue;
+		}
+		if (E.usage == PROPERTY_USAGE_CATEGORY || E.usage == PROPERTY_USAGE_GROUP || E.usage == PROPERTY_USAGE_SUBGROUP) {
+			if (E.name != "StandardMaterial3D") {
+				continue;
+			}
+			break;
+		}
+		base_material_params.insert(E.name);
+	}
+
+	static const HashMap<String, BaseMaterial3D::TextureParam> texture_param_map = {
+		{ "albedo_texture", BaseMaterial3D::TEXTURE_ALBEDO },
+		{ "orm_texture", BaseMaterial3D::TEXTURE_ORM },
+		{ "metallic_texture", BaseMaterial3D::TEXTURE_METALLIC },
+		{ "roughness_texture", BaseMaterial3D::TEXTURE_ROUGHNESS },
+		{ "emission_texture", BaseMaterial3D::TEXTURE_EMISSION },
+		{ "normal_texture", BaseMaterial3D::TEXTURE_NORMAL },
+		{ "bent_normal_texture", BaseMaterial3D::TEXTURE_BENT_NORMAL },
+		{ "rim_texture", BaseMaterial3D::TEXTURE_RIM },
+		{ "clearcoat_texture", BaseMaterial3D::TEXTURE_CLEARCOAT },
+		{ "anisotropy_flowmap", BaseMaterial3D::TEXTURE_FLOWMAP },
+		{ "ao_texture", BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION },
+		{ "heightmap_texture", BaseMaterial3D::TEXTURE_HEIGHTMAP },
+		{ "subsurf_scatter_texture", BaseMaterial3D::TEXTURE_SUBSURFACE_SCATTERING },
+		{ "subsurf_scatter_transmittance_texture", BaseMaterial3D::TEXTURE_SUBSURFACE_TRANSMITTANCE },
+		{ "backlight_texture", BaseMaterial3D::TEXTURE_BACKLIGHT },
+		{ "refraction_texture", BaseMaterial3D::TEXTURE_REFRACTION },
+		{ "detail_mask", BaseMaterial3D::TEXTURE_DETAIL_MASK },
+		{ "detail_albedo", BaseMaterial3D::TEXTURE_DETAIL_ALBEDO },
+		{ "detail_normal", BaseMaterial3D::TEXTURE_DETAIL_NORMAL },
+		{ "depth_texture", BaseMaterial3D::TEXTURE_HEIGHTMAP }, // old 3.x name for heightmap texture
+	};
+
+	static const HashMap<BaseMaterial3D::TextureParam, BaseMaterial3D::Feature> feature_to_enable_map = {
+		{ BaseMaterial3D::TEXTURE_NORMAL, BaseMaterial3D::FEATURE_NORMAL_MAPPING },
+		{ BaseMaterial3D::TEXTURE_BENT_NORMAL, BaseMaterial3D::FEATURE_BENT_NORMAL_MAPPING },
+		{ BaseMaterial3D::TEXTURE_EMISSION, BaseMaterial3D::FEATURE_EMISSION },
+		{ BaseMaterial3D::TEXTURE_RIM, BaseMaterial3D::FEATURE_RIM },
+		{ BaseMaterial3D::TEXTURE_CLEARCOAT, BaseMaterial3D::FEATURE_CLEARCOAT },
+		{ BaseMaterial3D::TEXTURE_FLOWMAP, BaseMaterial3D::FEATURE_ANISOTROPY },
+		{ BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D::FEATURE_AMBIENT_OCCLUSION },
+		{ BaseMaterial3D::TEXTURE_HEIGHTMAP, BaseMaterial3D::FEATURE_HEIGHT_MAPPING },
+		{ BaseMaterial3D::TEXTURE_SUBSURFACE_SCATTERING, BaseMaterial3D::FEATURE_SUBSURFACE_SCATTERING },
+		{ BaseMaterial3D::TEXTURE_SUBSURFACE_TRANSMITTANCE, BaseMaterial3D::FEATURE_SUBSURFACE_TRANSMITTANCE },
+		{ BaseMaterial3D::TEXTURE_BACKLIGHT, BaseMaterial3D::FEATURE_BACKLIGHT },
+		{ BaseMaterial3D::TEXTURE_REFRACTION, BaseMaterial3D::FEATURE_REFRACTION },
+		{ BaseMaterial3D::TEXTURE_DETAIL_MASK, BaseMaterial3D::FEATURE_DETAIL },
+		{ BaseMaterial3D::TEXTURE_DETAIL_ALBEDO, BaseMaterial3D::FEATURE_DETAIL },
+		{ BaseMaterial3D::TEXTURE_DETAIL_NORMAL, BaseMaterial3D::FEATURE_DETAIL },
+	};
+
+	String shader_code = shader->get_code();
+	Vector<String> lines = shader_code.split("\n");
+	bool set_texture = false;
+	HashMap<BaseMaterial3D::TextureParam, Vector<Pair<String, Ref<Texture>>>> base_material_texture_candidates;
+	for (int i = 0; i < BaseMaterial3D::TEXTURE_MAX; i++) {
+		base_material_texture_candidates[BaseMaterial3D::TextureParam(i)] = Vector<Pair<String, Ref<Texture>>>();
+	}
+	for (auto &E : shader_uniforms) {
+		String param_name = E.trim_prefix("shader_parameter/");
+		Variant val = p_shader_material->get_shader_parameter(param_name);
+
+		bool did_set = false;
+		if (base_material_params.has(param_name)) {
+			Variant base_material_val = base_material->get(param_name);
+			if (base_material_val.get_type() == val.get_type()) {
+				base_material->set(param_name, val);
+				did_set = true;
+			}
+		}
+
+		Ref<Texture> tex = val;
+		if (!tex.is_valid()) {
+			continue;
+		}
+		if (did_set) {
+			set_texture = true;
+			auto param = texture_param_map.has(param_name) ? texture_param_map.get(param_name) : BaseMaterial3D::TEXTURE_MAX;
+			if (param != BaseMaterial3D::TEXTURE_MAX) {
+				base_material_texture_candidates[param].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+			} else {
+				WARN_PRINT(vformat("Unknown texture parameter: %s", param_name));
+			}
+			continue;
+		}
+
+		// trying to capture "uniform sampler2D emissive_texture : hint_black;"
+		Ref<RegEx> re = RegEx::create_from_string("\\s*uniform\\s+(\\w+)\\s+" + param_name + "\\s+(?:\\:\\s+(\\w+))");
+
+		auto matches = re->search(shader_code);
+		if (matches.is_null() || matches->get_string(2).is_empty()) {
+			continue;
+		}
+		String hint = matches->get_string(2);
+
+		// renames from 3.x to 4.x
+		// { "hint_albedo", "source_color" },
+		// { "hint_aniso", "hint_anisotropy" },
+		// { "hint_black", "hint_default_black" },
+		// { "hint_black_albedo", "hint_default_black" },
+		// { "hint_color", "source_color" },
+		// { "hint_white", "hint_default_white" },
+
+		if (hint.contains("hint_albedo") || hint.contains("source_color")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_ALBEDO].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (hint.contains("hint_white") || hint.contains("hint_default_white")) {
+			if (param_name.contains("metallic") || param_name.contains("metalness")) {
+				base_material_texture_candidates[BaseMaterial3D::TEXTURE_METALLIC].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+			} else if (param_name.contains("roughness") || param_name.contains("rough")) {
+				base_material_texture_candidates[BaseMaterial3D::TEXTURE_ROUGHNESS].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+			} else if (param_name.contains("ao") || param_name.contains("occlusion") || param_name.contains("ambient_occlusion")) {
+				base_material_texture_candidates[BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+			}
+		} else if (hint.contains("hint_normal")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_NORMAL].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (hint.contains("hint_black") || hint.contains("hint_default_black")) {
+			// if (param_name.contains("emissive") || param_name.contains("emission")) {
+			// 	base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+			// } else {
+			// 	default_textures[param_name.trim_prefix("shader_parameter/")] = tex;
+			// }
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		}
+	}
+	for (int i = 0; i < BaseMaterial3D::TEXTURE_MAX; i++) {
+		auto &candidates = base_material_texture_candidates[BaseMaterial3D::TextureParam(i)];
+		auto existing_tex = base_material->get_texture(BaseMaterial3D::TextureParam(i));
+
+		bool should_not_set = candidates.is_empty() && !existing_tex.is_valid();
+		if (should_not_set) {
+			continue;
+		}
+
+		if (feature_to_enable_map.has(BaseMaterial3D::TextureParam(i))) {
+			base_material->set_feature(feature_to_enable_map[BaseMaterial3D::TextureParam(i)], true);
+		}
+
+		if (existing_tex.is_valid()) {
+			continue;
+		}
+		if (candidates.size() == 1) {
+			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
+			set_texture = true;
+			continue;
+		}
+		bool set_this_texture = false;
+		if (i == BaseMaterial3D::TEXTURE_ALBEDO) {
+			for (auto &E : candidates) {
+				if (E.first.contains("albedo")) {
+					base_material->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, E.second);
+					set_texture = true;
+					set_this_texture = true;
+				} else if (E.first.contains("emissi") && set_this_texture) {
+					// push this back to the emission candidates
+					base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(E);
+				}
+			}
+		} else if (i == BaseMaterial3D::TEXTURE_NORMAL) {
+			for (auto &E : candidates) {
+				if (E.first.contains("normal")) {
+					base_material->set_texture(BaseMaterial3D::TEXTURE_NORMAL, E.second);
+					set_texture = true;
+					set_this_texture = true;
+				}
+			}
+		}
+		if (!set_this_texture) {
+			// just use the first one
+			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
+			set_texture = true;
+		}
+	}
+	if (!set_texture) {
+		return Ref<BaseMaterial3D>();
+	}
+
+	return base_material;
+}
+
+Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
+	{
+		GDRE_SCN_EXP_CHECK_CANCEL();
+		String scene_name;
+		if (iinfo.is_valid()) {
+			scene_name = iinfo->get_source_file().get_file().get_basename();
+		} else {
+			if (res_info.is_valid()) {
+				scene_name = res_info->resource_name;
+			}
+			if (scene_name.is_empty()) {
+				scene_name = source_path.get_file().get_slice(".", 0);
+			}
+		}
+
+		// TODO: handle Godot version <= 4.2 image naming scheme?
+		auto demangle_name = [scene_name](const String &path) {
+			return path.trim_prefix(scene_name + "_");
+		};
+		String game_name = GDRESettings::get_singleton()->get_game_name();
+		String copyright_string = vformat(COPYRIGHT_STRING_FORMAT, game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
+		List<String> deps;
+		Ref<GLTFDocument> doc;
+		doc.instantiate();
+		Ref<GLTFState> state;
+		state.instantiate();
+		state->set_scene_name(scene_name);
+		state->set_copyright(copyright_string);
+		doc->set_image_format(export_image_format);
+		doc->set_lossy_quality(1.0f);
+
+		GDRE_SCN_EXP_CHECK_CANCEL();
+		if (force_export_multi_root || (has_non_skeleton_transforms && has_skinned_meshes)) {
+			// WARN_PRINT("Skinned meshes have non-skeleton transforms, exporting as non-single-root.");
+			doc->set_root_node_mode(GLTFDocument::RootNodeMode::ROOT_NODE_MODE_MULTI_ROOT);
+			if (has_physics_nodes) {
+				WARN_PRINT("Skinned meshes have physics nodes, but still exporting as non-single-root.");
+			}
+		}
+		if (after_4_4 || force_require_KHR_node_visibility) {
+			doc->set_visibility_mode(GLTFDocument::VisibilityMode::VISIBILITY_MODE_INCLUDE_REQUIRED);
+		} else {
+			doc->set_visibility_mode(GLTFDocument::VisibilityMode::VISIBILITY_MODE_INCLUDE_OPTIONAL);
+		}
+		int32_t flags = 0;
+		auto exts = doc->get_supported_gltf_extensions();
+		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
+		bool was_silenced = _is_logger_silencing_errors();
+		_silence_errors(true);
+		other_error_messages = _get_logged_error_messages();
+		auto errors_before = _get_error_count();
+		err = doc->append_from_scene(root, state, flags);
+		if (err) {
+			_silence_errors(was_silenced);
+			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
+		}
+		if (canceled) {
+			_silence_errors(was_silenced);
+		}
+		GDRE_SCN_EXP_CHECK_CANCEL();
+
+		// remove shader materials from meshes in the state before serializing
+		if (replace_shader_materials) {
+			for (auto &E : state->get_meshes()) {
+				Ref<GLTFMesh> mesh = E;
+				if (mesh.is_valid()) {
+					auto instance_materials = mesh->get_instance_materials();
+					for (int i = instance_materials.size() - 1; i >= 0; i--) {
+						Ref<ShaderMaterial> shader_material = instance_materials[i];
+						if (shader_material.is_valid()) {
+							Ref<BaseMaterial3D> base_material = convert_shader_material_to_base_material(shader_material);
+							if (base_material.is_valid()) {
+								instance_materials[i] = base_material;
+								continue;
+							}
+							// maybe there's a base material on the mesh itself and the instance material is an override?
+							auto im = mesh->get_mesh();
+							if (im.is_valid() && i < im->get_surface_count()) {
+								base_material = im->get_surface_material(i);
+							}
+							if (base_material.is_valid()) {
+								instance_materials[i] = base_material;
+							}
+						}
+					}
+					mesh->set_instance_materials(instance_materials);
+				}
+			}
+		}
+
+		err = doc->_serialize(state);
+		_silence_errors(was_silenced);
+		GDRE_SCN_EXP_CHECK_CANCEL();
+
+		auto errors_after = _get_error_count();
+		if (errors_after > errors_before) {
+			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
+		}
+		if (err) {
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
+		}
+
+#if DEBUG_ENABLED
+		{
+			// save a gltf copy for debugging
+			Dictionary gltf_asset = state->get_json().get("asset", Dictionary());
+			gltf_asset["generator"] = "GDRE Tools";
+			state->get_json()["asset"] = gltf_asset;
+			auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
+			auto gltf_path = output_dir.path_join(".untouched_gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
+			gdre::ensure_dir(gltf_path.get_base_dir());
+			Vector<String> buffer_paths;
+			_serialize_file(state, gltf_path, buffer_paths, !use_double_precision);
+		}
+		GDRE_SCN_EXP_CHECK_CANCEL();
+#endif
+		{
+			auto json = state->get_json();
+			auto materials = state->get_materials();
+			Array images = state->get_images();
+			Array json_images = json.has("images") ? (Array)json["images"] : Array();
+			HashMap<String, Vector<int>> image_map;
+			auto insert_image_map = [&](String &name, int i) {
+				if (!image_map.has(name)) {
+					image_map[name] = Vector<int>();
+					image_map[name].push_back(i);
+				} else {
+					image_map[name].push_back(i);
+					name = String(name) + vformat("_%03d", image_map[name].size() - 1);
+				}
+			};
+			static const HashMap<String, Vector<BaseMaterial3D::TextureParam>> generated_tex_suffixes = {
+				{ "emission", { BaseMaterial3D::TEXTURE_EMISSION } },
+				{ "normal", { BaseMaterial3D::TEXTURE_NORMAL } },
+				// These are imported into the same texture, and the materials use that same texture for each of these params.
+				{ "orm", { BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D::TEXTURE_ROUGHNESS, BaseMaterial3D::TEXTURE_METALLIC } },
+				{ "albedo", { BaseMaterial3D::TEXTURE_ALBEDO } }
+			};
+			for (int i = 0; i < json_images.size(); i++) {
+				Dictionary image_dict = json_images[i];
+				Ref<Texture2D> image = images[i];
+				auto path = get_path_res(image);
+				String name = image_dict.get("name", String());
+				if (path.is_empty() && !name.is_empty()) {
+					for (auto E : image_deps_needed) {
+						if (E.get_file().get_basename() == name) {
+							path = E;
+							break;
+						}
+					}
+				}
+				if (path.is_empty() && !get_name_res(image_dict, image, i).is_empty()) {
+					name = get_name_res(image_dict, image, i);
+					auto parts = name.rsplit("_", false, 1);
+					String material_name = parts.size() > 0 ? parts[0] : String();
+					String suffix;
+					Vector<BaseMaterial3D::TextureParam> params;
+					if (parts.size() > 1 && generated_tex_suffixes.has(parts[1])) {
+						suffix = parts[1];
+						params = generated_tex_suffixes[suffix];
+					}
+					if (!suffix.is_empty()) {
+						for (auto E : materials) {
+							Ref<Material> material = E;
+							if (!material.is_valid()) {
+								continue;
+							}
+
+							String mat_name = material->get_name();
+							if (material_name != mat_name && material_name != mat_name.replace(".", "_")) {
+								continue;
+							}
+							Ref<BaseMaterial3D> base_material = material;
+							if (base_material.is_valid()) {
+								for (auto param : params) {
+									auto tex = base_material->get_texture(param);
+									if (tex.is_valid()) {
+										path = tex->get_path();
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+				bool is_internal = path.is_empty() || path.get_file().contains("::");
+				if (is_internal) {
+					name = get_name_res(image_dict, image, i);
+					insert_image_map(name, i);
+				} else {
+					name = path.get_file().get_basename();
+					external_deps_updated.insert(path);
+					insert_image_map(name, i);
+					unsigned char md5_hash[16];
+					Ref<Image> img = image->get_image();
+					auto img_data = img->get_data();
+					CryptoCore::md5(img_data.ptr(), img_data.size(), md5_hash);
+					String new_md5 = String::hex_encode_buffer(md5_hash, 16);
+					image_path_to_data_hash[path] = new_md5;
+				}
+				if (!name.is_empty()) {
+					image_dict["name"] = demangle_name(name);
+				}
+				Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(image);
+				Dictionary extras = info.is_valid() ? info->extra : Dictionary();
+				had_images = true;
+				if (extras.has("data_format")) {
+					image_formats.push_back(CompressedTexture2D::DataFormat(int(extras["data_format"])));
+				}
+			}
+			if (json_images.size() > 0) {
+				json["images"] = json_images;
+			}
+
+			if (json.has("meshes")) {
+				auto default_light_map_size = Vector2i(0, 0);
+				Vector<String> mesh_names;
+				Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
+				Vector<bool> mesh_is_shadow;
+				auto gltf_meshes = state->get_meshes();
+				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
+				for (int i = 0; i < gltf_meshes.size(); i++) {
+					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
+					auto mesh = gltf_mesh->get_mesh();
+					auto original_name = gltf_mesh->get_original_name();
+					Dictionary mesh_dict = json_meshes[i];
+					ObjExporter::MeshInfo mesh_info;
+					if (mesh.is_null()) {
+						id_to_mesh_info.push_back(mesh_info);
+						continue;
+					}
+					String path = get_path_res(mesh);
+					String name;
+					bool is_internal = path.is_empty() || path.get_file().contains("::");
+					if (is_internal) {
+						name = get_name_res(mesh_dict, mesh, i);
+					} else {
+						name = path.get_file().get_basename();
+					}
+					if (!name.is_empty()) {
+						mesh_dict["name"] = demangle_name(name);
+					} else if (!original_name.is_empty()) {
+						mesh_dict["name"] = original_name;
+					}
+					if (original_name.is_empty()) {
+						gltf_mesh->set_original_name(name);
+					}
+					mesh_info.path = path;
+					mesh_info.name = name;
+
+					mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
+					mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
+					for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
+						auto format = mesh->get_surface_format(surf_idx);
+						mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
+						mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
+						mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
+						// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
+					}
+					id_to_mesh_info.push_back(mesh_info);
+				}
+				json["meshes"] = json_meshes;
+			}
+
+			if (json.has("materials")) {
+				Array json_materials = json["materials"];
+				for (int i = 0; i < materials.size(); i++) {
+					Dictionary material_dict = json_materials[i];
+					Ref<Material> material = materials[i];
+					auto path = get_path_res(material);
+					String name;
+					bool is_internal = path.is_empty() || path.get_file().contains("::");
+					if (is_internal) {
+						name = get_name_res(material_dict, material, i);
+					} else {
+						name = path.get_file().get_basename();
+					}
+					if (!name.is_empty()) {
+						material_dict["name"] = demangle_name(name);
+					}
+					id_to_material_path.push_back({ name, path });
+				}
+			}
+			auto gltf_nodes = state->get_nodes();
+			// rename animation player nodes to avoid name clashes when reimporting
+			if (gltf_nodes.size() > 0) {
+				Array json_nodes = json["nodes"];
+				Array json_scenes = json["scenes"];
+				Vector<GLTFNodeIndex> nodes_to_remove;
+				for (int node_idx = gltf_nodes.size() - 1; node_idx >= 0; node_idx--) {
+					Ref<GLTFNode> node = gltf_nodes[node_idx];
+					Dictionary json_node = json_nodes[node_idx];
+					if (node.is_valid()) {
+						auto original_name = node->get_original_name();
+						if (!original_name.is_empty() && original_name.contains("AnimationPlayer")) {
+							if (node_idx == json_nodes.size() - 1 && (json_node.size() == 0 || (json_node.size() == 1 && json_node.has("name")))) {
+								// useless node, remove it
+								auto parent = node->get_parent();
+								if (parent != -1) {
+									Dictionary parent_node = json_nodes[parent];
+									Array children = parent_node.get("children", Array());
+									if (children.has(node_idx)) {
+										children.erase(node_idx);
+										parent_node["children"] = children;
+									}
+								}
+								for (int j = 0; j < json_scenes.size(); j++) {
+									Dictionary scene_json = json_scenes[j];
+									Array scene_nodes = scene_json.get("nodes", Array());
+									if (scene_nodes.has(node_idx)) {
+										scene_nodes.erase(node_idx);
+										scene_json["nodes"] = scene_nodes;
+										json_scenes[j] = scene_json;
+									}
+								}
+								json_nodes.remove_at(node_idx);
+								nodes_to_remove.push_back(node_idx);
+								continue;
+							} else {
+								json_node["name"] = original_name + "_ORIG_" + String::num_int64(node_idx);
+							}
+						}
+					}
+				}
+				// nodes_to_remove.sort();
+				// nodes_to_remove.reverse();
+				json["nodes"] = json_nodes;
+				json["scenes"] = json_scenes;
+			}
+
+			Dictionary gltf_asset = json["asset"];
+#if DEBUG_ENABLED
+			// less file churn when testing
+			gltf_asset["generator"] = "GDRE Tools";
+#else
+			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_singleton()->get_gdre_version();
+#endif
+
+			json["asset"] = gltf_asset;
+		}
+#if DEBUG_ENABLED
+		GDRE_SCN_EXP_CHECK_CANCEL();
+		if (p_dest_path.get_extension() == "glb") {
+			// save a gltf copy for debugging
+			auto rel_path = p_dest_path.begins_with(output_dir) ? p_dest_path.trim_prefix(output_dir).simplify_path().trim_prefix("/") : p_dest_path.get_file();
+			if (iinfo.is_valid()) {
+				String ext = iinfo->get_source_file().get_extension().to_lower();
+				// make sure it doesn't already end with two extensions
+				if (rel_path.get_extension().get_extension().is_empty()) {
+					rel_path = rel_path.get_basename() + "." + ext + ".gltf";
+				}
+			}
+			auto gltf_path = output_dir.path_join(".gltf_copy").path_join(rel_path.trim_prefix(".assets/").get_basename() + ".gltf");
+			gdre::ensure_dir(gltf_path.get_base_dir());
+			Vector<String> buffer_paths;
+			_serialize_file(state, gltf_path, buffer_paths, !use_double_precision);
+		}
+#endif
+		GDRE_SCN_EXP_CHECK_CANCEL();
+		Vector<String> buffer_paths;
+		err = _serialize_file(state, p_dest_path, buffer_paths, !use_double_precision);
+		if (report.is_valid() && buffer_paths.size() > 0) {
+			Dictionary extra_info = report->get_extra_info();
+			extra_info["external_buffer_paths"] = buffer_paths;
+			report->set_extra_info(extra_info);
+		}
+	}
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CANT_WRITE, "Failed to write glTF document to " + p_dest_path);
+	return OK;
+}
+
+Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
+	tinygltf::Model model;
+	String error_string;
+	Error load_err = load_model(p_dest_path, model, error_string);
+	if (load_err != OK) {
+		return ERR_FILE_CORRUPT;
+	}
+	return OK;
+}
+
+void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
+	ObjExporter::MeshInfo global_mesh_info = _get_mesh_options_for_import_params();
+
+	int image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
+	if (had_images) {
+		if (image_deps_needed.size() > 0) {
+			image_handling_val = GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES;
+		} else {
+			auto most_common_format = gdre::get_most_popular_value(image_formats);
+			if (most_common_format == CompressedTexture2D::DATA_FORMAT_BASIS_UNIVERSAL) {
+				image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_BASISU;
+			} else {
+				image_handling_val = GLTFState::HANDLE_BINARY_EMBED_AS_UNCOMPRESSED;
+			}
+		}
+	}
+
+	// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_type", PROPERTY_HINT_TYPE_STRING, "Node"), ""));
+	// r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "nodes/root_name"), ""));
+	iinfo->set_param("nodes/root_type", root_type);
+	iinfo->set_param("nodes/root_name", root_name);
+
+	iinfo->set_param("nodes/apply_root_scale", true);
+	iinfo->set_param("nodes/root_scale", 1.0);
+	iinfo->set_param("nodes/import_as_skeleton_bones", false);
+	if (after_4_4) {
+		iinfo->set_param("nodes/use_name_suffixes", true);
+	}
+	if (after_4_3) {
+		iinfo->set_param("nodes/use_node_type_suffixes", true);
+	}
+	iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
+	iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
+	iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
+	iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
+	iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
+	iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
+	iinfo->set_param("skins/use_named_skins", true);
+	iinfo->set_param("animation/import", true);
+	iinfo->set_param("animation/fps", 30);
+	iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
+	iinfo->set_param("animation/remove_immutable_tracks", true);
+	iinfo->set_param("animation/import_rest_as_RESET", has_reset_track);
+	iinfo->set_param("import_script/path", "");
+	// 		r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/naming_version", PROPERTY_HINT_ENUM, "Godot 4.1 or 4.0,Godot 4.2 or later"), 1));
+	// r_options->push_back(ResourceImporterScene::ImportOption(PropertyInfo(Variant::INT, "gltf/embedded_image_handling", PROPERTY_HINT_ENUM, "Discard All Textures,Extract Textures,Embed as Basis Universal,Embed as Uncompressed", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), GLTFState::HANDLE_BINARY_EXTRACT_TEXTURES));
+	// Godot 4.2 and above blow out the import params, so we need to update them to point to the external resources.
+	Dictionary _subresources_dict = Dictionary();
+	if (iinfo->has_param("_subresources")) {
+		_subresources_dict = iinfo->get_param("_subresources");
+	} else {
+		iinfo->set_param("_subresources", _subresources_dict);
+	}
+
+	if (after_4_1) {
+		iinfo->set_param("gltf/naming_version", after_4_1 ? 1 : 0);
+	}
+
+	iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
+
+	if (animation_options.size() > 0) {
+		if (!_subresources_dict.has("animations")) {
+			_subresources_dict["animations"] = Dictionary();
+		}
+		Dictionary animations_dict = _subresources_dict["animations"];
+		for (auto &E : animation_options) {
+			// "save_to_file/enabled": true,
+			// "save_to_file/keep_custom_tracks": true,
+			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
+			animations_dict[E.key] = E.value;
+			String path = get_path_options(E.value);
+			if (!(path.is_empty() || path.get_file().contains("::"))) {
+				external_deps_updated.insert(path);
+				animation_deps_updated.insert(path);
+			}
+		}
+	}
+	auto get_default_mesh_opt = [](bool global_opt, bool local_opt) {
+		if (global_opt == local_opt) {
+			return 0;
+		}
+		if (local_opt) {
+			return 1;
+		}
+		return 2;
+	};
+	if (id_to_mesh_info.size() > 0) {
+		if (!_subresources_dict.has("meshes")) {
+			_subresources_dict["meshes"] = Dictionary();
+		}
+
+		Dictionary mesh_Dict = _subresources_dict["meshes"];
+		for (auto &E : id_to_mesh_info) {
+			auto name = E.name;
+			auto path = E.path;
+			if (name.is_empty() || mesh_Dict.has(name)) {
+				continue;
+			}
+			// "save_to_file/enabled": true,
+			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
+			mesh_Dict[name] = Dictionary();
+			Dictionary subres = mesh_Dict[name];
+			if (path.is_empty() || path.get_file().contains("::")) {
+				subres["save_to_file/enabled"] = false;
+				set_path_options(subres, "");
+			} else {
+				subres["save_to_file/enabled"] = true;
+				set_path_options(subres, path);
+				external_deps_updated.insert(path);
+			}
+			subres["generate/shadow_meshes"] = get_default_mesh_opt(global_mesh_info.has_shadow_meshes, E.has_shadow_meshes);
+			subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.has_lightmap_uv2, E.has_lightmap_uv2);
+			subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
+			// TODO: get these somehow??
+			if (!after_4_3) {
+				subres["lods/normal_split_angle"] = 25.0f;
+			}
+			subres["lods/normal_merge_angle"] = 60.0f;
+			// Doesn't look like this ever made it in?
+			// if (!after_4_3) {
+			// 	subres["lods/raycast_normals"] = false;
+			// }
+		}
+	}
+	if (id_to_material_path.size() > 0) {
+		if (!_subresources_dict.has("materials")) {
+			_subresources_dict["materials"] = Dictionary();
+		}
+
+		Dictionary mat_Dict = _subresources_dict["materials"];
+		for (auto &E : id_to_material_path) {
+			auto name = E.first;
+			auto path = E.second;
+			if (name.is_empty() || mat_Dict.has(name)) {
+				continue;
+			}
+			mat_Dict[name] = Dictionary();
+			Dictionary subres = mat_Dict[name];
+			if (path.is_empty() || path.get_file().contains("::")) {
+				subres["use_external/enabled"] = false;
+				set_path_options(subres, "", "use_external");
+			} else {
+				subres["use_external/enabled"] = true;
+				set_path_options(subres, path, "use_external");
+				external_deps_updated.insert(path);
+			}
+		}
+	}
+
+	iinfo->set_param("_subresources", _subresources_dict);
+	Dictionary extra_info = report->get_extra_info();
+	extra_info["image_path_to_data_hash"] = image_path_to_data_hash;
+	report->set_extra_info(extra_info);
+}
+
+void GLBExporterInstance::_unload_deps() {
+	loaded_deps.clear();
 
 	// remove the UIDs that we added that didn't exist before
-	for (uint64_t id : texture_uids) {
+	for (uint64_t id : loaded_dep_uids) {
 		ResourceUID::get_singleton()->remove_id(id);
 	}
+	loaded_dep_uids.clear();
+}
 
-	set_all_externals = external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
-	// GLTF Exporter has issues with custom animations and throws errors;
+Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo) {
+	String dest_ext = p_dest_path.get_extension().to_lower();
+	if (dest_ext == "escn" || dest_ext == "tscn") {
+		return ResourceCompatLoader::to_text(p_src_path, p_dest_path);
+	} else if (dest_ext == "obj") {
+		ObjExporter::MeshInfo mesh_info;
+		return export_file_to_obj(p_dest_path, p_src_path, iinfo);
+	}
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "You called the wrong function you idiot.");
+}
+
+Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
+	auto errors_before = _get_error_count();
+	Node *root = scene->instantiate();
+	auto errors_after = _get_error_count();
+	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
+	if (errors_after > errors_before) {
+		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+	}
+	if (root == nullptr) {
+		err = ERR_CANT_ACQUIRE_RESOURCE;
+		ERR_PRINT(add_errors_to_report(ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path));
+		_get_logged_error_messages();
+	}
+	return root;
+}
+
+Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
+	err = _load_deps();
+	if (err != OK) {
+		return err;
+	}
+	auto mode_type = ResourceCompatLoader::get_default_load_type();
+	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
+	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
+		r_scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
+	} else {
+		r_scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+	if (err || !r_scene.is_valid()) {
+		r_scene = nullptr;
+		_unload_deps();
+		GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CANT_READ, "Failed to load scene " + source_path);
+	}
+	return OK;
+}
+
+bool GLBExporterInstance::supports_multithread() const {
+	return !Thread::is_main_thread();
+}
+
+void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path) {
+	auto pair = (Pair<Node *, String> *)p_pair_of_root_node_and_dest_path;
+	Node *root = pair->first;
+	String dest_path = pair->second;
+	err = _export_instanced_scene(root, dest_path);
+}
+
+struct SingleExportTaskRunnerStruct : public TaskRunnerStruct {
+	String p_src_path;
+	bool done = false;
+	GLBExporterInstance *exporter = nullptr;
+	virtual int get_current_task_step_value() override {
+		return 0;
+	}
+	virtual String get_current_task_step_description() override {
+		return "Exporting scene " + p_src_path;
+	}
+	virtual void cancel() override {
+		exporter->cancel();
+	}
+	virtual bool is_done() const override {
+		return done;
+	}
+	virtual void run(void *p_userdata) override {
+		exporter->_do_export_instanced_scene(p_userdata);
+		done = true;
+	}
+};
+
+void GLBExporterInstance::cancel() {
+	canceled = true;
+}
+
+Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
+	_initial_set(p_src_path, p_report);
+
+	if (ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
+		return ERR_UNAVAILABLE;
+	}
+
+	String dest_ext = p_dest_path.get_extension().to_lower();
+	if (dest_ext != "glb" && dest_ext != "gltf") {
+		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
+	}
+
+	err = gdre::ensure_dir(p_dest_path.get_base_dir());
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
+
+	{
+		Ref<PackedScene> scene;
+		err = _load_scene_and_deps(scene);
+		if (err != OK) {
+			return err;
+		}
+
+		Node *root = _instantiate_scene(scene);
+		if (!root) {
+			scene = nullptr;
+			_unload_deps();
+			return err;
+		}
+
+		_set_stuff_from_instanced_scene(root);
+		Pair<Node *, String> pair = { root, p_dest_path };
+		SingleExportTaskRunnerStruct task_runner;
+		task_runner.exporter = this;
+		task_runner.p_src_path = p_src_path;
+		Error wait_err = TaskManager::get_singleton()->run_task(&task_runner, &pair, "Exporting scene " + p_src_path, -1, true, true, true);
+
+		if (wait_err != OK) {
+			err = wait_err;
+		}
+
+		memdelete(root);
+	}
+	_unload_deps();
+
+	// _export_instanced_scene should have already set the error report
+	if (err != OK) {
+		return err;
+	}
+
+	// Check if the model can be loaded; minimum validation to ensure the model is valid
+	err = _check_model_can_load(p_dest_path);
+	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "");
+
+	if (updating_import_info) {
+		_update_import_params(p_dest_path);
+	}
+
+	return _get_return_error();
+}
+
+Error GLBExporterInstance::_get_return_error() {
+	bool set_all_externals = !updating_import_info || external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
+	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
-	if (err == ERR_BUG && has_external_animation && animation_deps_updated.size() == animation_deps_needed.size()) {
-		err = OK;
-		error_messages.append_array(supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors());
-		for (auto &msg : error_messages) {
-			auto message = msg.strip_edges();
+	bool had_gltf_serialization_errors = gltf_serialization_error_messages.size() > 0;
+	if (had_gltf_serialization_errors && animation_deps_needed.size() > 0 && (!updating_import_info || animation_deps_updated.size() == animation_deps_needed.size())) {
+		Vector<int64_t> error_messages_to_remove;
+		had_gltf_serialization_errors = false;
+		for (int64_t i = 0; i < gltf_serialization_error_messages.size(); i++) {
+			auto message = gltf_serialization_error_messages[i].strip_edges();
 
 			if (message.begins_with("at:") ||
-					message.begins_with("GDScript backtrace") ||
-					message.begins_with("WARNING:")) {
+					message.begins_with("GDScript backtrace")) {
+				error_messages_to_remove.push_back(i);
+				continue;
+			}
+			if (message.begins_with("WARNING:")) {
+				error_messages_to_remove.push_back(i);
 				continue;
 			}
 			if (message.contains("glTF:")) {
-				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("Cannot get node for animated track")) {
+				if (message.contains("Cannot export empty property. No property was specified in the NodePath:") || message.contains("animated track using path")) {
 					NodePath path = message.substr(message.find("ath:") + 4).strip_edges();
-					if (!path.is_empty() && external_animation_nodepaths.has(path)) {
+					if (!updating_import_info || (!path.is_empty() && external_animation_nodepaths.has(path))) {
+						// pop off the error message and the stack traces
+						error_messages_to_remove.push_back(i);
 						continue;
 					}
 				}
+				// The previous error message is always emitted right after this one (and this one doesn't contain a path), so we just ignore it.
+				if (message.contains("A node was animated, but it wasn't found in the GLTFState")) {
+					error_messages_to_remove.push_back(i);
+					continue;
+				}
 			}
-			err = ERR_BUG;
+			had_gltf_serialization_errors = true;
 			break;
 		}
+		if (!had_gltf_serialization_errors) {
+			for (int64_t i = error_messages_to_remove.size() - 1; i >= 0; i--) {
+				gltf_serialization_error_messages.remove_at(error_messages_to_remove[i]);
+			}
+		}
 	}
+
 	if (!set_all_externals) {
-		error_messages.append("Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
-		error_messages.append("Dependencies that were not set:");
+		import_param_error_messages.append("Dependencies that were not set:");
 		for (auto &E : need_to_be_updated) {
 			if (external_deps_updated.has(E)) {
 				continue;
 			}
-			error_messages.append("\t" + E);
+			import_param_error_messages.append("\t" + E);
 		}
-		if (err == OK) {
-			err = ERR_PRINTER_ON_FIRE;
-			// Quiet messages
-			append_error_messages(err, "");
-		} else {
-			GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
-		}
+	}
+
+	if (had_gltf_serialization_errors) {
+		String _ = add_errors_to_report(ERR_BUG, "");
+	}
+
+	if (!set_all_externals && err == OK) {
+		String _ = add_errors_to_report(ERR_PRINTER_ON_FIRE, "Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
 	} else {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
 
-	// Not really an error, just letting export_resources know that we're not going to be able to import the scene.
-	if (err == OK && (has_script || has_shader)) {
-		err = ERR_DATABASE_CANT_READ;
+	if (project_recovery && (had_gltf_serialization_errors || !set_all_externals)) {
+		err = ERR_PRINTER_ON_FIRE;
 	}
+
 	return err;
 }
 
@@ -1587,21 +2290,31 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 		int ver_major = get_ver_major(p_src_path);
 		ERR_FAIL_COND_V_MSG(ver_major != 4, ERR_UNAVAILABLE, "Scene export for engine version " + itos(ver_major) + " is not currently supported.");
 	}
-	Error err = _export_file(p_dest_path, p_src_path, nullptr);
+	if (ext != "glb" && ext != "gltf") {
+		return export_file_to_non_glb(p_src_path, p_dest_path, nullptr);
+	}
+	GLBExporterInstance instance(p_dest_path.get_base_dir());
+	Error err = instance.export_file(p_dest_path, p_src_path, nullptr);
 	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
 		err = OK;
 	}
 	return err;
 }
 
-Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, int ver_major, ObjExporter::MeshInfo &r_mesh_info) {
+Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, Ref<ImportInfo> iinfo) {
+	ObjExporter::MeshInfo r_mesh_info;
 	Error err;
 	Ref<PackedScene> scene;
+	bool using_threaded_load = !SceneExporter::can_multithread;
+	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
+	if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
+		return ERR_UNAVAILABLE;
+	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
+	if (ResourceCompatLoader::is_globally_available() && using_threaded_load) {
 		scene = ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
 	} else {
-		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+		scene = ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, !using_threaded_load, ResourceFormatLoader::CACHE_MODE_REUSE);
 	}
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
 	Vector<Ref<Mesh>> meshes;
@@ -1622,83 +2335,368 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 		meshes.erase(mesh);
 	}
 
-	return ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
+	err = ObjExporter::_write_meshes_to_obj(meshes, p_dest_path, p_dest_path.get_base_dir(), r_mesh_info);
+	if (err != OK) {
+		return err;
+	}
+	if (iinfo.is_valid()) {
+		ObjExporter::rewrite_import_params(iinfo, r_mesh_info);
+	}
+	return OK;
 }
 
-Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
-	Ref<ExportReport> report = memnew(ExportReport(iinfo));
+GLBExporterInstance::GLBExporterInstance(String p_output_dir, Dictionary curr_options, bool p_project_recovery) {
+	project_recovery = p_project_recovery;
+	output_dir = p_output_dir;
+	Dictionary options = curr_options;
+	if (!options.has("Exporter/Scene/GLTF/force_lossless_images")) {
+		options["Exporter/Scene/GLTF/force_lossless_images"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_lossless_images", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/use_double_precision")) {
+		options["Exporter/Scene/GLTF/use_double_precision"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/use_double_precision", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/force_export_multi_root")) {
+		options["Exporter/Scene/GLTF/force_export_multi_root"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_export_multi_root", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/replace_shader_materials")) {
+		options["Exporter/Scene/GLTF/replace_shader_materials"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/replace_shader_materials", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/force_require_KHR_node_visibility")) {
+		options["Exporter/Scene/GLTF/force_require_KHR_node_visibility"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
+	}
+	replace_shader_materials = options.get("Exporter/Scene/GLTF/replace_shader_materials", false);
+	force_lossless_images = options.get("Exporter/Scene/GLTF/force_lossless_images", false);
+	force_export_multi_root = options.get("Exporter/Scene/GLTF/force_export_multi_root", false);
+	force_require_KHR_node_visibility = options.get("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
+	use_double_precision = options.get("Exporter/Scene/GLTF/use_double_precision", false);
+}
 
-	Error err;
-	Vector<uint64_t> texture_uids;
-	String orignal_export_dest = iinfo->get_export_dest();
-	String new_path = orignal_export_dest;
-	String ext = new_path.get_extension().to_lower();
+constexpr bool _check_unsupported(int ver_major, bool is_text_output) {
+	return ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED && !is_text_output;
+}
+
+inline void _set_unsupported(Ref<ExportReport> report, int ver_major, bool is_obj_output) {
+	report->set_error(ERR_UNAVAILABLE);
+	report->set_unsupported_format_type(vformat("v%d.x scene", ver_major));
+	report->set_message(vformat("Scene export for engine version %d with %s output is not currently supported\nTry saving to .tscn instead.", ver_major, is_obj_output ? "obj" : "GLTF/GLB"));
+}
+
+Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options) {
+	Ref<ImportInfo> iinfo;
+	Ref<ExportReport> report;
+	if (GDRESettings::get_singleton()->is_pack_loaded()) {
+		auto found = GDRESettings::get_singleton()->get_import_info_by_dest(res_path);
+		if (found.is_valid()) {
+			iinfo = ImportInfo::copy(found);
+		}
+	}
+	if (!iinfo.is_valid()) {
+		bool is_resource = ResourceCompatLoader::handles_resource(res_path);
+		if (is_resource) {
+			// NOTE: If we start supporting non-resource scenes, we need to update this.
+			iinfo = ImportInfo::load_from_file(res_path);
+		}
+		if (!iinfo.is_valid()) {
+			report = memnew(ExportReport());
+			report->set_source_path(res_path);
+			if (!is_resource) {
+				report->set_message(res_path + " is not a valid resource.");
+				report->set_error(ERR_INVALID_PARAMETER);
+			} else {
+				report->set_message("Failed to load resource " + res_path + " for export");
+				report->set_error(ERR_FILE_CANT_READ);
+			}
+			ERR_FAIL_V_MSG(report, report->get_message());
+		}
+	}
+	report = memnew(ExportReport(iinfo));
+	String ext = out_path.get_extension().to_lower();
 	bool to_text = ext == "escn" || ext == "tscn";
 	bool to_obj = ext == "obj";
 	bool non_gltf = ext != "glb" && ext != "gltf";
-	// GLTF export can result in inaccurate models
-	// save it under .assets, which won't be picked up for import by the godot editor
-	if (!to_text && !to_obj) {
-		new_path = new_path.replace("res://", "res://.assets/");
-		// we only export glbs
-		if (non_gltf) {
-			new_path = new_path.get_basename() + ".glb";
-		}
+	int ver_major = iinfo->get_ver_major();
+	if (_check_unsupported(ver_major, to_text)) {
+		_set_unsupported(report, ver_major, to_obj);
+		return report;
 	}
-	iinfo->set_export_dest(new_path);
-	String dest_path = output_dir.path_join(new_path.replace("res://", ""));
-
-#if ENABLE_3_X_SCENE_LOADING
-	constexpr int minimum_ver = 3;
-#else
-	constexpr int minimum_ver = 4;
-#endif
-	if (!to_text && iinfo->get_ver_major() < minimum_ver) {
-		err = ERR_UNAVAILABLE;
-		report->set_message("Scene export for engine version " + itos(iinfo->get_ver_major()) + " is not currently supported.");
-		report->set_unsupported_format_type(itos(iinfo->get_ver_major()) + ".x PackedScene");
-	} else {
-		report->set_new_source_path(new_path);
-		err = _export_file(dest_path, iinfo->get_path(), report);
-	}
-	if (err == ERR_BUG || err == ERR_PRINTER_ON_FIRE || err == ERR_DATABASE_CANT_READ) {
-		report->set_saved_path(dest_path);
-		// save the import info anyway
-		auto import_dest = output_dir.path_join(iinfo->get_import_md_path().trim_prefix("res://"));
-		iinfo->save_to(import_dest);
-		report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
-		if (err == ERR_DATABASE_CANT_READ) {
-			err = OK;
-		}
-	} else if (err == OK && !to_text && !to_obj && !non_gltf && iinfo->get_ver_major() >= 4) {
-		// TODO: Turn this on when we feel confident that we can tell that are exporting correctly
-		// TODO: do real GLTF validation
-		// TODO: fix errors where some models aren't being textured?
-		// move the file to the correct location
-		auto new_dest = output_dir.path_join(orignal_export_dest.replace("res://", ""));
-		gdre::ensure_dir(new_dest.get_base_dir());
-		auto da = DirAccess::create_for_path(new_dest.get_base_dir());
-		if (da.is_valid() && da->rename(dest_path, new_dest) == OK) {
-			iinfo->set_export_dest(orignal_export_dest);
-			report->set_new_source_path(orignal_export_dest);
-			report->set_saved_path(new_dest);
+	String opath = out_path;
+	if (to_text || to_obj) {
+		Error err = export_file_to_non_glb(res_path, out_path, nullptr);
+		report->set_error(err);
+		if (err != OK) {
+			report->append_error_messages(GDRELogger::get_errors());
+			return report;
 		} else {
-			report->set_saved_path(dest_path);
+			report->set_saved_path(out_path);
 		}
-	} else if (err == OK) {
-		report->set_saved_path(dest_path);
+		return report;
+	} else if (non_gltf) {
+		opath = out_path.get_basename() + ".glb";
+		WARN_PRINT("Attempting to export to non-GLTF format, saving to " + opath);
+	}
+	GLBExporterInstance instance(out_path.get_base_dir(), options, false);
+	instance.set_force_no_update_import_params(true);
+	Error err = instance.export_file(opath, res_path, report);
+	report->set_error(err);
+	if (err == OK) {
+		report->set_saved_path(opath);
+	}
+	return report;
+}
+
+Error _check_cancelled() {
+	if (TaskManager::get_singleton()->is_current_task_canceled()) {
+		if (TaskManager::get_singleton()->is_current_task_timed_out()) {
+			return ERR_TIMEOUT;
+		}
+		return ERR_SKIP;
+	}
+	return OK;
+}
+
+struct BatchExportToken {
+	static std::atomic<size_t> in_progress;
+	GLBExporterInstance instance;
+	Ref<ExportReport> report;
+	Ref<PackedScene> _scene;
+	Node *root = nullptr;
+	String p_src_path;
+	String p_dest_path;
+	String original_export_dest;
+	String output_dir;
+	bool preload_done = false;
+	bool done = false;
+	int ver_major = 0;
+	Error err = OK;
+	size_t scene_size = 0;
+	BatchExportToken() :
+			instance(String(), {}, true) {}
+
+	BatchExportToken(const String &p_output_dir, const Ref<ImportInfo> &p_iinfo) :
+			instance(p_output_dir, {}, true) {
+		ERR_FAIL_COND_MSG(!p_iinfo.is_valid(), "Import info is invalid");
+		report = memnew(ExportReport(p_iinfo));
+		original_export_dest = p_iinfo->get_export_dest();
+		instance.set_batch_export(true);
+		String new_path = original_export_dest;
+		String ext = new_path.get_extension().to_lower();
+		bool to_text = ext == "escn" || ext == "tscn";
+		bool to_obj = ext == "obj";
+		bool non_gltf = ext != "glb" && ext != "gltf";
+		// Non-original path, save it under .assets, which won't be picked up for import by the godot editor
+		if (!to_text && !to_obj && non_gltf) {
+			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
+			report->set_new_source_path(new_path);
+		}
+		ver_major = p_iinfo->get_ver_major();
+		scene_size = FileAccess::get_size(p_iinfo->get_path());
+		output_dir = p_output_dir;
+		p_src_path = p_iinfo->get_path();
+		set_export_dest(new_path);
 	}
 
-#if DEBUG_ENABLED
-	if (err && err != ERR_UNAVAILABLE) {
-		// save it as a text scene so we can see what went wrong
-		auto new_new_path = ".gltf_copy/" + new_path.trim_prefix("res://.assets/").get_basename() + ".tscn";
-		auto new_dest = output_dir.path_join(new_new_path);
-		ResourceCompatLoader::to_text(iinfo->get_path(), new_dest);
+	void set_export_dest(const String &p_export_dest) {
+		report->get_import_info()->set_export_dest(p_export_dest);
+		p_dest_path = output_dir.path_join(p_export_dest.replace("res://", ""));
 	}
-#endif
-	report->set_error(err);
-	return report; // We always save to an unoriginal path
+	String get_export_dest() const {
+		return report->get_import_info()->get_export_dest();
+	}
+
+	bool is_text_output() const {
+		String ext = get_export_dest().get_extension().to_lower();
+		return ext == "escn" || ext == "tscn";
+	}
+
+	bool is_obj_output() const {
+		return get_export_dest().get_extension().to_lower() == "obj";
+	}
+
+	bool is_glb_output_with_non_gltf_ext() const {
+		String ext = original_export_dest.get_extension().to_lower();
+		bool to_text = ext == "escn" || ext == "tscn";
+		bool to_obj = ext == "obj";
+
+		return !to_text && !to_obj && ext != "glb" && ext != "gltf";
+	}
+
+	void append_original_ext_to_export_dest() {
+		String original_ext = original_export_dest.get_extension().to_lower();
+		set_export_dest(get_export_dest().get_basename() + "." + original_ext + ".glb");
+	}
+	String get_original_export_dest() const {
+		return original_export_dest;
+	}
+
+	void move_output_to_dot_assets() {
+		String new_export_dest = get_export_dest();
+		if (!FileAccess::exists(p_dest_path)) {
+			return;
+		}
+		report->set_saved_path(p_dest_path);
+		if (new_export_dest.begins_with("res://.assets/")) {
+			// already in .assets
+			return;
+		}
+		new_export_dest = new_export_dest.replace_first("res://", "res://.assets/");
+		report->get_import_info()->set_export_dest(new_export_dest);
+		auto new_dest = output_dir.path_join(new_export_dest.trim_prefix("res://"));
+		auto new_dest_base_dir = new_dest.get_base_dir();
+		gdre::ensure_dir(new_dest_base_dir);
+		auto da = DirAccess::create_for_path(new_dest_base_dir);
+		if (da.is_valid() && da->rename(p_dest_path, new_dest) == OK) {
+			report->get_import_info()->set_export_dest(new_export_dest);
+			report->set_new_source_path(new_export_dest);
+			report->set_saved_path(new_dest);
+			Dictionary extra_info = report->get_extra_info();
+			if (extra_info.has("external_buffer_paths")) {
+				for (auto &E : extra_info["external_buffer_paths"].operator PackedStringArray()) {
+					auto buffer_path = new_dest_base_dir.path_join(E.get_file());
+					da->rename(E, buffer_path);
+				}
+			}
+		}
+	}
+
+	void clear_scene() {
+		if (root) {
+			memdelete(root);
+			root = nullptr;
+		}
+		_scene = nullptr;
+	}
+
+	bool check_unsupported() {
+		return _check_unsupported(ver_major, is_text_output());
+	}
+
+	// scene loading and scene instancing has to be done on the main thread to avoid deadlocks and crashes
+	void batch_preload() {
+		if (check_unsupported()) {
+			err = ERR_UNAVAILABLE;
+			_set_unsupported(report, ver_major, is_obj_output());
+			preload_done = true;
+			return;
+		}
+
+		if (is_text_output() || is_obj_output()) {
+			preload_done = true;
+			return;
+		}
+		err = _check_cancelled();
+		if (err != OK) {
+			report->set_error(err);
+			preload_done = true;
+			return;
+		}
+		instance._initial_set(p_src_path, report);
+
+		err = gdre::ensure_dir(p_dest_path.get_base_dir());
+		report->set_error(err);
+		ERR_FAIL_COND_MSG(err, "Failed to ensure directory " + p_dest_path.get_base_dir());
+		{
+			Ref<PackedScene> scene;
+			err = instance._load_scene_and_deps(scene);
+			if (scene.is_null() && err == OK) {
+				err = ERR_CANT_ACQUIRE_RESOURCE;
+			}
+			if (err != OK) {
+				report->set_error(err);
+				preload_done = true;
+				return;
+			}
+			_scene = scene;
+
+			root = instance._instantiate_scene(scene);
+			if (!root) {
+				scene = nullptr;
+				err = ERR_CANT_ACQUIRE_RESOURCE;
+				report->set_error(err);
+				preload_done = true;
+				return;
+			}
+			instance._set_stuff_from_instanced_scene(root);
+		}
+		// print_line("Preloaded scene " + p_src_path);
+		preload_done = true;
+	}
+
+	void batch_export_instanced_scene() {
+		while (!preload_done && _check_cancelled() == OK) {
+			OS::get_singleton()->delay_usec(10000);
+		}
+		if (err == OK) {
+			err = _check_cancelled();
+		}
+		if (err != OK) {
+			report->set_error(err);
+			return;
+		}
+		in_progress++;
+		// print_line("Exporting scene " + p_src_path);
+
+		if (is_text_output() || is_obj_output()) {
+			err = SceneExporter::export_file_to_non_glb(report->get_import_info()->get_path(), p_dest_path, report->get_import_info());
+			if (err != OK) {
+				report->append_error_messages(GDRELogger::get_thread_errors());
+			} else {
+				report->set_saved_path(p_dest_path);
+			}
+		} else {
+			err = instance._batch_export_instanced_scene(root, p_dest_path);
+			if (root) {
+				memdelete(root);
+				root = nullptr;
+			}
+			_scene = nullptr;
+			if (err == OK) {
+				report->set_saved_path(p_dest_path);
+			}
+		}
+		// print_line("Finished exporting scene " + p_src_path);
+		report->set_error(err);
+		done = true;
+		in_progress--;
+	}
+
+	void post_export(Error p_skip_type = ERR_SKIP) {
+		// GLTF export can result in inaccurate models
+		// save it under .assets, which won't be picked up for import by the godot editor
+		if (err == OK && !done) {
+			err = p_skip_type;
+		}
+		report->set_error(err);
+		if (err == ERR_SKIP) {
+			report->set_message("Export cancelled.");
+		} else if (err == ERR_TIMEOUT) {
+			report->set_message("Export timed out.");
+		}
+		if (is_text_output() || is_obj_output()) {
+			if (err == OK) {
+				report->set_saved_path(p_dest_path);
+			}
+		} else {
+			instance._unload_deps();
+			if (instance.had_script() && err == OK) {
+				report->set_message("Script has scripts, not saving to original path.");
+				move_output_to_dot_assets();
+			} else if (err == OK) {
+				report->set_saved_path(p_dest_path);
+			} else if (err) {
+				move_output_to_dot_assets();
+			}
+		}
+	}
+};
+
+std::atomic<size_t> BatchExportToken::in_progress = 0;
+
+Ref<ExportReport> SceneExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
+	BatchExportToken token(output_dir, iinfo);
+	token.batch_preload();
+	token.batch_export_instanced_scene();
+	token.post_export();
+	return token.report;
 }
 
 void SceneExporter::get_handled_types(List<String> *out) const {
@@ -1715,4 +2713,179 @@ String SceneExporter::get_name() const {
 
 String SceneExporter::get_default_export_extension(const String &res_path) const {
 	return "glb";
+}
+
+void SceneExporter::_bind_methods() {
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file_with_options", "out_path", "res_path", "options"), &SceneExporter::export_file_with_options);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_minimum_godot_ver_supported"), &SceneExporter::get_minimum_godot_ver_supported);
+}
+
+uint64_t GLBExporterInstance::_get_error_count() {
+	return supports_multithread() ? GDRELogger::get_thread_error_count() : GDRELogger::get_error_count();
+}
+
+Vector<String> GLBExporterInstance::_get_logged_error_messages() {
+	return supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors();
+}
+
+SceneExporter *SceneExporter::singleton = nullptr;
+
+SceneExporter *SceneExporter::get_singleton() {
+	return singleton;
+}
+
+SceneExporter::SceneExporter() {
+	singleton = this;
+}
+
+SceneExporter::~SceneExporter() {
+	if (singleton == this) {
+		singleton = nullptr;
+	}
+}
+
+Error GLBExporterInstance::_batch_export_instanced_scene(Node *root, const String &p_dest_path) {
+	{
+		err = _export_instanced_scene(root, p_dest_path);
+	}
+
+	// _export_instanced_scene should have already set the error report
+	if (err != OK) {
+		return err;
+	}
+
+	// Check if the model can be loaded; minimum validation to ensure the model is valid
+	err = _check_model_can_load(p_dest_path);
+	if (err) {
+		GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CORRUPT, "");
+	}
+	if (updating_import_info) {
+		_update_import_params(p_dest_path);
+	}
+	err = _get_return_error();
+
+	return err;
+}
+// void do_batch_export_instanced_scene(int i, BatchExportToken *tokens);
+void SceneExporter::do_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens) {
+	std::shared_ptr<BatchExportToken> token = tokens[i];
+	token->batch_export_instanced_scene();
+}
+
+void SceneExporter::do_single_threaded_batch_export_instanced_scene(int i, std::shared_ptr<BatchExportToken> *tokens) {
+	std::shared_ptr<BatchExportToken> token = tokens[i];
+	token->batch_preload();
+	token->batch_export_instanced_scene();
+}
+
+String SceneExporter::get_batch_export_description(int i, std::shared_ptr<BatchExportToken> *tokens) const {
+	return "Exporting scene " + tokens[i]->p_src_path;
+}
+
+struct BatchExportTokenSort {
+	bool operator()(const std::shared_ptr<BatchExportToken> &a, const std::shared_ptr<BatchExportToken> &b) const {
+		return a->scene_size > b->scene_size;
+	}
+};
+
+Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output_dir, const Vector<Ref<ImportInfo>> &scenes) {
+	Vector<std::shared_ptr<BatchExportToken>> tokens;
+	HashMap<String, int> export_dest_to_iinfo;
+	Vector<Ref<ExportReport>> reports;
+	for (auto &scene : scenes) {
+		Ref<ExportReport> report = ResourceExporter::_check_for_existing_resources(scene);
+		if (report.is_valid()) {
+			reports.push_back(report);
+			continue;
+		}
+		String ext = scene->get_export_dest().get_extension().to_lower();
+		if (_check_unsupported(scene->get_ver_major(), ext == "escn" || ext == "tscn")) {
+			report = memnew(ExportReport(scene));
+			_set_unsupported(report, scene->get_ver_major(), ext == "obj");
+			reports.push_back(report);
+			continue;
+		}
+
+		tokens.push_back(std::make_shared<BatchExportToken>(output_dir, scene));
+		int idx = tokens.size() - 1;
+		auto &token = tokens[idx];
+		token->instance.image_path_to_data_hash = Dictionary();
+		String export_dest = token->get_export_dest();
+		if (export_dest_to_iinfo.has(export_dest)) {
+			int other_i = export_dest_to_iinfo[export_dest];
+			auto &other_token = tokens.write[other_i];
+			if (other_token->original_export_dest.get_file() != other_token->get_export_dest().get_file()) {
+				other_token->append_original_ext_to_export_dest();
+				export_dest_to_iinfo.erase(export_dest);
+			}
+		}
+		if (export_dest_to_iinfo.has(export_dest)) {
+			if (token->original_export_dest.get_file() != token->get_export_dest().get_file()) {
+				token->append_original_ext_to_export_dest();
+			} else {
+				token->set_export_dest(export_dest.get_basename() + "_" + itos(idx) + "." + export_dest.get_extension());
+			}
+		} else {
+			export_dest_to_iinfo[export_dest] = idx;
+		}
+	}
+	tokens.sort_custom<BatchExportTokenSort>();
+
+	if (tokens.is_empty()) {
+		return reports;
+	}
+
+	BatchExportToken::in_progress = 0;
+	const size_t default_threads = OS::get_singleton()->get_default_thread_pool_size();
+
+	Error err = OK;
+	if (GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
+				this,
+				&SceneExporter::do_single_threaded_batch_export_instanced_scene,
+				tokens.ptrw(),
+				tokens.size(),
+				&SceneExporter::get_batch_export_description,
+				"Exporting scenes",
+				"Exporting scenes",
+				true);
+	} else {
+		auto task_id = TaskManager::get_singleton()->add_group_task(
+				this,
+				&SceneExporter::do_batch_export_instanced_scene,
+				tokens.ptrw(),
+				tokens.size(),
+				&SceneExporter::get_batch_export_description,
+				"Exporting scenes",
+				"Exporting scenes",
+				true,
+				-1,
+				true);
+
+		for (auto &token : tokens) {
+			token->batch_preload();
+			// Don't load more than the current number of tasks being processed
+			while (BatchExportToken::in_progress >= default_threads) {
+				if (TaskManager::get_singleton()->update_progress_bg(true)) {
+					break;
+				}
+				OS::get_singleton()->delay_usec(10000);
+			}
+			// calling update_progress_bg serves three purposes:
+			// 1) updating the progress bar
+			// 2) checking if the task was cancelled
+			// 3) allowing the main loop to iterate so that the command queue is flushed
+			// Without flushing the command queue, GLTFDocument::append_from_scene will hang
+			if (TaskManager::get_singleton()->update_progress_bg(true)) {
+				break;
+			}
+		}
+
+		err = TaskManager::get_singleton()->wait_for_task_completion(task_id, 60);
+	}
+	for (auto &token : tokens) {
+		token->post_export(err);
+		reports.push_back(token->report);
+	}
+	return reports;
 }

@@ -262,7 +262,6 @@ Ref<ObjectDiffResult> ObjectDiffResult::get_diff_obj(Object *a, Object *b, bool 
 	diff.instantiate();
 	List<PropertyInfo> p_list_a;
 	List<PropertyInfo> p_list_b;
-	bool has_script_instance = false;
 	diff->set_old_object(a);
 	diff->set_new_object(b);
 	a->get_property_list(&p_list_a, false);
@@ -512,8 +511,9 @@ PropertyDiffResult::PropertyDiffResult(const String &p_name, const String &p_cha
 	new_object = p_new_object;
 }
 
-static Vector<Variant> get_subresources(Ref<Resource> res) {
+Vector<Variant> DiffResult::get_subresources(Ref<Resource> res) {
 	Vector<Variant> subresources;
+	return subresources;
 }
 
 bool DiffResult::deep_equals(Variant a, Variant b, bool exclude_non_storage) {

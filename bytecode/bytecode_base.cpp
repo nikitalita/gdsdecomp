@@ -20,9 +20,6 @@
 #include "core/io/file_access_encrypted.h"
 #include "core/io/marshalls.h"
 #include "core/object/class_db.h"
-#include "modules/gdscript/gdscript_tokenizer_buffer.h"
-
-#include <limits.h>
 
 #define GDSDECOMP_FAIL_V_MSG(m_retval, m_msg) \
 	error_message = RTR(m_msg);               \
@@ -74,12 +71,17 @@ void GDScriptDecomp::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_godot_ver"), &GDScriptDecomp::get_godot_ver);
 	ClassDB::bind_method(D_METHOD("get_parent"), &GDScriptDecomp::get_parent);
 
+	ClassDB::bind_method(D_METHOD("to_json"), &GDScriptDecomp::to_json);
+
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_buffer_encrypted", "path", "engine_ver_major", "key"), &GDScriptDecomp::_get_buffer_encrypted);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("create_decomp_for_commit", "commit_hash"), &GDScriptDecomp::create_decomp_for_commit);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("create_decomp_for_version", "ver", "p_force"), &GDScriptDecomp::create_decomp_for_version, DEFVAL(false));
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("read_bytecode_version", "path"), &GDScriptDecomp::read_bytecode_version);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("read_bytecode_version_encrypted", "path", "engine_ver_major", "key"), &GDScriptDecomp::read_bytecode_version_encrypted);
 	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_bytecode_versions"), &GDScriptDecomp::get_bytecode_versions);
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("_create_custom_decomp", "custom_def", "derived_from"), &GDScriptDecomp::_create_custom_decomp, DEFVAL(0));
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("register_decomp_version_custom", "custom_def", "derived_from"), &GDScriptDecomp::register_decomp_version_custom, DEFVAL(0));
+	ClassDB::bind_static_method("GDScriptDecomp", D_METHOD("get_all_decomp_versions_json"), &GDScriptDecomp::get_all_decomp_versions_json);
 }
 
 void GDScriptDecomp::_ensure_space(String &p_code) {
@@ -152,7 +154,7 @@ String GDScriptDecomp::get_error_message() {
 	return error_message;
 }
 
-String GDScriptDecomp::get_constant_string(Vector<Variant> &constants, uint32_t constId) {
+String GDScriptDecomp::get_constant_string(const Vector<Variant> &constants, uint32_t constId) {
 	String constString;
 	GDSDECOMP_FAIL_COND_V_MSG(constId >= constants.size(), "", "Invalid constant ID.");
 	Error err = VariantWriterCompat::write_to_string_script(constants[constId], constString, get_variant_ver_major());
@@ -404,128 +406,128 @@ int GDScriptDecomp::read_bytecode_version_encrypted(const String &p_path, int en
 
 // constant array of string literals of the global token enum values
 const char *g_token_str[] = {
-	"EMPTY",
-	"IDENTIFIER",
-	"CONSTANT",
-	"SELF",
-	"BUILT_IN_TYPE",
-	"BUILT_IN_FUNC",
-	"IN",
-	"EQUAL", // "EQUAL_EQUAL" in 4.2
-	"NOT_EQUAL", // "BANG_EQUAL" in 4.2
-	"LESS",
-	"LESS_EQUAL",
-	"GREATER",
-	"GREATER_EQUAL",
-	"AND",
-	"OR",
-	"NOT",
-	"ADD",
-	"SUB",
-	"MUL",
-	"DIV",
-	"MOD",
-	"SHIFT_LEFT", // "LESS_LESS" in 4.2
-	"SHIFT_RIGHT", // "GREATER_GREATER" in 4.2
-	"ASSIGN", // "EQUAL" in 4.2
-	"ASSIGN_ADD", // "PLUS_EQUAL" in 4.2
-	"ASSIGN_SUB", // "MINUS_EQUAL" in 4.2
-	"ASSIGN_MUL", // "STAR_EQUAL" in 4.2
-	"ASSIGN_DIV", // "SLASH_EQUAL" in 4.2
-	"ASSIGN_MOD", // "PERCENT_EQUAL" in 4.2
-	"ASSIGN_SHIFT_LEFT", // "LESS_LESS_EQUAL" in 4.2
-	"ASSIGN_SHIFT_RIGHT", // "GREATER_GREATER_EQUAL" in 4.2
-	"ASSIGN_BIT_AND", // "AMPERSAND_EQUAL" in 4.2
-	"ASSIGN_BIT_OR", // "PIPE_EQUAL" in 4.2
-	"ASSIGN_BIT_XOR", // "CARET_EQUAL" in 4.2
-	"BIT_AND", // "AMPERSAND" in 4.2
-	"BIT_OR", // "PIPE" in 4.2
-	"BIT_XOR", // "CARET" in 4.2
-	"BIT_INVERT", // "TILDE" in 4.2
-	"IF",
-	"ELIF",
-	"ELSE",
-	"FOR",
-	"WHILE",
-	"BREAK",
-	"CONTINUE",
-	"PASS",
-	"RETURN",
-	"MATCH",
-	"FUNCTION",
-	"CLASS",
-	"CLASS_NAME",
-	"EXTENDS",
-	"IS",
-	"ONREADY",
-	"TOOL",
-	"STATIC",
-	"EXPORT",
-	"SETGET",
-	"CONST",
-	"VAR",
-	"AS",
-	"VOID",
-	"ENUM",
-	"PRELOAD",
-	"ASSERT",
-	"YIELD",
-	"SIGNAL",
-	"BREAKPOINT",
-	"REMOTE",
-	"SYNC",
-	"MASTER",
-	"SLAVE",
-	"PUPPET",
-	"REMOTESYNC",
-	"MASTERSYNC",
-	"PUPPETSYNC",
-	"BRACKET_OPEN",
-	"BRACKET_CLOSE",
-	"CURLY_BRACKET_OPEN",
-	"CURLY_BRACKET_CLOSE",
-	"PARENTHESIS_OPEN",
-	"PARENTHESIS_CLOSE",
-	"COMMA",
-	"SEMICOLON",
-	"PERIOD",
-	"QUESTION_MARK",
-	"COLON",
-	"DOLLAR",
-	"FORWARD_ARROW",
-	"NEWLINE",
-	"CONST_PI",
-	"CONST_TAU",
-	"WILDCARD",
-	"CONST_INF",
-	"CONST_NAN",
-	"ERROR",
-	"EOF",
-	"CURSOR",
-	"SLAVESYNC", //renamed to puppet sync in most recent versions
-	"DO", // removed in 3.1
-	"CASE",
-	"SWITCH",
-	"ANNOTATION", // added in 4.3
-	"AMPERSAND_AMPERSAND", // added in 4.3
-	"PIPE_PIPE", // added in 4.3
-	"BANG", // added in 4.3
-	"STAR_STAR", // added in 4.3
-	"STAR_STAR_EQUAL", // added in 4.3
-	"WHEN", // added in 4.3
-	"AWAIT", // added in 4.3
-	"NAMESPACE", // added in 4.3
-	"SUPER", // added in 4.3
-	"TRAIT", // added in 4.3
-	"PERIOD_PERIOD", // added in 4.3
-	"UNDERSCORE", // added in 4.3
-	"INDENT", // added in 4.3
-	"DEDENT", // added in 4.3
-	"VCS_CONFLICT_MARKER", // added in 4.3
-	"BACKTICK", // added in 4.3
-	"ABSTRACT", // added in 4.5
-	"PERIOD_PERIOD_PERIOD", // added in 4.5
-	"MAX",
+	"TK_EMPTY",
+	"TK_IDENTIFIER",
+	"TK_CONSTANT", // "TK_LITERAL" in 4.2
+	"TK_SELF",
+	"TK_BUILT_IN_TYPE",
+	"TK_BUILT_IN_FUNC",
+	"TK_OP_IN",
+	"TK_OP_EQUAL", // "EQUAL_EQUAL" in 4.2
+	"TK_OP_NOT_EQUAL", // "BANG_EQUAL" in 4.2
+	"TK_OP_LESS",
+	"TK_OP_LESS_EQUAL",
+	"TK_OP_GREATER",
+	"TK_OP_GREATER_EQUAL",
+	"TK_OP_AND",
+	"TK_OP_OR",
+	"TK_OP_NOT",
+	"TK_OP_ADD", // "PLUS" in 4.2
+	"TK_OP_SUB", // "MINUS" in 4.2
+	"TK_OP_MUL", // "STAR" in 4.2
+	"TK_OP_DIV", // "SLASH" in 4.2
+	"TK_OP_MOD", // "PERCENT" in 4.2
+	"TK_OP_SHIFT_LEFT", // "LESS_LESS" in 4.2
+	"TK_OP_SHIFT_RIGHT", // "GREATER_GREATER" in 4.2
+	"TK_OP_ASSIGN", // "EQUAL" in 4.2
+	"TK_OP_ASSIGN_ADD", // "PLUS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SUB", // "MINUS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_MUL", // "STAR_EQUAL" in 4.2
+	"TK_OP_ASSIGN_DIV", // "SLASH_EQUAL" in 4.2
+	"TK_OP_ASSIGN_MOD", // "PERCENT_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SHIFT_LEFT", // "LESS_LESS_EQUAL" in 4.2
+	"TK_OP_ASSIGN_SHIFT_RIGHT", // "GREATER_GREATER_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_AND", // "AMPERSAND_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_OR", // "PIPE_EQUAL" in 4.2
+	"TK_OP_ASSIGN_BIT_XOR", // "CARET_EQUAL" in 4.2
+	"TK_OP_BIT_AND", // "AMPERSAND" in 4.2
+	"TK_OP_BIT_OR", // "PIPE" in 4.2
+	"TK_OP_BIT_XOR", // "CARET" in 4.2
+	"TK_OP_BIT_INVERT", // "TILDE" in 4.2
+	"TK_CF_IF",
+	"TK_CF_ELIF",
+	"TK_CF_ELSE",
+	"TK_CF_FOR",
+	"TK_CF_WHILE",
+	"TK_CF_BREAK",
+	"TK_CF_CONTINUE",
+	"TK_CF_PASS",
+	"TK_CF_RETURN",
+	"TK_CF_MATCH",
+	"TK_PR_FUNCTION", // "FUNC" in 4.2
+	"TK_PR_CLASS",
+	"TK_PR_CLASS_NAME",
+	"TK_PR_EXTENDS",
+	"TK_PR_IS",
+	"TK_PR_ONREADY",
+	"TK_PR_TOOL",
+	"TK_PR_STATIC",
+	"TK_PR_EXPORT",
+	"TK_PR_SETGET",
+	"TK_PR_CONST",
+	"TK_PR_VAR",
+	"TK_PR_AS",
+	"TK_PR_VOID",
+	"TK_PR_ENUM",
+	"TK_PR_PRELOAD",
+	"TK_PR_ASSERT",
+	"TK_PR_YIELD",
+	"TK_PR_SIGNAL",
+	"TK_PR_BREAKPOINT",
+	"TK_PR_REMOTE",
+	"TK_PR_SYNC",
+	"TK_PR_MASTER",
+	"TK_PR_SLAVE",
+	"TK_PR_PUPPET",
+	"TK_PR_REMOTESYNC",
+	"TK_PR_MASTERSYNC",
+	"TK_PR_PUPPETSYNC",
+	"TK_BRACKET_OPEN",
+	"TK_BRACKET_CLOSE",
+	"TK_CURLY_BRACKET_OPEN",
+	"TK_CURLY_BRACKET_CLOSE",
+	"TK_PARENTHESIS_OPEN",
+	"TK_PARENTHESIS_CLOSE",
+	"TK_COMMA",
+	"TK_SEMICOLON",
+	"TK_PERIOD",
+	"TK_QUESTION_MARK",
+	"TK_COLON",
+	"TK_DOLLAR",
+	"TK_FORWARD_ARROW",
+	"TK_NEWLINE",
+	"TK_CONST_PI",
+	"TK_CONST_TAU",
+	"TK_WILDCARD",
+	"TK_CONST_INF",
+	"TK_CONST_NAN",
+	"TK_ERROR",
+	"TK_EOF",
+	"TK_CURSOR",
+	"TK_PR_SLAVESYNC", //renamed to puppet sync in most recent versions
+	"TK_CF_DO", // removed in 3.1
+	"TK_CF_CASE",
+	"TK_CF_SWITCH",
+	"TK_ANNOTATION", // added in 4.3
+	"TK_AMPERSAND_AMPERSAND", // added in 4.3
+	"TK_PIPE_PIPE", // added in 4.3
+	"TK_BANG", // added in 4.3
+	"TK_STAR_STAR", // added in 4.3
+	"TK_STAR_STAR_EQUAL", // added in 4.3
+	"TK_CF_WHEN", // added in 4.3
+	"TK_PR_AWAIT", // added in 4.3
+	"TK_PR_NAMESPACE", // added in 4.3
+	"TK_PR_SUPER", // added in 4.3
+	"TK_PR_TRAIT", // added in 4.3
+	"TK_PERIOD_PERIOD", // added in 4.3
+	"TK_UNDERSCORE", // added in 4.3
+	"TK_INDENT", // added in 4.3
+	"TK_DEDENT", // added in 4.3
+	"TK_VCS_CONFLICT_MARKER", // added in 4.3
+	"TK_BACKTICK", // added in 4.3
+	"TK_ABSTRACT", // added in 4.5
+	"TK_PERIOD_PERIOD_PERIOD", // added in 4.5
+	"TK_MAX",
 };
 static_assert(sizeof(g_token_str) / sizeof(g_token_str[0]) == GDScriptDecomp::GlobalToken::G_TK_MAX + 1, "g_token_str size mismatch");
 
@@ -559,16 +561,16 @@ Error GDScriptDecomp::debug_print(Vector<uint8_t> p_buffer) {
 	print_line("Lines count: " + itos(lines.size()));
 	print_line("Columns count: " + itos(columns.size()));
 
-	int max_line = 0;
-	int max_column = 0;
+	uint32_t max_line = 0;
+	uint32_t max_column = 0;
 	for (int i = 0; i < tokens.size(); i++) {
 		max_line = MAX(max_line, lines[i]);
 		if (columns.size() > 0) {
 			max_column = MAX(max_column, columns[i]);
 		}
 	}
-	print_line("Max line: " + itos(max_line));
-	print_line("Max column: " + itos(max_column));
+	print_line("Max line: " + uitos(max_line));
+	print_line("Max column: " + uitos(max_column));
 
 	print_line("\nIdentifiers:");
 	for (int i = 0; i < identifiers.size(); i++) {
@@ -1109,7 +1111,8 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			} break;
 			case G_TK_PR_SUPER: {
 				ensure_space_func();
-				line += "super ";
+				line += "super";
+				ensure_ending_space_func(i, G_TK_PERIOD);
 			} break;
 			case G_TK_PR_TRAIT: {
 				ensure_space_func();
@@ -1299,7 +1302,7 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 	};
 
 	for (int i = 0; i < tokens.size(); i++) {
-		r_tok_max = MAX(r_tok_max, tokens[i] & TOKEN_MASK);
+		r_tok_max = MAX(r_tok_max, static_cast<int>(tokens[i] & TOKEN_MASK));
 		GlobalToken curr_token = get_global_token(tokens[i]);
 		Pair<int, int> arg_count;
 		bool test_func = false;
@@ -1889,9 +1892,9 @@ static int64_t continuity_tester(const HashMap<K, V> &p_vector, const HashMap<K,
 			// WARN_PRINT(name + " size mismatch: " + itos(p_vector.size()) + " != " + itos(p_other.size()));
 		}
 	}
-	if (pos >= p_vector.size() || pos >= p_other.size()) {
+	if (pos >= static_cast<int>(p_vector.size()) || pos >= static_cast<int>(p_other.size())) {
 		// WARN_PRINT(name + " pos out of range");
-		return MIN(p_vector.size(), p_other.size());
+		return MIN(static_cast<int>(p_vector.size()), static_cast<int>(p_other.size()));
 	}
 
 	Vector<Pair<K, V>> p_vector_arr;
@@ -1904,7 +1907,7 @@ static int64_t continuity_tester(const HashMap<K, V> &p_vector, const HashMap<K,
 		p_other_arr.push_back(Pair<K, V>(it.key, it.value));
 	}
 
-	for (int i = pos; i < p_vector.size(); i++) {
+	for (int64_t i = pos; i < p_vector.size(); i++) {
 		if (i >= p_other.size()) {
 			// WARN_PRINT(name + " discontinuity at index " + itos(i));
 			return i;
@@ -2223,5 +2226,533 @@ bool GDScriptDecomp::token_is_keyword_called_like_function(GlobalToken p_token) 
 			return true;
 		default:
 			return false;
+	}
+}
+
+String GDScriptDecomp::get_global_token_name(GlobalToken p_token) {
+	return GDScriptTokenizerTextCompat::get_token_name(p_token);
+}
+
+String GDScriptDecomp::get_token_text(const ScriptState &p_script_state, uint32_t i) {
+	if (i >= p_script_state.tokens.size()) {
+		return "ERROR: Invalid token index";
+	}
+	uint32_t local_token = p_script_state.tokens[i] & TOKEN_MASK;
+	GlobalToken token_id = get_global_token(local_token);
+	uint32_t token_val = p_script_state.tokens[i] >> TOKEN_BITS;
+	switch (token_id) {
+		case G_TK_EMPTY: {
+			return "";
+		} break;
+		case G_TK_ANNOTATION: // fallthrough
+		case G_TK_IDENTIFIER: {
+			if (token_val >= (uint32_t)p_script_state.identifiers.size()) {
+				return "ERROR: Invalid identifier index";
+			}
+			return String(p_script_state.identifiers[token_val]);
+		} break;
+		case G_TK_CONSTANT: {
+			if (token_val >= (uint32_t)p_script_state.constants.size()) {
+				return "ERROR: Invalid constant index";
+			}
+			return get_constant_string(p_script_state.constants, token_val);
+		} break;
+		case G_TK_BUILT_IN_TYPE: {
+			return VariantDecoderCompat::get_variant_type_name(token_val, get_variant_ver_major());
+		} break;
+		case G_TK_BUILT_IN_FUNC: {
+			if (token_val >= static_cast<uint32_t>(get_function_count())) {
+				return "ERROR: Invalid function index";
+			}
+			return get_function_name(token_val);
+		} break;
+		default:
+			break;
+	}
+	return get_global_token_text(token_id);
+}
+
+String GDScriptDecomp::get_global_token_text(GlobalToken p_token_id) {
+	switch (p_token_id) {
+		case G_TK_EMPTY: {
+			//skip
+			return "";
+		} break;
+		case G_TK_ANNOTATION: // fallthrough
+		case G_TK_IDENTIFIER: {
+			// uint32_t identifier = tokens[i] >> TOKEN_BITS;
+			// if (identifier >= (uint32_t)identifiers.size()) {
+			// 	return "ERROR: Invalid identifier index";
+			// }
+			// return String(identifiers[identifier]);
+			return "";
+		} break;
+		case G_TK_CONSTANT: {
+			// uint32_t constant = tokens[i] >> TOKEN_BITS;
+			// if (constant >= (uint32_t)constants.size()) {
+			// 	return "ERROR: Invalid constant index";
+			// }
+			// // TODO: handle GDScript 2.0 multi-line strings: we have to check the number of newlines
+			// // in the string and if the next token has a line number difference >= the number of newlines
+			// return get_constant_string(constants, constant);
+			return "";
+		} break;
+		case G_TK_BUILT_IN_TYPE: {
+			// line += VariantDecoderCompat::get_variant_type_name(tokens[i] >> TOKEN_BITS, variant_ver_major);
+			return "";
+		} break;
+		case G_TK_BUILT_IN_FUNC: {
+			// GDSDECOMP_FAIL_COND_V(tokens[i] >> TOKEN_BITS >= FUNC_MAX, ERR_INVALID_DATA);
+			// line += get_function_name(tokens[i] >> TOKEN_BITS);
+			return "";
+		} break;
+
+		case G_TK_SELF: {
+			return "self";
+		} break;
+		case G_TK_OP_IN: {
+			return "in";
+		} break;
+		case G_TK_OP_EQUAL: {
+			return "==";
+		} break;
+		case G_TK_OP_NOT_EQUAL: {
+			return "!=";
+		} break;
+		case G_TK_OP_LESS: {
+			return "<";
+		} break;
+		case G_TK_OP_LESS_EQUAL: {
+			return "<=";
+		} break;
+		case G_TK_OP_GREATER: {
+			return ">";
+		} break;
+		case G_TK_OP_GREATER_EQUAL: {
+			return ">=";
+		} break;
+		case G_TK_OP_AND: {
+			return "and";
+		} break;
+		case G_TK_OP_OR: {
+			return "or";
+		} break;
+		case G_TK_OP_NOT: {
+			return "not";
+		} break;
+		case G_TK_OP_ADD: {
+			return "+";
+		} break;
+		case G_TK_OP_SUB: {
+			return "-";
+			//TODO: do not add space after unary "-"
+		} break;
+		case G_TK_OP_MUL: {
+			return "*";
+		} break;
+		case G_TK_OP_DIV: {
+			return "/";
+		} break;
+		case G_TK_OP_MOD: {
+			return "%";
+		} break;
+		case G_TK_OP_SHIFT_LEFT: {
+			return "<<";
+		} break;
+		case G_TK_OP_SHIFT_RIGHT: {
+			return ">>";
+		} break;
+		case G_TK_OP_ASSIGN: {
+			return "=";
+		} break;
+		case G_TK_OP_ASSIGN_ADD: {
+			return "+=";
+		} break;
+		case G_TK_OP_ASSIGN_SUB: {
+			return "-=";
+		} break;
+		case G_TK_OP_ASSIGN_MUL: {
+			return "*=";
+		} break;
+		case G_TK_OP_ASSIGN_DIV: {
+			return "/=";
+		} break;
+		case G_TK_OP_ASSIGN_MOD: {
+			return "%=";
+		} break;
+		case G_TK_OP_ASSIGN_SHIFT_LEFT: {
+			return "<<=";
+		} break;
+		case G_TK_OP_ASSIGN_SHIFT_RIGHT: {
+			return ">>=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_AND: {
+			return "&=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_OR: {
+			return "|=";
+		} break;
+		case G_TK_OP_ASSIGN_BIT_XOR: {
+			return "^=";
+		} break;
+		case G_TK_OP_BIT_AND: {
+			return "&";
+		} break;
+		case G_TK_OP_BIT_OR: {
+			return "|";
+		} break;
+		case G_TK_OP_BIT_XOR: {
+			return "^";
+		} break;
+		case G_TK_OP_BIT_INVERT: {
+			return "~";
+		} break;
+		//case G_TK_OP_PLUS_PLUS: {
+		//	return "++";
+		//} break;
+		//case G_TK_OP_MINUS_MINUS: {
+		//	return "--";
+		//} break;
+		case G_TK_CF_IF: {
+			return "if";
+		} break;
+		case G_TK_CF_ELIF: {
+			return "elif";
+		} break;
+		case G_TK_CF_ELSE: {
+			return "else";
+		} break;
+		case G_TK_CF_FOR: {
+			return "for";
+		} break;
+		case G_TK_CF_WHILE: {
+			return "while";
+		} break;
+		case G_TK_CF_BREAK: {
+			return "break";
+		} break;
+		case G_TK_CF_CONTINUE: {
+			return "continue";
+		} break;
+		case G_TK_CF_PASS: {
+			return "pass";
+		} break;
+		case G_TK_CF_RETURN: {
+			return "return";
+		} break;
+		case G_TK_CF_MATCH: {
+			return "match";
+		} break;
+		case G_TK_PR_FUNCTION: {
+			return "func";
+		} break;
+		case G_TK_PR_CLASS: {
+			return "class";
+		} break;
+		case G_TK_PR_CLASS_NAME: {
+			return "class_name";
+		} break;
+		case G_TK_PR_EXTENDS: {
+			return "extends";
+		} break;
+		case G_TK_PR_IS: {
+			return "is";
+		} break;
+		case G_TK_PR_ONREADY: {
+			return "onready";
+		} break;
+		case G_TK_PR_TOOL: {
+			return "tool";
+		} break;
+		case G_TK_PR_STATIC: {
+			return "static";
+		} break;
+		case G_TK_PR_EXPORT: {
+			return "export";
+		} break;
+		case G_TK_PR_SETGET: {
+			return "setget";
+		} break;
+		case G_TK_PR_CONST: {
+			return "const";
+		} break;
+		case G_TK_PR_VAR: {
+			return "var";
+		} break;
+		case G_TK_PR_AS: {
+			return "as";
+		} break;
+		case G_TK_PR_VOID: {
+			return "void";
+		} break;
+		case G_TK_PR_ENUM: {
+			return "enum";
+		} break;
+		case G_TK_PR_PRELOAD: {
+			return "preload";
+		} break;
+		case G_TK_PR_ASSERT: {
+			return "assert";
+		} break;
+		case G_TK_PR_YIELD: {
+			return "yield";
+		} break;
+		case G_TK_PR_SIGNAL: {
+			return "signal";
+		} break;
+		case G_TK_PR_BREAKPOINT: {
+			return "breakpoint";
+		} break;
+		case G_TK_PR_REMOTE: {
+			return "remote";
+		} break;
+		case G_TK_PR_SYNC: {
+			return "sync";
+		} break;
+		case G_TK_PR_MASTER: {
+			return "master";
+		} break;
+		case G_TK_PR_SLAVE: {
+			return "slave";
+		} break;
+		case G_TK_PR_PUPPET: {
+			return "puppet";
+		} break;
+		case G_TK_PR_REMOTESYNC: {
+			return "remotesync";
+		} break;
+		case G_TK_PR_MASTERSYNC: {
+			return "mastersync";
+		} break;
+		case G_TK_PR_PUPPETSYNC: {
+			return "puppetsync";
+		} break;
+		case G_TK_BRACKET_OPEN: {
+			return "[";
+		} break;
+		case G_TK_BRACKET_CLOSE: {
+			return "]";
+		} break;
+		case G_TK_CURLY_BRACKET_OPEN: {
+			return "{";
+		} break;
+		case G_TK_CURLY_BRACKET_CLOSE: {
+			return "}";
+		} break;
+		case G_TK_PARENTHESIS_OPEN: {
+			return "(";
+		} break;
+		case G_TK_PARENTHESIS_CLOSE: {
+			return ")";
+		} break;
+		case G_TK_COMMA: {
+			return ",";
+		} break;
+		case G_TK_SEMICOLON: {
+			return ";";
+		} break;
+		case G_TK_PERIOD: {
+			return ".";
+		} break;
+		case G_TK_QUESTION_MARK: {
+			return "?";
+		} break;
+		case G_TK_COLON: {
+			return ":";
+		} break;
+		case G_TK_DOLLAR: {
+			return "$";
+		} break;
+		case G_TK_FORWARD_ARROW: {
+			return "->";
+		} break;
+		case G_TK_INDENT:
+		case G_TK_DEDENT:
+			return "";
+		case G_TK_NEWLINE: {
+			return "\n";
+		} break;
+		case G_TK_CONST_PI: {
+			return "PI";
+		} break;
+		case G_TK_CONST_TAU: {
+			return "TAU";
+		} break;
+		case G_TK_WILDCARD: {
+			return "_";
+		} break;
+		case G_TK_CONST_INF: {
+			return "INF";
+		} break;
+		case G_TK_CONST_NAN: {
+			return "NAN";
+		} break;
+		case G_TK_PR_SLAVESYNC: {
+			return "slavesync";
+		} break;
+		case G_TK_CF_DO: {
+			return "do";
+		} break;
+		case G_TK_CF_CASE: {
+			return "case";
+		} break;
+		case G_TK_CF_SWITCH: {
+			return "switch";
+		} break;
+		case G_TK_AMPERSAND_AMPERSAND: {
+			return "&&";
+		} break;
+		case G_TK_PIPE_PIPE: {
+			return "||";
+		} break;
+		case G_TK_BANG: {
+			return "!";
+		} break;
+		case G_TK_STAR_STAR: {
+			return "**";
+		} break;
+		case G_TK_STAR_STAR_EQUAL: {
+			return "**=";
+		} break;
+		case G_TK_CF_WHEN: {
+			return "when";
+		} break;
+		case G_TK_PR_AWAIT: {
+			return "await";
+		} break;
+		case G_TK_PR_NAMESPACE: {
+			return "namespace";
+		} break;
+		case G_TK_PR_SUPER: {
+			return "super";
+		} break;
+		case G_TK_PR_TRAIT: {
+			return "trait";
+		} break;
+		case G_TK_PERIOD_PERIOD: {
+			return "..";
+		} break;
+		case G_TK_PERIOD_PERIOD_PERIOD: {
+			return "...";
+		} break;
+		case G_TK_UNDERSCORE: {
+			return "_";
+		} break;
+		case G_TK_BACKTICK: {
+			return "`";
+		} break;
+		case G_TK_ABSTRACT: {
+			return "abstract";
+		} break;
+		// case G_TK_ERROR: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_EOF: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_CURSOR: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_VCS_CONFLICT_MARKER: {
+		// 	//skip - invalid
+		// } break;
+		// case G_TK_MAX: {
+		// 	GDSDECOMP_FAIL_V_MSG(ERR_INVALID_DATA, "Invalid token: TK_MAX (" + itos(local_token) + ")");
+		// } break;
+		default: {
+			return "";
+		}
+	}
+}
+
+Dictionary GDScriptDecomp::to_json() const {
+	Dictionary json;
+	String engine_version = get_engine_version();
+	// bytecode_rev is a hex string without the 0x prefix
+	json["bytecode_rev"] = String::num_int64(get_bytecode_rev(), 16).to_lower();
+	json["bytecode_version"] = get_bytecode_version();
+	json["date"] = get_date();
+	json["engine_version"] = engine_version;
+	json["max_engine_version"] = get_max_engine_version();
+	json["engine_ver_major"] = get_engine_ver_major();
+	json["variant_ver_major"] = get_variant_ver_major();
+	json["parent"] = String::num_int64(get_parent(), 16).to_lower();
+	json["is_dev"] = engine_version.contains("-dev") || is_custom();
+	auto added_tokens = get_added_tokens();
+	auto added_tokens_str = PackedStringArray();
+	for (int i = 0; i < added_tokens.size(); i++) {
+		added_tokens_str.append(g_token_str[added_tokens[i]]);
+	}
+	json["added_tokens"] = added_tokens_str;
+	auto removed_tokens = get_removed_tokens();
+	auto removed_tokens_str = PackedStringArray();
+	for (int i = 0; i < removed_tokens.size(); i++) {
+		removed_tokens_str.append(g_token_str[removed_tokens[i]]);
+	}
+	json["removed_tokens"] = removed_tokens_str;
+	json["added_functions"] = get_added_functions();
+	json["removed_functions"] = get_removed_functions();
+	json["renamed_functions"] = get_renamed_functions();
+	json["arg_count_changed"] = get_function_arg_count_changed();
+	json["tokens_renamed"] = get_tokens_renamed();
+
+	Vector<String> func_names;
+	for (int i = 0; i < get_function_count(); i++) {
+		func_names.append(get_function_name(i));
+	}
+	json["func_names"] = func_names;
+	Vector<String> tk_names;
+	for (int i = 0; i < get_token_max() + 1; i++) {
+		auto val = get_global_token(i);
+		tk_names.append(get_token_name(val));
+	}
+	json["tk_names"] = tk_names;
+	return json;
+}
+
+TypedArray<Dictionary> GDScriptDecomp::get_all_decomp_versions_json() {
+	TypedArray<Dictionary> ret;
+	auto versions = get_decomp_versions(true, 0);
+	for (int i = 0; i < versions.size(); i++) {
+		Ref<GDScriptDecomp> decomp = versions[i].create_decomp();
+		if (decomp.is_null()) {
+			continue;
+		}
+		ret.append(decomp->to_json());
+	}
+	return ret;
+}
+
+String GDScriptDecomp::get_token_name(GlobalToken p_token) {
+	if ((int)p_token <= (int)G_TK_MAX && (int)p_token >= 0) {
+		return g_token_str[(int)p_token];
+	}
+	return "";
+}
+
+GDScriptDecomp::GlobalToken GDScriptDecomp::get_token_for_name(const String &p_name) {
+	for (int i = 0; i <= G_TK_MAX; i++) {
+		if (g_token_str[i] == p_name) {
+			return (GlobalToken)i;
+		}
+	}
+	return G_TK_MAX;
+}
+
+Ref<GDScriptDecomp> GDScriptDecomp::_create_custom_decomp(Dictionary p_custom_def, int p_derived_from) {
+	GDScriptDecompVersion decomp;
+	if (p_derived_from == 0) {
+		decomp = GDScriptDecompVersion::create_version_from_custom_def(p_custom_def);
+	} else {
+		decomp = GDScriptDecompVersion::create_derived_version_from_custom_def(p_derived_from, p_custom_def);
+	}
+	return decomp.create_decomp();
+}
+
+int GDScriptDecomp::register_decomp_version_custom(Dictionary p_custom_def, int p_derived_from) {
+	if (p_derived_from == 0) {
+		return GDScriptDecompVersion::register_decomp_version_custom(p_custom_def);
+	} else {
+		return GDScriptDecompVersion::register_derived_decomp_version_custom(p_derived_from, p_custom_def);
 	}
 }

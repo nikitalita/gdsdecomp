@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=169 format=3 uid="uid://crq1fwn0ajw7b"]
+[gd_resource type="Theme" load_steps=175 format=3 uid="uid://crq1fwn0ajw7b"]
 
 [ext_resource type="Texture2D" uid="uid://bw33q7hum6mux" path="res://gdre_icons/gdre_MaterialPreviewLight1.svg" id="1_l0g3i"]
 [ext_resource type="Texture2D" uid="uid://ducxthcvnkalf" path="res://gdre_icons/gdre_MaterialPreviewLight2.svg" id="2_b4rug"]
@@ -151,7 +151,6 @@ content_margin_top = 4.0
 content_margin_right = 6.0
 content_margin_bottom = 4.0
 bg_color = Color(0.147059, 0.173529, 0.232353, 1)
-draw_center = false
 border_color = Color(0.122549, 0.144608, 0.193627, 1)
 
 [sub_resource type="SystemFont" id="SystemFont_qm34x"]
@@ -161,6 +160,73 @@ font_names = PackedStringArray("Cascadia Code", "Consolas", "Monospace")
 bg_color = Color(0.0965684, 0.120984, 0.166773, 1)
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_b4rug"]
+
+[sub_resource type="FontFile" id="FontFile_w2kt3"]
+cache/0/16/0/ascent = 0.0
+cache/0/16/0/descent = 0.0
+cache/0/16/0/underline_position = 0.0
+cache/0/16/0/underline_thickness = 0.0
+cache/0/16/0/scale = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rndkq"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.176471, 0.208235, 0.278824, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.137255, 0.161961, 0.216863, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cr3io"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.147059, 0.173529, 0.232353, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.411765, 0.611765, 0.909804, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wrdh4"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.147059, 0.173529, 0.232353, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.397059, 0.423529, 0.482353, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_fl6mx"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.147059, 0.173529, 0.232353, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.234977, 0.269988, 0.347677, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ej8ky"]
+content_margin_left = 6.0
+content_margin_top = 4.0
+content_margin_right = 6.0
+content_margin_bottom = 4.0
+bg_color = Color(0.147059, 0.173529, 0.232353, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.411765, 0.611765, 0.909804, 1)
 
 [sub_resource type="Image" id="Image_w2kt3"]
 data = {
@@ -1253,6 +1319,30 @@ CodeEdit/fonts/font = SubResource("SystemFont_qm34x")
 CodeEdit/styles/focus = SubResource("StyleBoxFlat_l0g3i")
 CodeEdit/styles/normal = SubResource("StyleBoxFlat_l0g3i")
 CodeEdit/styles/read_only = SubResource("StyleBoxEmpty_b4rug")
+CodeOptsButton/colors/font_color = Color(0.875, 0.875, 0.875, 1)
+CodeOptsButton/colors/font_disabled_color = Color(0.875, 0.875, 0.875, 0.5)
+CodeOptsButton/colors/font_focus_color = Color(0.95, 0.95, 0.95, 1)
+CodeOptsButton/colors/font_hover_color = Color(0.95, 0.95, 0.95, 1)
+CodeOptsButton/colors/font_hover_pressed_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/font_outline_color = Color(0, 0, 0, 1)
+CodeOptsButton/colors/font_pressed_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/icon_disabled_color = Color(1, 1, 1, 0.4)
+CodeOptsButton/colors/icon_focus_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/icon_hover_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/icon_hover_pressed_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/icon_normal_color = Color(1, 1, 1, 1)
+CodeOptsButton/colors/icon_pressed_color = Color(1, 1, 1, 1)
+CodeOptsButton/constants/align_to_largest_stylebox = 0
+CodeOptsButton/constants/h_separation = 4
+CodeOptsButton/constants/icon_max_width = 0
+CodeOptsButton/constants/outline_size = 0
+CodeOptsButton/font_sizes/font_size = 16
+CodeOptsButton/fonts/font = SubResource("FontFile_w2kt3")
+CodeOptsButton/styles/disabled = SubResource("StyleBoxFlat_rndkq")
+CodeOptsButton/styles/focus = SubResource("StyleBoxFlat_cr3io")
+CodeOptsButton/styles/hover = SubResource("StyleBoxFlat_wrdh4")
+CodeOptsButton/styles/normal = SubResource("StyleBoxFlat_fl6mx")
+CodeOptsButton/styles/pressed = SubResource("StyleBoxFlat_ej8ky")
 ColorPicker/constants/h_width = 30
 ColorPicker/constants/label_width = 10
 ColorPicker/constants/margin = 8

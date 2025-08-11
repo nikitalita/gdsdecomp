@@ -34,6 +34,8 @@ protected:
 
 	static void _bind_methods();
 
+	static Ref<Resource> _load_for_text_conversion(const String &p_path, const String &original_path = "", Error *r_error = nullptr);
+
 public:
 	static ResourceInfo::LoadType get_default_load_type();
 
@@ -56,6 +58,8 @@ public:
 	static bool handles_resource(const String &p_path, const String &p_type_hint = "");
 	static String get_resource_script_class(const String &p_path);
 	static String get_resource_type(const String &p_path);
+
+	static String resource_to_string(const String &p_path, bool p_skip_cr = true);
 
 	static void set_default_gltf_load(bool p_enable);
 	static bool is_default_gltf_load();
@@ -114,11 +118,12 @@ public:
 		}
 	}
 
-	static Resource *make_fakescript_or_mising_resource(const String &path, const String &type, const String &scene_id = "") {
+	static Resource *make_fakescript_or_mising_resource(const String &path, const String &type, const String &scene_id = "", bool no_fake_script = false) {
 		Resource *ret;
-		if (type == "Script" || type == "GDScript" || type == "CSharpScript") {
-			FakeEmbeddedScript *res{ memnew(FakeEmbeddedScript) };
+		if (!no_fake_script && (type == "Script" || type == "GDScript" || type == "CSharpScript")) {
+			FakeScript *res{ memnew(FakeScript) };
 			res->set_original_class(type);
+			res->set_can_instantiate(false);
 			ret = res;
 		} else {
 			MissingResource *res{ memnew(MissingResource) };
@@ -147,8 +152,8 @@ public:
 		return res;
 	}
 
-	static Resource *create_missing_main_resource(const String &path, const String &type, const ResourceUID::ID uid) {
-		Resource *res{ make_fakescript_or_mising_resource(path, type) };
+	static Resource *create_missing_main_resource(const String &path, const String &type, const ResourceUID::ID uid, bool no_fake_script = false) {
+		Resource *res{ make_fakescript_or_mising_resource(path, type, "", no_fake_script) };
 		Ref<ResourceInfo> compat;
 		compat.instantiate();
 		compat->uid = uid;
@@ -158,8 +163,8 @@ public:
 		return res;
 	}
 
-	static Resource *create_missing_internal_resource(const String &path, const String &type, const String &scene_id) {
-		Resource *res{ make_fakescript_or_mising_resource("", type, scene_id) };
+	static Resource *create_missing_internal_resource(const String &path, const String &type, const String &scene_id, bool no_fake_script = false) {
+		Resource *res{ make_fakescript_or_mising_resource("", type, scene_id, no_fake_script) };
 		Ref<ResourceInfo> compat;
 		compat.instantiate();
 		compat->uid = ResourceUID::INVALID_ID;

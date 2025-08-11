@@ -9,6 +9,7 @@
 #include "modules/gdscript/gdscript_tokenizer.h"
 #include "test_common.h"
 #include "tests/test_macros.h"
+#include <compat/fake_gdscript.h>
 #include <compat/resource_compat_text.h>
 #include <compat/resource_loader_compat.h>
 
@@ -170,6 +171,17 @@ inline void test_script_binary(const String &script_name, const Vector<uint8_t> 
 	}
 	CHECK(decomp->get_error_message() == "");
 	CHECK(err == OK);
+
+	Ref<FakeGDScript> fake_script = memnew(FakeGDScript);
+	fake_script->set_override_bytecode_revision(revision);
+	CHECK(fake_script->get_override_bytecode_revision() == revision);
+	fake_script->set_source_code(helper_script_text);
+	CHECK(fake_script->is_loaded());
+	CHECK(fake_script->get_error_message() == "");
+	fake_script->load_binary_tokens(bytecode);
+	CHECK(fake_script->is_loaded());
+	CHECK(fake_script->get_error_message() == "");
+	CHECK(fake_script->get_override_bytecode_revision() == revision);
 }
 
 inline void test_script_text(const String &script_name, const String &helper_script_text, int revision, bool helper_script, bool no_text_equality_check, bool compare_whitespace = false) {
@@ -387,6 +399,40 @@ TEST_CASE("[GDSDecomp][Bytecode] Test reserved words as accessor names") {
 	for (const GDScriptDecompVersion &version : versions) {
 		int revision = version.commit;
 		simple_pass_fail_test("all", test_reserved_word_as_accessor_name, revision, false);
+	}
+}
+
+TEST_CASE("[GDSDecomp][Bytecode][Create] Test creating custom decomp") {
+	REQUIRE(GDRESettings::get_singleton());
+	auto cwd = GDRESettings::get_singleton()->get_cwd();
+	String gdscript_tests_path = get_gdscript_tests_path();
+	auto gdscript_test_scripts = Glob::rglob(gdscript_tests_path.path_join("**/*.gd"), true);
+	auto gdscript_test_error_scripts = Vector<String>();
+	for (int i = 0; i < gdscript_test_scripts.size(); i++) {
+		// remove any that contain ".notest." or "/error/"
+		auto script_path = gdscript_test_scripts[i].trim_prefix(cwd + "/");
+		if (script_path.contains(".notest.") || script_path.contains("error") || script_path.contains("completion")) {
+			gdscript_test_error_scripts.push_back(script_path);
+			gdscript_test_scripts.erase(gdscript_test_scripts[i]);
+			i--;
+		} else {
+			gdscript_test_scripts.write[i] = script_path;
+		}
+	}
+
+	GDScriptDecompVersion ver = GDScriptDecompVersion::create_derived_version_from_custom_def(LATEST_GDSCRIPT_COMMIT, Dictionary());
+	CHECK(!ver.name.is_empty());
+	int revision = GDScriptDecompVersion::register_decomp_version_custom(ver.custom);
+	CHECK(revision != 0);
+	Ref<GDScriptDecomp> decomp = create_decomp_for_commit(revision);
+	CHECK(decomp.is_valid());
+
+	for (int64_t i = 0; i < gdscript_test_scripts.size(); i++) {
+		auto &script_path = gdscript_test_scripts[i];
+		auto sub_case_name = vformat("Testing compiling script %s", script_path);
+		SUBCASE(sub_case_name.utf8().get_data()) {
+			test_script(script_path, revision, false, true);
+		}
 	}
 }
 

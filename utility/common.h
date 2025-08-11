@@ -3,6 +3,7 @@
 #include "core/variant/variant.h"
 #include "macros.h"
 
+#include <core/io/dir_access.h>
 #include <core/object/class_db.h>
 #include <core/object/object.h>
 #include <core/variant/typed_array.h>
@@ -23,6 +24,7 @@ void get_strings_from_variant(const Variant &p_var, Vector<String> &r_strings, c
 Error decompress_image(const Ref<Image> &img);
 String get_md5(const String &dir, bool ignore_code_signature = false);
 String get_md5_for_dir(const String &dir, bool ignore_code_signature = false);
+String get_sha256(const String &file_or_dir);
 Error unzip_file_to_dir(const String &zip_path, const String &output_dir);
 Error wget_sync(const String &p_url, Vector<uint8_t> &response, int retries = 5, float *p_progress = nullptr, bool *p_cancelled = nullptr);
 Error download_file_sync(const String &url, const String &output_path, float *p_progress = nullptr, bool *p_cancelled = nullptr);
@@ -30,6 +32,9 @@ Error rimraf(const String &dir);
 bool dir_is_empty(const String &dir);
 Error touch_file(const String &path);
 bool store_var_compat(Ref<FileAccess> f, const Variant &p_var, int ver_major, bool p_full_objects = false);
+String get_full_path(const String &p_path, DirAccess::AccessType p_access);
+bool directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files);
+Vector<String> get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
 
 String num_scientific(double p_num);
 String num_scientific(float p_num);
@@ -245,6 +250,8 @@ Vector<String> rsplit_multichar(const String &s, const HashSet<char32_t> &splitt
 
 bool detect_utf8(const PackedByteArray &p_utf8_buf);
 Error copy_dir(const String &src, const String &dst);
+
+Ref<FileAccess> open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key);
 } // namespace gdre
 
 class GDRECommon : public Object {

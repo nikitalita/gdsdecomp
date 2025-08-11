@@ -23,6 +23,7 @@ private:
 	static bool prepopping;
 	static HashMap<String, PluginVersion> plugin_version_cache;
 	static Mutex plugin_version_cache_mutex;
+	static HashMap<String, Pair<String, String>> known_bad_plugin_versions;
 
 	// Source management
 	static Ref<PluginSource> get_source(const String &plugin_name);

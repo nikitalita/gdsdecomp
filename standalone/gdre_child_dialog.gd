@@ -1,5 +1,5 @@
 class_name GDREChildDialog
-extends AcceptDialog
+extends GDREAcceptDialogBase
 
 var ERROR_DIALOG: AcceptDialog = null
 var CONFIRM_DIALOG: ConfirmationDialog = null
@@ -55,6 +55,7 @@ func show_win():
 	var safe_area: Rect2i = DisplayServer.get_display_safe_area()
 	var center = (safe_area.position + safe_area.size - self.size) / 2
 	self.set_position(center)
+	set_exclusive(true)
 	self.show()
 
 func hide_win():
@@ -99,13 +100,13 @@ func _init_error_dialog():
 	if (ERROR_DIALOG == null):
 		ERROR_DIALOG = AcceptDialog.new()
 	if (not ERROR_DIALOG.is_inside_tree()):
-		self.add_child(ERROR_DIALOG)	
+		self.add_child(ERROR_DIALOG)
 	pass
 func _init_confirm_dialog():
 	if (CONFIRM_DIALOG == null):
 		CONFIRM_DIALOG = ConfirmationDialog.new()
 	if (not CONFIRM_DIALOG.is_inside_tree()):
-		self.add_child(CONFIRM_DIALOG)	
+		self.add_child(CONFIRM_DIALOG)
 	pass
 
 func _parent_ready():

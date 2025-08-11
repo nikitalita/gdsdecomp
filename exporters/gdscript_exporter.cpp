@@ -1,4 +1,6 @@
 #include "gdscript_exporter.h"
+
+#include "compat/fake_gdscript.h"
 #include "compat/fake_script.h"
 #include "core/error/error_list.h"
 #include "core/io/file_access.h"
@@ -9,16 +11,16 @@ void GDScriptExporter::_bind_methods() {
 
 Error GDScriptExporter::export_file(const String &out_path, const String &res_path) {
 	Error err = OK;
-	Ref<FakeGDScript> script;
-	script.instantiate();
-	err = script->load_source_code(res_path);
+	Ref<FakeGDScript> gdscript;
+	gdscript.instantiate();
+	err = gdscript->load_source_code(res_path);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load script: " + res_path);
-	return _export_file(out_path, script);
+	return _export_file(out_path, gdscript);
 }
 
-Error GDScriptExporter::_export_file(const String &out_path, Ref<FakeGDScript> script) {
-	String source = script->get_source_code();
-	ERR_FAIL_COND_V_MSG(source.is_empty(), ERR_FILE_CORRUPT, "Script source is empty: " + script->get_script_path());
+Error GDScriptExporter::_export_file(const String &out_path, Ref<FakeGDScript> gdscript) {
+	String source = gdscript->get_source_code();
+	ERR_FAIL_COND_V_MSG(source.is_empty(), ERR_FILE_CORRUPT, "Script source is empty: " + gdscript->get_script_path());
 
 	Error err = gdre::ensure_dir(out_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to ensure output directory exists: " + out_path.get_base_dir());
@@ -49,25 +51,25 @@ Ref<ExportReport> GDScriptExporter::export_resource(const String &output_dir, Re
 			return report;
 		}
 	}
-	Ref<FakeGDScript> script;
-	script.instantiate();
-	Error err = script->load_source_code(import_path);
+	Ref<FakeGDScript> gdscript;
+	gdscript.instantiate();
+	Error err = gdscript->load_source_code(import_path);
 	if (err != OK) {
 		report->set_error(err);
 		if (is_encrypted && err == ERR_UNAUTHORIZED) {
 			report->set_message("Encryption key is incorrect for encrypted script");
 		} else {
-			report->set_message(script->get_error_message());
+			report->set_message(gdscript->get_error_message());
 		}
 		return report;
 	}
-	if (script->get_source_code().is_empty()) {
+	if (gdscript->get_source_code().is_empty()) {
 		report->set_error(ERR_FILE_CORRUPT);
 		report->set_message("Script source is empty");
 		return report;
 	}
 	// Export the script
-	err = _export_file(export_path, script);
+	err = _export_file(export_path, gdscript);
 	if (err != OK) {
 		report->set_error(err);
 		return report;

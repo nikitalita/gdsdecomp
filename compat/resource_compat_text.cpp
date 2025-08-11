@@ -47,6 +47,17 @@ void ResourceLoaderCompatText::_printerr() {
 	ERR_PRINT(String(res_path + ":" + itos(lines) + " - Parse Error: " + error_text).utf8().get_data());
 }
 
+inline ResourceUID::ID get_uid_for_ext_resource(const Ref<Resource> &p_resource) {
+	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(p_resource);
+	if (compat.is_valid()) {
+		return compat->uid;
+	}
+	if (GDRESettings::get_singleton()) {
+		return GDRESettings::get_singleton()->get_uid_for_path(p_resource->get_path());
+	}
+	return ResourceUID::INVALID_ID;
+}
+
 ///
 
 String get_id_string(String p_id, int format_version) {
@@ -579,8 +590,8 @@ Error ResourceLoaderCompatText::load() {
 		bool fake_script = false;
 		MissingResource *missing_resource = nullptr;
 		Ref<ResourceCompatConverter> converter;
-		auto init_missing_internal_resource([&]() {
-			auto nres = CompatFormatLoader::create_missing_internal_resource(path, type, id);
+		auto init_missing_internal_resource([&](bool no_fake_script) {
+			auto nres = CompatFormatLoader::create_missing_internal_resource(path, type, id, no_fake_script);
 			res = Ref<Resource>(nres);
 			if (res->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(res.ptr());
@@ -591,7 +602,7 @@ Error ResourceLoaderCompatText::load() {
 		});
 
 		if (load_type == ResourceInfo::FAKE_LOAD) {
-			init_missing_internal_resource();
+			init_missing_internal_resource(false);
 		} else if (res.is_null()) {
 			converter = ResourceCompatLoader::get_converter_for_type(type, ver_major);
 		}
@@ -599,7 +610,7 @@ Error ResourceLoaderCompatText::load() {
 			Ref<Resource> cache = ResourceCache::get_ref(path);
 			if (converter.is_valid() && (!cache.is_valid() || cache_mode == ResourceFormatLoader::CACHE_MODE_IGNORE)) {
 				// We pass a missing resource to the converter, so it can set the properties correctly.
-				init_missing_internal_resource();
+				init_missing_internal_resource(true);
 			} else if (cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE && cache.is_valid()) { //only if it doesn't exist
 				// cached, do not assign
 				res = cache;
@@ -792,8 +803,8 @@ Error ResourceLoaderCompatText::load() {
 		bool fake_script = false;
 		MissingResource *missing_resource = nullptr;
 		Ref<ResourceCompatConverter> converter;
-		auto init_missing_main_resource([&]() {
-			auto res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid);
+		auto init_missing_main_resource([&](bool no_fake_script) {
+			auto res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid, no_fake_script);
 			resource = Ref<Resource>(res);
 			if (resource->get_class() == "MissingResource") {
 				missing_resource = Object::cast_to<MissingResource>(resource.ptr());
@@ -815,11 +826,11 @@ Error ResourceLoaderCompatText::load() {
 			}
 			// clang-format on
 			if (load_type == ResourceInfo::FAKE_LOAD) {
-				init_missing_main_resource();
+				init_missing_main_resource(false);
 			} else if (resource.is_null()) {
 				converter = ResourceCompatLoader::get_converter_for_type(res_type, ver_major);
 				if (converter.is_valid()) {
-					init_missing_main_resource();
+					init_missing_main_resource(true);
 				} // else, we will create a new resource
 			}
 
@@ -1873,7 +1884,6 @@ String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resour
 
 void ResourceFormatSaverCompatTextInstance::ensure_ids_are_unique() {
 	HashSet<String> ids;
-	size_t last = external_resources.size();
 	bool needs_renumbering = false;
 	for (KeyValue<Ref<Resource>, String> &E : external_resources) {
 		while (ids.has(E.value)) {
@@ -2021,8 +2031,15 @@ static String _resource_get_class(Ref<Resource> p_resource) {
 	}
 }
 
-/* this is really only appropriate for saving fake-loaded resources right now; don't use it to save anything else*/
 Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
+	Error err;
+	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err, ERR_CANT_OPEN, "Cannot save file '" + p_path + "'.");
+	String ext = p_path.get_extension().to_lower();
+	return save_to_file(f, p_path, p_resource, p_flags);
+}
+
+Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> &f, const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
 #if 0
 	if (p_path.ends_with(".tscn")) {
 		packed_scene = p_resource;
@@ -2040,9 +2057,6 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		}
 	}
 
-	Error err;
-	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
-	ERR_FAIL_COND_V_MSG(err, ERR_CANT_OPEN, "Cannot save file '" + p_path + "'.");
 	Ref<FileAccess> _fref(f);
 
 	local_path = GDRESettings::get_singleton()->localize_path(p_path);
@@ -2200,8 +2214,7 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 		String s = "[ext_resource";
 		String type_string = " type=\"" + _resource_get_class(sorted_er[i].resource) + "\"";
 		String path_string = " path=\"" + p + "\"";
-		Ref<ResourceInfo> ext_compat = ResourceInfo::get_info_from_resource(sorted_er[i].resource);
-		ResourceUID::ID uid = ext_compat->uid;
+		ResourceUID::ID uid = get_uid_for_ext_resource(sorted_er[i].resource);
 		if (format_version >= 3) {
 			s += type_string;
 			if (uid != ResourceUID::INVALID_ID) {

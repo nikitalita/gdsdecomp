@@ -14,6 +14,10 @@ int PluginManager::source_count = 0;
 bool PluginManager::prepopping = false;
 HashMap<String, PluginVersion> PluginManager::plugin_version_cache;
 Mutex PluginManager::plugin_version_cache_mutex;
+// known bad plugin versions and their replacements; these had better be prepopped.
+HashMap<String, Pair<String, String>> PluginManager::known_bad_plugin_versions = {
+	{ "godotsteam", Pair<String, String>("v4.4.1-gde", "v4.4.2-gde") },
+};
 
 String PluginManager::get_plugin_cache_path() {
 	// check if OS has the environment variable "GDRE_PLUGIN_CACHE_DIR" set
@@ -108,24 +112,34 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 	// First, check all cached PluginVersions for this plugin
 	{
 		MutexLock lock(plugin_version_cache_mutex);
+		String first_version;
+		String replacement_version;
 		for (auto &E : plugin_version_cache) {
-			String cache_key = E.key;
-			PluginVersion cached_version = E.value;
+			const PluginVersion &cached_version = E.value;
 
 			// Check if this cached version is for the requested plugin
 			if (cached_version.is_valid() && cached_version.plugin_name == plugin_name) {
 				// Check if any of the hashes match
-				for (auto &gdext : cached_version.gdexts) {
-					for (auto &bin : gdext.bins) {
-						for (auto &hash : hashes) {
-							if (bin.md5 == hash) {
-								print_line("Found matching plugin in cache: " + plugin_name + ", version: " + cached_version.release_info.version + ", download url: " + cached_version.release_info.download_url);
-								return cached_version.to_json();
-							}
-						}
+				if (cached_version.bin_hashes_match(hashes)) {
+					print_line("Found matching plugin in cache: " + plugin_name + ", version: " + cached_version.release_info.version + ", download url: " + cached_version.release_info.download_url);
+					if (known_bad_plugin_versions.has(plugin_name) && known_bad_plugin_versions[plugin_name].first == cached_version.release_info.version) {
+						first_version = cached_version.release_info.version;
+						replacement_version = known_bad_plugin_versions[plugin_name].second;
+						break;
 					}
+					return cached_version.to_json();
 				}
 			}
+		}
+		if (!replacement_version.is_empty()) {
+			for (auto &E : plugin_version_cache) {
+				const PluginVersion &cached_version = E.value;
+				if (cached_version.is_valid() && cached_version.plugin_name == plugin_name && cached_version.release_info.version == replacement_version) {
+					print_line("Found known bad plugin version: " + plugin_name + ", version: " + first_version + ", replacing with: " + replacement_version);
+					return cached_version.to_json();
+				}
+			}
+			ERR_FAIL_V_MSG(Dictionary(), "!!!!!!!!!\nNO REPLACEMENT FOUND\n!!!!!!!!!!!");
 		}
 	}
 
@@ -155,15 +169,9 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 		cache_plugin_version(cache_key, plugin_version);
 
 		// Check if this version matches the hashes
-		for (auto &gdext : plugin_version.gdexts) {
-			for (auto &bin : gdext.bins) {
-				for (auto &hash : hashes) {
-					if (bin.md5 == hash) {
-						print_line("Found matching plugin after population: " + plugin_name + ", version: " + plugin_version.release_info.version + ", download url: " + plugin_version.release_info.download_url);
-						return plugin_version.to_json();
-					}
-				}
-			}
+		if (plugin_version.bin_hashes_match(hashes)) {
+			print_line("Found matching plugin after population: " + plugin_name + ", version: " + plugin_version.release_info.version + ", download url: " + plugin_version.release_info.download_url);
+			return plugin_version.to_json();
 		}
 	}
 
@@ -405,8 +413,8 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 
 		auto parse_bins = [unzupped_path](Vector<SharedObject> bins) {
 			Vector<PluginBin> plugin_bins;
-			for (auto &E : bins) {
-				auto &lib = E.path;
+			for (auto &elem : bins) {
+				auto &lib = elem.path;
 				auto paths = Glob::rglob(unzupped_path.path_join("**").path_join(lib.replace_first("res://", "")), true);
 				String real_path;
 				for (auto &p : paths) {
@@ -415,7 +423,7 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 						break;
 					}
 				}
-				auto plugin_bin = PluginSource::get_plugin_bin(real_path, E);
+				auto plugin_bin = PluginSource::get_plugin_bin(real_path, elem);
 				plugin_bins.push_back(plugin_bin);
 			}
 			return plugin_bins;

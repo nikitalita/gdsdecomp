@@ -1,6 +1,7 @@
 #include "resource_exporter.h"
 #include "compat/resource_loader_compat.h"
 #include "utility/common.h"
+#include "utility/gdre_settings.h"
 
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
@@ -87,6 +88,32 @@ void ResourceExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("export_resource", "output_dir", "import_infos"), &ResourceExporter::export_resource);
 	ClassDB::bind_method(D_METHOD("handles_import", "importer", "resource_type"), &ResourceExporter::handles_import);
 	ClassDB::bind_method(D_METHOD("get_default_export_extension", "res_path"), &ResourceExporter::get_default_export_extension);
+}
+
+Ref<ExportReport> ResourceExporter::_check_for_existing_resources(const Ref<ImportInfo> &iinfo) {
+	bool has_file = false;
+	auto dest_files = iinfo->get_dest_files();
+	for (const String &dest : dest_files) {
+		if (GDRESettings::get_singleton()->is_pack_loaded()) {
+			if (GDRESettings::get_singleton()->has_path_loaded(dest)) {
+				has_file = true;
+				break;
+			}
+		} else if (FileAccess::exists(dest)) {
+			has_file = true;
+			break;
+		}
+	}
+	if (!has_file) {
+		Ref<ExportReport> report;
+		report.instantiate(iinfo);
+		report->set_error(ERR_FILE_NOT_FOUND);
+		report->set_message("No existing resources found for this import");
+		report->append_message_detail({ "Possibles:" });
+		report->append_message_detail(dest_files);
+		return report;
+	}
+	return Ref<ExportReport>();
 }
 
 void Exporter::add_exporter(Ref<ResourceExporter> exporter, bool at_front) {
