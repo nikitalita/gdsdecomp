@@ -125,6 +125,8 @@ There is no support for decompiling any GDNative/GDExtension or GDMono scripts. 
 Clone this repository into Godot's `modules` subfolder as `gdsdecomp`.
 Rebuild Godot engine as described in https://docs.godotengine.org/en/latest/development/compiling/index.html.
 
+You will also need (https://rustup.rs)[rustup] and (https://dotnet.microsoft.com/en-us/download/dotnet/9.0)[dotnet 9 sdk].
+
 For ease of bootstrapping development, we have included launch, build, and settings templates for vscode in the .vscode directory. Once you have read the instructions for compiling Godot above and set up your build environment: put these in the .vscode folder in the Godot directory (not gdsdecomp), remove the ".template" from each, and launch vscode from the Godot directory.
 
 ### Requirements
