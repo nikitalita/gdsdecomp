@@ -5,6 +5,9 @@ use visioncortex::{ColorImage, PathSimplifyMode};
 use std::path::Path;
 use crate::converter::{convert_image_to_svg, convert_image_to_svg_from_memory};
 
+#[allow(unused_imports)]
+use gifski::c_api::*;
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub enum VTracerPathSimplifyMode {

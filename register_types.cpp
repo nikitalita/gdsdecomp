@@ -9,6 +9,7 @@
 #include "utility/file_access_gdre.h"
 #include "utility/gdre_audio_stream_preview.h"
 #include "utility/gdre_standalone.h"
+#include "utility/image_saver.h"
 #include "utility/text_diff.h"
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"
@@ -408,6 +409,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();
+	ClassDB::register_class<ImageSaver>();
 
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);

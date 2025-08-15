@@ -183,8 +183,6 @@ jobs:
           scons-flags: ${{ env.SCONSFLAGS }} ${{ matrix.sconsflags }}
           platform: ${{ matrix.platform }}
           target: editor
-          tests: false
-          scons-cache-limit: 4096
 
       - name: Compile godot export template (x86_64)
         if: matrix.target == 'template_release'
@@ -194,8 +192,6 @@ jobs:
           scons-flags: arch=x86_64 ${{ env.SCONSFLAGS }} ${{ env.SCONSFLAGS_TEMPLATE }} ${{ matrix.sconsflags }}
           platform: ${{ matrix.platform }}
           target: template_release
-          tests: false
-          scons-cache-limit: 4096
 
       - name: Compile godot export template for macos arm64
         uses: ./.github/actions/godot-build
@@ -204,8 +200,6 @@ jobs:
           scons-flags: arch=arm64 ${{ env.SCONSFLAGS }} ${{ env.SCONSFLAGS_TEMPLATE }} ${{ matrix.sconsflags }}
           platform: ${{ matrix.platform }}
           target: template_release
-          tests: false
-          scons-cache-limit: 4096
 
       - name: Save Godot build cache
         # if: success() || (steps.restore-cache.outputs.cache-hit == 'false' && (steps.compile-editor.outcome != 'skipped' || steps.compile-template.outcome != 'skipped'))
@@ -240,6 +234,14 @@ jobs:
           name: GDRE_tools-${{ matrix.target }}-${{ matrix.platform }}
           path: ${{github.workspace}}/bin/*
           retention-days: 90
+
+      - name: run tests
+        continue-on-error: true
+        if: matrix.target == 'editor' && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          ${{matrix.bin}} --headless --test --force-colors "--test-case=[GDSDecomp]*"
+
 
   test:
     needs: build
@@ -418,6 +420,7 @@ jobs:
           cd ../..
           mv "artifacts/macos/gdre_tools.universal.zip" "artifacts/GDRE_tools-${{ github.ref_name }}-macos.zip"
           cd artifacts/linux
+          chmod a+x gdre_tools.x86_64
           zip -r9  "../GDRE_tools-${{ github.ref_name }}-linux.zip" *
       - name: Release
         uses: nikitalita/action-gh-release@v1.0
