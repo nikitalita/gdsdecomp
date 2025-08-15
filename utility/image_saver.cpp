@@ -16,7 +16,6 @@ bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
 	return ext == "dds" || ext == "exr";
 }
 
-
 Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, bool lossy, float quality) {
 	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
 	Error err = gdre::ensure_dir(dest_path.get_base_dir());
