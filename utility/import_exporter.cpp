@@ -907,8 +907,11 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			print_line("ERROR: Failed to save project config!");
 		} else {
 			print_line("Saved project config.");
-			// Remove binary project config, as editors will load from it instead of the text one
-			dir->remove(get_settings()->get_project_config_path().get_file());
+			String pcfg_file = get_settings()->get_project_config_path().get_file();
+			if (pcfg_file.to_lower().ends_with(".cfb") || pcfg_file.to_lower().ends_with(".binary")) {
+				// Remove binary project config, as editors will load from it instead of the text one
+				dir->remove(pcfg_file);
+			}
 		}
 	}
 	pr = nullptr;
