@@ -17,11 +17,7 @@ bool dir_has_any_matching_wildcards(const String &dir, const Vector<String> &wil
 
 bool check_header(const Vector<uint8_t> &p_buffer, const char *p_expected_header, int p_expected_len);
 Error ensure_dir(const String &dst_dir);
-Error save_image_as_bmp(const String &p_path, const Ref<Image> &p_img);
-Error save_image_as_tga(const String &p_path, const Ref<Image> &p_img);
-Error save_image_as_svg(const String &p_path, const Ref<Image> &p_img);
 void get_strings_from_variant(const Variant &p_var, Vector<String> &r_strings, const String &engine_version = "");
-Error decompress_image(const Ref<Image> &img);
 String get_md5(const String &dir, bool ignore_code_signature = false);
 String get_md5_for_dir(const String &dir, bool ignore_code_signature = false);
 String get_sha256(const String &file_or_dir);
@@ -261,13 +257,5 @@ protected:
 	static void _bind_methods();
 };
 
-#define GDRE_ERR_DECOMPRESS_OR_FAIL(img)                                      \
-	{                                                                         \
-		Error _err = gdre::decompress_image(img);                             \
-		if (_err == ERR_UNAVAILABLE) {                                        \
-			return ERR_UNAVAILABLE;                                           \
-		}                                                                     \
-		ERR_FAIL_COND_V_MSG(_err != OK, _err, "Failed to decompress image."); \
-	}
 // Can only pass in string literals
 #define _GDRE_CHECK_HEADER(p_buffer, p_expected_header) gdre::check_header(p_buffer, p_expected_header, sizeof(p_expected_header) - 1)

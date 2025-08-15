@@ -10,6 +10,7 @@
 #include "core/io/resource_loader.h"
 #include "scene/resources/atlas_texture.h"
 #include "scene/resources/compressed_texture.h"
+#include "utility/image_saver.h"
 #include "utility/resource_info.h"
 #include <cstdint>
 namespace {
@@ -77,7 +78,7 @@ Error TextureExporter::_convert_bitmap(const String &p_path, const String &dest_
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load bitmap " + p_path);
 	err = gdre::ensure_dir(dst_dir);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
-	err = save_image(dest_path, img, lossy);
+	err = ImageSaver::save_image(dest_path, img, lossy);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -87,40 +88,6 @@ Error TextureExporter::_convert_bitmap(const String &p_path, const String &dest_
 	return OK;
 }
 
-bool dest_format_supports_mipmaps(const String &ext) {
-	return ext == "dds" || ext == "exr";
-}
-
-Error TextureExporter::save_image(const String &dest_path, const Ref<Image> &img, bool lossy) {
-	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
-	Error err = gdre::ensure_dir(dest_path.get_base_dir());
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
-	String dest_ext = dest_path.get_extension().to_lower();
-	if (!dest_format_supports_mipmaps(dest_ext) && img->is_compressed() && img->has_mipmaps()) {
-		img->clear_mipmaps();
-	}
-	GDRE_ERR_DECOMPRESS_OR_FAIL(img);
-	if (dest_ext == "jpg" || dest_ext == "jpeg") {
-		err = img->save_jpg(dest_path, 1.0);
-	} else if (dest_ext == "webp") {
-		err = img->save_webp(dest_path, lossy, 1.0);
-	} else if (dest_ext == "png") {
-		err = img->save_png(dest_path);
-	} else if (dest_ext == "tga") {
-		err = gdre::save_image_as_tga(dest_path, img);
-	} else if (dest_ext == "svg") {
-		err = gdre::save_image_as_svg(dest_path, img);
-	} else if (dest_ext == "dds") {
-		err = img->save_dds(dest_path);
-	} else if (dest_ext == "exr") {
-		err = img->save_exr(dest_path);
-	} else if (dest_ext == "bmp") {
-		err = gdre::save_image_as_bmp(dest_path, img);
-	} else {
-		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
-	}
-	return err;
-}
 enum V4ImporterCompressMode {
 	COMPRESS_LOSSLESS,
 	COMPRESS_LOSSY,
@@ -418,7 +385,7 @@ Error TextureExporter::_convert_tex(const String &p_path, const String &dest_pat
 		}
 	}
 	image_format = Image::get_format_name(img->get_format());
-	err = save_image(dest_path, img, lossy);
+	err = ImageSaver::save_image(dest_path, img, lossy);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -468,7 +435,7 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 	// now we have to add the margin padding
 	Ref<Image> new_img = Image::create_empty(atex->get_width(), atex->get_height(), false, img->get_format());
 	new_img->blit_rect(img, region, Point2i(margin.position.x, margin.position.y));
-	err = save_image(dest_path, new_img, lossy);
+	err = ImageSaver::save_image(dest_path, new_img, lossy);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -618,11 +585,11 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 	DEV_ASSERT(Image::get_image_data_size(new_width, new_height, new_format, false) == new_image_data.size());
 	Ref<Image> img = Image::create_from_data(new_width, new_height, false, new_format, new_image_data);
 	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to create image for texture " + dest_path.get_file());
-	if (had_mipmaps && dest_format_supports_mipmaps(dest_path.get_extension().to_lower())) {
+	if (had_mipmaps && ImageSaver::dest_format_supports_mipmaps(dest_path.get_extension().to_lower())) {
 		img->generate_mipmaps();
 		DEV_ASSERT(Image::get_image_data_size(new_width, new_height, new_format, true) == img->get_data_size());
 	}
-	Error err = TextureExporter::save_image(dest_path, img, lossy);
+	Error err = ImageSaver::save_image(dest_path, img, lossy);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -804,7 +771,7 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 			continue;
 		}
 		auto new_dest = dest_path.get_basename() + "_cropped_" + String::num_int64(i) + "." + dest_path.get_extension();
-		Error err = TextureExporter::save_image(new_dest, img, lossy);
+		Error err = ImageSaver::save_image(new_dest, img, lossy);
 	}
 #endif
 	if (fixed_images.size() > 0) {
@@ -859,7 +826,7 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	for (int i = 0; i < layer_count; i++) {
 		Ref<Image> img = images[i];
 		auto new_dest = dest_path.get_basename() + "_" + String::num_int64(i) + "." + dest_path.get_extension();
-		Error err = TextureExporter::save_image(new_dest, img, lossy);
+		Error err = ImageSaver::save_image(new_dest, img, lossy);
 	}
 #endif
 
@@ -1108,7 +1075,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 		Ref<Image> img = rli.load(path, "", &err, false, nullptr, ResourceFormatLoader::CACHE_MODE_IGNORE);
 		if (!err && !img.is_null()) {
 			img_format = Image::get_format_name(img->get_format());
-			err = save_image(dest_path, img, lossy);
+			err = ImageSaver::save_image(dest_path, img, lossy);
 		}
 	} else if (importer == "texture_atlas") {
 		if (ver_major <= 2 && (iinfo->get_type() == "ImageTexture" || iinfo->get_additional_sources().size() > 0)) {
