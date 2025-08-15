@@ -1,19 +1,16 @@
 #include "image_saver.h"
 
-#include "core/io/image.h"
-#include "core/io/file_access.h"
-#include "core/string/ustring.h"
-#include "core/variant/variant.h"
-#include "external/tga/tga.h"
-#include "utility/common.h"
 #include "compat/file_access_encrypted_v3.h"
-#include "external/tga/tga.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/file_access.h"
 #include "core/io/image.h"
+#include "core/string/ustring.h"
+#include "core/variant/variant.h"
+#include "external/tga/tga.h"
+#include "utility/common.h"
+#include "vtracer/gifski.h"
 #include "vtracer/vtracer.h"
-
 
 bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
 	return ext == "dds" || ext == "exr";
@@ -45,6 +42,8 @@ Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, boo
 		err = img->save_exr(dest_path);
 	} else if (dest_ext == "bmp") {
 		err = ImageSaver::save_image_as_bmp(dest_path, img);
+	} else if (dest_ext == "gif") {
+		err = ImageSaver::save_image_as_gif(dest_path, img);
 	} else {
 		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
 	}
@@ -319,10 +318,105 @@ Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_im
 	return OK;
 }
 
+Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality) {
+	ERR_FAIL_COND_V_MSG(p_images.is_empty(), ERR_FILE_EOF, "No images provided for animated GIF");
+
+	// Ensure directory exists
+	Error err = gdre::ensure_dir(p_path.get_base_dir());
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + p_path);
+
+	// Get dimensions from first image
+	Ref<Image> first_image = p_images[0];
+
+	int width = first_image->get_width();
+	int height = first_image->get_height();
+
+	// Validate all images have same dimensions
+	for (int i = 1; i < p_images.size(); i++) {
+		Ref<Image> img = p_images[i];
+		ERR_FAIL_COND_V_MSG(img->get_width() != width || img->get_height() != height,
+				ERR_INVALID_DATA, vformat("Image %d has different dimensions (%dx%d) than first image (%dx%d)", i, img->get_width(), img->get_height(), width, height));
+	}
+
+	GifskiSettings settings;
+	settings.width = width;
+	settings.height = height;
+	settings.quality = quality;
+	settings.fast = false;
+	settings.repeat = 0; // 0 means loop forever
+
+	// Begin GIF creation
+	gifski *g = gifski_new(&settings);
+	if (!g) {
+		return ERR_CANT_CREATE;
+	}
+	auto sofeff = gifski_set_file_output(g, p_path.utf8().get_data());
+	if (sofeff != GIFSKI_OK) {
+		gifski_finish(g);
+		return ERR_CANT_CREATE;
+	}
+
+	// Add each frame
+
+	double seconds_per_frame = 0;
+	if (frame_durations_s.is_empty()) {
+		seconds_per_frame = 0.1; // default to 100ms per frame
+	}
+	double start_time = 0;
+
+	for (int i = 0; i < p_images.size(); i++) {
+		Ref<Image> frame_image = p_images[i];
+		GDRE_ERR_DECOMPRESS_OR_FAIL(frame_image);
+		// Convert to RGBA8 if needed
+		if (frame_image->get_format() != Image::FORMAT_RGBA8) {
+			frame_image->convert(Image::FORMAT_RGBA8);
+		}
+
+		Vector<uint8_t> image_data = frame_image->get_data();
+		image_data.ptrw();
+		if (frame_durations_s.size() > i) {
+			seconds_per_frame = frame_durations_s[i];
+		} // otherwise just use the last one
+
+		// Add frame to GIF
+		auto err = gifski_add_frame_rgba(g, i, width, height, image_data.ptrw(), start_time);
+		start_time += seconds_per_frame;
+		if (err != GIFSKI_OK) {
+			gifski_finish(g);
+			return ERR_CANT_CREATE;
+		}
+	}
+
+	// Finalize GIF
+	auto result = gifski_finish(g);
+	if (result != GIFSKI_OK) {
+		return ERR_CANT_CREATE;
+	}
+
+	return OK;
+}
+
+Error ImageSaver::_save_images_as_animated_gif(const String &p_path, const TypedArray<Image> &p_images, const Vector<float> &frame_durations_s, int quality) {
+	Vector<Ref<Image>> images;
+	for (int i = 0; i < p_images.size(); i++) {
+		images.push_back(p_images[i]);
+	}
+	return save_images_as_animated_gif(p_path, images, frame_durations_s, quality);
+}
+
+Error ImageSaver::save_image_as_gif(const String &p_path, const Ref<Image> &p_img) {
+	// Create a vector with just one image and use the animated GIF function
+	Vector<Ref<Image>> images;
+	images.push_back(p_img);
+	return save_images_as_animated_gif(p_path, images, { 0.1 }, 100);
+}
+
 void ImageSaver::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("decompress_image", "image"), &ImageSaver::decompress_image);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image", "dest_path", "image", "lossy", "quality"), &ImageSaver::save_image, DEFVAL(false), DEFVAL(1.0));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_tga", "dest_path", "image"), &ImageSaver::save_image_as_tga);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_svg", "dest_path", "image"), &ImageSaver::save_image_as_svg);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_bmp", "dest_path", "image"), &ImageSaver::save_image_as_bmp);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_gif", "dest_path", "image"), &ImageSaver::save_image_as_gif);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_images_as_animated_gif", "dest_path", "images", "frame_durations_s", "quality"), &ImageSaver::_save_images_as_animated_gif, DEFVAL(100));
 }
