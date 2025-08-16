@@ -6,6 +6,8 @@ class ImageSaver : public Object {
 	GDCLASS(ImageSaver, Object);
 	static Error _save_images_as_animated_gif(const String &p_path, const TypedArray<Image> &p_images, const Vector<float> &frame_durations_s, int quality = 100);
 
+	static const Vector<String> supported_extensions;
+
 public:
 	static Error decompress_image(const Ref<Image> &p_image);
 	static Error save_image(const String &p_path, const Ref<Image> &p_image, bool p_lossy, float p_quality = 1.0);
@@ -16,6 +18,8 @@ public:
 	static Error save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality = 100);
 	static bool dest_format_supports_mipmaps(const String &p_ext);
 	static Error save_image_as_hdr(const String &p_path, const Ref<Image> &p_image);
+	static Vector<String> get_supported_extensions();
+	static bool is_supported_extension(const String &p_ext);
 
 protected:
 	static void _bind_methods();

@@ -16,6 +16,16 @@ bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
 	return ext == "dds" || ext == "exr";
 }
 
+const Vector<String> ImageSaver::supported_extensions = { "tga", "svg", "bmp", "gif", "hdr", "exr", "dds", "png", "jpg", "jpeg", "webp" };
+
+Vector<String> ImageSaver::get_supported_extensions() {
+	return supported_extensions;
+}
+
+bool ImageSaver::is_supported_extension(const String &p_ext) {
+	return supported_extensions.has(p_ext.to_lower());
+}
+
 Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, bool lossy, float quality) {
 	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
 	Error err = gdre::ensure_dir(dest_path.get_base_dir());
@@ -567,4 +577,7 @@ void ImageSaver::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_bmp", "dest_path", "image"), &ImageSaver::save_image_as_bmp);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_gif", "dest_path", "image"), &ImageSaver::save_image_as_gif);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_images_as_animated_gif", "dest_path", "images", "frame_durations_s", "quality"), &ImageSaver::_save_images_as_animated_gif, DEFVAL(100));
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_hdr", "dest_path", "image"), &ImageSaver::save_image_as_hdr);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_supported_extensions"), &ImageSaver::get_supported_extensions);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_supported_extension", "ext"), &ImageSaver::is_supported_extension);
 }

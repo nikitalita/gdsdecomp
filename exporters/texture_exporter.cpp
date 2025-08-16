@@ -1016,7 +1016,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 	String source_ext = source.get_extension().to_lower();
 	if (source_ext != "png" || ver_major == 2) {
 		if (ver_major > 2) {
-			if ((source_ext == "jpg" || source_ext == "jpeg")) {
+			if ((source_ext == "jpg" || source_ext == "jpeg") || source_ext == "svg") {
 				lossy = true;
 				report->set_loss_type(ImportInfo::STORED_LOSSY);
 			} else if (source_ext == "webp") {
@@ -1025,20 +1025,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 					lossy = true;
 				}
 				report->set_loss_type(ImportInfo::STORED_LOSSY);
-			} else if (source_ext == "tga") {
-				lossy = false;
-			} else if (source_ext == "svg") {
-				lossy = true;
-				report->set_loss_type(ImportInfo::STORED_LOSSY);
-			} else if (source_ext == "dds") {
-				lossy = false;
-			} else if (source_ext == "exr") {
-				lossy = false;
-			} else if (source_ext == "hdr") {
-				lossy = false;
-			} else if (source_ext == "bmp") {
-				lossy = false;
-			} else {
+			} else if (!ImageSaver::is_supported_extension(source_ext)) {
 				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
 				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
 				// save it under .assets, which won't be picked up for import by the godot editor
