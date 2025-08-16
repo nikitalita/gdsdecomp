@@ -15,6 +15,7 @@ public:
 	static Error save_image_as_gif(const String &p_path, const Ref<Image> &p_image);
 	static Error save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality = 100);
 	static bool dest_format_supports_mipmaps(const String &p_ext);
+	static Error save_image_as_hdr(const String &p_path, const Ref<Image> &p_image);
 
 protected:
 	static void _bind_methods();

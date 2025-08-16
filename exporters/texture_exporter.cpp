@@ -1034,6 +1034,8 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 				lossy = false;
 			} else if (source_ext == "exr") {
 				lossy = false;
+			} else if (source_ext == "hdr") {
+				lossy = false;
 			} else if (source_ext == "bmp") {
 				lossy = false;
 			} else {
