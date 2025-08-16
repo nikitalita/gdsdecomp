@@ -16,6 +16,16 @@ bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
 	return ext == "dds" || ext == "exr";
 }
 
+const Vector<String> ImageSaver::supported_extensions = { "tga", "svg", "bmp", "gif", "hdr", "exr", "dds", "png", "jpg", "jpeg", "webp" };
+
+Vector<String> ImageSaver::get_supported_extensions() {
+	return supported_extensions;
+}
+
+bool ImageSaver::is_supported_extension(const String &p_ext) {
+	return supported_extensions.has(p_ext.to_lower());
+}
+
 Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, bool lossy, float quality) {
 	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
 	Error err = gdre::ensure_dir(dest_path.get_base_dir());
@@ -43,6 +53,8 @@ Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, boo
 		err = ImageSaver::save_image_as_bmp(dest_path, img);
 	} else if (dest_ext == "gif") {
 		err = ImageSaver::save_image_as_gif(dest_path, img);
+	} else if (dest_ext == "hdr") {
+		err = ImageSaver::save_image_as_hdr(dest_path, img);
 	} else {
 		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
 	}
@@ -409,6 +421,153 @@ Error ImageSaver::save_image_as_gif(const String &p_path, const Ref<Image> &p_im
 	images.push_back(p_img);
 	return save_images_as_animated_gif(p_path, images, { 0.1 }, 100);
 }
+namespace {
+
+constexpr uint8_t get_r(uint32_t rgbe) {
+	return (uint8_t)((rgbe >> 1) & 0xFF);
+}
+constexpr uint8_t get_g(uint32_t rgbe) {
+	return (uint8_t)((rgbe >> 10) & 0xFF);
+}
+constexpr uint8_t get_b(uint32_t rgbe) {
+	return (uint8_t)((rgbe >> 19) & 0xFF);
+}
+constexpr uint8_t get_e(uint32_t rgbe) {
+	return (uint8_t)(((rgbe >> 27) - 15 + 128) & 0xFF);
+}
+
+Vector<uint8_t> save_hdr_buffer(const Ref<Image> &p_img) {
+	ERR_FAIL_COND_V_MSG(p_img.is_null(), Vector<uint8_t>(), "Can't save invalid image as HDR.");
+
+	Ref<Image> img = p_img->duplicate();
+	if (img->is_compressed() && img->decompress() != OK) {
+		ERR_FAIL_V_MSG(Vector<uint8_t>(), "Failed to decompress image.");
+	}
+
+	img->clear_mipmaps();
+	if (img->get_format() != Image::FORMAT_RGBE9995) {
+		img->convert(Image::FORMAT_RGBE9995);
+	}
+
+	// Create a temporary file to write the HDR data
+	Vector<uint8_t> buffer;
+
+	// Write Radiance HDR header
+	buffer.append_array(String("#?RADIANCE\n").to_utf8_buffer());
+	buffer.append_array(String("FORMAT=32-bit_rle_rgbe\n").to_utf8_buffer());
+	buffer.append_array(String("\n").to_utf8_buffer()); // Empty line to end header
+
+	// Write resolution string (standard orientation: -Y height +X width)
+	String resolution = vformat("-Y %d +X %d\n", img->get_height(), img->get_width());
+	buffer.append_array(resolution.to_utf8_buffer());
+
+	// Get image data
+	const Vector<uint8_t> &data = img->get_data();
+	const uint32_t *rgbe_data = reinterpret_cast<const uint32_t *>(data.ptr());
+	int width = img->get_width();
+	int height = img->get_height();
+	// Write scanlines
+	if (width < 8 || width >= 32768) {
+		// Write flat data
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				uint32_t rgbe = rgbe_data[y * width + x];
+				buffer.push_back(get_r(rgbe));
+				buffer.push_back(get_g(rgbe));
+				buffer.push_back(get_b(rgbe));
+				buffer.push_back(get_e(rgbe));
+			}
+		}
+	} else {
+		// Write RLE-encoded data
+		for (int y = 0; y < height; y++) {
+			// For each scanline, we need to separate the RGBE components
+			Vector<uint8_t> scanline_r, scanline_g, scanline_b, scanline_e;
+			scanline_r.resize(width);
+			scanline_g.resize(width);
+			scanline_b.resize(width);
+			scanline_e.resize(width);
+
+			// Extract RGBE components from RGBE9995 format and convert to Radiance HDR format
+			for (int x = 0; x < width; x++) {
+				uint32_t rgbe = rgbe_data[y * width + x];
+				scanline_r.write[x] = get_r(rgbe);
+				scanline_g.write[x] = get_g(rgbe);
+				scanline_b.write[x] = get_b(rgbe);
+				scanline_e.write[x] = get_e(rgbe);
+			}
+
+			// Write RLE header for this scanline
+			buffer.push_back(2); // Magic number for new RLE format
+			buffer.push_back(2);
+			buffer.push_back((width >> 8) & 0xFF); // High byte of width
+			buffer.push_back(width & 0xFF); // Low byte of width
+
+			// Write each component with RLE encoding
+			const uint8_t *components[4] = { scanline_r.ptr(), scanline_g.ptr(), scanline_b.ptr(), scanline_e.ptr() };
+
+			for (int c = 0; c < 4; c++) {
+				const uint8_t *comp_data = components[c];
+				int i = 0;
+
+				while (i < width) {
+					// Find run length
+					// int run_start = i;
+					uint8_t run_value = comp_data[i];
+					int run_length = 1;
+
+					while (i + run_length < width && run_length < 127 && comp_data[i + run_length] == run_value) {
+						run_length++;
+					}
+
+					if (run_length >= 4) {
+						// Write run
+						buffer.push_back(128 + run_length);
+						buffer.push_back(run_value);
+						i += run_length;
+					} else {
+						// Write literal values
+						int literal_start = i;
+						int literal_length = 0;
+
+						while (i < width && literal_length < 127) {
+							if (i + 3 < width &&
+									comp_data[i] == comp_data[i + 1] &&
+									comp_data[i] == comp_data[i + 2] &&
+									comp_data[i] == comp_data[i + 3]) {
+								// Found a potential run, stop literal
+								break;
+							}
+							literal_length++;
+							i++;
+						}
+
+						buffer.push_back(literal_length);
+						for (int j = 0; j < literal_length; j++) {
+							buffer.push_back(comp_data[literal_start + j]);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return buffer;
+}
+} //namespace
+
+Error ImageSaver::save_image_as_hdr(const String &p_path, const Ref<Image> &p_img) {
+	Vector<uint8_t> buffer = save_hdr_buffer(p_img);
+
+	Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE);
+	if (file.is_null()) {
+		return ERR_CANT_CREATE;
+	}
+
+	file->store_buffer(buffer.ptr(), buffer.size());
+
+	return OK;
+}
 
 void ImageSaver::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("decompress_image", "image"), &ImageSaver::decompress_image);
@@ -418,4 +577,7 @@ void ImageSaver::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_bmp", "dest_path", "image"), &ImageSaver::save_image_as_bmp);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_gif", "dest_path", "image"), &ImageSaver::save_image_as_gif);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_images_as_animated_gif", "dest_path", "images", "frame_durations_s", "quality"), &ImageSaver::_save_images_as_animated_gif, DEFVAL(100));
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_hdr", "dest_path", "image"), &ImageSaver::save_image_as_hdr);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_supported_extensions"), &ImageSaver::get_supported_extensions);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_supported_extension", "ext"), &ImageSaver::is_supported_extension);
 }
