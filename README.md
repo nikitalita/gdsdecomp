@@ -129,6 +129,8 @@ You will also need [rustup](https://rustup.rs) and [dotnet 9 sdk](https://dotnet
 
 For ease of bootstrapping development, we have included launch, build, and settings templates for vscode in the .vscode directory. Once you have read the instructions for compiling Godot above and set up your build environment: put these in the .vscode folder in the Godot directory (not gdsdecomp), remove the ".template" from each, and launch vscode from the Godot directory.
 
+Note: Make sure to build the editor build first, and to launch the editor to edit the project in the `standalone` directory at least once so that resources are imported before running.
+
 ### Requirements
 
 [Our fork of godot](https://github.com/nikitalita/godot/tree/working-branch) @ `working-branch`
