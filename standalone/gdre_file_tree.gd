@@ -220,7 +220,7 @@ func _on_gui_input(input:InputEvent):
 			if input.double_click and input.button_index == MOUSE_BUTTON_LEFT:
 				if item_is_folder(item):
 					item.collapsed = not item.collapsed
-			else:
+			elif input.pressed:
 				_on_custom_item_clicked(input.button_index)
 
 func get_all_file_items(item = get_root()) -> Array:
