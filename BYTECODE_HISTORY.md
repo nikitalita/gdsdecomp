@@ -111,3 +111,4 @@
 |              | [b59d6be](https://github.com/godotengine/godot/commit/b59d6be) | `2025.05.18` | 100      | Added `ABSTRACT` token                      |
 |              | [ee121ef](https://github.com/godotengine/godot/commit/ee121ef) | `2025.06.09` | 100      | Added `PERIOD_PERIOD_PERIOD` token          |
 |              | [2e216b5](https://github.com/godotengine/godot/commit/2e216b5) | `2025.06.10` | 101      | Content header size changed                 |
+| **4.5**      | [ebc36a7](https://github.com/godotengine/godot/commit/ebc36a7) | `2025-06-27` | 101      | Removed `ABSTRACT` token                    |
