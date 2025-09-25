@@ -114,11 +114,8 @@ Use the same Godot tools version that the original game was compiled in to edit 
 
 Support has yet to be implemented for converting the following resources:
 
-- 3.x and 2.x models (`dae`, `fbx`, `glb`, etc.)
-- Bitmap and image fonts (recovering 4.x TTF/OTF fontfiles is supported)
-- GDNative or GDExtension scripts (e.g. GDMono and CSharp)
-
-There is no support for decompiling any GDNative/GDExtension or GDMono scripts. For Mono/CSharp, you can use [Ilspy](https://github.com/icsharpcode/ILSpy) or dotPeek.
+- 2.x models (`dae`, `fbx`, `glb`, etc.)
+- GDNative or GDExtension scripts
 
 ## Compiling from source
 
