@@ -191,12 +191,6 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 			tags_found.insert(tag);
 		}
 	}
-	HashSet<String> all_tags;
-	for (const auto &E : libs) {
-		for (const auto &tag : E.tags) {
-			all_tags.insert(tag);
-		}
-	}
 	GDExt_ERR_FAIL_COND_V_MSG(err, report, "Failed to find gdextension libraries for plugin " + import_infos->get_import_md_path());
 	auto deps = iinfo->get_dependencies();
 	LibMap dep_paths;
@@ -209,11 +203,13 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 	bool downloaded_plugin = false;
 	if (GDREConfig::get_singleton()->get_setting("download_plugins")) {
 		HashSet<String> hashes;
+		HashSet<String> paths;
 		for (const auto &E : lib_paths) {
 			// TODO: come up with a way of consistently hashing signed macos binaries
-			if (E.key.tags.has("macos")) {
+			if (E.key.tags.has("macos") || paths.has(E.value)) {
 				continue;
 			}
+			paths.insert(E.value);
 			auto md5 = gdre::get_md5(E.value, true);
 			if (!md5.is_empty()) {
 				hashes.insert(md5);
