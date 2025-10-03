@@ -128,7 +128,7 @@ Ref<ConfigFile> copy_config_file(Ref<ConfigFile> p_cf) {
 	Ref<ConfigFile> r_cf;
 	r_cf.instantiate();
 	Vector<String> sections = p_cf->get_sections();
-	for (int64_t i = sections.size() - 1; i >= 0; i--) {
+	for (int64_t i = 0; i < sections.size(); i++) {
 		String section = sections[i];
 		Vector<String> section_keys = p_cf->get_section_keys(section);
 		for (int j = 0; j < section_keys.size(); j++) {
