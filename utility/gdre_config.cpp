@@ -252,6 +252,11 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				true,
 				false)),
 		memnew(GDREConfigSetting(
+				"Exporter/GDExtension/make_editor_copy",
+				"Copy template_release plugins to editor plugin",
+				"If the plugin was not downloaded, copy the template_release plugin (the library distributed with the game) to the editor plugin path (required for using the plugin in the editor).",
+				true)),
+		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/force_lossless_images",
 				"Force lossless images",
 				"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
@@ -300,6 +305,10 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				true)),
 	};
 }
+
+// static const HashMap<String, String> deprecated_setting_mappings = {
+// 	{ "General/download_plugins", "Exporter/GDExtension/download_plugins" },
+// };
 
 GDREConfig::GDREConfig() {
 	singleton = this;
