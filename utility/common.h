@@ -319,6 +319,7 @@ Vector<String> get_files_for_paths(const Vector<String> &p_paths);
 String get_java_path();
 int get_java_version();
 bool is_macho_binary(const String &p_path);
+String path_to_uri(const String &p_path);
 } // namespace gdre
 
 class GDRECommon : public Object {
