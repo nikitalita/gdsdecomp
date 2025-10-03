@@ -4,6 +4,7 @@
 #include "common.h"
 #include "core/io/json.h"
 #include "gdre_settings.h"
+#include "godot_mono_decomp.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
 
@@ -123,27 +124,25 @@ public:
 
 	virtual bool has_special_value() const override { return true; }
 	virtual Dictionary get_list_of_possible_values() const override {
-		static const Dictionary versions = {
-			{ 0, "Auto-detect" },
-			{ 1, "C# 1.0" },
-			{ 2, "C# 2.0" },
-			{ 3, "C# 3.0" },
-			{ 4, "C# 4.0" },
-			{ 5, "C# 5.0" },
-			{ 6, "C# 6.0" },
-			{ 7, "C# 7.0" },
-			{ 701, "C# 7.1" },
-			{ 702, "C# 7.2" },
-			{ 703, "C# 7.3" },
-			{ 800, "C# 8.0" },
-			{ 900, "C# 9.0" },
-			{ 1000, "C# 10.0" },
-			{ 1100, "C# 11.0" },
-			{ 1200, "C# 12.0" },
-			// { 1300, "Preview" },
-			{ 0x7FFFFFFF, "Latest" },
-		};
-		return versions.duplicate();
+		int num_versions = 0;
+		int *versions = GodotMonoDecomp_GetLanguageVersions(&num_versions);
+		Dictionary ret = { { 0, "Auto-detect" } };
+		for (int i = 0; i < num_versions; i++) {
+			if (ret.has(versions[i])) {
+				continue;
+			}
+			int ver = versions[i];
+			if (ver < 100) {
+				ret[ver] = "C# " + String::num_int64(ver) + ".0";
+			} else if (ver == INT_MAX) {
+				ret[ver] = "Latest";
+			} else {
+				int ver_major = ver / 100;
+				int ver_minor = ver % 100;
+				ret[ver] = "C# " + String::num_int64(ver_major) + "." + String::num_int64(ver_minor);
+			}
+		}
+		return ret;
 	}
 };
 
