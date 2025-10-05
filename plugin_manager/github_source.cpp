@@ -380,6 +380,8 @@ void GitHubSource::_save_release_cache() {
 		d[E.key] = E.value.to_json();
 	}
 	fa->store_string(JSON::stringify(d, " ", false, true));
+	fa->flush();
+	d.clear();
 }
 
 void GitHubSource::save_cache() {
