@@ -109,6 +109,7 @@ public:
 	}
 };
 
+#if !GODOT_MONO_DECOMP_DISABLED
 class GDREConfigSetting_CSharpForceLanguageVersion : public GDREConfigSetting {
 	GDSOFTCLASS(GDREConfigSetting_CSharpForceLanguageVersion, GDREConfigSetting);
 
@@ -127,6 +128,7 @@ public:
 		return GodotMonoDecompWrapper::get_language_versions();
 	}
 };
+#endif
 
 class GDREConfigSetting_TranslationExporter_LoadKeyHintFile : public GDREConfigSetting {
 	GDSOFTCLASS(GDREConfigSetting_TranslationExporter_LoadKeyHintFile, GDREConfigSetting);
@@ -205,6 +207,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				false)),
 		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
 		memnew(GDREConfigSetting_LoadCustomBytecode()),
+#if !GODOT_MONO_DECOMP_DISABLED
 		memnew(GDREConfigSetting(
 				"CSharp/write_nuget_package_references",
 				"Write NuGet package references",
@@ -232,6 +235,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Compile the C# project after decompiling.\nThis is done to prevent editor errors when first opening the project in the editor.\nThis requires that you have the dotnet sdk installed.",
 				true,
 				false)),
+#endif
 		memnew(GDREConfigSetting(
 				"Exporter/GDExtension/make_editor_copy",
 				"Copy template_release plugins to editor plugin",

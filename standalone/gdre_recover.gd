@@ -462,7 +462,7 @@ func add_project(paths: PackedStringArray) -> int:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
 	DIRECTORY.text = DESKTOP_DIR.path_join(GDRESettings.get_pack_path().get_file().get_basename())
 
-	if GDRESettings.project_requires_dotnet_assembly():
+	if GodotMonoDecompWrapper.is_godot_mono_decomp_enabled() and GDRESettings.project_requires_dotnet_assembly():
 		# don't show the assembly picker if the assembly is loaded from a temp directory
 		# It's either loaded from an APK or the PCK and it's not pickable by the user
 		if (not GDRESettings.get_temp_dotnet_assembly_dir().is_empty() and GDRESettings.has_loaded_dotnet_assembly()):

@@ -14,6 +14,16 @@ protected:
 	friend struct DecompileModuleTaskData;
 
 public:
+#if !GODOT_MONO_DECOMP_DISABLED
+	static constexpr bool godot_mono_decomp_enabled = true;
+#else
+	static constexpr bool godot_mono_decomp_enabled = false;
+#endif
+
+	static constexpr bool is_godot_mono_decomp_enabled() {
+		return godot_mono_decomp_enabled;
+	}
+
 	struct GodotMonoDecompSettings {
 		bool WriteNuGetPackageReferences = true;
 		bool VerifyNuGetPackageIsFromNugetOrg = false;

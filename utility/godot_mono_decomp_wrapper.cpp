@@ -6,6 +6,7 @@
 #include "utility/gdre_settings.h"
 #include "utility/task_manager.h"
 
+#if !GODOT_MONO_DECOMP_DISABLED
 #include "godot_mono_decomp.h"
 
 Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
@@ -214,16 +215,6 @@ Dictionary GodotMonoDecompWrapper::get_language_versions() {
 	return ret;
 }
 
-GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
-	if (decompilerHandle != nullptr) {
-		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
-	}
-}
-
-GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
-	return settings;
-}
-
 Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
 	if (p_settings != settings) {
 		Error err = _load(assembly_path, originalProjectFiles, assemblyReferenceDirs, p_settings);
@@ -231,6 +222,47 @@ Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_sett
 	}
 	settings = p_settings;
 	return OK;
+}
+
+GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
+	if (decompilerHandle != nullptr) {
+		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
+	}
+}
+#else
+constexpr const char *GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE = "GodotMonoDecompWrapper is not enabled in this build of GDRE Tools";
+Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
+	ERR_FAIL_V_MSG(Ref<GodotMonoDecompWrapper>(), GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<String> &p_original_project_files, const Vector<String> &p_assembly_reference_dirs, const GodotMonoDecompSettings &p_settings) {
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Dictionary GodotMonoDecompWrapper::get_script_info(const String &file) {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Vector<String> GodotMonoDecompWrapper::get_files_not_present_in_file_map() {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Dictionary GodotMonoDecompWrapper::get_language_versions() {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {}
+#endif
+
+GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
+	return settings;
 }
 
 GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings() {
@@ -263,6 +295,7 @@ bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator!=(const GodotMono
 GodotMonoDecompWrapper::GodotMonoDecompWrapper() {}
 
 void GodotMonoDecompWrapper::_bind_methods() {
+	ClassDB::bind_static_method("GodotMonoDecompWrapper", D_METHOD("is_godot_mono_decomp_enabled"), &GodotMonoDecompWrapper::is_godot_mono_decomp_enabled);
 	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath", "excludeFiles"), &GodotMonoDecompWrapper::decompile_module, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);
 	ClassDB::bind_method(D_METHOD("get_script_info", "file"), &GodotMonoDecompWrapper::get_script_info);

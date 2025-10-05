@@ -771,6 +771,7 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 
 	// Load the C# assembly if it exists
 	if (project_requires_dotnet_assembly()) {
+#if !GODOT_MONO_DECOMP_DISABLED
 		if (!csharp_assembly_override.is_empty()) {
 			err = reload_dotnet_assembly(csharp_assembly_override);
 		} else if (!has_loaded_dotnet_assembly()) {
@@ -779,6 +780,9 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 		if (err) {
 			WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
 		}
+#else
+		WARN_PRINT("C# assembly detected, but C# decompilation is disabled in this build of GDRE Tools.");
+#endif
 	}
 	_ensure_script_cache_complete();
 
