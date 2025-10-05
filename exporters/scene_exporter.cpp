@@ -30,6 +30,7 @@ struct dep_info {
 	String orig_remap;
 	String type;
 	String real_type;
+	int depth = 0;
 	bool exists = true;
 	bool uid_in_uid_cache = false;
 	bool uid_in_uid_cache_matches_dep = true;
@@ -203,6 +204,8 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 		if (!r_deps.has(dep)) {
 			r_deps[dep] = dep_info{};
 			dep_info &info = r_deps[dep];
+			info.depth = depth;
+			info.parent_is_script_or_shader = parent_is_script_or_shader;
 			auto splits = dep.split("::");
 			if (splits.size() == 3) {
 				// If it has a UID, UID is first, followed by type, then fallback path
@@ -224,7 +227,6 @@ void get_deps_recursive(const String &p_path, HashMap<String, dep_info> &r_deps,
 				if (info.remap.is_empty()) {
 					info.remap = info.orig_remap;
 				}
-				info.parent_is_script_or_shader = parent_is_script_or_shader;
 				auto thingy = GDRESettings::get_singleton()->get_mapped_path(splits[0]);
 				if (!FileAccess::exists(info.remap)) {
 					if (FileAccess::exists(info.dep)) {
@@ -809,17 +811,18 @@ Error GLBExporterInstance::_load_deps() {
 		} else if (info.dep.get_extension().to_lower().contains("shader")) {
 			has_shader = true;
 		} else {
-			if (info.parent_is_script_or_shader) {
-				script_or_shader_deps.insert(info.dep);
-			}
 			if (info.type == "Animation" || info.type == "AnimationLibrary") {
 				animation_deps_needed.insert(info.dep);
-				need_to_be_updated.insert(info.dep);
+				if (info.depth == 0) {
+					need_to_be_updated.insert(info.dep);
+				}
 			} else if (info.type.contains("Material")) {
 				if (info.real_type == "ShaderMaterial") {
 					has_shader = true;
 				}
-				need_to_be_updated.insert(info.dep);
+				if (info.depth == 0) {
+					need_to_be_updated.insert(info.dep);
+				}
 			} else if (info.type.contains("Texture")) {
 				image_deps_needed.insert(info.dep);
 				String ext = info.dep.get_extension().to_upper();
@@ -827,9 +830,13 @@ Error GLBExporterInstance::_load_deps() {
 					ext = "JPEG";
 				}
 				image_extensions.append(ext);
-				need_to_be_updated.insert(info.dep);
+				if (info.depth == 0) {
+					need_to_be_updated.insert(info.dep);
+				}
 			} else if (info.type.contains("Mesh")) {
-				need_to_be_updated.insert(info.dep);
+				if (info.depth == 0) {
+					need_to_be_updated.insert(info.dep);
+				}
 			}
 		}
 	}
@@ -2222,7 +2229,16 @@ Error GLBExporterInstance::export_file(const String &p_dest_path, const String &
 }
 
 Error GLBExporterInstance::_get_return_error() {
-	bool set_all_externals = !updating_import_info || external_deps_updated.size() >= need_to_be_updated.size() - script_or_shader_deps.size();
+	bool set_all_externals = !updating_import_info;
+	if (updating_import_info) {
+		set_all_externals = true;
+		for (auto &E : need_to_be_updated) {
+			if (!external_deps_updated.has(E)) {
+				set_all_externals = false;
+				break;
+			}
+		}
+	}
 	// GLTFDocument has issues with custom animations and throws errors;
 	// if we've set all the external resources (including custom animations),
 	// then this isn't an error.
