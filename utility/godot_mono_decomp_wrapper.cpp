@@ -5,9 +5,7 @@
 #include "godot_mono_decomp.h"
 #include "utility/gdre_settings.h"
 
-GodotMonoDecompWrapper::GodotMonoDecompWrapper() {
-	decompilerHandle = nullptr;
-}
+GodotMonoDecompWrapper::GodotMonoDecompWrapper() {}
 
 GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
 	if (decompilerHandle != nullptr) {
@@ -258,6 +256,28 @@ Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_sett
 	}
 	settings = p_settings;
 	return OK;
+}
+
+Dictionary GodotMonoDecompWrapper::get_language_versions() {
+	int num_versions = 0;
+	int *versions = GodotMonoDecomp_GetLanguageVersions(&num_versions);
+	Dictionary ret = { { 0, "Auto-detect" } };
+	for (int i = 0; i < num_versions; i++) {
+		if (ret.has(versions[i])) {
+			continue;
+		}
+		int ver = versions[i];
+		if (ver < 100) {
+			ret[ver] = "C# " + String::num_int64(ver) + ".0";
+		} else if (ver == INT_MAX) {
+			ret[ver] = "Latest";
+		} else {
+			int ver_major = ver / 100;
+			int ver_minor = ver % 100;
+			ret[ver] = "C# " + String::num_int64(ver_major) + "." + String::num_int64(ver_minor);
+		}
+	}
+	return ret;
 }
 
 void GodotMonoDecompWrapper::_bind_methods() {

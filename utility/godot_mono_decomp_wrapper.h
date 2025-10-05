@@ -43,12 +43,14 @@ public:
 	GodotMonoDecompSettings get_settings() const;
 	Error set_settings(const GodotMonoDecompSettings &p_settings);
 
+	static Dictionary get_language_versions();
+
 private:
 	Error _load(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings);
 
 	GodotMonoDecompSettings settings;
 	String assembly_path;
-	void *decompilerHandle;
+	void *decompilerHandle = nullptr;
 	Vector<String> originalProjectFiles;
 	Vector<String> assemblyReferenceDirs;
 };
