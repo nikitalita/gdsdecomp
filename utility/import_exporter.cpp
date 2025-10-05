@@ -773,7 +773,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
 
 			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
-			err = decompiler->decompile_module_with_progress(csproj_path, exclude_files);
+			err = decompiler->decompile_module(csproj_path, exclude_files);
 			if (err != OK) {
 				if (err == ERR_SKIP) {
 					return ERR_SKIP;

@@ -2,16 +2,11 @@
 #include "core/io/json.h"
 #include "core/templates/vector.h"
 
-#include "godot_mono_decomp.h"
+#include "utility/gd_parallel_queue.h"
 #include "utility/gdre_settings.h"
+#include "utility/task_manager.h"
 
-GodotMonoDecompWrapper::GodotMonoDecompWrapper() {}
-
-GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
-	if (decompilerHandle != nullptr) {
-		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
-	}
-}
+#include "godot_mono_decomp.h"
 
 Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings) {
 	Ref<GodotMonoDecompWrapper> wrapper = memnew(GodotMonoDecompWrapper);
@@ -63,8 +58,6 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 	this->settings = p_settings;
 	return OK;
 }
-#include "gd_parallel_queue.h"
-#include "task_manager.h"
 
 struct DecompileModuleTaskData : public TaskRunnerStruct {
 	String outputCSProjectPath;
@@ -139,57 +132,11 @@ struct DecompileModuleTaskData : public TaskRunnerStruct {
 	virtual ~DecompileModuleTaskData() = default;
 };
 
-Error GodotMonoDecompWrapper::decompile_module_with_progress(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
+Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
 	int total_steps = GodotMonoDecomp_GetNumberOfFilesInFileMap(decompilerHandle);
 	auto taskData = std::make_shared<DecompileModuleTaskData>(outputCSProjectPath, excludeFiles, total_steps);
 	TaskManager::get_singleton()->run_task(taskData, this, "Decompiling C# scripts...", total_steps, true, true);
 	return taskData->err;
-}
-
-Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
-	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, ERR_CANT_CREATE, "Decompiler handle is null");
-	CharString outputCSProjectPath_chrstr = outputCSProjectPath.utf8();
-	const char *outputCSProjectPath_c = outputCSProjectPath_chrstr.get_data();
-	Vector<CharString> excludeFiles_chrstrrs;
-	excludeFiles_chrstrrs.resize(excludeFiles.size());
-	const char **excludeFiles_c_array = new const char *[excludeFiles.size()];
-	for (int i = 0; i < excludeFiles.size(); i++) {
-		excludeFiles_chrstrrs.write[i] = excludeFiles[i].utf8();
-		excludeFiles_c_array[i] = excludeFiles_chrstrrs[i].get_data();
-	}
-	int ret = GodotMonoDecomp_DecompileModule(decompilerHandle, outputCSProjectPath_c, excludeFiles_c_array, excludeFiles.size());
-	delete[] excludeFiles_c_array;
-	if (ret != 0) {
-		return ERR_CANT_CREATE;
-	}
-	return OK;
-}
-
-GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings() {
-	auto settings = GodotMonoDecompSettings();
-	settings.GodotVersionOverride = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->get_version_string() : "";
-	if (!GDREConfig::get_singleton()) {
-		return settings;
-	}
-	settings.WriteNuGetPackageReferences = GDREConfig::get_singleton()->get_setting("CSharp/write_nuget_package_references", true);
-	settings.VerifyNuGetPackageIsFromNugetOrg = GDREConfig::get_singleton()->get_setting("CSharp/verify_nuget_package_is_from_nuget_org", false);
-	settings.CopyOutOfTreeReferences = GDREConfig::get_singleton()->get_setting("CSharp/copy_out_of_tree_references", true);
-	settings.CreateAdditionalProjectsForProjectReferences = GDREConfig::get_singleton()->get_setting("CSharp/create_additional_projects_for_project_references", true);
-	settings.OverrideLanguageVersion = GDREConfig::get_singleton()->get_setting("CSharp/force_language_version", 0);
-	return settings;
-}
-
-bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator==(const GodotMonoDecompSettings &p_other) const {
-	return WriteNuGetPackageReferences == p_other.WriteNuGetPackageReferences &&
-			VerifyNuGetPackageIsFromNugetOrg == p_other.VerifyNuGetPackageIsFromNugetOrg &&
-			CopyOutOfTreeReferences == p_other.CopyOutOfTreeReferences &&
-			CreateAdditionalProjectsForProjectReferences == p_other.CreateAdditionalProjectsForProjectReferences &&
-			OverrideLanguageVersion == p_other.OverrideLanguageVersion &&
-			GodotVersionOverride == p_other.GodotVersionOverride;
-}
-
-bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator!=(const GodotMonoDecompSettings &p_other) const {
-	return !(*this == p_other);
 }
 
 String GodotMonoDecompWrapper::decompile_individual_file(const String &file) {
@@ -245,19 +192,6 @@ Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 	return strings_strs;
 }
 
-GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
-	return settings;
-}
-
-Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
-	if (p_settings != settings) {
-		Error err = _load(assembly_path, originalProjectFiles, assemblyReferenceDirs, p_settings);
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to reload assembly " + assembly_path + " (Not a valid .NET assembly?)");
-	}
-	settings = p_settings;
-	return OK;
-}
-
 Dictionary GodotMonoDecompWrapper::get_language_versions() {
 	int num_versions = 0;
 	int *versions = GodotMonoDecomp_GetLanguageVersions(&num_versions);
@@ -280,8 +214,56 @@ Dictionary GodotMonoDecompWrapper::get_language_versions() {
 	return ret;
 }
 
+GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
+	if (decompilerHandle != nullptr) {
+		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
+	}
+}
+
+GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
+	return settings;
+}
+
+Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
+	if (p_settings != settings) {
+		Error err = _load(assembly_path, originalProjectFiles, assemblyReferenceDirs, p_settings);
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to reload assembly " + assembly_path + " (Not a valid .NET assembly?)");
+	}
+	settings = p_settings;
+	return OK;
+}
+
+GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings() {
+	auto settings = GodotMonoDecompSettings();
+	settings.GodotVersionOverride = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->get_version_string() : "";
+	if (!GDREConfig::get_singleton()) {
+		return settings;
+	}
+	settings.WriteNuGetPackageReferences = GDREConfig::get_singleton()->get_setting("CSharp/write_nuget_package_references", true);
+	settings.VerifyNuGetPackageIsFromNugetOrg = GDREConfig::get_singleton()->get_setting("CSharp/verify_nuget_package_is_from_nuget_org", false);
+	settings.CopyOutOfTreeReferences = GDREConfig::get_singleton()->get_setting("CSharp/copy_out_of_tree_references", true);
+	settings.CreateAdditionalProjectsForProjectReferences = GDREConfig::get_singleton()->get_setting("CSharp/create_additional_projects_for_project_references", true);
+	settings.OverrideLanguageVersion = GDREConfig::get_singleton()->get_setting("CSharp/force_language_version", 0);
+	return settings;
+}
+
+bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator==(const GodotMonoDecompSettings &p_other) const {
+	return WriteNuGetPackageReferences == p_other.WriteNuGetPackageReferences &&
+			VerifyNuGetPackageIsFromNugetOrg == p_other.VerifyNuGetPackageIsFromNugetOrg &&
+			CopyOutOfTreeReferences == p_other.CopyOutOfTreeReferences &&
+			CreateAdditionalProjectsForProjectReferences == p_other.CreateAdditionalProjectsForProjectReferences &&
+			OverrideLanguageVersion == p_other.OverrideLanguageVersion &&
+			GodotVersionOverride == p_other.GodotVersionOverride;
+}
+
+bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator!=(const GodotMonoDecompSettings &p_other) const {
+	return !(*this == p_other);
+}
+
+GodotMonoDecompWrapper::GodotMonoDecompWrapper() {}
+
 void GodotMonoDecompWrapper::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath", "excludeFiles"), &GodotMonoDecompWrapper::decompile_module_with_progress, DEFVAL(Vector<String>()));
+	ClassDB::bind_method(D_METHOD("decompile_module", "outputCSProjectPath", "excludeFiles"), &GodotMonoDecompWrapper::decompile_module, DEFVAL(Vector<String>()));
 	ClassDB::bind_method(D_METHOD("decompile_individual_file", "file"), &GodotMonoDecompWrapper::decompile_individual_file);
 	ClassDB::bind_method(D_METHOD("get_script_info", "file"), &GodotMonoDecompWrapper::get_script_info);
 	ClassDB::bind_method(D_METHOD("get_files_not_present_in_file_map"), &GodotMonoDecompWrapper::get_files_not_present_in_file_map);
