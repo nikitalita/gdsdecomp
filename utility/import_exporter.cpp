@@ -708,13 +708,14 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
+	ERR_FAIL_COND_V_MSG(p_out_dir.is_empty(), ERR_INVALID_PARAMETER, "Output directory is empty!");
 	reset_log();
 	ResourceCompatLoader::make_globally_available();
 	ResourceCompatLoader::set_default_gltf_load(false);
 	report = Ref<ImportExporterReport>(memnew(ImportExporterReport(get_settings()->get_version_string())));
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
-	output_dir = gdre::get_full_path(!p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path(), DirAccess::ACCESS_FILESYSTEM);
+	output_dir = gdre::get_full_path(p_out_dir, DirAccess::ACCESS_FILESYSTEM);
 	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(output_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create output directory " + output_dir);
 	Error err = OK;
 	// TODO: make this use "copy"
@@ -1510,7 +1511,7 @@ void ImportExporter::report_unsupported_resource(const String &type, const Strin
 }
 
 void ImportExporter::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(""), DEFVAL(PackedStringArray()));
+	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("get_report"), &ImportExporter::get_report);
 	ClassDB::bind_method(D_METHOD("reset"), &ImportExporter::reset);
 }
