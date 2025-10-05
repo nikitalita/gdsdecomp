@@ -116,6 +116,7 @@ class FileAccessGDRE : public FileAccess {
 	friend class GDREPackedData;
 	Ref<FileAccess> proxy;
 	AccessType access_type;
+	int mode_flags = (int)FileAccess::READ;
 
 	typedef Ref<FileAccess> (*CreateFunc)();
 
@@ -227,11 +228,11 @@ template <class T>
 class FileAccessProxy : public T {
 	static_assert(std::is_base_of<FileAccess, T>::value, "T must derive from FileAccess");
 
-	int mode_flags;
+	int mode_flags = (int)FileAccess::READ;
 
 public:
 	virtual String fix_path(const String &p_path) const override {
-		return PathFinder::_fix_path_file_access(p_path.replace("\\", "/"), mode_flags);
+		return PathFinder::_fix_path_file_access(p_path, mode_flags);
 	}
 	virtual Error open_internal(const String &p_path, int p_mode_flags) override {
 		mode_flags = p_mode_flags;

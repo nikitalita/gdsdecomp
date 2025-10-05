@@ -404,6 +404,7 @@ bool is_gdre_file(const String &p_path) {
 }
 
 Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
+	mode_flags = p_mode_flags;
 	//try packed data first
 	if (should_check_pack(p_mode_flags) && GDREPackedData::get_singleton() && !GDREPackedData::get_singleton()->is_disabled()) {
 		proxy = GDREPackedData::get_singleton()->try_open_path(p_path);
@@ -956,7 +957,7 @@ DirAccessGDRE::~DirAccessGDRE() {
 #endif
 
 String FileAccessGDRE::fix_path(const String &p_path) const {
-	return PathFinder::_fix_path_file_access(p_path.replace("\\", "/"));
+	return PathFinder::_fix_path_file_access(p_path, mode_flags);
 }
 
 String DirAccessGDRE::fix_path(const String &p_path) const {
@@ -1080,7 +1081,8 @@ bool PathFinder::gdre_packed_data_valid_path(const String &p_path) {
 	return GDREPackedData::get_singleton() && !GDREPackedData::get_singleton()->is_disabled() && GDREPackedData::get_singleton()->has_path(p_path);
 }
 
-String PathFinder::_fix_path_file_access(const String &p_path, int p_mode_flags) {
+String PathFinder::_fix_path_file_access(const String &p_p_path, int p_mode_flags) {
+	String p_path = p_p_path.replace("\\", "/");
 	if (p_path.begins_with("res://")) {
 		if (is_gdre_file(p_path)) {
 			WARN_PRINT("WARNING: Calling fix_path on a gdre file...");
@@ -1098,6 +1100,7 @@ String PathFinder::_fix_path_file_access(const String &p_path, int p_mode_flags)
 			if (res_path != "") {
 				return p_path.replace("res:/", res_path);
 			}
+			return p_path.trim_prefix("res://");
 		}
 		String project_path = GDRESettings::get_singleton()->get_project_path();
 		if (project_path != "") {
@@ -1127,18 +1130,21 @@ String PathFinder::_fix_path_file_access(const String &p_path, int p_mode_flags)
 
 		// otherwise, fall through to call base class
 	}
-
+	String r_path = p_p_path;
+	if (r_path.is_relative_path()) {
+		r_path = GDRESettings::get_singleton()->get_cwd().path_join(r_path);
+	}
 	// TODO: This will have to be modified if additional fix_path overrides are added
 #ifdef WINDOWS_ENABLED
 #ifndef MAX_PATH
 #define MAX_PATH 260
 #endif
-	String r_path = p_path;
 	if (r_path.is_absolute_path() && !r_path.is_network_share_path() && r_path.length() > MAX_PATH) {
 		r_path = "\\\\?\\" + r_path.replace("/", "\\");
 	}
 	return r_path;
+#else
+	r_path = r_path.replace("\\", "/");
+	return r_path;
 #endif
-
-	return p_path;
 }
