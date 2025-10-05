@@ -343,7 +343,7 @@ void GDREConfig::load_config() {
 }
 
 String GDREConfig::get_config_path() {
-	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("gdre_settings.cfg");
+	return GDRESettings::get_gdre_user_path().path_join("gdre_settings.cfg");
 }
 
 void GDREConfig::save_config() {

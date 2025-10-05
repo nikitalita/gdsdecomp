@@ -139,7 +139,6 @@ private:
 	GDRELogger *logger;
 	Array import_files;
 	HashMap<String, Ref<ImportInfoRemap>> remap_iinfo;
-	String gdre_user_path = "";
 	String gdre_resource_path = "";
 
 	struct UID_Cache {
@@ -284,9 +283,9 @@ public:
 	// Get the path to the GDRE resource directory (dev-only, only used if running in editor)
 	String get_gdre_resource_path() const;
 	// Get the path to the GDRE user directory (where we store temp files, plugin cache, logs, etc.)
-	String get_gdre_user_path() const;
+	static String get_gdre_user_path();
 	// Get the path to the GDRE temp directory
-	String get_gdre_tmp_path() const;
+	static String get_gdre_tmp_path();
 
 	// Checks if we have loaded a project
 	bool is_pack_loaded() const;
