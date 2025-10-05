@@ -1,14 +1,6 @@
 #include "gdre_window.h"
 #include "gui/gdre_progress.h"
 
-namespace internal {
-
-static void callback_func(Window *p_this_box, const String &p_signal_name, const Callable &p_this_callback) {
-	p_this_box->disconnect(p_signal_name, p_this_callback);
-	p_this_callback.call();
-}
-} //namespace internal
-
 void GDREWindow::popup_box(Node *p_parent, Window *p_box, const String &p_message, const String &p_title, const Callable &p_confirm_callback, const Callable &p_cancel_callback, const String &p_ok_button_text, const String &p_cancel_button_text) {
 	if (p_parent && p_box->get_parent() != p_parent) {
 		if (p_box->get_parent()) {
@@ -42,12 +34,10 @@ void GDREWindow::popup_box(Node *p_parent, Window *p_box, const String &p_messag
 	}
 	p_box->set_title(p_title);
 	if (!p_confirm_callback.is_null()) {
-		auto act_confirmed_callback = callable_mp_static(&internal::callback_func).bind(p_box, "confirmed", p_confirm_callback);
-		p_box->connect("confirmed", act_confirmed_callback);
+		p_box->connect("confirmed", p_confirm_callback, CONNECT_ONE_SHOT);
 	}
 	if (!p_cancel_callback.is_null()) {
-		auto act_cancelled_callback = callable_mp_static(&internal::callback_func).bind(p_box, "canceled", p_cancel_callback);
-		p_box->connect("canceled", act_cancelled_callback);
+		p_box->connect("canceled", p_cancel_callback, CONNECT_ONE_SHOT);
 	}
 	// p_parent->add_child(p_box);
 	p_box->popup_centered();
