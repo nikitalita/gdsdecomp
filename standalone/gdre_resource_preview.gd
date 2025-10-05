@@ -181,10 +181,11 @@ func load_scene(path):
 	%ScenePreviewer3D.visible = true
 	var time_to_load = Time.get_ticks_msec() - start_time
 	if time_to_load > 200 and not is_cached:
-		print("Caching scene: ", path)
+		# print("Caching scene: ", path)
 		cached_scenes.append(res)
 	else:
-		print("Loaded scene in ", time_to_load, "ms")
+		# print("Loaded scene in ", time_to_load, "ms")
+		pass
 	return true
 
 
