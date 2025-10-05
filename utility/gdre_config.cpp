@@ -3,15 +3,13 @@
 #include "bytecode/bytecode_versions.h"
 #include "common.h"
 #include "core/io/json.h"
+#include "gdre_logger.h"
 #include "gdre_settings.h"
 #include "godot_mono_decomp_wrapper.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
 
 GDREConfig *GDREConfig::get_singleton() {
-	if (!singleton) {
-		singleton = memnew(GDREConfig);
-	}
 	return singleton;
 }
 
@@ -62,11 +60,11 @@ public:
 		}
 
 		// clears errors
-		GDRESettings::get_singleton()->get_errors();
+		GDRELogger::clear_error_queues();
 		int commit = GDScriptDecomp::register_decomp_version_custom(json);
 		if (commit == 0) {
 			WARN_PRINT("Failed to register custom bytecode file: " + path);
-			error_message = "Failed to register custom bytecode file: \n" + String("\n").join(GDRESettings::get_singleton()->get_errors());
+			error_message = "Failed to register custom bytecode file: \n" + String("\n").join(GDRELogger::get_errors());
 			return;
 		}
 		GDREConfig::get_singleton()->set_setting("Bytecode/force_bytecode_revision", commit, true);
@@ -156,7 +154,7 @@ public:
 		if (path.is_empty()) {
 			return;
 		}
-		Error err = GDRESettings::get_singleton()->load_translation_key_hint_file(path);
+		Error err = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->load_translation_key_hint_file(path) : ERR_UNAVAILABLE;
 		if (err != OK) {
 			WARN_PRINT("Failed to load key hint file: " + path);
 			error_message = "Failed to load key hint file: " + path;
