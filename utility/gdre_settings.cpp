@@ -1501,11 +1501,11 @@ String GDRESettings::get_mapped_path(const String &p_src) const {
 		}
 	}
 	if (is_pack_loaded()) {
-		String remapped_path = get_remap(src);
+		String local_src = localize_path(src);
+		String remapped_path = get_remap(local_src);
 		if (!remapped_path.is_empty()) {
 			return remapped_path;
 		}
-		String local_src = localize_path(src);
 
 		for (int i = 0; i < import_files.size(); i++) {
 			Ref<ImportInfo> iinfo = import_files[i];
