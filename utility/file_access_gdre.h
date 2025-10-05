@@ -15,6 +15,7 @@ public:
 	virtual Ref<FileAccess> get_file(const String &p_path, PackedData::PackedFile *p_file) override;
 	bool file_exists(const String &p_path) const;
 	String get_pack_path(const String &p_path) const;
+	bool loaded_pack() const;
 	void reset();
 	DirSource();
 	~DirSource();

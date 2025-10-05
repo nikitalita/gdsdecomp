@@ -74,6 +74,10 @@ void DirSource::reset() {
 	packs.clear();
 }
 
+bool DirSource::loaded_pack() const {
+	return !packs.is_empty();
+}
+
 DirSource *DirSource::singleton = nullptr;
 
 DirSource::DirSource() {
@@ -361,7 +365,7 @@ void GDREPackedData::_free_packed_dirs(GDREPackedData::PackedDir *p_dir) {
 }
 
 bool GDREPackedData::has_loaded_packs() {
-	return !sources.is_empty() && !files.is_empty();
+	return (!sources.is_empty() || dir_source.loaded_pack()) && !files.is_empty();
 }
 
 // Test for the existence of project.godot or project.binary in the packed data
