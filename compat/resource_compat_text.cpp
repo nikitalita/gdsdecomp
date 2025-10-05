@@ -1732,9 +1732,9 @@ String ResourceFormatLoaderCompatText::get_resource_script_class(const String &p
 	}
 
 	ResourceLoaderCompatText loader;
-	// TODO: revisit this
-	loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
-	loader.res_path = loader.local_path;
+	// Not actually used by recognize_script_class()
+	// loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
+	// loader.res_path = loader.local_path;
 	return loader.recognize_script_class(f);
 }
 
@@ -1751,9 +1751,9 @@ ResourceUID::ID ResourceFormatLoaderCompatText::get_resource_uid(const String &p
 	}
 
 	ResourceLoaderCompatText loader;
-	// TODO: revisit this
-	loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
-	loader.res_path = loader.local_path;
+	// Not actually used by get_uid()
+	// loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
+	// loader.res_path = loader.local_path;
 	return loader.get_uid(f);
 }
 
