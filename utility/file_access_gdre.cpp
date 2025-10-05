@@ -1012,6 +1012,9 @@ String GDREPackedData::get_os_dir_access_class_name() {
 
 Ref<DirAccess> DirAccessGDRE::_open_filesystem() {
 	// DirAccessGDRE is only made default for DirAccess::ACCESS_RESOURCES
+#if DEBUG_ENABLED
+	WARN_PRINT("opening filesystem path in DirAccessGDRE...");
+#endif
 	String path = GDRESettings::get_singleton()->get_project_path();
 	if (path == "") {
 		path = "res://";

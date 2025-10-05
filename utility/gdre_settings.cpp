@@ -322,21 +322,12 @@ String get_standalone_pck_path() {
 }
 
 Error GDRESettings::load_dir(const String &p_path) {
-	if (is_pack_loaded()) {
-		return ERR_ALREADY_IN_USE;
-	}
 	Ref<DirAccess> da = DirAccess::open(p_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(da.is_null(), ERR_FILE_CANT_OPEN, "FATAL ERROR: Can't find folder!");
 	ERR_FAIL_COND_V_MSG(!da->dir_exists(p_path), ERR_FILE_CANT_OPEN, "FATAL ERROR: Can't find folder!");
 
-	// This is a hack to get the resource path set to the project folder
-	ProjectSettings *settings_singleton = ProjectSettings::get_singleton();
-	GDREPackSettings *new_singleton = reinterpret_cast<GDREPackSettings *>(settings_singleton);
-	GDREPackSettings::do_set_resource_path(new_singleton, p_path);
-	project_path = p_path;
 	Error err = GDREPackedData::get_singleton()->add_dir(p_path, false);
 	if (err != OK) {
-		unload_dir();
 		ERR_FAIL_V_MSG(err, "FATAL ERROR: Can't open directory!");
 	}
 	// Check for the existence of assets.sparsepck
@@ -379,13 +370,6 @@ Error GDRESettings::load_dir(const String &p_path) {
 	return OK;
 }
 
-Error GDRESettings::unload_dir() {
-	ProjectSettings *settings_singleton = ProjectSettings::get_singleton();
-	GDREPackSettings *new_singleton = static_cast<GDREPackSettings *>(settings_singleton);
-	GDREPackSettings::do_set_resource_path(new_singleton, gdre_resource_path);
-	project_path = "";
-	return OK;
-}
 namespace {
 bool is_executable(const String &p_path) {
 	String extension = p_path.get_extension().to_lower();
@@ -1123,9 +1107,6 @@ Error GDRESettings::unload_project(bool p_no_reset_ephemeral) {
 	}
 	_clear_shader_globals();
 	error_encryption = false;
-	if (get_pack_type() == PackInfo::DIR) {
-		unload_dir();
-	}
 
 	remove_current_pack();
 	GDREPackedData::get_singleton()->clear();
@@ -1928,7 +1909,7 @@ String GDRESettings::get_game_name() const {
 		game_name = current_project->pcfg->get_setting(get_ver_major() <= 2 ? GAME_NAME_SETTING_2x : GAME_NAME_SETTING_4x, "");
 	}
 	if (game_name.is_empty() && is_pack_loaded()) {
-		game_name = get_project_path().get_file().get_basename();
+		game_name = get_pack_path().get_file().get_basename();
 	}
 	return game_name;
 }
@@ -2008,7 +1989,7 @@ struct ScriptCacheTask {
 			tokens[i].d.set("icon", icon_path);
 			tokens[i].d.set("is_abstract", script->is_abstract());
 			tokens[i].d.set("is_tool", script->is_tool());
-			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
+			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("C#"));
 			tokens[i].d.set("path", tokens[i].orig_path);
 		}
 	}
