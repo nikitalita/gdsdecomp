@@ -236,6 +236,8 @@ class ResourceFormatSaverCompatBinaryInstance {
 	Dictionary fix_scene_bundle(const Ref<PackedScene> &p_scene, int original_version);
 	Error set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags);
 
+	static String get_local_path(const String &p_path, const Ref<Resource> &p_resource);
+
 public:
 	enum {
 		FORMAT_FLAG_NAMED_SCENE_IDS = 1,
