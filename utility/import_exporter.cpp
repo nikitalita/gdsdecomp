@@ -231,6 +231,11 @@ void ImportExporter::_do_file_info(uint32_t i, FileInfo *file_infos) {
 		if (file_info.type == "" && other_file_extensions.has(ext)) {
 			file_info.type = "OtherFile";
 		}
+		List<String> deps;
+		ResourceCompatLoader::get_dependencies(path, &deps, true);
+		for (auto &dep : deps) {
+			file_info.deps.push_back(dep);
+		}
 		file_info.import_valid = true;
 		file_info.verified = true;
 	} else {
