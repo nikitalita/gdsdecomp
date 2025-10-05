@@ -319,7 +319,7 @@ func is_video(ext, p_type = ""):
 
 
 func is_texture(ext, p_type = ""):
-	if (ext == "ctex" || ext == "stex" || ext == "tex"):
+	if (ext == "ctex" || ext == "stex" || ext == "tex" || ext == "dds" || ext == "ktx" || ext == "ktx2"):
 		return true
 	# return p_type == "CompressedTexture2D" || p_type == "StreamTexture" || p_type == "Texture2D" || p_type == "ImageTexture"
 	return false
