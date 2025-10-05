@@ -1479,6 +1479,8 @@ Error ImportExporter::recreate_plugin_configs() {
 		if (!DirAccess::dir_exists_absolute(dir)) {
 			report->failed_plugin_cfg_create.push_back(path.get_base_dir().get_file());
 			continue;
+		} else if (FileAccess::exists(path)) {
+			continue; // don't try to recreate plugin.cfg if it already exists
 		}
 		err = recreate_plugin_config(path);
 		if (err) {
