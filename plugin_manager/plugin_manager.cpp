@@ -200,7 +200,6 @@ void PluginManager::save_cache() {
 	for (int i = 0; i < source_count; ++i) {
 		sources[i]->save_cache();
 	}
-
 }
 
 struct PrePopToken {
