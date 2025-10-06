@@ -14,6 +14,16 @@ protected:
 	friend struct DecompileModuleTaskData;
 
 public:
+#if !GODOT_MONO_DECOMP_DISABLED
+	static constexpr bool godot_mono_decomp_enabled = true;
+#else
+	static constexpr bool godot_mono_decomp_enabled = false;
+#endif
+
+	static constexpr bool is_godot_mono_decomp_enabled() {
+		return godot_mono_decomp_enabled;
+	}
+
 	struct GodotMonoDecompSettings {
 		bool WriteNuGetPackageReferences = true;
 		bool VerifyNuGetPackageIsFromNugetOrg = false;
@@ -27,14 +37,12 @@ public:
 		bool operator!=(const GodotMonoDecompSettings &p_other) const;
 	};
 
-	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
-	~GodotMonoDecompWrapper();
-
 	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings);
+	static Dictionary get_language_versions();
 
 	bool is_valid() const;
 
-	Error decompile_module_with_progress(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
+	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	String decompile_individual_file(const String &file);
 	Dictionary get_script_info(const String &file);
 	Vector<String> get_files_not_present_in_file_map();
@@ -43,12 +51,14 @@ public:
 	GodotMonoDecompSettings get_settings() const;
 	Error set_settings(const GodotMonoDecompSettings &p_settings);
 
+	~GodotMonoDecompWrapper();
+
 private:
 	Error _load(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Vector<String> &assemblyReferenceDirs, const GodotMonoDecompSettings &settings);
 
 	GodotMonoDecompSettings settings;
 	String assembly_path;
-	void *decompilerHandle;
+	void *decompilerHandle = nullptr;
 	Vector<String> originalProjectFiles;
 	Vector<String> assemblyReferenceDirs;
 };

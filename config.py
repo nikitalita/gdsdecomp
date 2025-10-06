@@ -48,6 +48,9 @@ def monkey_patch_macos_generate_bundle():
     old_generate_bundle = platform_macos_builders.generate_bundle
 
     def generate_bundle(target, source, env):
+        if "disable_godot_mono_decomp" in env and env["disable_godot_mono_decomp"]:
+            old_generate_bundle(target, source, env)
+            return
         frameworks_dir = ""
         if env.editor_build:
             templ = env.Dir("#misc/dist/macos_tools.app").abspath

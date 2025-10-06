@@ -21,6 +21,11 @@ env_gdsdecomp: Environment = None
 Import("env")
 Import("env_modules")
 
+opts = Variables([], ARGUMENTS)
+opts.Add(BoolVariable("disable_godot_mono_decomp", "Disable Godot Mono Decompilation", False))
+
+opts.Update(env)
+
 
 MODULE_DIR: str = env.Dir("#modules/gdsdecomp").abspath
 BUILD_DIR: str = env.Dir("#bin").abspath
@@ -606,5 +611,8 @@ env_gdsdecomp.add_source_files(module_obj, "external/tinygltf/tiny_gltf.cc")
 env_gdsdecomp.add_source_files(module_obj, "module_etc_decompress/*.cpp")
 
 build_vtracer(module_obj)
-build_godot_mono_decomp(module_obj)
+if "disable_godot_mono_decomp" in env and env["disable_godot_mono_decomp"]:
+    env_gdsdecomp.Append(CPPDEFINES=["GODOT_MONO_DECOMP_DISABLED"])
+else:
+    build_godot_mono_decomp(module_obj)
 env.modules_sources += module_obj

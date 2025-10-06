@@ -2388,6 +2388,8 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 
 	Error err;
 
+	path = get_local_path(p_path, p_resource);
+
 	set_save_settings(p_resource, p_flags);
 	ResourceUID::ID uid = res_uid;
 
@@ -2425,8 +2427,6 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	}
 
 	local_path = p_path.get_base_dir();
-	// TODO: VERIFY THIS!!!
-	path = output_dir.path_join(p_path.replace("res://", ""));
 
 	_find_resources(p_resource, true);
 
@@ -3456,10 +3456,7 @@ Error ResourceFormatSaverCompatBinaryInstance::set_save_settings(const Ref<Resou
 		using_real_t_double = compat->using_real_t_double;
 		stored_use_real64 = compat->stored_use_real64;
 		imd = compat->v2metadata;
-		ResourceUID::ID uid = compat->uid;
-		if (using_uids && uid == ResourceUID::INVALID_ID) {
-			uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
-		}
+		res_uid = compat->uid;
 		if (format != "binary" && !set_format) { // text
 			if (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)) {
 				ver_format = 6;
@@ -3509,8 +3506,8 @@ Error ResourceFormatSaverCompatBinaryInstance::set_save_settings(const Ref<Resou
 		if (!original_path.is_empty()) {
 			res_uid = GDRESettings::get_singleton()->get_uid_for_path(original_path);
 		}
-		if (res_uid == ResourceUID::INVALID_ID && !local_path.is_empty()) {
-			res_uid = GDRESettings::get_singleton()->get_uid_for_path(local_path);
+		if (res_uid == ResourceUID::INVALID_ID && !path.is_empty()) {
+			res_uid = GDRESettings::get_singleton()->get_uid_for_path(path);
 		}
 	}
 
@@ -3568,4 +3565,15 @@ Error ResourceFormatSaverCompatBinary::save_custom(const Ref<Resource> &p_resour
 
 	p_flags = CompatFormatLoader::set_version_info_in_flags(p_flags, ver_format, ver_major, ver_minor);
 	return ResourceFormatSaverCompatBinary::save(p_resource, p_path, p_flags);
+}
+
+String ResourceFormatSaverCompatBinaryInstance::get_local_path(const String &p_path, const Ref<Resource> &p_resource) {
+	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
+		return p_path;
+	}
+	String resource_path = GDRESettings::get_singleton()->get_project_path();
+	if (!resource_path.is_empty() && p_path.simplify_path().begins_with(resource_path)) {
+		return GDRESettings::get_singleton()->localize_path(p_path);
+	}
+	return p_resource.is_valid() ? p_resource->get_path() : "";
 }

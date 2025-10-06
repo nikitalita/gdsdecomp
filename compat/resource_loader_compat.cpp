@@ -698,7 +698,7 @@ Ref<Resource> ResourceCompatConverter::set_real_from_missing_resource(Ref<Missin
 			res->set_path_cache(mr->get(property.name));
 		} else if (is_storage) {
 			Ref<MissingResource> m_res = mr->get(property.name);
-			String set_prop = prop_map.has(property.name) ? prop_map[property.name] : property.name;
+			const String &set_prop = prop_map.has(property.name) ? prop_map[property.name] : property.name;
 			if (m_res.is_valid()) {
 				res->set(set_prop, get_real_from_missing_resource(m_res, load_type));
 			} else {

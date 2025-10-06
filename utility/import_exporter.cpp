@@ -231,6 +231,11 @@ void ImportExporter::_do_file_info(uint32_t i, FileInfo *file_infos) {
 		if (file_info.type == "" && other_file_extensions.has(ext)) {
 			file_info.type = "OtherFile";
 		}
+		List<String> deps;
+		ResourceCompatLoader::get_dependencies(path, &deps, true);
+		for (auto &dep : deps) {
+			file_info.deps.push_back(dep);
+		}
 		file_info.import_valid = true;
 		file_info.verified = true;
 	} else {
@@ -677,6 +682,7 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 			OS::get_singleton()->delay_usec(10000);
 		}
 		error_code = OS::get_singleton()->get_process_exit_code(process_id);
+		process_id = -1;
 		after_run();
 	}
 
@@ -708,13 +714,12 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
+	ERR_FAIL_COND_V_MSG(p_out_dir.is_empty(), ERR_INVALID_PARAMETER, "Output directory is empty!");
 	reset_log();
-	ResourceCompatLoader::make_globally_available();
-	ResourceCompatLoader::set_default_gltf_load(false);
 	report = Ref<ImportExporterReport>(memnew(ImportExporterReport(get_settings()->get_version_string())));
 	report->log_file_location = get_settings()->get_log_file_path();
 	ERR_FAIL_COND_V_MSG(!get_settings()->is_pack_loaded(), ERR_DOES_NOT_EXIST, "pack/dir not loaded!");
-	output_dir = gdre::get_full_path(!p_out_dir.is_empty() ? p_out_dir : get_settings()->get_project_path(), DirAccess::ACCESS_FILESYSTEM);
+	output_dir = gdre::get_full_path(p_out_dir, DirAccess::ACCESS_FILESYSTEM);
 	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(output_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create output directory " + output_dir);
 	Error err = OK;
 	// TODO: make this use "copy"
@@ -723,6 +728,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		WARN_PRINT("No import files found!");
 		return OK;
 	}
+
+	ResourceCompatLoader::make_globally_available();
+	ResourceCompatLoader::set_default_gltf_load(false);
+
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_info_list({}).size());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
 	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
@@ -746,8 +755,11 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 	std::shared_ptr<ProcessRunnerStruct> process_runner;
 	TaskManager::TaskManagerID process_runner_task_id = -1;
-	auto check_process_done = [&](bool p_force_wait = false) {
-		if (process_runner_task_id != -1 && (p_force_wait || TaskManager::get_singleton()->is_current_task_completed(process_runner_task_id))) {
+	auto check_process_done = [&](bool p_cancelled = false) {
+		if (process_runner_task_id != -1) {
+			if (p_cancelled && process_runner && !process_runner->is_cancelled) {
+				process_runner->cancel();
+			}
 			Error err = TaskManager::get_singleton()->wait_for_task_completion(process_runner_task_id);
 			process_runner_task_id = -1;
 			process_runner = nullptr;
@@ -755,6 +767,15 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			return err != OK;
 		}
 		return false;
+	};
+
+	auto reset_before_return = [&](bool cancelled = false) {
+		if (cancelled) {
+			print_line("Export cancelled!");
+		}
+		ResourceCompatLoader::unmake_globally_available();
+		ResourceCompatLoader::set_default_gltf_load(false);
+		check_process_done(cancelled);
 	};
 
 	// check if the pack has .cs files
@@ -773,9 +794,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			auto decompiler = GDRESettings::get_singleton()->get_dotnet_decompiler();
 
 			String csproj_path = output_dir.path_join(GDRESettings::get_singleton()->get_project_dotnet_assembly_name() + ".csproj");
-			err = decompiler->decompile_module_with_progress(csproj_path, exclude_files);
+			err = decompiler->decompile_module(csproj_path, exclude_files);
 			if (err != OK) {
 				if (err == ERR_SKIP) {
+					reset_before_return(true);
 					return ERR_SKIP;
 				}
 				ERR_PRINT("Failed to decompile C# scripts!");
@@ -816,6 +838,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	recreate_plugin_configs();
 
 	if (pr->step("Exporting resources...", 0, true)) {
+		reset_before_return(true);
 		return ERR_SKIP;
 	}
 	HashMap<String, Ref<ResourceExporter>> exporter_map;
@@ -1048,7 +1071,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 				"Exporting resources...",
 				true, -1, true, pr, 0);
 		if (err != OK) {
-			print_line("Export cancelled!");
+			reset_before_return(true);
 			return err;
 		}
 	}
@@ -1065,7 +1088,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 				true, pr, num_multithreaded_tokens);
 	}
 	if (err != OK) {
-		print_line("Export cancelled!");
+		reset_before_return(true);
 		return err;
 	}
 
@@ -1084,14 +1107,9 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	if (err != OK) {
-		print_line("Export cancelled!");
+		reset_before_return(true);
 		return err;
 	}
-	// err = _reexport_translations(non_multithreaded_tokens, tokens.size(), pr);
-	// if (err != OK) {
-	// 	print_line("Export cancelled!");
-	// 	return err;
-	// }
 	tokens.append_array(non_multithreaded_tokens);
 	pr->step("Finalizing...", tokens.size() - 1, false);
 	pr->set_progress_length(true);
@@ -1328,9 +1346,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	pr = nullptr;
-	ResourceCompatLoader::set_default_gltf_load(false);
-	ResourceCompatLoader::unmake_globally_available();
-	check_process_done(true);
+	reset_before_return(false);
 	report->print_report();
 	return OK;
 }
@@ -1510,7 +1526,7 @@ void ImportExporter::report_unsupported_resource(const String &type, const Strin
 }
 
 void ImportExporter::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(""), DEFVAL(PackedStringArray()));
+	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("get_report"), &ImportExporter::get_report);
 	ClassDB::bind_method(D_METHOD("reset"), &ImportExporter::reset);
 }

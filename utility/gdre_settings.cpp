@@ -195,12 +195,8 @@ GDRESettings::GDRESettings() {
 	singleton = this;
 	gdre_packeddata_singleton = memnew(GDREPackedData);
 	addCompatibilityClasses();
-	gdre_user_path = ProjectSettings::get_singleton()->globalize_path("user://");
-	if (gdre_user_path.contains("[unnamed project]")) {
-		gdre_user_path = gdre_user_path.replace("[unnamed project]", "gdre_tests");
-	}
 #ifdef TOOLS_ENABLED
-	print_line("GDRE User path: " + gdre_user_path);
+	print_line("GDRE User path: " + get_gdre_user_path());
 #endif
 
 	gdre_resource_path = ProjectSettings::get_singleton()->get_resource_path();
@@ -239,11 +235,15 @@ String GDRESettings::get_gdre_resource_path() const {
 	return gdre_resource_path;
 }
 
-String GDRESettings::get_gdre_tmp_path() const {
-	return gdre_user_path.path_join(".tmp");
+String GDRESettings::get_gdre_tmp_path() {
+	return get_gdre_user_path().path_join(".tmp");
 }
 
-String GDRESettings::get_gdre_user_path() const {
+String GDRESettings::get_gdre_user_path() {
+	String gdre_user_path = OS::get_singleton()->get_user_data_dir();
+	if (gdre_user_path.contains("[unnamed project]")) {
+		gdre_user_path = gdre_user_path.replace("[unnamed project]", "gdre_tests");
+	}
 	return gdre_user_path;
 }
 
@@ -322,21 +322,12 @@ String get_standalone_pck_path() {
 }
 
 Error GDRESettings::load_dir(const String &p_path) {
-	if (is_pack_loaded()) {
-		return ERR_ALREADY_IN_USE;
-	}
 	Ref<DirAccess> da = DirAccess::open(p_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(da.is_null(), ERR_FILE_CANT_OPEN, "FATAL ERROR: Can't find folder!");
 	ERR_FAIL_COND_V_MSG(!da->dir_exists(p_path), ERR_FILE_CANT_OPEN, "FATAL ERROR: Can't find folder!");
 
-	// This is a hack to get the resource path set to the project folder
-	ProjectSettings *settings_singleton = ProjectSettings::get_singleton();
-	GDREPackSettings *new_singleton = reinterpret_cast<GDREPackSettings *>(settings_singleton);
-	GDREPackSettings::do_set_resource_path(new_singleton, p_path);
-	project_path = p_path;
 	Error err = GDREPackedData::get_singleton()->add_dir(p_path, false);
 	if (err != OK) {
-		unload_dir();
 		ERR_FAIL_V_MSG(err, "FATAL ERROR: Can't open directory!");
 	}
 	// Check for the existence of assets.sparsepck
@@ -379,13 +370,6 @@ Error GDRESettings::load_dir(const String &p_path) {
 	return OK;
 }
 
-Error GDRESettings::unload_dir() {
-	ProjectSettings *settings_singleton = ProjectSettings::get_singleton();
-	GDREPackSettings *new_singleton = static_cast<GDREPackSettings *>(settings_singleton);
-	GDREPackSettings::do_set_resource_path(new_singleton, gdre_resource_path);
-	project_path = "";
-	return OK;
-}
 namespace {
 bool is_executable(const String &p_path) {
 	String extension = p_path.get_extension().to_lower();
@@ -771,6 +755,7 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 
 	// Load the C# assembly if it exists
 	if (project_requires_dotnet_assembly()) {
+#if !GODOT_MONO_DECOMP_DISABLED
 		if (!csharp_assembly_override.is_empty()) {
 			err = reload_dotnet_assembly(csharp_assembly_override);
 		} else if (!has_loaded_dotnet_assembly()) {
@@ -779,6 +764,9 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 		if (err) {
 			WARN_PRINT("Could not load C# assembly, not able to decompile C# scripts...");
 		}
+#else
+		WARN_PRINT("C# assembly detected, but C# decompilation is disabled in this build of GDRE Tools.");
+#endif
 	}
 	_ensure_script_cache_complete();
 
@@ -1119,9 +1107,6 @@ Error GDRESettings::unload_project(bool p_no_reset_ephemeral) {
 	}
 	_clear_shader_globals();
 	error_encryption = false;
-	if (get_pack_type() == PackInfo::DIR) {
-		unload_dir();
-	}
 
 	remove_current_pack();
 	GDREPackedData::get_singleton()->clear();
@@ -1516,11 +1501,11 @@ String GDRESettings::get_mapped_path(const String &p_src) const {
 		}
 	}
 	if (is_pack_loaded()) {
-		String remapped_path = get_remap(src);
+		String local_src = localize_path(src);
+		String remapped_path = get_remap(local_src);
 		if (!remapped_path.is_empty()) {
 			return remapped_path;
 		}
-		String local_src = localize_path(src);
 
 		for (int i = 0; i < import_files.size(); i++) {
 			Ref<ImportInfo> iinfo = import_files[i];
@@ -1924,7 +1909,7 @@ String GDRESettings::get_game_name() const {
 		game_name = current_project->pcfg->get_setting(get_ver_major() <= 2 ? GAME_NAME_SETTING_2x : GAME_NAME_SETTING_4x, "");
 	}
 	if (game_name.is_empty() && is_pack_loaded()) {
-		game_name = get_project_path().get_file().get_basename();
+		game_name = get_pack_path().get_file().get_basename();
 	}
 	return game_name;
 }
@@ -2004,7 +1989,7 @@ struct ScriptCacheTask {
 			tokens[i].d.set("icon", icon_path);
 			tokens[i].d.set("is_abstract", script->is_abstract());
 			tokens[i].d.set("is_tool", script->is_tool());
-			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("CSharpScript"));
+			tokens[i].d.set("language", tokens[i].is_gdscript ? SNAME("GDScript") : SNAME("C#"));
 			tokens[i].d.set("path", tokens[i].orig_path);
 		}
 	}
@@ -2594,7 +2579,7 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	if (p_path.begins_with("res://")) {
 		// The C# decompiler can't read PCK files, so if it's in the PCK,
 		// we have to copy the entire .mono folder to a temporary directory
-		current_project->assembly_temp_dir = GDRESettings::get_singleton()->get_gdre_user_path().path_join(".tmp").path_join(get_game_name() + "_mono_temp");
+		current_project->assembly_temp_dir = GDRESettings::get_gdre_user_path().path_join(".tmp").path_join(get_game_name() + "_mono_temp");
 		String source_dir = p_path.get_base_dir();
 		Error err = OK;
 		if (p_path.begins_with("res://.mono")) {
@@ -2739,7 +2724,8 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("post_load_patch_translation"), &GDRESettings::post_load_patch_translation);
 	ClassDB::bind_method(D_METHOD("needs_post_load_patch_translation"), &GDRESettings::needs_post_load_patch_translation);
 	ClassDB::bind_method(D_METHOD("get_gdre_resource_path"), &GDRESettings::get_gdre_resource_path);
-	ClassDB::bind_method(D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_gdre_user_path"), &GDRESettings::get_gdre_user_path);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_gdre_tmp_path"), &GDRESettings::get_gdre_tmp_path);
 	ClassDB::bind_method(D_METHOD("get_encryption_key"), &GDRESettings::get_encryption_key);
 	ClassDB::bind_method(D_METHOD("get_encryption_key_string"), &GDRESettings::get_encryption_key_string);
 	ClassDB::bind_method(D_METHOD("is_pack_loaded"), &GDRESettings::is_pack_loaded);

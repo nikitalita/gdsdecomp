@@ -26,7 +26,7 @@ String PluginManager::get_plugin_cache_path() {
 	if (OS::get_singleton()->has_environment(PLUGIN_CACHE_ENV_VAR)) {
 		return OS::get_singleton()->get_environment(PLUGIN_CACHE_ENV_VAR);
 	}
-	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("plugin_cache").path_join("v" + itos(CACHE_VERSION));
+	return GDRESettings::get_gdre_user_path().path_join("plugin_cache").path_join("v" + itos(CACHE_VERSION));
 }
 
 Ref<PluginSource> PluginManager::get_source(const String &plugin_name) {

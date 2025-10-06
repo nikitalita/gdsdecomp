@@ -1732,9 +1732,9 @@ String ResourceFormatLoaderCompatText::get_resource_script_class(const String &p
 	}
 
 	ResourceLoaderCompatText loader;
-	// TODO: revisit this
-	loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
-	loader.res_path = loader.local_path;
+	// Not actually used by recognize_script_class()
+	// loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
+	// loader.res_path = loader.local_path;
 	return loader.recognize_script_class(f);
 }
 
@@ -1751,9 +1751,9 @@ ResourceUID::ID ResourceFormatLoaderCompatText::get_resource_uid(const String &p
 	}
 
 	ResourceLoaderCompatText loader;
-	// TODO: revisit this
-	loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
-	loader.res_path = loader.local_path;
+	// Not actually used by get_uid()
+	// loader.local_path = GDRESettings::get_singleton()->localize_path(p_path);
+	// loader.res_path = loader.local_path;
 	return loader.get_uid(f);
 }
 
@@ -2059,7 +2059,7 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 	Ref<FileAccess> _fref(f);
 
-	local_path = GDRESettings::get_singleton()->localize_path(p_path);
+	local_path = get_local_path(p_path, p_resource);
 
 	set_save_settings(p_resource, p_flags);
 
@@ -2921,4 +2921,15 @@ Error ResourceFormatSaverCompatText::save_custom(const Ref<Resource> &p_resource
 
 	p_flags = CompatFormatLoader::set_version_info_in_flags(p_flags, ver_format, ver_major, ver_minor);
 	return ResourceFormatSaverCompatText::save(p_resource, p_path, p_flags);
+}
+
+String ResourceFormatSaverCompatTextInstance::get_local_path(const String &p_path, const Ref<Resource> &p_resource) {
+	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
+		return p_path;
+	}
+	String resource_path = GDRESettings::get_singleton()->get_project_path();
+	if (!resource_path.is_empty() && p_path.simplify_path().begins_with(resource_path)) {
+		return GDRESettings::get_singleton()->localize_path(p_path);
+	}
+	return p_resource.is_valid() ? p_resource->get_path() : "";
 }

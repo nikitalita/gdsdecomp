@@ -915,6 +915,7 @@ public static class GodotStuff
 					return true;
 				}
 
+				// TODO: fix this to check if the method ends with a signal name
 				// if the method name is EmitSignal<SignalName> and it's a protected or private void method, then it's an auto-generated signal emitter
 				if (
 					method is { IsVirtual: false, Accessibility: Accessibility.Internal or Accessibility.Protected or Accessibility.ProtectedOrInternal or Accessibility.ProtectedAndInternal or Accessibility.Private } &&

@@ -11,15 +11,6 @@
 #include "core/object/object.h"
 #include "core/os/thread_safe.h"
 
-class GDREPackSettings : public ProjectSettings {
-	GDCLASS(GDREPackSettings, ProjectSettings);
-
-public:
-	static void do_set_resource_path(GDREPackSettings *settings, const String &p_path) {
-		settings->resource_path = p_path;
-	}
-};
-
 class GDRELogger;
 class GDREPackedData;
 class GodotMonoDecompWrapper;
@@ -129,7 +120,6 @@ public:
 		ProjectInfo() {
 			pcfg.instantiate();
 		}
-		// String project_path;
 	};
 
 private:
@@ -139,7 +129,6 @@ private:
 	GDRELogger *logger;
 	Array import_files;
 	HashMap<String, Ref<ImportInfoRemap>> remap_iinfo;
-	String gdre_user_path = "";
 	String gdre_resource_path = "";
 
 	struct UID_Cache {
@@ -176,6 +165,7 @@ private:
 	bool in_editor = false;
 	bool first_load = true;
 	bool error_encryption = false;
+	// Currently only used for testing
 	String project_path = "";
 	static GDRESettings *singleton;
 	static String exec_dir;
@@ -203,8 +193,6 @@ private:
 	// We have to be very careful about this, this means that any GDRE resources we have loaded
 	// could fail to reload if they somehow became unloaded while we were messing with the project.
 	Error load_dir(const String &p_path);
-	// resets the ProjectSettings resource path to the GDRE resource path
-	Error unload_dir();
 	// Checks if we have detected a valid engine version for the current project
 	bool has_valid_version() const;
 
@@ -284,9 +272,9 @@ public:
 	// Get the path to the GDRE resource directory (dev-only, only used if running in editor)
 	String get_gdre_resource_path() const;
 	// Get the path to the GDRE user directory (where we store temp files, plugin cache, logs, etc.)
-	String get_gdre_user_path() const;
+	static String get_gdre_user_path();
 	// Get the path to the GDRE temp directory
-	String get_gdre_tmp_path() const;
+	static String get_gdre_tmp_path();
 
 	// Checks if we have loaded a project
 	bool is_pack_loaded() const;
@@ -347,7 +335,7 @@ public:
 	String globalize_path(const String &p_path, const String &resource_path = "") const;
 	// Converts a global filesystem path to a local path (e.g. "/path/to/game/icon.png" -> "res://icon.png")
 	String localize_path(const String &p_path, const String &resource_path = "") const;
-	// The path for projects loaded from directories; used primarily by `localize_path` and `globalize_path`
+	// Currently only used for testing resource loading without loading a project
 	void set_project_path(const String &p_path);
 	String get_project_path() const;
 	// Starts logging to a file for project recovery

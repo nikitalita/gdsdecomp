@@ -3,15 +3,13 @@
 #include "bytecode/bytecode_versions.h"
 #include "common.h"
 #include "core/io/json.h"
+#include "gdre_logger.h"
 #include "gdre_settings.h"
-#include "godot_mono_decomp.h"
+#include "godot_mono_decomp_wrapper.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
 
 GDREConfig *GDREConfig::get_singleton() {
-	if (!singleton) {
-		singleton = memnew(GDREConfig);
-	}
 	return singleton;
 }
 
@@ -62,11 +60,11 @@ public:
 		}
 
 		// clears errors
-		GDRESettings::get_singleton()->get_errors();
+		GDRELogger::clear_error_queues();
 		int commit = GDScriptDecomp::register_decomp_version_custom(json);
 		if (commit == 0) {
 			WARN_PRINT("Failed to register custom bytecode file: " + path);
-			error_message = "Failed to register custom bytecode file: \n" + String("\n").join(GDRESettings::get_singleton()->get_errors());
+			error_message = "Failed to register custom bytecode file: \n" + String("\n").join(GDRELogger::get_errors());
 			return;
 		}
 		GDREConfig::get_singleton()->set_setting("Bytecode/force_bytecode_revision", commit, true);
@@ -109,6 +107,7 @@ public:
 	}
 };
 
+#if !GODOT_MONO_DECOMP_DISABLED
 class GDREConfigSetting_CSharpForceLanguageVersion : public GDREConfigSetting {
 	GDSOFTCLASS(GDREConfigSetting_CSharpForceLanguageVersion, GDREConfigSetting);
 
@@ -124,27 +123,10 @@ public:
 
 	virtual bool has_special_value() const override { return true; }
 	virtual Dictionary get_list_of_possible_values() const override {
-		int num_versions = 0;
-		int *versions = GodotMonoDecomp_GetLanguageVersions(&num_versions);
-		Dictionary ret = { { 0, "Auto-detect" } };
-		for (int i = 0; i < num_versions; i++) {
-			if (ret.has(versions[i])) {
-				continue;
-			}
-			int ver = versions[i];
-			if (ver < 100) {
-				ret[ver] = "C# " + String::num_int64(ver) + ".0";
-			} else if (ver == INT_MAX) {
-				ret[ver] = "Latest";
-			} else {
-				int ver_major = ver / 100;
-				int ver_minor = ver % 100;
-				ret[ver] = "C# " + String::num_int64(ver_major) + "." + String::num_int64(ver_minor);
-			}
-		}
-		return ret;
+		return GodotMonoDecompWrapper::get_language_versions();
 	}
 };
+#endif
 
 class GDREConfigSetting_TranslationExporter_LoadKeyHintFile : public GDREConfigSetting {
 	GDSOFTCLASS(GDREConfigSetting_TranslationExporter_LoadKeyHintFile, GDREConfigSetting);
@@ -172,7 +154,7 @@ public:
 		if (path.is_empty()) {
 			return;
 		}
-		Error err = GDRESettings::get_singleton()->load_translation_key_hint_file(path);
+		Error err = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->load_translation_key_hint_file(path) : ERR_UNAVAILABLE;
 		if (err != OK) {
 			WARN_PRINT("Failed to load key hint file: " + path);
 			error_message = "Failed to load key hint file: " + path;
@@ -223,6 +205,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				false)),
 		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
 		memnew(GDREConfigSetting_LoadCustomBytecode()),
+#if !GODOT_MONO_DECOMP_DISABLED
 		memnew(GDREConfigSetting(
 				"CSharp/write_nuget_package_references",
 				"Write NuGet package references",
@@ -250,6 +233,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Compile the C# project after decompiling.\nThis is done to prevent editor errors when first opening the project in the editor.\nThis requires that you have the dotnet sdk installed.",
 				true,
 				false)),
+#endif
 		memnew(GDREConfigSetting(
 				"Exporter/GDExtension/make_editor_copy",
 				"Copy template_release plugins to editor plugin",
@@ -357,7 +341,7 @@ void GDREConfig::load_config() {
 }
 
 String GDREConfig::get_config_path() {
-	return GDRESettings::get_singleton()->get_gdre_user_path().path_join("gdre_settings.cfg");
+	return GDRESettings::get_gdre_user_path().path_join("gdre_settings.cfg");
 }
 
 void GDREConfig::save_config() {

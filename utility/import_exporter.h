@@ -156,7 +156,7 @@ protected:
 	static void _bind_methods();
 
 public:
-	Error export_imports(const String &output_dir = "", const Vector<String> &files_to_export = {});
+	Error export_imports(const String &output_dir, const Vector<String> &files_to_export = {});
 	Ref<ImportExporterReport> get_report();
 	void reset_log();
 	void reset();
