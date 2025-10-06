@@ -95,7 +95,6 @@ class GLBExporterInstance {
 	bool has_shader = false;
 	List<String> get_deps;
 	HashMap<String, dep_info> get_deps_map;
-	HashSet<String> script_or_shader_deps;
 	HashSet<String> need_to_be_updated;
 	HashSet<String> animation_deps_needed;
 	HashSet<String> image_deps_needed;
