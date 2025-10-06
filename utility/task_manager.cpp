@@ -395,8 +395,11 @@ Error TaskManager::DownloadQueueThread::wait_for_task_completion(DownloadTaskID 
 				break;
 			}
 		}
-		if (task->is_canceled() || task->is_done()) {
+		if (task->is_canceled()) {
 			err = ERR_SKIP;
+			break;
+		}
+		if (task->is_done()) {
 			break;
 		}
 		OS::get_singleton()->delay_usec(10000);
