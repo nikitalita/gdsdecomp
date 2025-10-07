@@ -26,7 +26,7 @@ public:
 					"Load a custom bytecode file.",
 					"",
 					false,
-					true) {
+					false) {
 	}
 
 	virtual bool is_filepicker() const override { return true; }
