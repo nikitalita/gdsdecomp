@@ -799,6 +799,17 @@ void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRepor
 	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
 	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
 	updating_import_info = !force_no_update_import_params && iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+
+	if (iinfo.is_valid()) {
+		scene_name = iinfo->get_source_file().get_file().get_basename();
+	} else {
+		if (res_info.is_valid()) {
+			scene_name = res_info->resource_name;
+		}
+		if (scene_name.is_empty()) {
+			scene_name = source_path.get_file().get_basename();
+		}
+	}
 }
 
 Error GLBExporterInstance::_load_deps() {
@@ -977,7 +988,8 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	if (has_script) {
 		TypedArray<Node> nodes = { root };
 		nodes.append_array(root->get_children());
-		for (auto &E : nodes) {
+		for (int i = 0; i < nodes.size(); i++) {
+			auto &E = nodes[i];
 			Node *node = static_cast<Node *>(E.operator Object *());
 			ScriptInstance *si = node->get_script_instance();
 			List<PropertyInfo> properties;
@@ -996,10 +1008,16 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 							// create a new mesh instance
 							auto mesh_instance = memnew(MeshInstance3D());
 							mesh_instance->set_mesh(mesh);
-							mesh_instance->set_name(mesh->get_name());
-							if (!mesh->get_name().is_empty()) {
-								mesh_name_to_instance_map[mesh->get_name()] = mesh_instance;
+							String name = mesh->get_name();
+							if (name.is_empty()) {
+								name = demangle_name(mesh->get_path().get_file().get_basename());
+								if (name.is_empty()) {
+									name = ("Mesh_" + String::num_int64(i));
+								}
+								mesh->set_name(name);
 							}
+							mesh_instance->set_name(name);
+							mesh_name_to_instance_map[name] = mesh_instance;
 							node->add_child(mesh_instance);
 							mesh_instances.push_back(mesh_instance);
 							// meshes_in_mesh_instances.insert(mesh);
@@ -1523,25 +1541,14 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	return { base_material, set_texture };
 }
 
+// TODO: handle Godot version <= 4.2 image naming scheme?
+String GLBExporterInstance::demangle_name(const String &name) {
+	return name.trim_prefix(scene_name + "_");
+}
+
 Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
 	{
 		GDRE_SCN_EXP_CHECK_CANCEL();
-		String scene_name;
-		if (iinfo.is_valid()) {
-			scene_name = iinfo->get_source_file().get_file().get_basename();
-		} else {
-			if (res_info.is_valid()) {
-				scene_name = res_info->resource_name;
-			}
-			if (scene_name.is_empty()) {
-				scene_name = source_path.get_file().get_slice(".", 0);
-			}
-		}
-
-		// TODO: handle Godot version <= 4.2 image naming scheme?
-		auto demangle_name = [scene_name](const String &path) {
-			return path.trim_prefix(scene_name + "_");
-		};
 		String game_name = GDRESettings::get_singleton()->get_game_name();
 		String copyright_string = vformat(COPYRIGHT_STRING_FORMAT, game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
 		List<String> deps;

@@ -89,6 +89,7 @@ class GLBExporterInstance {
 	String source_path;
 	Ref<ImportInfo> iinfo;
 	Ref<ResourceInfo> res_info;
+	String scene_name;
 
 	// set during _load_deps
 	bool has_script = false;
@@ -170,6 +171,8 @@ class GLBExporterInstance {
 
 	bool _is_logger_silencing_errors() const;
 	void _silence_errors(bool p_silence);
+
+	String demangle_name(const String &obj_name);
 
 public:
 	void _do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path);
