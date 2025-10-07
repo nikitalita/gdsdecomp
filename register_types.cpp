@@ -34,6 +34,7 @@
 #include "compat/video_stream_compat.h"
 #include "exporters/autoconverted_exporter.h"
 #include "exporters/csharp_exporter.h"
+#include "exporters/dialogue_exporter.h"
 #include "exporters/export_report.h"
 #include "exporters/fontfile_exporter.h"
 #include "exporters/gdextension_exporter.h"
@@ -107,6 +108,7 @@ static Ref<InputEventConverterCompat> input_event_converter = nullptr;
 //exporters
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
 static Ref<CSharpExporter> csharp_exporter = nullptr;
+static Ref<DialogueExporter> dialogue_exporter = nullptr;
 static Ref<FontFileExporter> fontfile_exporter = nullptr;
 static Ref<GDExtensionExporter> gdextension_exporter = nullptr;
 static Ref<GDScriptExporter> gdscript_exporter = nullptr;
@@ -187,6 +189,7 @@ void init_exporters() {
 	translation_exporter = memnew(TranslationExporter);
 	scene_exporter = memnew(SceneExporter);
 	auto_converted_exporter = memnew(AutoConvertedExporter);
+	dialogue_exporter = memnew(DialogueExporter);
 	gdscript_exporter = memnew(GDScriptExporter);
 	csharp_exporter = memnew(CSharpExporter);
 	gdextension_exporter = memnew(GDExtensionExporter);
@@ -199,6 +202,7 @@ void init_exporters() {
 	Exporter::add_exporter(sample_exporter);
 	Exporter::add_exporter(texture_exporter);
 	Exporter::add_exporter(obj_exporter);
+	Exporter::add_exporter(dialogue_exporter);
 
 	Exporter::add_exporter(translation_exporter);
 	Exporter::add_exporter(scene_exporter);
@@ -284,6 +288,9 @@ void deinit_exporters() {
 	if (spine_skeleton_exporter.is_valid()) {
 		Exporter::remove_exporter(spine_skeleton_exporter);
 	}
+	if (dialogue_exporter.is_valid()) {
+		Exporter::remove_exporter(dialogue_exporter);
+	}
 	auto_converted_exporter = nullptr;
 	fontfile_exporter = nullptr;
 	gdextension_exporter = nullptr;
@@ -295,6 +302,7 @@ void deinit_exporters() {
 	translation_exporter = nullptr;
 	gdscript_exporter = nullptr;
 	obj_exporter = nullptr;
+	dialogue_exporter = nullptr;
 	csharp_exporter = nullptr;
 	spine_atlas_exporter = nullptr;
 	spine_skeleton_exporter = nullptr;
