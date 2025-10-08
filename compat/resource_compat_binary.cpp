@@ -1463,6 +1463,17 @@ void ResourceFormatLoaderCompatBinary::get_recognized_extensions(List<String> *p
 	}
 }
 
+bool ResourceFormatLoaderCompatBinary::recognize_path(const String &p_path, const String &p_type_hint) const {
+	bool b = CompatFormatLoader::recognize_path(p_path, p_type_hint);
+	if (!b && ResourceLoader::is_creating_missing_resources_if_class_unavailable_enabled()) {
+		String ext = p_path.get_extension().to_lower();
+		if (ext == "res") {
+			return true;
+		}
+	}
+	return b;
+}
+
 bool ResourceFormatLoaderCompatBinary::handles_type(const String &p_type) const {
 	return true; //handles all
 }
