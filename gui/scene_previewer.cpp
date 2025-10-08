@@ -265,7 +265,7 @@ void ScenePreviewer2D::reset() {
 ScenePreviewer2D::ScenePreviewer2D() {
 	viewport = memnew(SubViewport);
 	viewport->set_disable_input(true);
-	viewport->set_disable_3d(true);
+	// viewport->set_disable_3d(true);
 	set_stretch(true);
 	add_child(viewport);
 	// set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT, Control::PRESET_MODE_MINSIZE, 0);
