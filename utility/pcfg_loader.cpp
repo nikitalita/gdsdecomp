@@ -90,9 +90,10 @@ Error ProjectConfigLoader::remove_setting(String p_var) {
 Error ProjectConfigLoader::set_setting(String p_var, Variant value) {
 	if (props.has(p_var)) {
 		props[p_var].variant = value;
-		return OK;
+	} else {
+		props[p_var] = VariantContainer(value, last_builtin_order++, true);
 	}
-	return ERR_FILE_NOT_FOUND;
+	return OK;
 }
 
 Error ProjectConfigLoader::_load_settings_binary(Ref<FileAccess> f, const String &p_path, uint32_t ver_major) {
