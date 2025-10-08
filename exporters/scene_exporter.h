@@ -117,7 +117,7 @@ class GLBExporterInstance {
 	bool has_skinned_meshes = false;
 	bool has_non_skeleton_transforms = false;
 	bool has_physics_nodes = false;
-	HashMap<String, MeshInstance3D *> mesh_name_to_instance_map;
+	HashMap<String, MeshInstance3D *> mesh_path_to_instance_map;
 	String root_type;
 	String root_name;
 	bool has_lossy_images = false;

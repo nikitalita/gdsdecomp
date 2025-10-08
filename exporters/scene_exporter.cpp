@@ -727,6 +727,11 @@ String GLBExporterInstance::get_path_res(const Ref<Resource> &res) {
 	return path;
 }
 
+inline bool get_count_majority(const Vector<bool> &p_values) {
+	int64_t count = p_values.count(true);
+	return count >= p_values.size() - count;
+}
+
 ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params() {
 	ObjExporter::MeshInfo global_mesh_info;
 	Vector<bool> global_has_tangents;
@@ -746,10 +751,10 @@ ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params()
 		// compression enabled is used for forcing disabling, so if ANY of them have it on, we need to set it on
 		global_mesh_info.compression_enabled = global_mesh_info.compression_enabled || E.compression_enabled;
 	}
-	global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
-	global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
-	global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
-	global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
+	global_mesh_info.has_tangents = get_count_majority(global_has_tangents);
+	global_mesh_info.has_lods = get_count_majority(global_has_lods);
+	global_mesh_info.has_shadow_meshes = get_count_majority(global_has_shadow_meshes);
+	global_mesh_info.has_lightmap_uv2 = get_count_majority(global_has_lightmap_uv2);
 	global_mesh_info.lightmap_uv2_texel_size = gdre::get_most_popular_value(global_lightmap_uv2_texel_size);
 	global_mesh_info.bake_mode = gdre::get_most_popular_value(global_bake_mode);
 
@@ -972,12 +977,13 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		if (skin.is_valid()) {
 			has_skinned_meshes = true;
 			skinned_mesh_instances.insert(mesh_instance);
-			auto mesh = mesh_instance->get_mesh();
-			if (mesh.is_valid()) {
-				meshes_in_mesh_instances.insert(mesh);
-				if (!mesh->get_name().is_empty()) {
-					mesh_name_to_instance_map[mesh->get_name()] = mesh_instance;
-				}
+		}
+		auto mesh = mesh_instance->get_mesh();
+		if (mesh.is_valid()) {
+			meshes_in_mesh_instances.insert(mesh);
+			String path = mesh->get_path(); // external and internal paths
+			if (!path.is_empty()) {
+				mesh_path_to_instance_map[path] = mesh_instance;
 			}
 		}
 	}
@@ -1009,15 +1015,19 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 							auto mesh_instance = memnew(MeshInstance3D());
 							mesh_instance->set_mesh(mesh);
 							String name = mesh->get_name();
+							String path = mesh->get_path();
+
 							if (name.is_empty()) {
-								name = demangle_name(mesh->get_path().get_file().get_basename());
-								if (name.is_empty()) {
+								name = demangle_name(path.get_file().get_basename());
+								if (name.is_empty() || path.contains("::")) {
 									name = ("Mesh_" + String::num_int64(i));
 								}
 								mesh->set_name(name);
 							}
+							if (!path.is_empty()) {
+								mesh_path_to_instance_map[path] = mesh_instance;
+							}
 							mesh_instance->set_name(name);
-							mesh_name_to_instance_map[name] = mesh_instance;
 							node->add_child(mesh_instance);
 							mesh_instances.push_back(mesh_instance);
 							// meshes_in_mesh_instances.insert(mesh);
@@ -1594,10 +1604,11 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			for (auto &E : state->get_meshes()) {
 				Ref<GLTFMesh> mesh = E;
 				if (mesh.is_valid()) {
-					String original_name = mesh->get_original_name();
+					// String original_name = mesh->get_original_name();
+					String path = get_path_res(mesh);
 					MeshInstance3D *instance = nullptr;
-					if (!original_name.is_empty() && mesh_name_to_instance_map.has(original_name)) {
-						instance = mesh_name_to_instance_map[original_name];
+					if (!path.is_empty() && mesh_path_to_instance_map.has(path)) {
+						instance = mesh_path_to_instance_map[path];
 					}
 					Ref<ImporterMesh> im = mesh->get_mesh();
 					ERR_CONTINUE_MSG(im.is_null(), "ImporterMesh is null");
@@ -1788,42 +1799,79 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				Vector<bool> mesh_is_shadow;
 				auto gltf_meshes = state->get_meshes();
 				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
+				HashSet<Ref<ArrayMesh>> shadow_meshes;
 				for (int i = 0; i < gltf_meshes.size(); i++) {
 					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
 					auto mesh = gltf_mesh->get_mesh();
+					if (mesh.is_valid()) {
+						Ref<ArrayMesh> shadow_mesh = mesh->get_shadow_mesh();
+						if (shadow_mesh.is_valid()) {
+							shadow_meshes.insert(shadow_mesh);
+						}
+					}
+				}
+				for (int i = 0; i < gltf_meshes.size(); i++) {
+					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
+					auto imesh = gltf_mesh->get_mesh();
 					auto original_name = gltf_mesh->get_original_name();
 					Dictionary mesh_dict = json_meshes[i];
 					ObjExporter::MeshInfo mesh_info;
-					if (mesh.is_null()) {
-						id_to_mesh_info.push_back(mesh_info);
+					if (imesh.is_null()) {
 						continue;
 					}
-					String path = get_path_res(mesh);
+					String path = get_path_res(imesh);
 					String name;
 					bool is_internal = path.is_empty() || path.get_file().contains("::");
 					if (is_internal) {
-						name = get_name_res(mesh_dict, mesh, i);
+						name = get_name_res(mesh_dict, imesh, i);
 					} else {
 						name = path.get_file().get_basename();
 					}
 					if (!name.is_empty()) {
 						mesh_dict["name"] = demangle_name(name);
+						if (original_name.is_empty()) {
+							gltf_mesh->set_original_name(name);
+						}
 					} else if (!original_name.is_empty()) {
 						mesh_dict["name"] = original_name;
+						name = original_name;
 					}
-					if (original_name.is_empty()) {
-						gltf_mesh->set_original_name(name);
+					if (!updating_import_info || shadow_meshes.has(imesh) || (path.is_empty() && name.is_empty())) {
+						// mesh that won't be imported, skip
+						continue;
 					}
+					// Set the mesh info so that we can use it to rewrite the import params
 					mesh_info.path = path;
 					mesh_info.name = name;
+					mesh_info.has_shadow_meshes = imesh->get_shadow_mesh().is_valid();
+					mesh_info.has_lightmap_uv2 = imesh->get_lightmap_size_hint() != default_light_map_size;
+					mesh_info.bake_mode = mesh_info.has_lightmap_uv2 ? 2 : 1;
+					if (mesh_path_to_instance_map.has(path)) {
+						Ref<Mesh> instance_mesh = mesh_path_to_instance_map[path]->get_mesh();
+						Ref<ArrayMesh> arr_mesh = instance_mesh;
+						mesh_info.has_shadow_meshes = arr_mesh.is_valid() ? arr_mesh->get_shadow_mesh().is_valid() : mesh_info.has_shadow_meshes;
+						mesh_info.has_lightmap_uv2 = instance_mesh->get_lightmap_size_hint() != default_light_map_size;
 
-					mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
-					mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
-					for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
-						auto format = mesh->get_surface_format(surf_idx);
+						auto gi_mode = mesh_path_to_instance_map[path]->get_gi_mode();
+						if (gi_mode == GeometryInstance3D::GI_MODE_DISABLED) {
+							mesh_info.bake_mode = 0; // DISABLED
+						} else if (gi_mode == GeometryInstance3D::GI_MODE_DYNAMIC) {
+							mesh_info.bake_mode = 3; // DYNAMIC
+						} else if (gi_mode == GeometryInstance3D::GI_MODE_STATIC) {
+							if (mesh_info.has_lightmap_uv2) {
+								mesh_info.bake_mode = 2; // STATIC_LIGHTMAPS
+							} else {
+								mesh_info.bake_mode = 1; // STATIC
+							}
+						}
+					}
+					auto surface_count = imesh->get_surface_count();
+					for (int surf_idx = 0; surf_idx < surface_count; surf_idx++) {
+						auto format = imesh->get_surface_format(surf_idx);
 						mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
-						mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
+						mesh_info.has_lods = mesh_info.has_lods || imesh->get_surface_lod_count(surf_idx) > 0;
 						mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
+						// TODO: add lightmap_uv2_texel_size
 						// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
 					}
 					id_to_mesh_info.push_back(mesh_info);
@@ -1983,7 +2031,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
 	iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
 	iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
-	iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
+	iinfo->set_param("meshes/light_baking", global_mesh_info.bake_mode);
 	iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
 	iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
 	iinfo->set_param("skins/use_named_skins", true);
@@ -2060,7 +2108,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 				external_deps_updated.insert(path);
 			}
 			subres["generate/shadow_meshes"] = get_default_mesh_opt(global_mesh_info.has_shadow_meshes, E.has_shadow_meshes);
-			subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.has_lightmap_uv2, E.has_lightmap_uv2);
+			subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.bake_mode == 2, E.has_lightmap_uv2);
 			subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
 			// TODO: get these somehow??
 			if (!after_4_3) {
