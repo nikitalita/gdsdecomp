@@ -1633,16 +1633,15 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			for (auto &E : state->get_meshes()) {
 				Ref<GLTFMesh> mesh = E;
 				if (mesh.is_valid()) {
-					// String original_name = mesh->get_original_name();
-					String path = get_path_res(mesh);
-					MeshInstance3D *instance = nullptr;
-					if (!path.is_empty() && mesh_path_to_instance_map.has(path)) {
-						instance = mesh_path_to_instance_map[path];
-					}
 					Ref<ImporterMesh> im = mesh->get_mesh();
 					ERR_CONTINUE_MSG(im.is_null(), "ImporterMesh is null");
 					auto instance_materials = mesh->get_instance_materials();
 
+					String path = get_path_res(im);
+					MeshInstance3D *instance = nullptr;
+					if (!path.is_empty() && mesh_path_to_instance_map.has(path)) {
+						instance = mesh_path_to_instance_map[path];
+					}
 					for (int surface_i = 0; surface_i < im->get_surface_count(); surface_i++) {
 						Ref<ShaderMaterial> shader_material;
 						Ref<BaseMaterial3D> base_material;
