@@ -148,13 +148,13 @@ func is_scene(ext, type: String):
 
 func load_mesh(path):
 	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	if not res:
 		return false
 	# check if the resource is a mesh or a descendant of mesh
 	if not res.get_class().contains("Mesh"):
 		return false
-	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-	%SwitchViewButton.visible = true
 	%MeshPreviewer.edit(res)
 	%MeshPreviewer.visible = true
 	return true
@@ -170,13 +170,13 @@ func load_scene(path):
 	var start_time = Time.get_ticks_msec()
 	if not res:
 		res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_REUSE)
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	if not res:
 		return false
 	# check if the resource is a scene or a descendant of scene
 	if not res.get_class().contains("PackedScene"):
 		return false
-	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-	%SwitchViewButton.visible = true
 	%ScenePreviewer3D.edit(res)
 	%ScenePreviewer3D.visible = true
 	var time_to_load = Time.get_ticks_msec() - start_time
