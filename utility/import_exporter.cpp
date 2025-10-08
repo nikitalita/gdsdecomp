@@ -1339,6 +1339,13 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	if (get_settings()->is_project_config_loaded()) { // some pcks do not have project configs
+		if constexpr (GDScriptDecomp::FORCE_SPACES_FOR_2_0) {
+			// if we're at v4.5 or higher (<4.5 doesn't support editor_overrides), we want to set "editor_overrides/text_editor/behavior/indent/type" to "Spaces"
+			// This avoids editor churn on the scripts when they're resaved by the editor
+			if (get_ver_major() == 4 && get_ver_minor() >= 5 && !get_settings()->has_project_setting("editor_overrides/text_editor/behavior/indent/type")) {
+				get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/type", 1);
+			}
+		}
 		if (get_settings()->save_project_config(output_dir) != OK) {
 			print_line("ERROR: Failed to save project config!");
 		} else {
