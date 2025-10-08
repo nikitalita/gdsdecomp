@@ -161,6 +161,15 @@ func _init():
 	find_replace_bar.replace_enabled = self.editable
 	find_replace_bar.show_panel_background = true
 	find_replace_bar.hide()
+	find_replace_bar.anchor_left = 1.0
+	find_replace_bar.anchor_top = 0
+	find_replace_bar.anchor_right = 1.0
+	find_replace_bar.anchor_bottom = 0
+	find_replace_bar.offset_left = -39
+	find_replace_bar.offset_top = 0
+	find_replace_bar.offset_right = -50
+	find_replace_bar.offset_bottom = 33
+	find_replace_bar.grow_horizontal = Control.GrowDirection.GROW_DIRECTION_BEGIN
 	add_child(find_replace_bar)
 
 	var menu: PopupMenu = CODE_VIEWER.get_menu()
