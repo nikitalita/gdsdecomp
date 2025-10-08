@@ -1073,6 +1073,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			}
 		}
 	}
+	Vector<int64_t> fps_values;
 	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
 		// Force re-compute animation tracks.
 		Vector<Ref<AnimationLibrary>> anim_libs;
@@ -1088,6 +1089,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		ERR_CONTINUE(!player);
 		auto current_anmation = player->get_current_animation();
 		auto current_pos = current_anmation.is_empty() ? 0 : player->get_current_animation_position();
+		int64_t max_fps = -1;
 		for (auto &anim_lib : anim_libs) {
 			List<StringName> anim_names;
 			anim_lib->get_animation_list(&anim_names);
@@ -1101,6 +1103,8 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				}
 			}
 			for (auto &anim_name : anim_names) {
+				double shortest_frame_duration = 1000.0;
+
 				Ref<Animation> anim = anim_lib->get_animation(anim_name);
 				auto path = get_resource_path(anim);
 				String name = anim_name;
@@ -1117,7 +1121,29 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					}
 					if (!anim->track_is_imported(i)) {
 						external_animation_nodepaths.insert(anim->track_get_path(i));
+					} else if (updating_import_info) {
+						auto key_count = anim->track_get_key_count(i);
+						double last_key_frame = key_count > 0 ? anim->track_get_key_time(i, 0) : 0;
+						// Ignore the very last frame, it's usually an inserted fast frame to ensure the animation loops.
+						auto max_key_count = key_count - 1;
+						// check the key frames for the shortest frame duration
+						for (size_t j = 1; j < max_key_count; j++) {
+							auto key_frame = anim->track_get_key_time(i, j);
+							double duration = key_frame - last_key_frame;
+							if (duration > 0.0) {
+								shortest_frame_duration = MIN(shortest_frame_duration, key_frame - last_key_frame);
+							}
+							last_key_frame = key_frame;
+						}
 					}
+				}
+				int64_t fps = 0;
+				if (shortest_frame_duration > 0.0) {
+					fps = round(1.0 / shortest_frame_duration);
+				}
+				if (fps > 0) {
+					fps_values.push_back(fps);
+					max_fps = MAX(max_fps, fps);
 				}
 				if (ver_major == 4) {
 					int i = 1;
@@ -1142,6 +1168,9 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					anim_options["slices/amount"] = 0;
 				}
 			}
+		}
+		if (max_fps > 0) {
+			baked_fps = MIN(max_fps, 120);
 		}
 	}
 }
@@ -2036,7 +2065,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
 	iinfo->set_param("skins/use_named_skins", true);
 	iinfo->set_param("animation/import", true);
-	iinfo->set_param("animation/fps", 30);
+	iinfo->set_param("animation/fps", baked_fps);
 	iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
 	iinfo->set_param("animation/remove_immutable_tracks", true);
 	iinfo->set_param("animation/import_rest_as_RESET", has_reset_track);

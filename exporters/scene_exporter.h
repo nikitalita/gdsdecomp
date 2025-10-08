@@ -121,6 +121,7 @@ class GLBExporterInstance {
 	String root_type;
 	String root_name;
 	bool has_lossy_images = false;
+	int64_t baked_fps = 30;
 	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
 
 	// set during update_import_params
