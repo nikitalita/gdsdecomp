@@ -849,7 +849,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			} else {
 				// compile the project to prevent editor errors
 				if (GDREConfig::get_singleton()->get_setting("CSharp/compile_after_decompile", false)) {
-					if (get_ver_major() >= 4 && OS::get_singleton()->execute("dotnet", { "version" }) == OK) {
+					int ret_code;
+					if (get_ver_major() >= 4 && OS::get_singleton()->execute("dotnet", { "--version" }, nullptr, &ret_code) == OK && ret_code == 0) {
 						String solution_path = csproj_path.get_basename() + ".sln";
 						process_runner = std::make_shared<ProcessRunnerStruct>("dotnet", Vector<String>({ "build", solution_path, "--property", "WarningLevel=0" }));
 						if (process_runner->pre_run()) {
