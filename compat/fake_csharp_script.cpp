@@ -296,20 +296,25 @@ String replace_variant_constants(const String &p_string) {
 		String type_name = match->get_string(1);
 		Variant::Type type = string_to_variant_type(type_name);
 		if (type == Variant::VARIANT_MAX) {
-			re->search(new_string, end);
+			match = re->search(new_string, end);
 			continue;
 		}
 		String constant_name = match->get_string(2);
 		if (!Variant::has_constant(type, constant_name)) {
-			re->search(new_string, end);
+			match = re->search(new_string, end);
 			continue;
 		}
 		Variant constant = Variant::get_constant_value(type, constant_name);
 		if (constant == Variant()) {
-			re->search(new_string, end);
+			match = re->search(new_string, end);
 			continue;
 		}
+		String old_string = new_string;
 		new_string = new_string.substr(0, start) + constant.get_construct_string() + new_string.substr(end);
+		if (new_string == old_string) {
+			match = re->search(new_string, end);
+			continue;
+		}
 		match = re->search(new_string);
 	}
 	return new_string;
@@ -390,6 +395,11 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 					if (parse_expression(default_value, v)) {
 						member_default_values.insert(prop_name, v);
 					}
+#ifdef DEBUG_ENABLED
+					else {
+						print_line(vformat("%s: Failed to parse expression for property %s with value %s", script_path, prop_name, default_value));
+					}
+#endif
 				}
 			}
 			if (!member_default_values.has(prop_name)) {
