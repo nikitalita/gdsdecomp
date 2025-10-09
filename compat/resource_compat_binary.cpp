@@ -2983,6 +2983,7 @@ bool ResourceLoaderCompatBinary::should_threaded_load() const {
 Ref<ResourceLoader::LoadToken> ResourceLoaderCompatBinary::start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID p_uid, const int er_idx) {
 	Ref<ResourceLoader::LoadToken> load_token;
 	Error err = OK;
+	ERR_FAIL_COND_V_MSG(p_path == local_path, Ref<ResourceLoader::LoadToken>(), "Circular dependency detected: " + p_path);
 	if (!should_threaded_load()) {
 		load_token = Ref<ResourceLoader::LoadToken>(memnew(ResourceLoader::LoadToken));
 		ERR_FAIL_COND_V_MSG(er_idx < 0 || er_idx >= external_resources.size(), Ref<ResourceLoader::LoadToken>(), "Invalid external resource index.");
