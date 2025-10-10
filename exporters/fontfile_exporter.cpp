@@ -91,7 +91,7 @@ Ref<ExportReport> FontFileExporter::export_resource(const String &output_dir, Re
 				// r_options->push_back(ImportOption(PropertyInfo(Variant::ARRAY, "fallbacks", PROPERTY_HINT_ARRAY_TYPE, MAKE_RESOURCE_TYPE_HINT("Font")), Array()));
 				params["Fallbacks"] = ImportInfo::NULL_REPLACEMENT;
 				Array fallbacks;
-				for (Ref<FontFile> fallback : fontfile->get_fallbacks()) {
+				for (Ref<Font> fallback : fontfile->get_fallbacks()) {
 					if (fallback.is_null()) {
 						continue;
 					}
