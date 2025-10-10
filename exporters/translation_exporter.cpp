@@ -77,7 +77,9 @@ static const Vector<String> STANDARD_SUFFIXES = {
 	"Intro",
 	"Evidence",
 	"Clue",
-	"Quote"
+	"Quote",
+	"Event",
+	"Tutorial"
 };
 
 template <class K, class V>
@@ -184,6 +186,7 @@ struct KeyWorker {
 	std::atomic<bool> keys_are_all_ascii = true;
 	bool has_common_prefix = false;
 	bool do_combine_all = false; // disabled for now, it's too slow
+	size_t max_keys_before_done_setting_key_stats = 0;
 	bool done_setting_key_stats = false;
 	HashMap<char32_t, int64_t> punctuation_counts;
 	HashSet<char32_t> punctuation;
@@ -207,7 +210,7 @@ struct KeyWorker {
 	Ref<RegEx> word_regex;
 	static constexpr const char *GD_FORMAT_REGEX = "(?<!%)%(?:[+\\-]?[0-9*]*\\.?[0-9*]*)?[sdioxXfcv]|%%";
 	ParallelFlatHashSet<String> current_stage_keys_found;
-	HashMap<String, ParallelFlatHashSet<String>> stage_keys_found;
+	HashMap<String, HashSet<String>> stage_keys_found;
 	HashMap<String, Pair<uint64_t, uint64_t>> stage_time_and_keys_total;
 	// 30 seconds in msec
 	uint64_t start_time = OS::get_singleton()->get_ticks_usec();
@@ -525,14 +528,14 @@ struct KeyWorker {
 	bool try_key_prefix(const char *prefix, const char *suffix) {
 		if (try_key_multipart(prefix, suffix)) {
 			if constexpr (!dont_register_success) {
-				reg_successful_prefix(suffix);
+				reg_successful_prefix(prefix);
 			}
 			return true;
 		}
 		for (auto p : punctuation_str) {
 			if (try_key_multipart(prefix, p.get_data(), suffix)) {
 				if constexpr (!dont_register_success) {
-					reg_successful_prefix(suffix);
+					reg_successful_prefix(prefix);
 				}
 				return true;
 			}
@@ -754,21 +757,25 @@ struct KeyWorker {
 			try_num_suffix(E.get_data(), res_s.get_data());
 		}
 		if (try_prefix_suffix) {
-			for (const auto &E : common_prefixes_t) {
-				for (const auto &E2 : common_suffixes_t) {
-					try_key_prefix_suffix(E.get_data(), res_s.get_data(), E2.get_data());
-					std::string f = E.get_data();
-					// check if f ends with most_popular_punct_str
-					if (f.back() != most_popular_punct) {
-						f += most_popular_punct_str_cs.get_data();
-					}
-					f += res_s.get_data();
-					try_num_suffix(f.c_str(), E2.get_data());
-				}
-			}
+			prefix_and_suffix_task(i, res_strings);
 		}
 	}
 
+	void prefix_and_suffix_task(uint32_t i, CharString *res_strings) {
+		const CharString &res_s = res_strings[i];
+		for (const auto &E : common_prefixes_t) {
+			for (const auto &E2 : common_suffixes_t) {
+				try_key_prefix_suffix(E.get_data(), res_s.get_data(), E2.get_data());
+				std::string f = E.get_data();
+				// check if f ends with most_popular_punct_str
+				if (f.back() != most_popular_punct) {
+					f += most_popular_punct_str_cs.get_data();
+				}
+				f += res_s.get_data();
+				try_num_suffix(f.c_str(), E2.get_data());
+			}
+		}
+	}
 	template <int64_t max_num>
 	void num_suffix_task(uint32_t i, Pair<CharString, int> *res_strings) {
 		const Pair<CharString, int> &res_s_pair = res_strings[i];
@@ -813,7 +820,11 @@ struct KeyWorker {
 	}
 
 	void end_stage() {
-		stage_keys_found.insert(current_stage, current_stage_keys_found);
+		HashSet<String> hs;
+		for (const auto &E : current_stage_keys_found) {
+			hs.insert(E);
+		}
+		stage_keys_found.insert(current_stage, hs);
 		stage_time_and_keys_total.insert(current_stage, { OS::get_singleton()->get_ticks_msec(), current_stage_keys_found.size() });
 		current_stage_keys_found.clear();
 	}
@@ -1646,24 +1657,25 @@ struct KeyWorker {
 	}
 
 	bool normalize_key_characteristics(double p_threshold = 0.95) {
-		auto threshold = filtered_resource_strings.size() > MAX_FILT_RES_STRINGS_STAGE_3 ? 0.8 : p_threshold;
+		auto threshold = p_threshold;
 		bool changed = false;
-		if (!keys_are_all_upper && (double)keys_that_are_all_upper / (double)key_to_message.size() > threshold) {
+		double size = !done_setting_key_stats ? key_to_message.size() : max_keys_before_done_setting_key_stats;
+		if (!keys_are_all_upper && (double)keys_that_are_all_upper / size > threshold) {
 			// if so, we can safely assume that the keys are all upper case
 			keys_are_all_upper = true;
 			changed = true;
-		} else if (!keys_are_all_lower && (double)keys_that_are_all_lower / (double)key_to_message.size() > threshold) {
+		} else if (!keys_are_all_lower && (double)keys_that_are_all_lower / size > threshold) {
 			// if so, we can safely assume that the keys are all lower case
 			keys_are_all_lower = true;
 			changed = true;
 		}
-		if (!keys_are_all_ascii && (double)keys_that_are_all_ascii / (double)key_to_message.size() > threshold) {
+		if (!keys_are_all_ascii && (double)keys_that_are_all_ascii / size > threshold) {
 			// if so, we can safely assume that the keys are all ascii
 			keys_are_all_ascii = true;
 			changed = true;
 		}
 		// if less than 20% (or 5%) of the keys have whitespace, we can safely assume that the keys don't have whitespace
-		if (keys_have_whitespace && (double)keys_that_have_whitespace / (double)key_to_message.size() < (1.0 - threshold)) {
+		if (keys_have_whitespace && (double)keys_that_have_whitespace / size < (1.0 - threshold)) {
 			keys_have_whitespace = false;
 			changed = true;
 			for (const auto p : gdre::hashset_to_vector(punctuation)) {
@@ -1795,14 +1807,13 @@ struct KeyWorker {
 		has_common_prefix = !common_to_all_prefix.is_empty();
 
 		// the above finds the vast majority of the keys, so we can stop setting key stats
+		max_keys_before_done_setting_key_stats = key_to_message.size();
 		done_setting_key_stats = true;
 
 		// filter resource strings before subsequent stages, as they can be very large
 		if (should_run_step(1)) {
+			normalize_key_characteristics();
 			refilter_resource_strings();
-			if (normalize_key_characteristics()) {
-				refilter_resource_strings();
-			}
 		}
 
 		// Stage 2: Partial resource strings
@@ -1853,6 +1864,36 @@ struct KeyWorker {
 			skip_stage("Numeric suffixes (keys only)");
 		}
 
+		Vector<String> found_prefixes;
+		Vector<String> found_suffixes;
+		// looking for format strings; eg "${foo}_DESC"
+
+		if (step_too_long(4)) {
+			// drop the normalization threshold way down
+			normalize_key_characteristics(0.70);
+			refilter_resource_strings();
+		}
+
+		if (!keys_have_whitespace && punctuation.size() > 0 && punctuation.size() <= 2) {
+			for (const auto &str : filtered_resource_strings) {
+				for (const auto &punct : punctuation) {
+					if (str == String::chr(punct)) {
+						break;
+					}
+					// _ prefix is unfortunately way too common, used in function names a lot, we have to filter them out
+					if (punct != '_' && str.begins_with(String::chr(punct))) {
+						found_suffixes.append(str);
+						break;
+					} else if (str.ends_with(String::chr(punct))) {
+						found_prefixes.append(str);
+						break;
+					}
+				}
+			}
+		}
+		trim_punctuation_vec(found_prefixes);
+		trim_punctuation_vec(found_suffixes);
+
 		if (step_too_long(4)) {
 			auto [smallest_key_len, largest_key_len] = find_smallest_and_largest_string_lengths(get_keys(key_to_message));
 			auto min_filter_size = smallest_key_len - 1;
@@ -1879,24 +1920,8 @@ struct KeyWorker {
 				common_suffixes.append_array(to_lower_vector(sanitized_standard_suffixes));
 				common_suffixes.append_array(to_upper_vector(sanitized_standard_suffixes));
 			}
-			// looking for format strings; eg "${foo}_DESC"
-			if (!keys_have_whitespace && punctuation.size() > 0 && punctuation.size() <= 2) {
-				for (const auto &str : filtered_resource_strings) {
-					for (const auto &punct : punctuation) {
-						if (str == String::chr(punct)) {
-							break;
-						}
-						// _ prefix is unfortunately way too common, used in function names a lot, we have to filter them out
-						if (str.begins_with(String::chr(punct)) && punct != '_') {
-							common_suffixes.append(str);
-							break;
-						} else if (str.ends_with(String::chr(punct))) {
-							common_prefixes.append(str);
-							break;
-						}
-					}
-				}
-			}
+			common_prefixes.append_array(found_prefixes);
+			common_suffixes.append_array(found_suffixes);
 			trim_punctuation_vec(common_prefixes);
 			trim_punctuation_vec(common_suffixes);
 
@@ -1910,6 +1935,21 @@ struct KeyWorker {
 				Error stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2<false>, working_set_t, "Common prefix/suffix", true);
 
 				RET_ON_ERROR(stage3_err);
+				// test prefixes AND suffixes together
+				if (should_run_step(4)) {
+					common_prefixes = found_prefixes;
+					common_suffixes = found_suffixes;
+					for (const auto &prefix : successful_prefixes) {
+						common_prefixes.append(prefix);
+					}
+					for (const auto &suffix : successful_suffixes) {
+						common_suffixes.append(suffix);
+					}
+					trim_punctuation_vec(common_prefixes);
+					trim_punctuation_vec(common_suffixes);
+					stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Common prefix/suffix (combined)", true);
+					RET_ON_ERROR(stage3_err);
+				}
 			}
 		} else {
 			if (step_too_long(4)) {
@@ -1923,16 +1963,12 @@ struct KeyWorker {
 		if (!all_keys_present()) {
 			current_stage = "Detected prefix/suffix";
 			auto curr_keys = get_keys(key_to_message);
+			auto old_common_prefixes = common_prefixes;
+			auto old_common_suffixes = common_suffixes;
 			find_common_prefixes_and_suffixes(curr_keys);
 
-			// if (punctuation.has('_')) {
-			// 	for (const auto &str : filtered_resource_strings) {
-			// 		if (str.begins_with(String::chr('_'))) {
-			// 			common_prefixes.append(str);
-			// 		}
-			// 	}
-			// }
-
+			common_prefixes.append_array(old_common_prefixes);
+			common_suffixes.append_array(old_common_suffixes);
 			trim_punctuation_vec(common_prefixes);
 			trim_punctuation_vec(common_suffixes);
 
@@ -1989,6 +2025,37 @@ struct KeyWorker {
 
 				Error stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2<false>, working_set_t, "Detected prefix/suffix", true);
 				RET_ON_ERROR(stage4_err);
+				if (should_run_step(5)) {
+					auto check_prefixes = common_prefixes;
+					auto check_suffixes = common_suffixes;
+					common_prefixes = found_prefixes;
+					common_suffixes = found_suffixes;
+					auto keys_found = stage_keys_found.get("Detected prefix/suffix");
+					gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix"));
+					gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix (combined)"));
+					for (const auto &prefix : check_prefixes) {
+						for (const auto &key : keys_found) {
+							if (key.begins_with(prefix)) {
+								common_prefixes.append(prefix);
+								break;
+							}
+						}
+					}
+					for (const auto &suffix : check_suffixes) {
+						for (const auto &key : keys_found) {
+							if (key.ends_with(suffix)) {
+								common_suffixes.append(suffix);
+								break;
+							}
+						}
+					}
+					trim_punctuation_vec(common_prefixes);
+					trim_punctuation_vec(common_suffixes);
+					pop_charstr_vectors();
+
+					stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Detected prefix/suffix (combined)", true);
+					RET_ON_ERROR(stage4_err);
+				}
 			} else {
 				bl_debug("Skipping stage 5 because there are too many resource strings");
 				skip_stage("Detected prefix/suffix");
