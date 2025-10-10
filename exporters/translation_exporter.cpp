@@ -2122,7 +2122,7 @@ struct KeyWorker {
 			}
 		}
 
-		bl_debug(vformat("Total found: %d/%d", default_messages.size() - missing_keys, default_messages.size()));
+		bl_debug(vformat("Total found: %d/%d", non_blank_keys - missing_keys, non_blank_keys));
 		bl_debug("-----------------------------------------------------------\n");
 		return missing_keys;
 	}
@@ -2238,6 +2238,21 @@ Error TranslationExporter::get_translations(Ref<ImportInfo> iinfo, String &defau
 	return OK;
 }
 
+HashSet<int> get_translations_that_are_out_of_sync(const Ref<Translation> &default_translation, const Vector<Ref<Translation>> &translations, const Vector<String> &keys) {
+	HashSet<int> out_of_sync_translations;
+	size_t default_messages_size = default_translation->get_translated_message_list().size();
+	for (int i = 0; i < translations.size(); i++) {
+		auto translation = translations[i];
+		if (translation == default_translation || translation->get_class_name() != "OptimizedTranslation") {
+			continue;
+		}
+		if (translation->get_translated_message_list().size() != default_messages_size) {
+			out_of_sync_translations.insert(i);
+		}
+	}
+	return out_of_sync_translations;
+}
+
 Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	Ref<ExportReport> report = memnew(ExportReport(iinfo, get_name()));
 	report->set_error(ERR_CANT_ACQUIRE_RESOURCE);
@@ -2281,11 +2296,27 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	// If greater than 15% of the keys are missing, we save the file to the export directory.
 	// The reason for this threshold is that the translations may contain keys that are not currently in use in the project.
 	bool resave = missing_keys > (default_messages.size() * threshold);
+	auto out_of_sync_translations = get_translations_that_are_out_of_sync(default_translation, translations, keys);
+	String sync_message;
+	if (out_of_sync_translations.size() > 0 && missing_keys > 0) {
+		sync_message += "Some locales are out of sync and won't have correct messages in the csv file: ";
+		bool first = true;
+		for (auto &index : out_of_sync_translations) {
+			if (!first) {
+				sync_message += ", ";
+			}
+			sync_message += translations[index]->get_locale();
+			first = false;
+		}
+		sync_message += "\n";
+	}
+
 	if (resave) {
 		if (!export_dest.begins_with("res://.assets/")) {
 			iinfo->set_export_dest("res://.assets/" + iinfo->get_export_dest().replace("res://", ""));
 		}
 	}
+
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
 	Error export_err = gdre::ensure_dir(output_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(export_err != OK, report, "Could not create directory " + output_path.get_base_dir());
@@ -2297,11 +2328,15 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	f->store_8(0xbb);
 	f->store_8(0xbf);
 	f->store_string(header);
+	const String missing_key_prefix = MISSING_KEY_PREFIX;
 	for (int i = 0; i < keys.size(); i++) {
 		Vector<String> line_values;
 		line_values.push_back(keys[i]);
-		for (auto &messages : translation_messages) {
-			if (i >= messages.size()) {
+		for (int j = 0; j < translation_messages.size(); j++) {
+			auto &messages = translation_messages[j];
+			if (out_of_sync_translations.has(j) && !keys[i].begins_with(missing_key_prefix)) {
+				line_values.push_back(translations[j]->get_message(keys[i]));
+			} else if (i >= messages.size()) {
 				line_values.push_back("");
 			} else {
 				line_values.push_back(messages[i]);
@@ -2318,6 +2353,7 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	report->set_extra_info(extra_info);
 	if (missing_keys) {
 		String translation_export_message = "Could not recover " + itos(missing_keys) + "/" + itos(default_messages.size()) + " keys for " + iinfo->get_source_file() + "\n";
+		translation_export_message += sync_message;
 		if (resave) {
 			translation_export_message += "Too inaccurate, saved " + iinfo->get_source_file().get_file() + " to " + iinfo->get_export_dest() + "\n";
 		}
