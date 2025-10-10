@@ -895,6 +895,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			exporter_map[importer] = exporter;
 		}
 	}
+	Vector<ExportToken> non_high_priority_tokens;
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
 	Vector<Ref<ImportInfo>> scene_tokens;
@@ -981,7 +982,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			}
 		} else {
 			if (supports_multithreading) {
-				tokens.push_back({ iinfo, nullptr, supports_multithreading });
+				non_high_priority_tokens.push_back({ iinfo, nullptr, supports_multithreading });
 			} else {
 				non_multithreaded_tokens.push_back({ iinfo, nullptr, supports_multithreading });
 			}
@@ -993,6 +994,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			export_dest_to_iinfo.insert(iinfo->get_export_dest(), Vector<Ref<ImportInfo>>({ iinfo }));
 		}
 	}
+	// Shuffle the vector to prevent situations where a bunch of large resources are exported at once and exhausts the memory
+	gdre::shuffle_vector(non_high_priority_tokens);
+	tokens.append_array(non_high_priority_tokens);
+
 	pr->set_progress_length(false, tokens.size() + non_multithreaded_tokens.size());
 
 	HashMap<String, String> dupe_to_orig_src;

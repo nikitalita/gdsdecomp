@@ -166,7 +166,14 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
 		auto last_progress = get_current_task_step_value();
 		bool printed_warning = false;
+		[[maybe_unused]] uint64_t last_reported_mem_usage_ms = 0;
 		while (!is_done()) {
+#if REPORT_PERF_STATS
+			if (OS::get_singleton()->get_ticks_msec() - last_reported_mem_usage_ms > 1000) {
+				print_line("Memory usage: " + String::humanize_size(OS::get_singleton()->get_static_memory_usage()));
+				last_reported_mem_usage_ms = OS::get_singleton()->get_ticks_msec();
+			}
+#endif
 			OS::get_singleton()->delay_usec(10000);
 			if (timeout_s_no_progress != 0) {
 				auto curr_progress = get_current_task_step_value();
