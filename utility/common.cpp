@@ -2,6 +2,7 @@
 #include "bytecode/bytecode_base.h"
 #include "compat/file_access_encrypted_v3.h"
 #include "compat/variant_decoder_compat.h"
+#include "utility/file_access_buffer.h"
 #include "utility/glob.h"
 
 #include "core/error/error_list.h"
@@ -271,7 +272,8 @@ String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 	return FileAccess::get_multiple_md5(files);
 }
 
-Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, float *p_progress, bool *p_cancelled) {
+namespace {
+Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, float *p_progress, bool *p_cancelled) {
 #define WGET_CANCELLED_CHECK()         \
 	if (p_cancelled && *p_cancelled) { \
 		return ERR_SKIP;               \
@@ -376,9 +378,20 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 			return retry_err;
 		}
 		retries--;
-		response.clear();
-		return wget_sync(p_url, response, retries, p_progress, p_cancelled);
+		Ref<FileAccessBuffer> resp = response;
+		if (!resp.is_null()) {
+			resp->open_new();
+		} else {
+			String path = response->get_path();
+			response->close();
+			err = response->reopen(path, FileAccess::WRITE);
+			if (err != OK) {
+				return err;
+			}
+		}
+		return _wget_sync(p_url, response, retries, p_progress, p_cancelled);
 	};
+	size_t downloaded = 0;
 
 	while (!done) {
 		WGET_CANCELLED_CHECK();
@@ -403,9 +416,11 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 					if (err != OK) {
 						return _retry(err);
 					}
-					response.append_array(client->read_response_body_chunk());
+					auto chunk = client->read_response_body_chunk();
+					downloaded += chunk.size();
+					response->store_buffer(chunk.ptr(), chunk.size());
 					if (p_progress) {
-						*p_progress = float(response.size()) / float(response_body_length);
+						*p_progress = float(downloaded) / float(response_body_length);
 					}
 				}
 				break;
@@ -426,17 +441,23 @@ Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retrie
 			}
 		}
 	}
-	ERR_FAIL_COND_V_MSG(response.is_empty(), ERR_CANT_CREATE, "Failed to download file from " + p_url);
+	ERR_FAIL_COND_V_MSG(downloaded == 0, ERR_CANT_CREATE, "Failed to download file from " + p_url);
 	return OK;
 #undef WGET_CANCELLED_CHECK
 }
+} //namespace
+
+Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, float *p_progress, bool *p_cancelled) {
+	Ref<FileAccessBuffer> fa = FileAccessBuffer::create(FileAccessBuffer::RESIZE_STRICT);
+	Error err = _wget_sync(p_url, fa, retries, p_progress, p_cancelled);
+	if (err) {
+		return err;
+	}
+	response = fa->get_data();
+	return OK;
+}
 
 Error gdre::download_file_sync(const String &p_url, const String &output_path, float *p_progress, bool *p_cancelled) {
-	Vector<uint8_t> response;
-	Error download_err = wget_sync(p_url, response, 5, p_progress, p_cancelled);
-	if (download_err) {
-		return download_err;
-	}
 	Error dir_err = ensure_dir(output_path.get_base_dir());
 	if (dir_err) {
 		return dir_err;
@@ -445,7 +466,13 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path, f
 	if (fa.is_null()) {
 		return ERR_FILE_CANT_WRITE;
 	}
-	fa->store_buffer(response.ptr(), response.size());
+
+	Error download_err = _wget_sync(p_url, fa, 5, p_progress, p_cancelled);
+	if (download_err) {
+		fa->close();
+		gdre::rimraf(output_path);
+		return download_err;
+	}
 	fa->close();
 	return OK;
 }
