@@ -477,10 +477,8 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		return script->get_source_code();
 	}
 
-	Ref<FileAccessBuffer> f;
-	f.instantiate();
-	f->open_new();
-	f->resize(length * 3);
+	Ref<FileAccessBuffer> f = FileAccessBuffer::create(FileAccessBuffer::RESIZE_OPTIMIZED);
+	f->reserve(length * 3);
 
 	String save_path;
 	String base_ext = path.get_basename().get_basename().get_extension();

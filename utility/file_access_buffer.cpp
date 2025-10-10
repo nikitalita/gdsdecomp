@@ -30,104 +30,57 @@
 
 #include "file_access_buffer.h"
 
-#include "core/config/project_settings.h"
-
 #include "core/os/memory.h"
 #include "core/templates/vector.h"
 
-static HashMap<String, Vector<uint8_t>> *files = nullptr;
-
-void FileAccessBuffer::register_file(const String &p_name, const Vector<uint8_t> &p_data) {
-	if (!files) {
-		files = memnew((HashMap<String, Vector<uint8_t>>));
-	}
-
-	String name;
-	if (ProjectSettings::get_singleton()) {
-		name = ProjectSettings::get_singleton()->globalize_path(p_name);
-	} else {
-		name = p_name;
-	}
-	//name = DirAccess::normalize_path(name);
-
-	(*files)[name] = p_data;
-}
-
-void FileAccessBuffer::cleanup() {
-	if (!files) {
-		return;
-	}
-
-	memdelete(files);
-}
-
-Ref<FileAccess> FileAccessBuffer::create() {
-	return memnew(FileAccessBuffer);
+Ref<FileAccess> FileAccessBuffer::create(ResizeBehavior p_resize_behavior) {
+	return memnew(FileAccessBuffer(p_resize_behavior));
 }
 
 bool FileAccessBuffer::file_exists(const String &p_name) {
-	String name = fix_path(p_name);
-	//name = DirAccess::normalize_path(name);
-
-	return files && (files->find(name) != nullptr);
+	return false;
 }
 
 Error FileAccessBuffer::open_new() {
 	data.clear();
 	pos = 0;
-	open = true;
+	real_size = 0;
 	return OK;
 }
 
 Error FileAccessBuffer::open_custom(const Vector<uint8_t> &p_data) {
 	data = p_data;
 	pos = 0;
-	open = true;
+	real_size = p_data.size();
 	return OK;
 }
 
 Error FileAccessBuffer::open_internal(const String &p_path, int p_mode_flags) {
-	ERR_FAIL_NULL_V(files, ERR_FILE_NOT_FOUND);
-
-	String name = fix_path(p_path);
-	//name = DirAccess::normalize_path(name);
-
-	HashMap<String, Vector<uint8_t>>::Iterator E = files->find(name);
-	ERR_FAIL_COND_V_MSG(!E, ERR_FILE_NOT_FOUND, vformat("Can't find file '%s'.", p_path));
-
-	data = E->value;
-	pos = 0;
-
-	return OK;
+	ERR_FAIL_V(ERR_UNAVAILABLE);
 }
 
 bool FileAccessBuffer::is_open() const {
-	return open;
+	return true;
 }
 
 void FileAccessBuffer::seek(uint64_t p_position) {
-	ERR_FAIL_COND(!open);
 	pos = p_position;
 }
 
 void FileAccessBuffer::seek_end(int64_t p_position) {
-	ERR_FAIL_COND(!open);
-	pos = data.size() + p_position;
+	pos = real_size + p_position;
 }
 
 uint64_t FileAccessBuffer::get_position() const {
-	ERR_FAIL_COND_V(!open, 0);
 	return pos;
 }
 
 uint64_t FileAccessBuffer::get_length() const {
-	ERR_FAIL_COND_V(!open, 0);
-	return data.size();
+	return real_size;
 }
 
 bool FileAccessBuffer::eof_reached() const {
-	ERR_FAIL_COND_V(!open, true);
-	return pos >= static_cast<uint64_t>(data.size());
+	return pos >= static_cast<uint64_t>(real_size);
 }
 
 uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
@@ -135,10 +88,9 @@ uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
 		return 0;
 	}
 
-	ERR_FAIL_COND_V(!open, -1);
 	ERR_FAIL_NULL_V(p_dst, -1);
 
-	uint64_t left = data.size() - pos;
+	uint64_t left = real_size - pos;
 	uint64_t read = MIN(p_length, left);
 
 	if (read < p_length) {
@@ -152,29 +104,31 @@ uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
 }
 
 Error FileAccessBuffer::get_error() const {
-	return pos >= static_cast<uint64_t>(data.size()) ? ERR_FILE_EOF : OK;
+	return pos >= static_cast<uint64_t>(real_size) ? ERR_FILE_EOF : OK;
 }
 
 Error FileAccessBuffer::resize(int64_t p_length) {
-	ERR_FAIL_COND_V(!open, ERR_UNAVAILABLE);
 	data.resize_initialized(p_length);
+	real_size = p_length;
 	return OK;
 }
 
 void FileAccessBuffer::flush() {
-	ERR_FAIL_COND(!open);
 }
 
 bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 	if (!p_length) {
 		return true;
 	}
-	ERR_FAIL_COND_V(!open, false);
 	ERR_FAIL_NULL_V(p_src, false);
-
+	real_size = MAX(real_size, pos + p_length);
 	// check if data is large enough
 	if (pos + p_length > static_cast<uint64_t>(data.size())) {
-		data.resize_initialized((pos + p_length + (MIN(p_length, static_cast<uint64_t>(16 * 1024)))));
+		if (resize_behavior == RESIZE_STRICT) {
+			data.resize_uninitialized(pos + p_length);
+		} else { // RESIZE_OPTIMIZED
+			data.resize_uninitialized((pos + p_length + (MIN(p_length, static_cast<uint64_t>(16 * 1024)))));
+		}
 	}
 
 	memcpy(data.ptrw() + pos, p_src, p_length);
@@ -184,15 +138,31 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 }
 
 String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
-	ERR_FAIL_COND_V(!open, "");
 	String s;
-	s.append_utf8((const char *)data.ptr() + pos, -1, p_skip_cr);
+	s.append_utf8((const char *)data.ptr() + pos, real_size - pos, p_skip_cr);
 	return s;
 }
 
 String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
-	ERR_FAIL_COND_V(!open, "");
 	String s;
-	s.append_utf8((const char *)data.ptr(), -1, p_skip_cr);
+	s.append_utf8((const char *)data.ptr(), real_size, p_skip_cr);
 	return s;
 }
+
+Error FileAccessBuffer::reserve(int64_t p_length) {
+	if (p_length > data.size()) {
+		data.resize_uninitialized(p_length);
+	}
+	return OK;
+}
+
+void FileAccessBuffer::set_auto_resize_behavior(ResizeBehavior p_resize_behavior) {
+	resize_behavior = p_resize_behavior;
+}
+
+Vector<uint8_t> FileAccessBuffer::get_data() const {
+	return data;
+}
+
+FileAccessBuffer::FileAccessBuffer(ResizeBehavior p_resize_behavior) :
+		resize_behavior(p_resize_behavior) {}

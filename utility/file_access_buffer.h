@@ -35,15 +35,21 @@
 /** FileAccessMemory with auto-growing buffer */
 class FileAccessBuffer : public FileAccess {
 	GDSOFTCLASS(FileAccessBuffer, FileAccess);
-	Vector<uint8_t> data;
-	bool open = false;
-	mutable uint64_t pos = 0;
-
-	static Ref<FileAccess> create();
 
 public:
-	static void register_file(const String &p_name, const Vector<uint8_t> &p_data);
-	static void cleanup();
+	enum ResizeBehavior {
+		RESIZE_STRICT,
+		RESIZE_OPTIMIZED,
+	};
+
+private:
+	Vector<uint8_t> data;
+	ResizeBehavior resize_behavior = RESIZE_STRICT;
+	mutable uint64_t pos = 0;
+	size_t real_size = 0;
+
+public:
+	static Ref<FileAccess> create(ResizeBehavior p_resize_behavior = RESIZE_STRICT);
 
 	virtual Error open_new();
 	virtual Error open_custom(const Vector<uint8_t> &p_data); ///< open a file
@@ -82,7 +88,13 @@ public:
 
 	String whole_file_as_utf8_string(bool p_skip_cr = false) const;
 
+	Error reserve(int64_t p_length);
+	void set_auto_resize_behavior(ResizeBehavior p_resize_behavior);
+
+	Vector<uint8_t> get_data() const;
+
 	virtual void close() override {}
 
-	FileAccessBuffer() {}
+	FileAccessBuffer() = default;
+	FileAccessBuffer(ResizeBehavior p_resize_behavior);
 };
