@@ -3074,9 +3074,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	int64_t current_memory_usage = OS::get_singleton()->get_static_memory_usage();
 	// available memory does not include disk cache, so we should take the larger of this or peak memory usage (i.e. the most we've allocated)
 	int64_t total_mem_available = MAX((int64_t)mem_info["available"], (int64_t)OS::get_singleton()->get_static_memory_peak_usage() - current_memory_usage);
-	// we should either only allocate ourselves 8GB in memory or the amount of memory available to us, whichever is less
-	int64_t max_usage = MIN(EIGHT_GB, current_memory_usage + total_mem_available);
-	int64_t available_for_threads = MIN(EIGHT_GB - current_memory_usage, total_mem_available);
+	int64_t max_usage = TaskManager::maximum_memory_usage;
 	size_t current_vram_usage = get_vram_usage();
 	size_t peak_vram_usage = current_vram_usage;
 	// TODO: get the real available VRAM; right now we assume 4GB
@@ -3084,11 +3082,10 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	// 75% of the default thread pool size; we can't saturate the thread pool because some loaders may make use of them and we'll cause a deadlock.
 	const size_t default_num_threads = OS::get_singleton()->get_default_thread_pool_size() * 0.75;
 	// The smaller of either the above value, or the amount of memory available to us, divided by 256MB (conservative estimate of 256MB per scene)
-	const size_t number_of_threads = MIN(default_num_threads, available_for_threads / (ONE_GB / 4));
+	const size_t number_of_threads = MIN(default_num_threads, max_usage / (ONE_GB / 4));
 
 	print_line("\nExporting scenes...");
 	perf_print(vformat("Current memory usage: %.02fMB, Total memory available: %.02fMB", (double)current_memory_usage / (double)ONE_MB, (double)total_mem_available / (double)ONE_MB));
-	perf_print(vformat("Max memory usage: %.02fMB, Available for scene export: %.02fMB", (double)max_usage / (double)ONE_MB, (double)available_for_threads / (double)ONE_MB));
 	perf_print(vformat("VRAM usage: %.02fMB", (double)current_vram_usage / (double)ONE_MB));
 	perf_print(vformat("Default thread pool size: %d", OS::get_singleton()->get_default_thread_pool_size()));
 	perf_print(vformat("Number of threads to use for scene export: %d\n", (int64_t)number_of_threads));
