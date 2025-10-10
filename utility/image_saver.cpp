@@ -47,7 +47,7 @@ bool is_supported_format_for_exr(Image::Format p_format) {
 	}
 }
 
-Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, bool lossy, float quality) {
+Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, bool lossy, float quality, bool duplicate) {
 	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + dest_path + ", not saving");
 	Error err = gdre::ensure_dir(dest_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
@@ -63,9 +63,9 @@ Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, boo
 	} else if (dest_ext == "png") {
 		err = img->save_png(dest_path);
 	} else if (dest_ext == "tga") {
-		err = ImageSaver::save_image_as_tga(dest_path, img);
+		err = ImageSaver::save_image_as_tga(dest_path, img, duplicate);
 	} else if (dest_ext == "svg") {
-		err = ImageSaver::save_image_as_svg(dest_path, img);
+		err = ImageSaver::save_image_as_svg(dest_path, img, duplicate);
 	} else if (dest_ext == "dds") {
 		err = img->save_dds(dest_path);
 	} else if (dest_ext == "exr") {
@@ -81,11 +81,11 @@ Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &img, boo
 		}
 		err = img->save_exr(dest_path);
 	} else if (dest_ext == "bmp") {
-		err = ImageSaver::save_image_as_bmp(dest_path, img);
+		err = ImageSaver::save_image_as_bmp(dest_path, img, duplicate);
 	} else if (dest_ext == "gif") {
-		err = ImageSaver::save_image_as_gif(dest_path, img);
+		err = ImageSaver::save_image_as_gif(dest_path, img, duplicate);
 	} else if (dest_ext == "hdr") {
-		err = ImageSaver::save_image_as_hdr(dest_path, img);
+		err = ImageSaver::save_image_as_hdr(dest_path, img, duplicate);
 	} else {
 		ERR_FAIL_V_MSG(ERR_FILE_BAD_PATH, "Invalid file name: " + dest_path);
 	}
@@ -138,9 +138,9 @@ public:
 	}
 };
 
-Error ImageSaver::save_image_as_bmp(const String &p_path, const Ref<Image> &p_img) {
+Error ImageSaver::save_image_as_bmp(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
 	// Microsoft BMP format - BGR ordering
-	Ref<Image> source_image = p_img->duplicate();
+	Ref<Image> source_image = duplicate ? (Ref<Image>)p_img->duplicate() : p_img;
 	GDRE_ERR_DECOMPRESS_OR_FAIL(source_image);
 
 	int width = source_image->get_width();
@@ -262,9 +262,9 @@ Error ImageSaver::save_image_as_bmp(const String &p_path, const Ref<Image> &p_im
 	return OK;
 }
 
-Error ImageSaver::save_image_as_tga(const String &p_path, const Ref<Image> &p_img) {
+Error ImageSaver::save_image_as_tga(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
 	Vector<uint8_t> buffer;
-	Ref<Image> source_image = p_img->duplicate();
+	Ref<Image> source_image = duplicate ? (Ref<Image>)p_img->duplicate() : p_img;
 	GDRE_ERR_DECOMPRESS_OR_FAIL(source_image);
 	int width = source_image->get_width();
 	int height = source_image->get_height();
@@ -320,7 +320,7 @@ Error ImageSaver::save_image_as_tga(const String &p_path, const Ref<Image> &p_im
 	return OK;
 }
 
-Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_img) {
+Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
 	VTracerConfig config;
 	vtracer_set_default_config(&config);
 	// this config converts the raster image to a vector image with a box for each pixel
@@ -338,7 +338,7 @@ Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_im
 	config.path_precision = 2;
 	config.keying_threshold = 0.0;
 
-	Ref<Image> img = p_img->duplicate();
+	Ref<Image> img = duplicate ? (Ref<Image>)p_img->duplicate() : p_img;
 	GDRE_ERR_DECOMPRESS_OR_FAIL(img);
 	// check if the image is RGBA; if not, convert it to RGBA
 	if (img->get_format() != Image::FORMAT_RGBA8) {
@@ -360,7 +360,7 @@ Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_im
 	return OK;
 }
 
-Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality) {
+Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality, bool duplicate) {
 	ERR_FAIL_COND_V_MSG(p_images.is_empty(), ERR_FILE_EOF, "No images provided for animated GIF");
 
 	// Ensure directory exists
@@ -443,14 +443,14 @@ Error ImageSaver::_save_images_as_animated_gif(const String &p_path, const Typed
 	for (int i = 0; i < p_images.size(); i++) {
 		images.push_back(p_images[i]);
 	}
-	return save_images_as_animated_gif(p_path, images, frame_durations_s, quality);
+	return save_images_as_animated_gif(p_path, images, frame_durations_s, quality, true);
 }
 
-Error ImageSaver::save_image_as_gif(const String &p_path, const Ref<Image> &p_img) {
+Error ImageSaver::save_image_as_gif(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
 	// Create a vector with just one image and use the animated GIF function
 	Vector<Ref<Image>> images;
 	images.push_back(p_img);
-	return save_images_as_animated_gif(p_path, images, { 0.1 }, 100);
+	return save_images_as_animated_gif(p_path, images, { 0.1 }, 100, duplicate);
 }
 namespace {
 
@@ -467,10 +467,10 @@ constexpr uint8_t get_e(uint32_t rgbe) {
 	return (uint8_t)(((rgbe >> 27) - 15 + 128) & 0xFF);
 }
 
-Vector<uint8_t> save_hdr_buffer(const Ref<Image> &p_img) {
+Vector<uint8_t> save_hdr_buffer(const Ref<Image> &p_img, bool duplicate) {
 	ERR_FAIL_COND_V_MSG(p_img.is_null(), Vector<uint8_t>(), "Can't save invalid image as HDR.");
 
-	Ref<Image> img = p_img->duplicate();
+	Ref<Image> img = duplicate ? (Ref<Image>)p_img->duplicate() : p_img;
 	if (img->is_compressed() && img->decompress() != OK) {
 		ERR_FAIL_V_MSG(Vector<uint8_t>(), "Failed to decompress image.");
 	}
@@ -587,8 +587,8 @@ Vector<uint8_t> save_hdr_buffer(const Ref<Image> &p_img) {
 }
 } //namespace
 
-Error ImageSaver::save_image_as_hdr(const String &p_path, const Ref<Image> &p_img) {
-	Vector<uint8_t> buffer = save_hdr_buffer(p_img);
+Error ImageSaver::save_image_as_hdr(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
+	Vector<uint8_t> buffer = save_hdr_buffer(p_img, duplicate);
 
 	Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE);
 	if (file.is_null()) {
@@ -600,15 +600,14 @@ Error ImageSaver::save_image_as_hdr(const String &p_path, const Ref<Image> &p_im
 	return OK;
 }
 
+Error ImageSaver::_save_image(const String &p_path, const Ref<Image> &p_image, bool p_lossy, float p_quality) {
+	return save_image(p_path, p_image, p_lossy, p_quality, true);
+}
+
 void ImageSaver::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("decompress_image", "image"), &ImageSaver::decompress_image);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image", "dest_path", "image", "lossy", "quality"), &ImageSaver::save_image, DEFVAL(false), DEFVAL(1.0));
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_tga", "dest_path", "image"), &ImageSaver::save_image_as_tga);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_svg", "dest_path", "image"), &ImageSaver::save_image_as_svg);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_bmp", "dest_path", "image"), &ImageSaver::save_image_as_bmp);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_gif", "dest_path", "image"), &ImageSaver::save_image_as_gif);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_images_as_animated_gif", "dest_path", "images", "frame_durations_s", "quality"), &ImageSaver::_save_images_as_animated_gif, DEFVAL(100));
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_image_as_hdr", "dest_path", "image"), &ImageSaver::save_image_as_hdr);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_supported_extensions"), &ImageSaver::get_supported_extensions);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_supported_extension", "ext"), &ImageSaver::is_supported_extension);
 }

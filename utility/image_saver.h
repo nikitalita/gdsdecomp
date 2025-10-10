@@ -8,16 +8,19 @@ class ImageSaver : public Object {
 
 	static const Vector<String> supported_extensions;
 
+protected:
+	static Error _save_image(const String &p_path, const Ref<Image> &p_image, bool p_lossy, float p_quality = 1.0);
+
 public:
 	static Error decompress_image(const Ref<Image> &p_image);
-	static Error save_image(const String &p_path, const Ref<Image> &p_image, bool p_lossy, float p_quality = 1.0);
-	static Error save_image_as_tga(const String &p_path, const Ref<Image> &p_image);
-	static Error save_image_as_svg(const String &p_path, const Ref<Image> &p_image);
-	static Error save_image_as_bmp(const String &p_path, const Ref<Image> &p_image);
-	static Error save_image_as_gif(const String &p_path, const Ref<Image> &p_image);
-	static Error save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality = 100);
+	static Error save_image(const String &p_path, const Ref<Image> &p_image, bool p_lossy, float p_quality = 1.0, bool p_duplicate = true);
+	static Error save_image_as_tga(const String &p_path, const Ref<Image> &p_image, bool p_duplicate = true);
+	static Error save_image_as_svg(const String &p_path, const Ref<Image> &p_image, bool p_duplicate = true);
+	static Error save_image_as_bmp(const String &p_path, const Ref<Image> &p_image, bool p_duplicate = true);
+	static Error save_image_as_gif(const String &p_path, const Ref<Image> &p_image, bool p_duplicate = true);
+	static Error save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality = 100, bool p_duplicate = true);
 	static bool dest_format_supports_mipmaps(const String &p_ext);
-	static Error save_image_as_hdr(const String &p_path, const Ref<Image> &p_image);
+	static Error save_image_as_hdr(const String &p_path, const Ref<Image> &p_image, bool p_duplicate = true);
 	static Vector<String> get_supported_extensions();
 	static bool is_supported_extension(const String &p_ext);
 
