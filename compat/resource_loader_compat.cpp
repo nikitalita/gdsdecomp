@@ -225,26 +225,41 @@ String _validate_local_path(const String &p_path) {
 }
 } //namespace
 
+thread_local HashSet<String> currently_loading_paths;
 Ref<Resource> ResourceCompatLoader::custom_load(const String &p_path, const String &p_type_hint, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
 	String local_path = _validate_local_path(p_path);
 	String res_path = GDRESettings::get_singleton()->get_mapped_path(p_path);
-	auto loader = get_loader_for_path(res_path, p_type_hint);
 	bool is_real_load = p_type == ResourceInfo::LoadType::REAL_LOAD || p_type == ResourceInfo::LoadType::GLTF_LOAD;
-	if (loader.is_null() && is_real_load) {
-		return load_with_real_resource_loader(local_path, p_type_hint, r_error, use_threads, p_cache_mode);
-	}
 	if (p_cache_mode == ResourceFormatLoader::CACHE_MODE_REUSE) {
 		auto res = ResourceCache::get_ref(local_path);
 		if (res.is_valid()) {
 			return res;
 		}
 	}
+	ERR_FAIL_COND_V_MSG(currently_loading_paths.has(res_path), Ref<Resource>(), "Circular dependency detected: " + local_path);
+
+	auto loader = get_loader_for_path(res_path, p_type_hint);
+	if (loader.is_null() && is_real_load) {
+		currently_loading_paths.insert(res_path);
+		Ref<Resource> res = load_with_real_resource_loader(local_path, p_type_hint, r_error, use_threads, p_cache_mode);
+		currently_loading_paths.erase(res_path);
+		if (res.is_valid() && res->get_path() != local_path) {
+			if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE) {
+				res->set_path(local_path, p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE || p_cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE_DEEP);
+			} else {
+				res->set_path_cache(local_path);
+			}
+		}
+		return res;
+	}
 	FAIL_LOADER_NOT_FOUND(loader);
 
 	if (!is_real_load) {
 		local_path = "";
 	}
+	currently_loading_paths.insert(res_path);
 	Ref<Resource> res = loader->custom_load(res_path, local_path, p_type, r_error, use_threads, p_cache_mode);
+	currently_loading_paths.erase(res_path);
 	if (res.is_valid()) {
 		if (res->get_path().is_empty()) {
 			if (is_real_load && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP && p_cache_mode != ResourceFormatLoader::CACHE_MODE_IGNORE) {

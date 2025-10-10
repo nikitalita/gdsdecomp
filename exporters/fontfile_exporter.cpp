@@ -90,7 +90,14 @@ Ref<ExportReport> FontFileExporter::export_resource(const String &output_dir, Re
 				// r_options->push_back(ImportOption(PropertyInfo(Variant::NIL, "Fallbacks", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
 				// r_options->push_back(ImportOption(PropertyInfo(Variant::ARRAY, "fallbacks", PROPERTY_HINT_ARRAY_TYPE, MAKE_RESOURCE_TYPE_HINT("Font")), Array()));
 				params["Fallbacks"] = ImportInfo::NULL_REPLACEMENT;
-				params["fallbacks"] = gdre::array_from_typed_array(fontfile->get_fallbacks());
+				Array fallbacks;
+				for (Ref<FontFile> fallback : fontfile->get_fallbacks()) {
+					if (fallback.is_null()) {
+						continue;
+					}
+					fallbacks.push_back(fallback);
+				}
+				params["fallbacks"] = fallbacks;
 
 				// options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::NIL, "Compress", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_GROUP), Variant()));
 				// options_general.push_back(ResourceImporter::ImportOption(PropertyInfo(Variant::BOOL, "compress", PROPERTY_HINT_NONE, ""), false));

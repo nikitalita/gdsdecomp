@@ -2637,7 +2637,7 @@ bool ResourceLoaderCompatText::should_threaded_load() const {
 Ref<ResourceLoader::LoadToken> ResourceLoaderCompatText::start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID uid, const String id) {
 	Ref<ResourceLoader::LoadToken> load_token;
 	Error err = OK;
-	ERR_FAIL_COND_V_MSG(p_path == local_path, Ref<ResourceLoader::LoadToken>(), "Circular dependency detected: " + p_path);
+	ERR_FAIL_COND_V_MSG(is_real_load() && p_path == local_path, Ref<ResourceLoader::LoadToken>(), "Circular dependency detected: " + p_path);
 	if (!should_threaded_load()) {
 		ERR_FAIL_COND_V_MSG(!ext_resources.has(id), load_token, "External resources doesn't have id: " + id);
 		load_token = Ref<ResourceLoader::LoadToken>(memnew(ResourceLoader::LoadToken));
