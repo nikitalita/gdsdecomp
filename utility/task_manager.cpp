@@ -2,10 +2,23 @@
 #include "main/main.h"
 #include "utility/common.h"
 
+static constexpr int64_t ONE_GB = 1024LL * 1024LL * 1024LL;
+static constexpr int64_t TWELVE_GB = 12 * ONE_GB;
+static constexpr int64_t FOUR_GB = 4 * ONE_GB;
+
+int64_t TaskManager::maximum_memory_usage = TWELVE_GB;
+
 TaskManager *TaskManager::singleton = nullptr;
 
 TaskManager::TaskManager() {
 	singleton = this;
+	Dictionary mem_info = OS::get_singleton()->get_memory_info();
+	// 3/4ths of the physical memory, but no more than 12GB
+	int64_t max_usage = (int64_t)mem_info["physical"] * 0.75;
+	if (max_usage <= 0) {
+		max_usage = FOUR_GB;
+	}
+	maximum_memory_usage = MIN(max_usage, TWELVE_GB);
 }
 
 TaskManager::~TaskManager() {
