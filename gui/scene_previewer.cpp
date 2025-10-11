@@ -38,6 +38,7 @@
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
 #include "scene/main/viewport.h"
+#include "scene/main/window.h"
 
 #include "utility/gdre_settings.h"
 
@@ -249,9 +250,32 @@ void ScenePreviewer3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset"), &ScenePreviewer3D::reset);
 }
 
+void ScenePreviewer2D::set_visible_windows_to_non_exclusive(Node *p_root) {
+	if (p_root == nullptr) {
+		return;
+	}
+	auto canvas_item = Object::cast_to<CanvasItem>(p_root);
+	if (canvas_item && !canvas_item->is_visible_in_tree()) {
+		return;
+	}
+	auto window = Object::cast_to<Window>(p_root);
+	if (window) {
+		if (!window->is_visible()) {
+			return;
+		}
+		if (window->is_exclusive()) {
+			window->set_exclusive(false);
+		}
+	}
+	for (auto child : p_root->get_children()) {
+		set_visible_windows_to_non_exclusive((Node *)(child.operator Object *()));
+	}
+}
+
 void ScenePreviewer2D::edit(Node *p_root) {
 	root = p_root;
 	viewport->add_child(root);
+	set_visible_windows_to_non_exclusive(root);
 }
 
 void ScenePreviewer2D::reset() {
@@ -265,6 +289,7 @@ void ScenePreviewer2D::reset() {
 ScenePreviewer2D::ScenePreviewer2D() {
 	viewport = memnew(SubViewport);
 	viewport->set_disable_input(true);
+	viewport->set_embedding_subwindows(true);
 	// viewport->set_disable_3d(true);
 	set_stretch(true);
 	add_child(viewport);

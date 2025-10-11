@@ -40,9 +40,12 @@
 
 class SubViewport;
 class Button;
+class ScenePreviewer;
 
 class ScenePreviewer3D : public SubViewportContainer {
 	GDCLASS(ScenePreviewer3D, SubViewportContainer);
+
+	friend class ScenePreviewer;
 
 	float rot_x;
 	float rot_y;
@@ -87,8 +90,12 @@ public:
 class ScenePreviewer2D : public SubViewportContainer {
 	GDCLASS(ScenePreviewer2D, SubViewportContainer);
 
+	friend class ScenePreviewer;
+
 	Node *root = nullptr;
 	SubViewport *viewport = nullptr;
+
+	static void set_visible_windows_to_non_exclusive(Node *p_root);
 
 protected:
 	static void _bind_methods();
