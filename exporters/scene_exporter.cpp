@@ -886,6 +886,10 @@ Error GLBExporterInstance::_load_deps() {
 			continue;
 		}
 		if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
+			if (ignore_missing_dependencies) {
+				WARN_PRINT(vformat("%s: Dependency %s -> %s does not exist.", source_path, info.dep, info.remap));
+				continue;
+			}
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
 					vformat("Dependency %s -> %s does not exist.", info.dep, info.remap));
 		} else if (info.uid != ResourceUID::INVALID_ID) {
@@ -916,6 +920,10 @@ Error GLBExporterInstance::_load_deps() {
 							using_threaded_load(),
 							ResourceFormatLoader::CACHE_MODE_IGNORE); // not ignore deep, we want to reuse dependencies if they exist
 					if (err || texture.is_null()) {
+						if (ignore_missing_dependencies) {
+							WARN_PRINT(vformat("%s: Dependency %s:%s failed to load.", source_path, info.dep, info.remap));
+							continue;
+						}
 						GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
 								vformat("Dependency %s:%s failed to load.", info.dep, info.remap));
 					}
@@ -2495,11 +2503,15 @@ void GLBExporterInstance::set_options(const Dictionary &curr_options) {
 	if (!options.has("Exporter/Scene/GLTF/force_require_KHR_node_visibility")) {
 		options["Exporter/Scene/GLTF/force_require_KHR_node_visibility"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	}
+	if (!options.has("Exporter/Scene/GLTF/ignore_missing_dependencies")) {
+		options["Exporter/Scene/GLTF/ignore_missing_dependencies"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
+	}
 	replace_shader_materials = options.get("Exporter/Scene/GLTF/replace_shader_materials", false);
 	force_lossless_images = options.get("Exporter/Scene/GLTF/force_lossless_images", false);
 	force_export_multi_root = options.get("Exporter/Scene/GLTF/force_export_multi_root", false);
 	force_require_KHR_node_visibility = options.get("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	use_double_precision = options.get("Exporter/Scene/GLTF/use_double_precision", false);
+	ignore_missing_dependencies = options.get("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
 }
 
 constexpr bool _check_unsupported(int ver_major, bool is_text_output) {

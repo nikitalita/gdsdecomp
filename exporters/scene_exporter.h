@@ -72,6 +72,7 @@ class GLBExporterInstance {
 	bool force_export_multi_root = false;
 	bool force_require_KHR_node_visibility = false;
 	bool use_double_precision = false;
+	bool ignore_missing_dependencies = false;
 	String output_dir;
 
 	bool exporting_in_thread = false;

@@ -262,6 +262,11 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"By default, the exporter will only require the KHR_node_visibility extension if the scenes are from Godot 4.5 or later.\nThis setting forces the exporter to require the extension regardless of engine version.",
 				false)),
 		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/ignore_missing_dependencies",
+				"Ignore missing dependencies",
+				"Ignore missing dependencies when exporting the scene.",
+				false)),
+		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/replace_shader_materials",
 				"Replace shader materials",
 				"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",
