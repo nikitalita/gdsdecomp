@@ -105,7 +105,7 @@ public:
 				method(p_method),
 				userdata(p_userdata),
 				elements(p_elements),
-				tasks(p_tasks),
+				tasks(p_tasks == -1 ? WorkerThreadPool::get_singleton()->get_thread_count() : p_tasks),
 				task_step_desc_callback(p_task_step_callback),
 				task(p_task),
 				description(p_description),
