@@ -95,6 +95,7 @@ enum ExportSceneType {
 	AUTO,
 	TSCN,
 	GLB,
+	GLTF
 }
 
 const DIR_STRUCTURE_NAMES: PackedStringArray = [
@@ -107,6 +108,7 @@ const EXPORT_SCENE_TYPE_NAMES: PackedStringArray = [
 	"Auto",
 	"tscn",
 	"GLB",
+	"GLTF",
 ]
 
 func get_output_file_name(src: String, output_folder: String, dir_structure_option: DirStructure, new_ext: String = "", rel_base: String = "") -> String:
@@ -128,12 +130,12 @@ func _export_scene(file: String, output_dir: String, dir_structure: DirStructure
 	if iinfo:
 		source_file = iinfo.source_file
 
-	var res_ext = file.get_extension().to_lower()
 	var ext = source_file.get_extension().to_lower()
 
 	if export_type == ExportSceneType.GLB:
-		if ext != "glb" and ext != "gltf":
-			ext = "glb"
+		ext = "glb"
+	elif export_type == ExportSceneType.GLTF:
+		ext = "gltf"
 	elif export_type == ExportSceneType.TSCN:
 		ext = "tscn"
 	else: # AUTO
@@ -201,7 +203,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 		var _ret: ImportInfo = GDRESettings.get_import_info_by_dest(file)
 		var file_ext = file.get_extension().to_lower()
 		if file_ext == "scn" or file_ext == "tscn" or (_ret and _ret.get_compat_type() == "PackedScene"):
-			if export_glb != ExportSceneType.GLB and file_ext == "tscn":
+			if export_glb != ExportSceneType.GLB and export_glb != ExportSceneType.GLTF and file_ext == "tscn":
 				var src = file if not is_instance_valid(_ret) else _ret.source_file
 				if src.get_extension().to_lower() == file_ext:
 					# just extract the file
@@ -391,6 +393,7 @@ func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: Di
 	#file_dialog.set_option_default(0, int(default_dir_structure))
 	var glb_opts = EXPORT_SCENE_TYPE_NAMES.duplicate()
 	if not include_glb:
+		glb_opts.remove_at(int(ExportSceneType.GLTF))
 		glb_opts.remove_at(int(ExportSceneType.GLB))
 	file_dialog.add_option(EXPORT_SCENE_OPTION_NAME, glb_opts, scene_default)
 
