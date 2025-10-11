@@ -57,7 +57,13 @@ func reset():
 	cached_scenes.clear()
 	_reset()
 
-func make_all_views_invisible():
+func is_main_view_visible() -> bool:
+	return %ResourceView.is_visible_in_tree()
+
+func set_main_view_visible(p_visible: bool):
+	%ResourceView.visible = p_visible
+
+func _make_all_views_invisible():
 	%SwitchViewButton.visible = false
 	%MediaPlayer.visible = false
 	%TextView.visible = false
@@ -68,7 +74,7 @@ func make_all_views_invisible():
 func _reset():
 	current_resource_path = ""
 	current_resource_type = ""
-	make_all_views_invisible()
+	_make_all_views_invisible()
 	%MediaPlayer.reset()
 	%TextView.reset()
 	%TextureInfo.text = ""
@@ -391,7 +397,7 @@ func _on_resized() -> void:
 func _on_switch_view_button_pressed() -> void:
 	var path = current_resource_path
 	var cur_text = %SwitchViewButton.text
-	make_all_views_invisible()
+	_make_all_views_invisible()
 	current_resource_path = path
 	var error_opening = false
 

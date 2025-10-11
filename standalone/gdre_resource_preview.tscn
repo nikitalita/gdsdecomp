@@ -26,12 +26,21 @@ grow_horizontal = 2
 grow_vertical = 2
 split_offset = 220
 
-[node name="ResourceView" type="Control" parent="VBoxContainer"]
-unique_name_in_owner = true
+[node name="RootView" type="Control" parent="VBoxContainer"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TextureView" type="Control" parent="VBoxContainer/ResourceView"]
+[node name="ResourceView" type="Control" parent="VBoxContainer/RootView"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_vertical = 3
+
+[node name="TextureView" type="Control" parent="VBoxContainer/RootView/ResourceView"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -41,7 +50,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TextureRect" type="TextureRect" parent="VBoxContainer/ResourceView/TextureView"]
+[node name="TextureRect" type="TextureRect" parent="VBoxContainer/RootView/ResourceView/TextureView"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -53,7 +62,7 @@ texture = ExtResource("3_gp5ss")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="TextureInfo" type="Label" parent="VBoxContainer/ResourceView/TextureView"]
+[node name="TextureInfo" type="Label" parent="VBoxContainer/RootView/ResourceView/TextureView"]
 unique_name_in_owner = true
 layout_direction = 2
 layout_mode = 1
@@ -74,12 +83,12 @@ text = "16x16 RGBA8
 No Mipmaps
 Memory: 1024 B"
 
-[node name="MediaPlayer" parent="VBoxContainer/ResourceView" instance=ExtResource("4_crn14")]
+[node name="MediaPlayer" parent="VBoxContainer/RootView/ResourceView" instance=ExtResource("4_crn14")]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
 
-[node name="TextView" type="CodeEdit" parent="VBoxContainer/ResourceView"]
+[node name="TextView" type="CodeEdit" parent="VBoxContainer/RootView/ResourceView"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -117,7 +126,7 @@ highlight_current_line = true
 script = ExtResource("5_1bufa")
 metadata/_custom_type_script = "uid://d3gw3xp1peanv"
 
-[node name="MeshPreviewer" type="MeshPreviewer" parent="VBoxContainer/ResourceView"]
+[node name="MeshPreviewer" type="MeshPreviewer" parent="VBoxContainer/RootView/ResourceView"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -127,7 +136,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="ScenePreviewer3D" type="ScenePreviewer" parent="VBoxContainer/ResourceView"]
+[node name="ScenePreviewer3D" type="ScenePreviewer" parent="VBoxContainer/RootView/ResourceView"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 1
@@ -137,7 +146,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="SwitchViewButton" type="Button" parent="VBoxContainer/ResourceView"]
+[node name="SwitchViewButton" type="Button" parent="VBoxContainer/RootView/ResourceView"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = -1
@@ -173,4 +182,4 @@ text = "[b]Path:[/b]
 
 [connection signal="drag_ended" from="VBoxContainer" to="." method="_on_v_box_container_drag_ended"]
 [connection signal="drag_started" from="VBoxContainer" to="." method="_on_v_box_container_drag_started"]
-[connection signal="pressed" from="VBoxContainer/ResourceView/SwitchViewButton" to="." method="_on_switch_view_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/RootView/ResourceView/SwitchViewButton" to="." method="_on_switch_view_button_pressed"]

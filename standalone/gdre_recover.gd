@@ -215,7 +215,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
 				if (report.error == ERR_SKIP):
 					errs.append("Exporting cancelled: " + file + "\n" + report.message + "\n" + get_log_error_string(report.get_error_messages()))
-					continue
+					break
 				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n" + get_log_error_string(report.get_error_messages()))
 		elif _ret:
 			var iinfo: ImportInfo = ImportInfo.copy(_ret)
@@ -254,7 +254,12 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 	return errs
 
 func _on_export_resources_confirmed(output_dir: String):
-	self.call_on_next_process(self.call_on_next_process.bind(self._do_export.bind(output_dir)))
+	# Export goes very slow if the preview is visible and something like a 3D scene is being rendered;
+	# We toggle it off during the export and then turn it back on after it's done
+	var export_preview_visible = %GdreResourcePreview.is_main_view_visible()
+	if export_preview_visible:
+		%GdreResourcePreview.set_main_view_visible(false)
+	self.call_on_next_process(self.call_on_next_process.bind(self._do_export.bind(output_dir, export_preview_visible)))
 
 
 func _show_error_or_success(errs: PackedStringArray, success_message: String, output_dir: String):
@@ -263,7 +268,7 @@ func _show_error_or_success(errs: PackedStringArray, success_message: String, ou
 	else:
 		popup_confirm_box(success_message, "Success", func(): OS.shell_open(GDRECommon.path_to_uri(output_dir)), func(): pass, "Open Folder", "OK")
 
-func _do_export(output_dir: String):
+func _do_export(output_dir: String, export_preview_visible: bool):
 	var files: PackedStringArray = []
 	var errs: PackedStringArray = []
 	for item: TreeItem in prev_items:
@@ -276,6 +281,8 @@ func _do_export(output_dir: String):
 	var export_glb: ExportSceneType = options.get(EXPORT_SCENE_OPTION_NAME, int(ExportSceneType.AUTO))
 
 	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
+	if export_preview_visible:
+		%GdreResourcePreview.set_main_view_visible(true)
 
 	self.call_on_next_process(self.call_on_next_process.bind(self._show_error_or_success.bind(errs, "Successfully exported resources", output_dir)))
 
