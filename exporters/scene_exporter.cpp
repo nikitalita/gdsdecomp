@@ -2321,8 +2321,9 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					} else {
 						name = path.get_file().get_basename();
 					}
+					// the name in the options import is the name in the gltf file, unlike for meshes
 					if (!name.is_empty()) {
-						material_dict["name"] = demangle_name(name);
+						material_dict["name"] = name;
 					}
 					id_to_material_path.push_back({ name, path });
 				}
