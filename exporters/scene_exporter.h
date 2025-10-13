@@ -6,6 +6,16 @@
 struct dep_info;
 struct BatchExportToken;
 
+#include "modules/gltf/extensions/gltf_document_extension.h"
+
+class GLTFDocumentExtensionPhysicsRemover : public GLTFDocumentExtension {
+	GDCLASS(GLTFDocumentExtensionPhysicsRemover, GLTFDocumentExtension);
+
+public:
+	// Export process.
+	void convert_scene_node(Ref<GLTFState> p_state, Ref<GLTFNode> p_gltf_node, Node *p_scene_node) override;
+};
+
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
 	friend struct BatchExportToken;
@@ -73,6 +83,7 @@ class GLBExporterInstance {
 	bool force_require_KHR_node_visibility = false;
 	bool use_double_precision = false;
 	bool ignore_missing_dependencies = false;
+	bool remove_physics_bodies = false;
 	String output_dir;
 
 	bool exporting_in_thread = false;
@@ -113,6 +124,7 @@ class GLBExporterInstance {
 	Vector<Pair<String, String>> id_to_material_path;
 
 	// set during _set_stuff_from_instanced_scene
+	HashMap<String, Dictionary> node_options;
 	HashMap<String, Dictionary> animation_options; // used by update_import_params
 	bool has_reset_track = false;
 	bool has_skinned_meshes = false;

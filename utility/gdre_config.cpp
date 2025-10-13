@@ -267,6 +267,11 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Ignore missing dependencies when exporting the scene.",
 				false)),
 		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/remove_physics_bodies",
+				"Remove physics bodies",
+				"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
+				false)),
+		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/replace_shader_materials",
 				"Replace shader materials",
 				"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",

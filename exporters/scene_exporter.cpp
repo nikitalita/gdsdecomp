@@ -7,9 +7,17 @@
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
+#include "modules/gltf/extensions/physics/gltf_document_extension_physics.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
 #include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/occluder_instance_3d.h"
+#include "scene/3d/physics/rigid_body_3d.h"
+#include "scene/3d/physics/static_body_3d.h"
+#include "scene/resources/3d/box_shape_3d.h"
+#include "scene/resources/3d/capsule_shape_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
+#include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
@@ -37,6 +45,51 @@ struct dep_info {
 	bool uid_remap_path_exists = true;
 	bool parent_is_script_or_shader = false;
 };
+
+Ref<GLTFDocumentExtensionPhysics> get_physics_extension() {
+	Ref<GLTFDocumentExtensionPhysics> physics_ext;
+	for (auto &ext : GLTFDocument::get_all_gltf_document_extensions()) {
+		physics_ext = ext;
+		if (physics_ext.is_valid()) {
+			break;
+		}
+	}
+	return physics_ext;
+}
+
+Ref<GLTFDocumentExtensionPhysicsRemover> get_physics_remover_extension() {
+	Ref<GLTFDocumentExtensionPhysicsRemover> physics_remover_ext;
+	for (auto &ext : GLTFDocument::get_all_gltf_document_extensions()) {
+		physics_remover_ext = ext;
+		if (physics_remover_ext.is_valid()) {
+			break;
+		}
+	}
+	return physics_remover_ext;
+}
+
+void unregister_physics_extension() {
+	auto physics_ext = get_physics_extension();
+	if (physics_ext.is_valid()) {
+		GLTFDocument::unregister_gltf_document_extension(physics_ext);
+	}
+	auto physics_remover_ext = get_physics_remover_extension();
+	if (!physics_remover_ext.is_valid()) {
+		GLTFDocument::register_gltf_document_extension(memnew(GLTFDocumentExtensionPhysicsRemover));
+	}
+}
+
+void register_physics_extension() {
+	Ref<GLTFDocumentExtensionPhysics> physics_ext = get_physics_extension();
+	if (!physics_ext.is_valid()) {
+		GLTFDocument::register_gltf_document_extension(memnew(GLTFDocumentExtensionPhysics), true);
+	}
+	Ref<GLTFDocumentExtensionPhysicsRemover> physics_remover_ext = get_physics_remover_extension();
+	if (physics_remover_ext.is_valid()) {
+		GLTFDocument::unregister_gltf_document_extension(physics_remover_ext);
+	}
+}
+
 void _add_indent(String &r_result, const String &p_indent, int p_size) {
 	if (p_indent.is_empty()) {
 		return;
@@ -970,6 +1023,297 @@ Error GLBExporterInstance::_load_deps() {
 	return OK;
 }
 
+namespace SceneExporterEnums {
+enum LightBakeMode {
+	LIGHT_BAKE_DISABLED,
+	LIGHT_BAKE_STATIC,
+	LIGHT_BAKE_STATIC_LIGHTMAPS,
+	LIGHT_BAKE_DYNAMIC,
+};
+
+enum MeshPhysicsMode {
+	MESH_PHYSICS_DISABLED,
+	MESH_PHYSICS_MESH_AND_STATIC_COLLIDER,
+	MESH_PHYSICS_RIGID_BODY_AND_MESH,
+	MESH_PHYSICS_STATIC_COLLIDER_ONLY,
+	MESH_PHYSICS_AREA_ONLY,
+};
+
+enum NavMeshMode {
+	NAVMESH_DISABLED,
+	NAVMESH_MESH_AND_NAVMESH,
+	NAVMESH_NAVMESH_ONLY,
+};
+
+enum OccluderMode {
+	OCCLUDER_DISABLED,
+	OCCLUDER_MESH_AND_OCCLUDER,
+	OCCLUDER_OCCLUDER_ONLY,
+};
+
+enum MeshOverride {
+	MESH_OVERRIDE_DEFAULT,
+	MESH_OVERRIDE_ENABLE,
+	MESH_OVERRIDE_DISABLE,
+};
+
+enum BodyType {
+	BODY_TYPE_STATIC,
+	BODY_TYPE_DYNAMIC,
+	BODY_TYPE_AREA
+};
+
+enum ShapeType {
+	SHAPE_TYPE_DECOMPOSE_CONVEX,
+	SHAPE_TYPE_SIMPLE_CONVEX,
+	SHAPE_TYPE_TRIMESH,
+	SHAPE_TYPE_BOX,
+	SHAPE_TYPE_SPHERE,
+	SHAPE_TYPE_CYLINDER,
+	SHAPE_TYPE_CAPSULE,
+	SHAPE_TYPE_AUTOMATIC,
+};
+} //namespace SceneExporterEnums
+
+Dictionary get_default_node_options() {
+	Dictionary dict;
+	// INTERNAL_IMPORT_CATEGORY_NODE
+	dict["node/node_type"] = "";
+	dict["node/script"] = Variant();
+	dict["import/skip_import"] = false;
+
+	// INTERNAL_IMPORT_CATEGORY_MESH_3D_NODE
+	dict["generate/physics"] = false;
+	dict["generate/navmesh"] = 0;
+	dict["physics/body_type"] = 0;
+	dict["physics/shape_type"] = 7;
+	dict["physics/physics_material_override"] = Variant();
+	dict["physics/layer"] = 1;
+	dict["physics/mask"] = 1;
+
+	dict["mesh_instance/layers"] = 1;
+	dict["mesh_instance/visibility_range_begin"] = 0.0f;
+	dict["mesh_instance/visibility_range_begin_margin"] = 0.0f;
+	dict["mesh_instance/visibility_range_end"] = 0.0f;
+	dict["mesh_instance/visibility_range_end_margin"] = 0.0f;
+	dict["mesh_instance/visibility_range_fade_mode"] = GeometryInstance3D::VISIBILITY_RANGE_FADE_DISABLED;
+	dict["mesh_instance/cast_shadow"] = GeometryInstance3D::SHADOW_CASTING_SETTING_ON;
+
+	// Decomposition
+	Ref<MeshConvexDecompositionSettings> decomposition_default = Ref<MeshConvexDecompositionSettings>();
+	decomposition_default.instantiate();
+	dict["decomposition/advanced"] = false;
+	dict["decomposition/precision"] = 5;
+	dict["decomposition/max_concavity"] = decomposition_default->get_max_concavity();
+	dict["decomposition/symmetry_planes_clipping_bias"] = decomposition_default->get_symmetry_planes_clipping_bias();
+	dict["decomposition/revolution_axes_clipping_bias"] = decomposition_default->get_revolution_axes_clipping_bias();
+	dict["decomposition/min_volume_per_convex_hull"] = decomposition_default->get_min_volume_per_convex_hull();
+	dict["decomposition/resolution"] = decomposition_default->get_resolution();
+	dict["decomposition/max_num_vertices_per_convex_hull"] = decomposition_default->get_max_num_vertices_per_convex_hull();
+	dict["decomposition/plane_downsampling"] = decomposition_default->get_plane_downsampling();
+	dict["decomposition/convexhull_downsampling"] = decomposition_default->get_convex_hull_downsampling();
+	dict["decomposition/normalize_mesh"] = decomposition_default->get_normalize_mesh();
+	dict["decomposition/mode"] = static_cast<int>(decomposition_default->get_mode());
+	dict["decomposition/convexhull_approximation"] = decomposition_default->get_convex_hull_approximation();
+	dict["decomposition/max_convex_hulls"] = decomposition_default->get_max_convex_hulls();
+	dict["decomposition/project_hull_vertices"] = decomposition_default->get_project_hull_vertices();
+
+	// Primitives: Box, Sphere, Cylinder, Capsule.
+	dict["primitive/size"] = Vector3(2.0, 2.0, 2.0);
+	dict["primitive/height"] = 1.0;
+	dict["primitive/radius"] = 1.0;
+	dict["primitive/position"] = Vector3();
+	dict["primitive/rotation"] = Vector3();
+
+	dict["generate/occluder"] = 0;
+	dict["occluder/simplification_distance"] = 0.1f;
+
+	// animation node
+	dict["optimizer/enabled"] = true;
+	dict["optimizer/max_velocity_error"] = 0.01;
+	dict["optimizer/max_angular_error"] = 0.01;
+	dict["optimizer/max_precision_error"] = 3;
+	dict["compression/enabled"] = false;
+	dict["compression/page_size"] = 8;
+	dict["import_tracks/position"] = 1;
+	dict["import_tracks/rotation"] = 1;
+	dict["import_tracks/scale"] = 1;
+
+	// skeleton 3d node
+	dict["rest_pose/load_pose"] = 0;
+	dict["rest_pose/external_animation_library"] = Variant();
+	dict["rest_pose/selected_animation"] = "";
+	dict["rest_pose/selected_timestamp"] = 0.0f;
+
+	return dict;
+}
+
+Dictionary get_node_options(Node *p_node) {
+	Dictionary node_options_dict = Dictionary();
+
+	MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(p_node);
+	AnimationPlayer *animation_player = Object::cast_to<AnimationPlayer>(p_node);
+	Ref<Script> script = p_node->get_script();
+	if (!mesh_instance && !animation_player) {
+		String type_name;
+		if (script.is_valid()) {
+			type_name = script->get_global_name();
+			// TODO: fix FakeScript to not put the path in the global name if it doesn't have a class_name
+			if (type_name.begins_with("res://")) {
+				type_name = "";
+			}
+		}
+		if (type_name.is_empty()) {
+			type_name = p_node->get_class();
+		}
+		if (!type_name.is_empty() && type_name != "Node3D") {
+			node_options_dict["node/node_type"] = type_name;
+		}
+	}
+	if (script.is_valid()) {
+		node_options_dict["node/script"] = script;
+	}
+	if (mesh_instance) {
+		// node_options_dict["import/skip_import"] = false;
+		// only used internally
+		//SHAPE_TYPE_SIMPLE_CONVEX = ConvexPolygonShape3D
+		//SHAPE_TYPE_TRIMESH = ConcavePolygonShape3D
+		//SHAPE_TYPE_BOX = BoxShape3D
+		//SHAPE_TYPE_SPHERE = SphereShape3D
+		//SHAPE_TYPE_CYLINDER = CylinderShape3D
+		//SHAPE_TYPE_CAPSULE = CapsuleShape3D
+		//SHAPE_TYPE_AUTOMATIC = AutomaticShape3D
+		SceneExporterEnums::MeshPhysicsMode mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_DISABLED;
+		SceneExporterEnums::BodyType body_type = SceneExporterEnums::BODY_TYPE_STATIC;
+		SceneExporterEnums::OccluderMode occluder_mode = SceneExporterEnums::OCCLUDER_DISABLED;
+		SceneExporterEnums::NavMeshMode navmesh_mode = SceneExporterEnums::NAVMESH_DISABLED;
+		SceneExporterEnums::ShapeType shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+		Ref<PhysicsMaterial> physics_material_override;
+		uint32_t physics_layer_bits = 1;
+		uint32_t physics_mask_bits = 1;
+		PhysicsBody3D *physics_body_node = nullptr;
+		RigidBody3D *parent_rigid_body = Object::cast_to<RigidBody3D>(p_node->get_parent());
+		float occlusion_simplification_distance = 0.1f;
+		if (parent_rigid_body) {
+			physics_body_node = parent_rigid_body;
+			physics_material_override = parent_rigid_body->get_physics_material_override();
+			mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_RIGID_BODY_AND_MESH;
+			body_type = SceneExporterEnums::BODY_TYPE_DYNAMIC;
+		}
+		for (auto &child : p_node->get_children()) {
+			if (Object::cast_to<StaticBody3D>(child)) {
+				auto static_body = Object::cast_to<StaticBody3D>(child);
+				physics_body_node = static_body;
+				physics_material_override = static_body->get_physics_material_override();
+				body_type = SceneExporterEnums::BODY_TYPE_STATIC;
+				mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_MESH_AND_STATIC_COLLIDER;
+			}
+			// navmesh
+			if (Object::cast_to<NavigationMesh>(child)) {
+				navmesh_mode = SceneExporterEnums::NAVMESH_MESH_AND_NAVMESH;
+			}
+			// occluder
+			if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(child); occluder_instance) {
+				occlusion_simplification_distance = occluder_instance->get_bake_simplification_distance();
+				occluder_mode = SceneExporterEnums::OCCLUDER_MESH_AND_OCCLUDER;
+			}
+		}
+
+		node_options_dict["generate/physics"] = mesh_physics_mode != SceneExporterEnums::MESH_PHYSICS_DISABLED;
+		node_options_dict["generate/navmesh"] = navmesh_mode;
+		Dictionary primtive_options_dict = Dictionary();
+
+		if (physics_body_node) {
+			physics_layer_bits = physics_body_node->get_collision_layer();
+			physics_mask_bits = physics_body_node->get_collision_mask();
+			TypedArray<Node> physics_nodes = p_node->find_children("*", "CollisionObject3D");
+			if (physics_nodes.size() > 1) {
+				// easy, it's decomposing convex
+				shape_type = SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX;
+			} else if (physics_nodes.size() == 1) {
+				CollisionObject3D *physics_node = Object::cast_to<CollisionObject3D>(physics_nodes[0]);
+				if (physics_node) {
+					auto shape = physics_node->get("shape");
+					if (auto convex_shape = Object::cast_to<ConvexPolygonShape3D>(shape); convex_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_SIMPLE_CONVEX;
+					} else if (auto concave_shape = Object::cast_to<ConcavePolygonShape3D>(shape); concave_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_TRIMESH;
+					} else if (auto box_shape = Object::cast_to<BoxShape3D>(shape); box_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_BOX;
+						primtive_options_dict["primitive/size"] = box_shape->get_size();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto sphere_shape = Object::cast_to<SphereShape3D>(shape); sphere_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_SPHERE;
+						primtive_options_dict["primitive/radius"] = sphere_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto cylinder_shape = Object::cast_to<CylinderShape3D>(shape); cylinder_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_CYLINDER;
+						primtive_options_dict["primitive/height"] = cylinder_shape->get_height();
+						primtive_options_dict["primitive/radius"] = cylinder_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto capsule_shape = Object::cast_to<CapsuleShape3D>(shape); capsule_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_CAPSULE;
+						primtive_options_dict["primitive/height"] = capsule_shape->get_height();
+						primtive_options_dict["primitive/radius"] = capsule_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+					}
+				}
+			}
+			const auto auto_shape_type = body_type == SceneExporterEnums::BODY_TYPE_DYNAMIC ? SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX : SceneExporterEnums::SHAPE_TYPE_TRIMESH;
+			if (shape_type == auto_shape_type) {
+				shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+			}
+
+			node_options_dict["physics/body_type"] = body_type;
+			node_options_dict["physics/shape_type"] = shape_type;
+			node_options_dict["physics/physics_material_override"] = physics_material_override.is_valid() ? (Variant)physics_material_override : Variant();
+			node_options_dict["physics/layer"] = physics_layer_bits;
+			node_options_dict["physics/mask"] = physics_mask_bits;
+			// TODO: Decomposition options in the case of shape_type == SHAPE_TYPE_DECOMPOSE_CONVEX;
+			// as far as I can tell, it's nearly impossible to recover these settings from the DecomposeConvexShape3D node
+		}
+
+		node_options_dict["mesh_instance/layers"] = mesh_instance->get_layer_mask();
+		node_options_dict["mesh_instance/visibility_range_begin"] = mesh_instance->get_visibility_range_begin();
+		node_options_dict["mesh_instance/visibility_range_begin_margin"] = mesh_instance->get_visibility_range_begin_margin();
+		node_options_dict["mesh_instance/visibility_range_end"] = mesh_instance->get_visibility_range_end();
+		node_options_dict["mesh_instance/visibility_range_end_margin"] = mesh_instance->get_visibility_range_end_margin();
+		node_options_dict["mesh_instance/visibility_range_fade_mode"] = mesh_instance->get_visibility_range_fade_mode();
+		node_options_dict["mesh_instance/cast_shadow"] = mesh_instance->get_cast_shadows_setting();
+
+		for (auto &E : primtive_options_dict) {
+			node_options_dict[E.key] = E.value;
+		}
+		node_options_dict["generate/occluder"] = occluder_mode;
+		if (occluder_mode != SceneExporterEnums::OCCLUDER_DISABLED) {
+			node_options_dict["occluder/simplification_distance"] = occlusion_simplification_distance;
+		}
+	}
+
+	return node_options_dict;
+}
+
+NodePath get_node_path(Node *p_node) {
+	const Node *n = p_node;
+
+	Vector<StringName> path;
+
+	while (n) {
+		path.push_back(n->get_name());
+		n = n->get_parent();
+	}
+
+	path.reverse();
+
+	return NodePath(path, true);
+}
+
 void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	root_type = root->get_class();
 	root_name = root->get_name();
@@ -994,6 +1338,12 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				mesh_path_to_instance_map[path] = mesh_instance;
 			}
 		}
+		if (updating_import_info) {
+			auto node_path = get_node_path(mesh_instance);
+			if (!node_path.is_empty()) {
+				node_options[node_path.operator String()] = get_node_options(mesh_instance);
+			}
+		}
 	}
 	TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
 	TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
@@ -1008,6 +1358,9 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			ScriptInstance *si = node->get_script_instance();
 			List<PropertyInfo> properties;
 			if (si) {
+				if (updating_import_info) {
+					node_options[get_node_path(node).operator String()] = get_node_options(node);
+				}
 				si->get_property_list(&properties);
 				HashSet<Variant> other_values;
 				Vector<MeshInstance3D *> mesh_instances;
@@ -1083,6 +1436,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	}
 	Vector<int64_t> fps_values;
 	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
+		bool any_compressed = false;
 		// Force re-compute animation tracks.
 		Vector<Ref<AnimationLibrary>> anim_libs;
 		AnimationPlayer *player = Object::cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
@@ -1130,6 +1484,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					if (!anim->track_is_imported(i)) {
 						external_animation_nodepaths.insert(anim->track_get_path(i));
 					} else if (updating_import_info) {
+						any_compressed = any_compressed || anim->track_is_compressed(i);
 						auto key_count = anim->track_get_key_count(i);
 						double last_key_frame = key_count > 0 ? anim->track_get_key_time(i, 0) : 0;
 						// Ignore the very last frame, it's usually an inserted fast frame to ensure the animation loops.
@@ -1153,7 +1508,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					fps_values.push_back(fps);
 					max_fps = MAX(max_fps, fps);
 				}
-				if (ver_major == 4) {
+				if (updating_import_info) {
 					int i = 1;
 					while (animation_options.has(name)) {
 						// append _001, _002, etc.
@@ -1175,6 +1530,15 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					}
 					anim_options["slices/amount"] = 0;
 				}
+			}
+		}
+		if (updating_import_info) {
+			auto path = get_node_path(player).operator String();
+			node_options[path] = get_node_options(player);
+			if (any_compressed) {
+				node_options[path]["compression/enabled"] = true;
+				// The rest of the options modify the animation tracks.
+				// These will already be reflected in the saved resource, so we don't set them.
 			}
 		}
 		if (max_fps > 0) {
@@ -1591,6 +1955,35 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 // TODO: handle Godot version <= 4.2 image naming scheme?
 String GLBExporterInstance::demangle_name(const String &name) {
 	return name.trim_prefix(scene_name + "_");
+}
+
+bool check_children_for_non_physics_nodes(Node *p_scene_node);
+
+bool check_children_for_non_physics_nodes(Node *p_scene_node) {
+	bool has_non_physics_children = false;
+	auto children = p_scene_node->get_children();
+	for (auto child : children) {
+		Node *child_node = Object::cast_to<Node>(child);
+		ERR_CONTINUE(child_node == nullptr);
+		if (!Object::cast_to<CollisionShape3D>(child_node) && !Object::cast_to<CollisionObject3D>(child_node)) {
+			has_non_physics_children = true;
+			break;
+		} else {
+			if (check_children_for_non_physics_nodes(child_node)) {
+				has_non_physics_children = true;
+				break;
+			}
+		}
+	}
+	return has_non_physics_children;
+}
+
+void GLTFDocumentExtensionPhysicsRemover::convert_scene_node(Ref<GLTFState> p_state, Ref<GLTFNode> p_gltf_node, Node *p_scene_node) {
+	if (Object::cast_to<CollisionShape3D>(p_scene_node) || Object::cast_to<CollisionObject3D>(p_scene_node)) {
+		if (!check_children_for_non_physics_nodes(p_scene_node)) {
+			p_gltf_node->set_parent(-2);
+		}
+	}
 }
 
 Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
@@ -2181,6 +2574,32 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 			}
 		}
 	}
+	if (node_options.size() > 0) {
+		const Dictionary default_node_options = get_default_node_options();
+		if (!_subresources_dict.has("nodes")) {
+			_subresources_dict["nodes"] = Dictionary();
+		}
+		Dictionary node_Dict = _subresources_dict["nodes"];
+		for (auto &E : node_options) {
+			// If we're not removing physics bodies, we don't want the editor to re-generate them when re-importing.
+			if (!remove_physics_bodies && E.value.get("generate/physics", false)) {
+				E.value["generate/physics"] = false;
+			}
+			for (auto &key : E.value.keys()) {
+				if (default_node_options.has(key) && E.value.get(key, Variant()) == default_node_options.get(key, Variant())) {
+					E.value.erase(key);
+				}
+			}
+			if (E.value.is_empty()) {
+				continue;
+			}
+			String path_key = "PATH:" + E.key.trim_prefix("/" + root_name).trim_prefix("/");
+			node_Dict[path_key] = E.value;
+		}
+		if (node_Dict.is_empty()) {
+			_subresources_dict.erase("nodes");
+		}
+	}
 
 	iinfo->set_param("_subresources", _subresources_dict);
 	Dictionary extra_info = report->get_extra_info();
@@ -2506,12 +2925,16 @@ void GLBExporterInstance::set_options(const Dictionary &curr_options) {
 	if (!options.has("Exporter/Scene/GLTF/ignore_missing_dependencies")) {
 		options["Exporter/Scene/GLTF/ignore_missing_dependencies"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
 	}
+	if (!options.has("Exporter/Scene/GLTF/remove_physics_bodies")) {
+		options["Exporter/Scene/GLTF/remove_physics_bodies"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	}
 	replace_shader_materials = options.get("Exporter/Scene/GLTF/replace_shader_materials", false);
 	force_lossless_images = options.get("Exporter/Scene/GLTF/force_lossless_images", false);
 	force_export_multi_root = options.get("Exporter/Scene/GLTF/force_export_multi_root", false);
 	force_require_KHR_node_visibility = options.get("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	use_double_precision = options.get("Exporter/Scene/GLTF/use_double_precision", false);
 	ignore_missing_dependencies = options.get("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
+	remove_physics_bodies = options.get("Exporter/Scene/GLTF/remove_physics_bodies", false);
 }
 
 constexpr bool _check_unsupported(int ver_major, bool is_text_output) {
@@ -2882,6 +3305,10 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 	} else if (non_gltf) {
 		opath = out_path.get_basename() + ".glb";
 	}
+	bool remove_physics_bodies = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	if (remove_physics_bodies) {
+		unregister_physics_extension();
+	}
 	auto token = std::make_shared<BatchExportToken>(out_path.get_base_dir(), iinfo, options);
 	token->p_dest_path = opath;
 	if (non_gltf) {
@@ -2892,10 +3319,16 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 	token->batch_preload();
 	if (token->err != OK) {
 		token->post_export(token->err);
+		if (remove_physics_bodies) {
+			register_physics_extension();
+		}
 		return token->report;
 	}
 	Error err = TaskManager::get_singleton()->run_task(token, nullptr, "Exporting scene " + res_path, -1, true, true, true);
 	token->post_export(err);
+	if (remove_physics_bodies) {
+		register_physics_extension();
+	}
 	return token->report;
 }
 
@@ -3077,6 +3510,12 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	if (tokens.is_empty()) {
 		return reports;
 	}
+
+	bool remove_physics_bodies = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	if (remove_physics_bodies) {
+		unregister_physics_extension();
+	}
+
 	static constexpr int64_t ONE_MB = 1024LL * 1024LL;
 	static constexpr int64_t ONE_GB = 1024LL * ONE_MB;
 	static constexpr int64_t EIGHT_GB = 8LL * ONE_GB;
@@ -3219,5 +3658,8 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		reports.push_back(token->report);
 	}
 	print_line(vformat("*** Exporting %d scenes took %.02fs\n", tokens.size(), (double)(export_end_time - export_start_time) / 1000.0));
+	if (remove_physics_bodies) {
+		register_physics_extension();
+	}
 	return reports;
 }
