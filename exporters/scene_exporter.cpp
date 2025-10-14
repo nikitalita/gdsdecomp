@@ -2482,7 +2482,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	}
 
 	if (after_4_1) {
-		iinfo->set_param("gltf/naming_version", after_4_1 ? 1 : 0);
+		iinfo->set_param("gltf/naming_version", after_4_4 ? 2 : 1);
 	}
 
 	iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
