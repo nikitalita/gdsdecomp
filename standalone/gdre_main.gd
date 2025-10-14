@@ -337,13 +337,37 @@ func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> voi
 	GDRESettings.get_errors()
 	var had_errors = false
 	for path in paths:
-		var new_path = path.get_basename()
-		if path.get_extension().to_lower() == "scn":
-			new_path += ".tscn"
+		var file_ext = path.get_extension().to_lower()
+		if file_ext == "binary":
+			var loader = ProjectConfigLoader.new()
+			var ver_major = GDRESettings.get_ver_major()
+			var ver_minor = GDRESettings.get_ver_minor()
+			
+			if ver_major == 0:
+				ver_major = 4
+				var err = loader.load_cfb(path, ver_major, ver_minor)
+				if err != OK:
+					ver_major = 3
+					err = loader.load_cfb(path, ver_major, ver_minor)
+					if err != OK:
+						had_errors = true
+						continue
+			else:
+				if loader.load_cfb(path, ver_major, ver_minor) != OK:
+					had_errors = true
+					continue
+			
+			var new_path = path.get_base_dir().path_join(path.get_basename().get_file() + ".godot")
+			if loader.save_custom(new_path, ver_major, ver_minor) != OK:
+				had_errors = true
 		else:
-			new_path += ".tres"
-		if ResourceCompatLoader.to_text(path, new_path) != OK:
-			had_errors = true
+			var new_path = path.get_basename()
+			if path.get_extension().to_lower() == "scn":
+				new_path += ".tscn"
+			else:
+				new_path += ".tres"
+			if ResourceCompatLoader.to_text(path, new_path) != OK:
+				had_errors = true
 	if had_errors:
 		popup_error_box("Failed to convert files:\n" + GDRESettings.get_recent_error_string(), "Error")
 
@@ -352,13 +376,37 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 	GDRESettings.get_errors()
 	var had_errors = false
 	for path in paths:
-		var new_path = path.get_basename()
-		if path.get_extension().to_lower() == "tscn":
-			new_path += ".scn"
+		var file_ext = path.get_extension().to_lower()
+		if file_ext == "godot":
+			var loader = ProjectConfigLoader.new()
+			var ver_major = GDRESettings.get_ver_major()
+			var ver_minor = GDRESettings.get_ver_minor()
+			
+			if ver_major == 0:
+				ver_major = 4
+				var err = loader.load_cfb(path, ver_major, ver_minor)
+				if err != OK:
+					ver_major = 3
+					err = loader.load_cfb(path, ver_major, ver_minor)
+					if err != OK:
+						had_errors = true
+						continue
+			else:
+				if loader.load_cfb(path, ver_major, ver_minor) != OK:
+					had_errors = true
+					continue
+			
+			var new_path = path.get_base_dir().path_join(path.get_basename().get_file() + ".binary")
+			if loader.save_custom(new_path, ver_major, ver_minor) != OK:
+				had_errors = true
 		else:
-			new_path += ".res"
-		if ResourceCompatLoader.to_binary(path, new_path) != OK:
-			had_errors = true
+			var new_path = path.get_basename()
+			if path.get_extension().to_lower() == "tscn":
+				new_path += ".scn"
+			else:
+				new_path += ".res"
+			if ResourceCompatLoader.to_binary(path, new_path) != OK:
+				had_errors = true
 	if had_errors:
 		popup_error_box("Failed to convert files:\n" + GDRESettings.get_recent_error_string(), "Error")
 
@@ -1192,10 +1240,30 @@ func text_to_bin(files: PackedStringArray, output_dir: String):
 	var errors = []
 	for path in files:
 		var file = get_cli_abs_path(path)
-		var dst_file = file.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
-		var new_path = output_dir.path_join(dst_file)
-		if ResourceCompatLoader.to_binary(file, new_path) != OK:
-			errors.append(path)
+		var file_ext = file.get_extension().to_lower()
+		
+		if file_ext == "godot":
+			var loader = ProjectConfigLoader.new()
+			var ver_major = 0
+			var ver_minor = 0
+			
+			ver_major = 4
+			var err = loader.load_cfb(file, ver_major, ver_minor)
+			if err != OK:
+				ver_major = 3
+				err = loader.load_cfb(file, ver_major, ver_minor)
+				if err != OK:
+					errors.append(path + ": Failed to detect version")
+					continue
+			
+			var output_file = output_dir.path_join(file.get_basename().get_file() + ".binary")
+			if loader.save_custom(output_file, ver_major, ver_minor) != OK:
+				errors.append(path)
+		else:
+			var dst_file = file.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
+			var new_path = output_dir.path_join(dst_file)
+			if ResourceCompatLoader.to_binary(file, new_path) != OK:
+				errors.append(path)
 	if errors.size() > 0:
 		print("Error: failed to convert files to binary:")
 		for error in errors:
@@ -1207,12 +1275,32 @@ func bin_to_text(files: PackedStringArray, output_dir: String):
 	var errors = []
 	for path in files:
 		var file = get_cli_abs_path(path)
-		var dst_file = file.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
-		var new_path = output_dir.path_join(dst_file)
-		if ResourceCompatLoader.to_text(file, new_path) != OK:
-			errors.append(path)
+		var file_ext = file.get_extension().to_lower()
+		
+		if file_ext == "binary":
+			var loader = ProjectConfigLoader.new()
+			var ver_major = 0
+			var ver_minor = 0
+			
+			ver_major = 4
+			var err = loader.load_cfb(file, ver_major, ver_minor)
+			if err != OK:
+				ver_major = 3
+				err = loader.load_cfb(file, ver_major, ver_minor)
+				if err != OK:
+					errors.append(path + ": Failed to detect version")
+					continue
+			
+			var output_file = output_dir.path_join(file.get_basename().get_file() + ".godot")
+			if loader.save_custom(output_file, ver_major, ver_minor) != OK:
+				errors.append(path)
+		else:
+			var dst_file = file.get_file().replace(".tscn", ".scn").replace(".tres", ".res")
+			var new_path = output_dir.path_join(dst_file)
+			if ResourceCompatLoader.to_text(file, new_path) != OK:
+				errors.append(path)
 	if errors.size() > 0:
-		print("Error: failed to convert files to binary:")
+		print("Error: failed to convert files to text:")
 		for error in errors:
 			print(error)
 		return -1
