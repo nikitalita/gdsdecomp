@@ -64,10 +64,6 @@ void FakeCSharpScript::reload_from_file() {
 	ERR_FAIL_COND_MSG(err != OK, vformat("Error reloading script %s: %s", script_path, error_message));
 }
 
-bool FakeCSharpScript::can_instantiate() const {
-	return true;
-}
-
 Ref<Script> FakeCSharpScript::get_base_script() const {
 	if (base.is_null()) {
 		return load_base_script();
@@ -93,9 +89,6 @@ StringName FakeCSharpScript::get_instance_base_type() const {
 }
 
 ScriptInstance *FakeCSharpScript::instance_create(Object *p_this) {
-	if (!can_instantiate()) {
-		return nullptr;
-	}
 	auto instance = memnew(FakeScriptInstance());
 	instance->script = Ref<FakeCSharpScript>(this);
 	instance->owner = p_this;
@@ -622,7 +615,7 @@ Variant FakeCSharpScript::callp(const StringName &p_method, const Variant **p_ar
 
 FakeCSharpScript::FakeCSharpScript() {
 	original_class = "CSharpScript";
-	can_instantiate_instance = true;
+	set_instance_recording_properties(true);
 }
 
 void FakeCSharpScript::_bind_methods() {

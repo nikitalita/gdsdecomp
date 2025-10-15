@@ -2,6 +2,7 @@
 #define INPUT_EVENT_PARSER_V2_H
 
 #include "compat/resource_loader_compat.h"
+#include "core/input/input_event.h"
 #include "core/variant/variant_parser.h"
 
 namespace V2InputEvent {

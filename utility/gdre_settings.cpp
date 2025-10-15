@@ -30,7 +30,7 @@
 #include "core/object/script_language.h"
 #include "core/string/translation_po.h"
 #include "modules/regex/regex.h"
-#include "servers/rendering_server.h"
+#include "servers/rendering/rendering_server.h"
 
 #ifdef TOOLS_ENABLED
 #include "editor/editor_node.h"

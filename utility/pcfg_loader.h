@@ -6,6 +6,7 @@
 #include "core/io/file_access.h"
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
+#include "core/templates/rb_map.h"
 
 typedef RBMap<String, Variant> CustomMap;
 
@@ -63,7 +64,7 @@ public:
 
 	Error save_custom(const String &p_path, const uint32_t ver_major, const uint32_t ver_minor);
 	Error _save_settings_text(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor);
-	String get_as_text(bool p_skip_cr = false);
+	String get_as_text();
 	Error _save_settings_binary(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
 	bool is_loaded() const { return loaded; }
 	bool has_setting(String p_var) const;

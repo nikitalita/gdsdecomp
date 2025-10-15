@@ -932,7 +932,7 @@ Error GLBExporterInstance::_load_deps() {
 			auto texture = CompatFormatLoader::create_missing_external_resource(info.dep, info.type, info.uid, "");
 			if (info.type == "Script") {
 				Ref<FakeScript> script = texture;
-				script->set_can_instantiate(true);
+				script->set_instance_recording_properties(true);
 				script->set_load_type(ResourceCompatLoader::get_default_load_type());
 			}
 			set_cache_res(info, texture, false);

@@ -78,17 +78,18 @@ StringName FakeScript::get_instance_base_type() const {
 }
 
 bool FakeScript::can_instantiate() const {
-	return can_instantiate_instance && GDRESettings::get_singleton()->get_ver_major() >= 4;
+	return true;
 }
 
-void FakeScript::set_can_instantiate(bool p_can_instantiate) {
-	can_instantiate_instance = p_can_instantiate;
+bool FakeScript::is_instance_recording_properties() const {
+	return instance_can_record_properties;
+}
+
+void FakeScript::set_instance_recording_properties(bool p_recording) {
+	instance_can_record_properties = p_recording;
 }
 
 ScriptInstance *FakeScript::instance_create(Object *p_this) {
-	if (!can_instantiate()) {
-		return nullptr;
-	}
 	auto instance = memnew(FakeScriptInstance());
 	instance->script = Ref<FakeScript>(this);
 	instance->owner = p_this;
@@ -213,7 +214,7 @@ bool FakeScriptInstance::set(const StringName &p_name, const Variant &p_value) {
 	if (!owner) {
 		return false;
 	}
-	if (is_fake_embedded) {
+	if (is_fake_embedded && script.is_valid() && script->is_instance_recording_properties()) {
 		MissingResource *mres = Object::cast_to<MissingResource>(owner);
 		if (mres && mres->is_recording_properties()) {
 			// let mres handle it
@@ -365,19 +366,18 @@ void FakeScriptInstance::notification(int p_notification, bool p_reversed) {
 	// No notifications in fake script
 }
 
+// Only used by Editor-only code and GDScriptLanguage code, not needed at all
 void FakeScriptInstance::property_set_fallback(const StringName &p_name, const Variant &p_value, bool *r_valid) {
 	if (r_valid) {
-		*r_valid = true; // fake it
+		*r_valid = false;
 	}
 }
 
 Variant FakeScriptInstance::property_get_fallback(const StringName &p_name, bool *r_valid) {
-	Variant ret;
-	bool valid = get(p_name, ret);
 	if (r_valid) {
-		*r_valid = valid;
+		*r_valid = false;
 	}
-	return ret;
+	return Variant();
 }
 
 const Variant FakeScriptInstance::get_rpc_config() const {

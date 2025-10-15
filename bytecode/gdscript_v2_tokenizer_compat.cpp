@@ -34,7 +34,7 @@
 #include "core/error/error_macros.h"
 #include "core/string/char_utils.h"
 
-#ifdef DEBUG_ENABLED
+#if 0
 #include "servers/text_server.h"
 #endif
 
@@ -485,7 +485,7 @@ GDScriptV2TokenizerCompat::Token GDScriptV2TokenizerCompatText::potential_identi
 		// Kept here in case the order with push_error matters.
 		Token id = make_identifier(name);
 
-#ifdef DEBUG_ENABLED
+#if 0
 		// Additional checks for identifiers but only in debug and if it's available in TextServer.
 		if (TS->has_feature(TextServer::FEATURE_UNICODE_SECURITY)) {
 			int64_t confusable = TS->is_confusable(name, keyword_list);

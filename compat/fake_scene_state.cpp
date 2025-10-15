@@ -11,6 +11,8 @@ class fake_scene_state : public RefCounted {
 	Vector<StringName> names;
 	Vector<Variant> variants;
 	Vector<NodePath> node_paths;
+	Vector<PackedInt32Array> id_paths;
+	mutable PackedInt32Array ids;
 	Vector<NodePath> editable_instances;
 	mutable HashMap<NodePath, int> node_path_cache;
 	mutable HashMap<int, int> base_scene_node_remap;

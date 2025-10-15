@@ -4,6 +4,7 @@
 
 #include "core/io/resource.h"
 #include "core/object/ref_counted.h"
+#include "core/templates/rb_map.h"
 
 class ResourceImportMetadatav2 : public RefCounted {
 	GDCLASS(ResourceImportMetadatav2, RefCounted);

@@ -66,8 +66,6 @@ public:
 	FakeGDScript();
 	virtual void reload_from_file() override;
 
-	virtual bool can_instantiate() const override;
-
 	Ref<Script> get_base_script() const override; //for script inheritance
 	virtual StringName get_global_name() const override;
 	virtual bool inherits_script(const Ref<Script> &p_script) const override;

@@ -20,6 +20,7 @@
 #include "core/io/file_access_encrypted.h"
 #include "core/io/marshalls.h"
 #include "core/object/class_db.h"
+#include "core/variant/binder_common.h"
 
 #define GDSDECOMP_FAIL_V_MSG(m_retval, m_msg) \
 	error_message = RTR(m_msg);               \
@@ -1623,7 +1624,7 @@ Vector<uint8_t> GDScriptDecomp::compile_code_string(const String &p_code) {
 	Vector<uint8_t> buf;
 
 	RBMap<StringName, int> identifier_map;
-	HashMap<Variant, int, VariantHasher, VariantComparator> constant_map;
+	HashMap<Variant, int> constant_map;
 	RBMap<uint32_t, int> line_map;
 	Vector<uint32_t> token_array;
 
