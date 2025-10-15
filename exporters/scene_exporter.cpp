@@ -2123,6 +2123,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
 #endif
+		// rename objects in the state so that they will be imported correctly, and gather import params info
 		{
 			auto json = state->get_json();
 			auto materials = state->get_materials();
@@ -2328,53 +2329,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					id_to_material_path.push_back({ name, path });
 				}
 			}
-			auto gltf_nodes = state->get_nodes();
-			// rename animation player nodes to avoid name clashes when reimporting
-			if (gltf_nodes.size() > 0) {
-				Array json_nodes = json["nodes"];
-				Array json_scenes = json["scenes"];
-				Vector<GLTFNodeIndex> nodes_to_remove;
-				for (int node_idx = gltf_nodes.size() - 1; node_idx >= 0; node_idx--) {
-					Ref<GLTFNode> node = gltf_nodes[node_idx];
-					Dictionary json_node = json_nodes[node_idx];
-					if (node.is_valid()) {
-						auto original_name = node->get_original_name();
-						if (!original_name.is_empty() && original_name.contains("AnimationPlayer")) {
-							if (node_idx == json_nodes.size() - 1 && (json_node.size() == 0 || (json_node.size() == 1 && json_node.has("name")))) {
-								// useless node, remove it
-								auto parent = node->get_parent();
-								if (parent != -1) {
-									Dictionary parent_node = json_nodes[parent];
-									Array children = parent_node.get("children", Array());
-									if (children.has(node_idx)) {
-										children.erase(node_idx);
-										parent_node["children"] = children;
-									}
-								}
-								for (int j = 0; j < json_scenes.size(); j++) {
-									Dictionary scene_json = json_scenes[j];
-									Array scene_nodes = scene_json.get("nodes", Array());
-									if (scene_nodes.has(node_idx)) {
-										scene_nodes.erase(node_idx);
-										scene_json["nodes"] = scene_nodes;
-										json_scenes[j] = scene_json;
-									}
-								}
-								json_nodes.remove_at(node_idx);
-								nodes_to_remove.push_back(node_idx);
-								continue;
-							} else {
-								json_node["name"] = original_name + "_ORIG_" + String::num_int64(node_idx);
-							}
-						}
-					}
-				}
-				// nodes_to_remove.sort();
-				// nodes_to_remove.reverse();
-				json["nodes"] = json_nodes;
-				json["scenes"] = json_scenes;
-			}
-
 			Dictionary gltf_asset = json["asset"];
 #if DEBUG_ENABLED
 			// less file churn when testing
@@ -2493,9 +2447,6 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 		}
 		Dictionary animations_dict = _subresources_dict["animations"];
 		for (auto &E : animation_options) {
-			// "save_to_file/enabled": true,
-			// "save_to_file/keep_custom_tracks": true,
-			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
 			animations_dict[E.key] = E.value;
 			String path = get_path_options(E.value);
 			if (!(path.is_empty() || path.get_file().contains("::"))) {
