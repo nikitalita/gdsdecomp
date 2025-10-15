@@ -245,11 +245,13 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 				NodePath np = next_tag.fields["parent"];
 				PackedInt32Array np_id;
 				if (next_tag.fields.has("parent_id_path")) {
+					packed_scene_version = 3;
 					np_id = next_tag.fields["parent_id_path"];
 				}
 				parent = packed_scene->get_state()->add_node_path(np, np_id);
 			}
 			if (next_tag.fields.has("unique_id")) {
+				packed_scene_version = 3;
 				unique_id = next_tag.fields["unique_id"];
 			}
 
@@ -295,6 +297,7 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			if (next_tag.fields.has("owner")) {
 				PackedInt32Array np_id;
 				if (next_tag.fields.has("owner_uid_path")) {
+					packed_scene_version = 3;
 					np_id = next_tag.fields["owner_uid_path"];
 				}
 				owner = packed_scene->get_state()->add_node_path(next_tag.fields["owner"], np_id);
@@ -383,11 +386,13 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 
 			PackedInt32Array from_id;
 			if (next_tag.fields.has("from_uid_path")) {
+				packed_scene_version = 3;
 				from_id = next_tag.fields["from_uid_path"];
 			}
 
 			PackedInt32Array to_id;
 			if (next_tag.fields.has("to_uid_path")) {
+				packed_scene_version = 3;
 				to_id = next_tag.fields["to_uid_path"];
 			}
 
