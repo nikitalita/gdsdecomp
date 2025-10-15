@@ -137,15 +137,15 @@ bool FileAccessBuffer::store_buffer(const uint8_t *p_src, uint64_t p_length) {
 	return true;
 }
 
-String FileAccessBuffer::get_as_utf8_string(bool p_skip_cr) const {
+String FileAccessBuffer::get_as_utf8_string() const {
 	String s;
-	s.append_utf8((const char *)data.ptr() + pos, real_size - pos, p_skip_cr);
+	s.append_utf8((const char *)data.ptr() + pos, real_size - pos);
 	return s;
 }
 
-String FileAccessBuffer::whole_file_as_utf8_string(bool p_skip_cr) const {
+String FileAccessBuffer::whole_file_as_utf8_string() const {
 	String s;
-	s.append_utf8((const char *)data.ptr(), real_size, p_skip_cr);
+	s.append_utf8((const char *)data.ptr(), real_size);
 	return s;
 }
 

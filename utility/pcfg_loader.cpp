@@ -377,7 +377,7 @@ Error ProjectConfigLoader::_save_settings_binary(const String &p_file, const RBM
 	return OK;
 }
 
-String ProjectConfigLoader::get_as_text(bool p_skip_cr) {
+String ProjectConfigLoader::get_as_text() {
 	RBMap<String, List<String>> proops = get_save_proops();
 	Ref<FileAccessBuffer> f;
 	f.instantiate();
@@ -385,7 +385,7 @@ String ProjectConfigLoader::get_as_text(bool p_skip_cr) {
 
 	Error err = _save_settings_text_file(f, proops, major, minor);
 	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save project.godot");
-	return f->get_as_text(p_skip_cr);
+	return f->get_as_text();
 }
 
 String ProjectConfigLoader::get_project_settings_as_string(const String &p_path) {

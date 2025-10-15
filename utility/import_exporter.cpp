@@ -722,7 +722,7 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 
 		while (OS::get_singleton()->is_process_running(process_id) && !is_cancelled) {
 			// we have to do continually read from the pipes or the process will hang
-			output += fa_stdout->get_as_text(true) + fa_stderr->get_as_text(true);
+			output += fa_stdout->get_as_text() + fa_stderr->get_as_text();
 			OS::get_singleton()->delay_usec(10000);
 		}
 		error_code = OS::get_singleton()->get_process_exit_code(process_id);

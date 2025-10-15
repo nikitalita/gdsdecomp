@@ -461,7 +461,7 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		auto buf = FileAccess::get_file_as_bytes(path);
 		if (ext == "tres" || ext == "tscn" || gdre::detect_utf8(buf)) {
 			String str;
-			str.append_utf8((const char *)buf.ptr(), buf.size(), true);
+			str.append_utf8((const char *)buf.ptr(), buf.size());
 			return str;
 		}
 		ERR_FAIL_V_MSG("", "Failed to detect UTF-8 encoding for " + path);
@@ -492,7 +492,7 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		err = saver.save_to_file(f, save_path, res, 0);
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save resource '" + path + "'.");
-	return f->whole_file_as_utf8_string(p_skip_cr);
+	return f->whole_file_as_utf8_string();
 }
 
 Error ResourceCompatLoader::to_binary(const String &p_path, const String &p_dst, uint32_t p_flags) {
@@ -771,18 +771,18 @@ Ref<Resource> ResourceCompatConverter::get_real_from_missing_resource(Ref<Missin
 		}
 		Error err;
 		auto mat = ResourceCompatLoader::custom_load(mr->get_path(), "", load_type, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
-		ERR_FAIL_COND_V_MSG(err != OK, Ref<Material>(), "Failed to load material: " + mr->get_path());
+		ERR_FAIL_COND_V_MSG(err != OK, Ref<Resource>(), "Failed to load material: " + mr->get_path());
 		return mat;
 	}
 	auto materialType = ClassDB::get_compatibility_remapped_class(mr->get_original_class());
 	Ref<Resource> res;
 	Object *obj = ClassDB::instantiate(materialType);
 	if (!obj) {
-		ERR_FAIL_V_MSG(Ref<Material>(), "Failed to cast material to object: " + mr->get_path());
+		ERR_FAIL_V_MSG(Ref<Resource>(), "Failed to cast material to object: " + mr->get_path());
 	}
 	res = obj;
 	if (res.is_null()) {
-		ERR_FAIL_V_MSG(Ref<Material>(), "Failed to cast material to object: " + mr->get_path());
+		ERR_FAIL_V_MSG(Ref<Resource>(), "Failed to cast material to object: " + mr->get_path());
 	}
 	return set_real_from_missing_resource(mr, res, load_type, prop_map);
 }

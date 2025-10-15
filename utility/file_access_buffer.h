@@ -84,9 +84,9 @@ public:
 	virtual Error _set_hidden_attribute(const String &p_file, bool p_hidden) override { return ERR_UNAVAILABLE; }
 	virtual bool _get_read_only_attribute(const String &p_file) override { return false; }
 	virtual Error _set_read_only_attribute(const String &p_file, bool p_ro) override { return ERR_UNAVAILABLE; }
-	virtual String get_as_utf8_string(bool p_skip_cr = false) const override;
+	virtual String get_as_utf8_string() const override;
 
-	String whole_file_as_utf8_string(bool p_skip_cr = false) const;
+	String whole_file_as_utf8_string() const;
 
 	Error reserve(int64_t p_length);
 	void set_auto_resize_behavior(ResizeBehavior p_resize_behavior);

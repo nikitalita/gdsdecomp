@@ -1,4 +1,5 @@
 #include "asset_library_source.h"
+#include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
 #include "plugin_manager.h"
