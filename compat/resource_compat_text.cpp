@@ -233,6 +233,8 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			int name = -1;
 			int instance = -1;
 			int index = -1;
+			int unique_id = Node::UNIQUE_SCENE_ID_UNASSIGNED;
+
 			//int base_scene=-1;
 
 			if (next_tag.fields.has("name")) {
@@ -241,8 +243,14 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 
 			if (next_tag.fields.has("parent")) {
 				NodePath np = next_tag.fields["parent"];
-				np.prepend_period(); //compatible to how it manages paths internally
-				parent = packed_scene->get_state()->add_node_path(np);
+				PackedInt32Array np_id;
+				if (next_tag.fields.has("parent_id_path")) {
+					np_id = next_tag.fields["parent_id_path"];
+				}
+				parent = packed_scene->get_state()->add_node_path(np, np_id);
+			}
+			if (next_tag.fields.has("unique_id")) {
+				unique_id = next_tag.fields["unique_id"];
 			}
 
 			if (next_tag.fields.has("type")) {
@@ -285,7 +293,11 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			}
 
 			if (next_tag.fields.has("owner")) {
-				owner = packed_scene->get_state()->add_node_path(next_tag.fields["owner"]);
+				PackedInt32Array np_id;
+				if (next_tag.fields.has("owner_uid_path")) {
+					np_id = next_tag.fields["owner_uid_path"];
+				}
+				owner = packed_scene->get_state()->add_node_path(next_tag.fields["owner"], np_id);
 			} else {
 				if (parent != -1 && !(type == SceneState::TYPE_INSTANTIATED && instance == -1)) {
 					owner = 0; //if no owner, owner is root
@@ -296,7 +308,7 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 				index = next_tag.fields["index"];
 			}
 
-			int node_id = packed_scene->get_state()->add_node(parent, owner, type, name, instance, index);
+			int node_id = packed_scene->get_state()->add_node(parent, owner, type, name, instance, index, unique_id);
 
 			if (next_tag.fields.has("groups")) {
 				Array groups = next_tag.fields["groups"];
@@ -369,6 +381,16 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			int unbinds = 0;
 			Array binds;
 
+			PackedInt32Array from_id;
+			if (next_tag.fields.has("from_uid_path")) {
+				from_id = next_tag.fields["from_uid_path"];
+			}
+
+			PackedInt32Array to_id;
+			if (next_tag.fields.has("to_uid_path")) {
+				to_id = next_tag.fields["to_uid_path"];
+			}
+
 			if (next_tag.fields.has("flags")) {
 				flags = next_tag.fields["flags"];
 			}
@@ -388,8 +410,8 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			}
 
 			packed_scene->get_state()->add_connection(
-					packed_scene->get_state()->add_node_path(from.simplified()),
-					packed_scene->get_state()->add_node_path(to.simplified()),
+					packed_scene->get_state()->add_node_path(from.simplified(), from_id),
+					packed_scene->get_state()->add_node_path(to.simplified(), to_id),
 					packed_scene->get_state()->add_name(signal),
 					packed_scene->get_state()->add_name(method),
 					flags,
@@ -2379,7 +2401,10 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			StringName type = state->get_node_type(i);
 			StringName name = state->get_node_name(i);
 			int index = state->get_node_index(i);
-			NodePath path = state->get_node_path(i, true);
+			int unique_id = state->get_node_unique_id(i);
+			NodePath parent_path = state->get_node_path(i, true);
+			PackedInt32Array parent_id_path = state->get_node_parent_id_path(i);
+			PackedInt32Array owner_id_path = state->get_node_owner_id_path(i);
 			NodePath owner = state->get_node_owner_path(i);
 			Ref<Resource> instance = SceneStateInstanceGetter::get_fake_instance(state.ptr(), i);
 			String instance_placeholder = state->get_node_instance_placeholder(i);
@@ -2391,14 +2416,24 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			if (type != StringName()) {
 				header += " type=\"" + String(type) + "\"";
 			}
-			if (path != NodePath()) {
-				header += " parent=\"" + String(path.simplified()).c_escape() + "\"";
+			if (parent_path != NodePath()) {
+				header += " parent=\"" + String(parent_path.simplified()).c_escape() + "\"";
+				if (parent_id_path.size()) {
+					header += " parent_id_path=" + Variant(parent_id_path).get_construct_string();
+				}
 			}
 			if (owner != NodePath() && owner != NodePath(".")) {
 				header += " owner=\"" + String(owner.simplified()).c_escape() + "\"";
+				if (owner_id_path.size()) {
+					header += " owner_uid_path=" + Variant(owner_id_path).get_construct_string();
+				}
 			}
 			if (index >= 0) {
 				header += " index=\"" + itos(index) + "\"";
+			}
+
+			if (unique_id != Node::UNIQUE_SCENE_ID_UNASSIGNED) {
+				header += " unique_id=" + itos(unique_id) + "";
 			}
 
 			// clang-format off
@@ -2468,6 +2503,20 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			int flags = state->get_connection_flags(i);
 			if (flags != Object::CONNECT_PERSIST) {
 				connstr += " flags=" + itos(flags);
+			}
+
+			{
+				PackedInt32Array from_idp = state->get_connection_source_id_path(i);
+				if (from_idp.size()) {
+					connstr += " from_uid_path=" + Variant(from_idp).get_construct_string();
+				}
+			}
+
+			{
+				PackedInt32Array to_idp = state->get_connection_target_id_path(i);
+				if (to_idp.size()) {
+					connstr += " to_uid_path=" + Variant(to_idp).get_construct_string();
+				}
 			}
 
 			int unbinds = state->get_connection_unbinds(i);
