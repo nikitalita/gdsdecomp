@@ -63,10 +63,6 @@ void FakeGDScript::reload_from_file() {
 	FAKEGDSCRIPT_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
 }
 
-bool FakeGDScript::can_instantiate() const {
-	return true;
-}
-
 Ref<Script> FakeGDScript::load_base_script() const {
 	Ref<Script> base_script;
 	size_t len = base_type.length();
@@ -109,9 +105,6 @@ StringName FakeGDScript::get_instance_base_type() const {
 }
 
 ScriptInstance *FakeGDScript::instance_create(Object *p_this) {
-	if (!can_instantiate()) {
-		return nullptr;
-	}
 	auto instance = memnew(FakeScriptInstance());
 	instance->script = Ref<FakeGDScript>(this);
 	instance->owner = p_this;
@@ -734,5 +727,5 @@ bool FakeGDScript::is_global_class() const {
 
 FakeGDScript::FakeGDScript() {
 	set_original_class("GDScript");
-	set_can_instantiate(true);
+	set_instance_recording_properties(true);
 }

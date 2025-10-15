@@ -16,7 +16,7 @@ class FakeScript : public Script {
 protected:
 	String original_class;
 	HashMap<StringName, Variant> properties;
-	bool can_instantiate_instance = true;
+	bool instance_can_record_properties = true;
 	String source;
 	String error_message;
 	StringName base_type;
@@ -111,7 +111,8 @@ public:
 	void set_load_type(ResourceInfo::LoadType p_load_type);
 	ResourceInfo::LoadType get_load_type() const;
 
-	void set_can_instantiate(bool p_can_instantiate);
+	bool is_instance_recording_properties() const;
+	void set_instance_recording_properties(bool p_recording);
 	StringName get_direct_base_type() const;
 };
 
@@ -123,7 +124,7 @@ class FakeScriptInstance : public ScriptInstance {
 
 private:
 	Object *owner = nullptr;
-	Ref<Script> script;
+	Ref<FakeScript> script;
 	bool is_fake_embedded = false;
 	HashMap<StringName, Variant> properties;
 	HashMap<StringName, PropertyInfo> _cached_prop_info;
