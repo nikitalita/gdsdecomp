@@ -6,6 +6,16 @@
 struct dep_info;
 struct BatchExportToken;
 
+#include "modules/gltf/extensions/gltf_document_extension.h"
+
+class GLTFDocumentExtensionPhysicsRemover : public GLTFDocumentExtension {
+	GDCLASS(GLTFDocumentExtensionPhysicsRemover, GLTFDocumentExtension);
+
+public:
+	// Export process.
+	void convert_scene_node(Ref<GLTFState> p_state, Ref<GLTFNode> p_gltf_node, Node *p_scene_node) override;
+};
+
 class SceneExporter : public ResourceExporter {
 	GDCLASS(SceneExporter, ResourceExporter);
 	friend struct BatchExportToken;
@@ -72,6 +82,8 @@ class GLBExporterInstance {
 	bool force_export_multi_root = false;
 	bool force_require_KHR_node_visibility = false;
 	bool use_double_precision = false;
+	bool ignore_missing_dependencies = false;
+	bool remove_physics_bodies = false;
 	String output_dir;
 
 	bool exporting_in_thread = false;
@@ -89,6 +101,7 @@ class GLBExporterInstance {
 	String source_path;
 	Ref<ImportInfo> iinfo;
 	Ref<ResourceInfo> res_info;
+	String scene_name;
 
 	// set during _load_deps
 	bool has_script = false;
@@ -111,15 +124,17 @@ class GLBExporterInstance {
 	Vector<Pair<String, String>> id_to_material_path;
 
 	// set during _set_stuff_from_instanced_scene
+	HashMap<String, Dictionary> node_options;
 	HashMap<String, Dictionary> animation_options; // used by update_import_params
 	bool has_reset_track = false;
 	bool has_skinned_meshes = false;
 	bool has_non_skeleton_transforms = false;
 	bool has_physics_nodes = false;
-	HashMap<String, MeshInstance3D *> mesh_name_to_instance_map;
+	HashMap<String, MeshInstance3D *> mesh_path_to_instance_map;
 	String root_type;
 	String root_name;
 	bool has_lossy_images = false;
+	int64_t baked_fps = 30;
 	HashSet<NodePath> external_animation_nodepaths = { NodePath("AnimationPlayer") };
 
 	// set during update_import_params
@@ -170,6 +185,8 @@ class GLBExporterInstance {
 
 	bool _is_logger_silencing_errors() const;
 	void _silence_errors(bool p_silence);
+
+	String demangle_name(const String &obj_name);
 
 public:
 	void _do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path);

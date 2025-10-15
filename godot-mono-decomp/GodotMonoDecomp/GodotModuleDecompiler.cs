@@ -448,6 +448,9 @@ public class GodotModuleDecompiler
 			}
 
 			string defaultValue = "";
+			// Godot nodes and resources set to instances of CSharp scripts do not have properties set in the scene/resource files if it is set to a default value;
+			// As such, we need to get the default value of the property from the CSharp script.
+			// This is primarily being done to allow for scenes with CSharp scripts to be instanced for scene export.
 			GetFieldInitializerValueVisitor? visitor = null;
 			visitor = new GetFieldInitializerValueVisitor(prop, projectDecompiler);
 			syntaxTree.AcceptVisitor(visitor);

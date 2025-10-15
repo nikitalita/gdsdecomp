@@ -78,7 +78,7 @@ Error TextureExporter::_convert_bitmap(const String &p_path, const String &dest_
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to load bitmap " + p_path);
 	err = gdre::ensure_dir(dst_dir);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to create dirs for " + dest_path);
-	err = ImageSaver::save_image(dest_path, img, lossy);
+	err = ImageSaver::save_image(dest_path, img, lossy, 1.0, false);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -109,7 +109,7 @@ enum ttttype {
 	TEXTURE_LAYERED
 };
 
-void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Image> p_img, int ver_major, ttttype p_type) {
+Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ImportInfo> p_import_info, Ref<ResourceInfo> info, int ver_major, ttttype p_type, bool clear_mipmaps = false) {
 	// Import options reference:
 	// compress/mode (int): Controls how the texture is compressed
 	//   0: Lossless (PNG/WebP)
@@ -197,38 +197,27 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 
 	//CompressedTexture2D::DATA_FORMAT_WEBP
 
-	if (!(p_import_info.is_valid() && p_tex.is_valid() && ver_major >= 4)) {
-		return;
+	if (!(p_import_info.is_valid() && ver_major >= 4)) {
+		GDRE_ERR_DECOMPRESS_OR_FAIL(p_img);
+		return OK;
 	}
 
 	String ext = p_import_info->get_source_file().get_extension().to_lower();
 	Dictionary params;
-	Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(p_tex);
-	ERR_FAIL_COND_MSG(!info.is_valid(), "TEXTURE LOADERS SHOULD HAVE SET THE RESOURCE INFO FOR THIS TEXTURE!!!!!!!!");
+	ERR_FAIL_COND_V_MSG(!info.is_valid(), ERR_PARSE_ERROR, "TEXTURE LOADERS SHOULD HAVE SET THE RESOURCE INFO FOR THIS TEXTURE!!!!!!!!");
 	// Get the image from the texture
-	Ref<Image> img;
-
-	if (p_type == TEXTURE_2D) {
-		Ref<Texture2D> tex2d = p_tex;
-		img = tex2d->get_image();
-	} else if (p_type == TEXTURE_3D) {
-		Ref<Texture3D> tex3d = p_tex;
-		img = p_img;
-	} else if (p_type == TEXTURE_LAYERED) {
-		Ref<TextureLayered> texlay = p_tex;
-		img = p_img;
-	}
+	Ref<Image> img = p_img;
 
 	if (!img.is_valid()) {
-		return;
+		return ERR_PARSE_ERROR;
 	}
 	int compress_mode = -1;
 	CompressedTexture2D::DataFormat data_format = CompressedTexture2D::DATA_FORMAT_IMAGE;
-	ERR_FAIL_COND(info->extra.is_empty());
+	ERR_FAIL_COND_V_MSG(info->extra.is_empty(), ERR_PARSE_ERROR, "TEXTURE LOADERS SHOULD HAVE SET THE EXTRA INFO FOR THIS TEXTURE!!!!!!!!");
 	Dictionary extra = info->extra;
 	int df = extra.get("data_format", -1);
 	int tf = extra.get("texture_flags", -1);
-	ERR_FAIL_COND(df == -1 || tf == -1);
+	ERR_FAIL_COND_V_MSG(df == -1 || tf == -1, ERR_PARSE_ERROR, "TEXTURE LOADERS SHOULD HAVE SET THE EXTRA INFO FOR THIS TEXTURE!!!!!!!!");
 	data_format = CompressedTexture2D::DataFormat(df);
 	int texture_flags = tf;
 	switch (data_format) {
@@ -250,20 +239,40 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 			compress_mode = 0;
 			break;
 	}
-	// Check if the image is compressed
-	params["compress/mode"] = compress_mode;
 	// Set high quality flag for VRAM compression
 	auto format = img->get_format();
 	auto decompressed_fmt = format;
-	Ref<Image> decompressed_img = img;
-	if (img->is_compressed()) {
-		decompressed_img = img->duplicate();
-		decompressed_img->decompress();
-		decompressed_fmt = decompressed_img->get_format();
+	bool has_mipmaps = img->has_mipmaps();
+	int mipmap_limit = -1;
+	bool is_compressed = img->is_compressed();
+	if (has_mipmaps) {
+		int mipmap_count = img->get_mipmap_count();
+		int min_width, min_height;
+		img->get_format_min_pixel_size(img->get_format(), min_width, min_height);
+		if (mipmap_count > 1) {
+			int64_t offset, size;
+			int last_width, last_height;
+			img->get_mipmap_offset_size_and_dimensions(mipmap_count - 1, offset, size, last_width, last_height);
+			// it may be a non-power of 2 last mipmap, so it's either min height or width
+			if (last_width != min_width && last_height != min_height) {
+				mipmap_limit = mipmap_count;
+			}
+		}
 	}
+
+	// Check if the image is compressed
+	if (is_compressed) {
+		if (clear_mipmaps) {
+			img->clear_mipmaps();
+		}
+		GDRE_ERR_DECOMPRESS_OR_FAIL(img);
+		decompressed_fmt = img->get_format();
+	}
+	auto used_channels = img->detect_used_channels();
 	bool is_hdr = (decompressed_fmt >= Image::FORMAT_RF && decompressed_fmt <= Image::FORMAT_RGBE9995);
 
-	if (img->is_compressed() && (is_hdr || ((format >= Image::FORMAT_BPTC_RGBA && format <= Image::FORMAT_BPTC_RGBFU)) || (format >= Image::FORMAT_ASTC_4x4 && format <= Image::FORMAT_ASTC_8x8_HDR))) {
+	params["compress/mode"] = compress_mode;
+	if (is_compressed && (is_hdr || ((format >= Image::FORMAT_BPTC_RGBA && format <= Image::FORMAT_BPTC_RGBFU)) || (format >= Image::FORMAT_ASTC_4x4 && format <= Image::FORMAT_ASTC_8x8_HDR))) {
 		params["compress/high_quality"] = true;
 	} else {
 		params["compress/high_quality"] = false;
@@ -277,7 +286,7 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 		params["compress/uastc_level"] = 2; // Default is Fastest, but force to Medium to prevent generational loss
 		params["compress/rdo_quality_loss"] = 0; // Default
 	}
-	params["compress/hdr_compression"] = is_hdr && img->is_compressed() ? 1 : 0;
+	params["compress/hdr_compression"] = is_hdr && is_compressed ? 1 : 0;
 
 	// enum FormatBits {
 	// 	FORMAT_BIT_STREAM = 1 << 22,
@@ -294,31 +303,15 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 	// Set channel packing
 
 	int channel_pack = 0;
-	auto used_channels = decompressed_img->detect_used_channels();
 	if (used_channels == Image::USED_CHANNELS_R || used_channels == Image::USED_CHANNELS_RG) {
 		channel_pack = 1; // not sRGB friendly
 	}
 	params["compress/channel_pack"] = channel_pack;
 
 	// Set mipmap settings
-	params["mipmaps/generate"] = (texture_flags & CompressedTexture2D::FORMAT_BIT_HAS_MIPMAPS) != 0 || (img->has_mipmaps());
-	int limit = -1;
-	if (img->has_mipmaps()) {
-		int mipmap_count = img->get_mipmap_count();
-		int min_width, min_height;
-		img->get_format_min_pixel_size(img->get_format(), min_width, min_height);
-		if (mipmap_count > 1) {
-			int64_t offset, size;
-			int last_width, last_height;
-			img->get_mipmap_offset_size_and_dimensions(mipmap_count - 1, offset, size, last_width, last_height);
-			// it may be a non-power of 2 last mipmap, so it's either min height or width
-			if (last_width != min_width && last_height != min_height) {
-				limit = mipmap_count;
-			}
-		}
-	}
+	params["mipmaps/generate"] = (texture_flags & CompressedTexture2D::FORMAT_BIT_HAS_MIPMAPS) != 0 || (has_mipmaps);
 
-	params["mipmaps/limit"] = limit;
+	params["mipmaps/limit"] = mipmap_limit;
 
 	if (p_type == TEXTURE_2D) {
 		bool is_roughness = (texture_flags & CompressedTexture2D::FORMAT_BIT_DETECT_ROUGNESS) != 0;
@@ -365,6 +358,7 @@ void set_tex_params(Ref<ImportInfo> p_import_info, Ref<Resource> p_tex, Ref<Imag
 
 	// Set the parameters in the import info
 	p_import_info->set_params(params);
+	return OK;
 }
 
 Error TextureExporter::_convert_tex(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
@@ -388,14 +382,12 @@ Error TextureExporter::_convert_tex(const String &p_path, const String &dest_pat
 	Ref<Image> img = tex->get_image();
 
 	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to load image for texture " + p_path);
-	if (report.is_valid()) {
-		auto iinfo = report->get_import_info();
-		if (iinfo.is_valid()) {
-			set_tex_params(iinfo, tex, img, iinfo->get_ver_major(), TEXTURE_2D);
-		}
-	}
 	image_format = Image::get_format_name(img->get_format());
-	err = ImageSaver::save_image(dest_path, img, lossy);
+	auto info = ResourceInfo::get_info_from_resource(tex);
+	auto iinfo = report.is_valid() ? report->get_import_info() : nullptr;
+	err = decompress_and_set_tex_params(img, iinfo, info, info->get_ver_major(), TEXTURE_2D);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to decompress and set texture parameters " + p_path);
+	err = ImageSaver::save_image(dest_path, img, lossy, 1.0, false);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -449,7 +441,7 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 	// now we have to add the margin padding
 	Ref<Image> new_img = Image::create_empty(atex->get_width(), atex->get_height(), false, img->get_format());
 	new_img->blit_rect(img, region, Point2i(margin.position.x, margin.position.y));
-	err = ImageSaver::save_image(dest_path, new_img, lossy);
+	err = ImageSaver::save_image(dest_path, new_img, lossy, 1.0, false);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -486,6 +478,9 @@ Error TextureExporter::export_file(const String &out_path, const String &res_pat
 }
 
 Error preprocess_images(
+		ttttype p_type,
+		Ref<ExportReport> report,
+		Ref<ResourceInfo> info,
 		String p_path,
 		String dest_path,
 		int num_images_w,
@@ -499,29 +494,10 @@ Error preprocess_images(
 	int layer_count = num_images_w * num_images_h;
 	int width = images[0]->get_width();
 	int height = images[0]->get_height();
-
-	auto format = images[0]->get_format();
-	auto decompressed_fmt = format;
-
-	Ref<Image> ref_img;
-	if (layer_count > 0) {
-		ref_img = images[0];
-		if (!ref_img.is_null()) {
-			// dupe to avoid modifying the original
-			if (ref_img->is_compressed()) {
-				Ref<Image> dupe = ref_img->duplicate();
-				GDRE_ERR_DECOMPRESS_OR_FAIL(dupe);
-				decompressed_fmt = dupe->get_format();
-			}
-		}
-	}
-	if (ref_img.is_null()) {
-		return ERR_PARSE_ERROR;
-	}
-	auto new_format = decompressed_fmt;
 	had_mipmaps = layer_count != images.size();
 	Vector<Vector<uint8_t>> images_data;
-	bool is_hdr = decompressed_fmt >= Image::FORMAT_RF && decompressed_fmt <= Image::FORMAT_RGBE9995;
+	bool is_hdr = false;
+	Image::Format new_format = Image::FORMAT_MAX;
 
 	Vector<Image::Format> formats;
 	detected_alpha = false;
@@ -530,8 +506,13 @@ Error preprocess_images(
 		if (img.is_null()) {
 			return ERR_PARSE_ERROR;
 		}
-		if (img->has_mipmaps()) {
-			had_mipmaps = true;
+		if (new_format == Image::FORMAT_MAX) {
+			had_mipmaps = img->has_mipmaps();
+			Error err = decompress_and_set_tex_params(img, report.is_valid() ? report->get_import_info() : nullptr, info, info->get_ver_major(), p_type, img->has_mipmaps());
+			ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to decompress and set texture parameters " + p_path);
+			new_format = img->get_format();
+			is_hdr = new_format >= Image::FORMAT_RF && new_format <= Image::FORMAT_RGBE9995;
+		} else if (img->has_mipmaps()) {
 			img->clear_mipmaps();
 		}
 		GDRE_ERR_DECOMPRESS_OR_FAIL(img);
@@ -613,7 +594,7 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 		img->generate_mipmaps();
 		DEV_ASSERT(Image::get_image_data_size(new_width, new_height, new_format, true) == img->get_data_size());
 	}
-	Error err = ImageSaver::save_image(dest_path, img, lossy);
+	Error err = ImageSaver::save_image(dest_path, img, lossy, 1.0, false);
 	if (err == ERR_UNAVAILABLE) {
 		return err;
 	}
@@ -623,29 +604,33 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 Error TextureExporter::_convert_3d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
 	String dst_dir = dest_path.get_base_dir();
-	Ref<Texture3D> tex;
-	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
 	Ref<ImportInfo> iinfo;
 	if (report.is_valid()) {
 		iinfo = report->get_import_info();
 	}
 
-	// deprecated format
-	if (err == ERR_UNAVAILABLE) {
-		image_format = "Unknown deprecated image format";
-		print_line("Did not convert deprecated Texture resource " + p_path);
-		return err;
-	}
-	if (err == ERR_FILE_EOF) {
-		return ERR_FILE_EOF;
-	}
-	ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + p_path);
-	ERR_FAIL_COND_V_MSG(tex->get_depth() <= 0, ERR_PARSE_ERROR, "Texture " + p_path + " has no layers");
+	int layer_count = -1;
+	Vector<Ref<Image>> images;
+	Ref<ResourceInfo> info;
+	{
+		Ref<Texture3D> tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
+		// deprecated format
+		if (err == ERR_UNAVAILABLE) {
+			image_format = "Unknown deprecated image format";
+			print_line("Did not convert deprecated Texture resource " + p_path);
+			return err;
+		}
+		if (err == ERR_FILE_EOF) {
+			return ERR_FILE_EOF;
+		}
+		ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + p_path);
+		ERR_FAIL_COND_V_MSG(tex->get_depth() <= 0, ERR_PARSE_ERROR, "Texture " + p_path + " has no layers");
 
-	auto layer_count = tex->get_depth();
-	Vector<Ref<Image>> images = tex->get_data();
-	Ref<Image> ref_img = images[0]->duplicate();
-	ERR_FAIL_COND_V_MSG(images.size() == 0, ERR_PARSE_ERROR, "No images to concat");
+		layer_count = tex->get_depth();
+		images = tex->get_data();
+		ERR_FAIL_COND_V_MSG(images.size() == 0, ERR_PARSE_ERROR, "No images to concat");
+		info = ResourceInfo::get_info_from_resource(tex);
+	}
 
 	int64_t num_images_w = -1;
 	int64_t num_images_h = -1;
@@ -676,11 +661,11 @@ Error TextureExporter::_convert_3d(const String &p_path, const String &dest_path
 	}
 	bool had_mipmaps = layer_count != images.size();
 	bool detected_alpha = false;
-	err = preprocess_images(p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha);
+	err = preprocess_images(TEXTURE_3D, report, info, p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to preprocess images for texture " + p_path);
 	err = save_image_with_mipmaps(dest_path, images, num_images_w, num_images_h, lossy, had_mipmaps);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + dest_path + " from texture " + p_path);
-	set_tex_params(iinfo, tex, ref_img, iinfo->get_ver_major(), TEXTURE_3D);
+	images.clear();
 
 	if (!had_valid_params && iinfo.is_valid()) {
 		iinfo->set_param("slices/horizontal", num_images_w);
@@ -798,7 +783,7 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 			continue;
 		}
 		auto new_dest = dest_path.get_basename() + "_cropped_" + String::num_int64(i) + "." + dest_path.get_extension();
-		Error err = ImageSaver::save_image(new_dest, img, lossy);
+		Error err = ImageSaver::save_image(new_dest, img, lossy, 1.0, false);
 	}
 #endif
 	if (fixed_images.size() > 0) {
@@ -825,12 +810,11 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 Error TextureExporter::_convert_layered_2d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
 	String dst_dir = dest_path.get_base_dir();
-	Ref<TextureLayered> tex;
-	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
 	Ref<ImportInfo> iinfo;
 	if (report.is_valid()) {
 		iinfo = report->get_import_info();
 	}
+	Ref<TextureLayered> tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
 
 	if (err == ERR_UNAVAILABLE) {
 		image_format = "Unknown deprecated image format";
@@ -847,7 +831,6 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 		return ERR_PARSE_ERROR;
 	}
 	Vector<Ref<Image>> images;
-	Ref<Image> ref_img = tex->get_layer_data(0)->duplicate();
 	for (int i = 0; i < layer_count; i++) {
 		images.push_back(tex->get_layer_data(i));
 	}
@@ -856,7 +839,7 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	for (int i = 0; i < layer_count; i++) {
 		Ref<Image> img = images[i];
 		auto new_dest = dest_path.get_basename() + "_" + String::num_int64(i) + "." + dest_path.get_extension();
-		Error err = ImageSaver::save_image(new_dest, img, lossy);
+		Error err = ImageSaver::save_image(new_dest, img, lossy, 1.0, false);
 	}
 #endif
 
@@ -876,6 +859,7 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	Ref<ResourceInfo> res_info = ResourceInfo::get_info_from_resource(tex);
 	bool had_valid_params = false;
 	bool ignore_dimensions = res_info.is_valid() && res_info->get_ver_major() <= 2;
+	tex = nullptr; // no need to keep the texture around, free it
 
 	if (mode == TextureLayered::LAYERED_TYPE_2D_ARRAY) {
 		// get the square root of the number of layers; if it's a whole number, then we have a square
@@ -910,7 +894,7 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 				num_images_w = 2;
 				num_images_h = 2;
 			} else {
-				num_images_w = tex->get_layers();
+				num_images_w = layer_count;
 				num_images_h = 1;
 			}
 		}
@@ -953,9 +937,10 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 			}
 		}
 	}
+
 	bool had_mipmaps = layer_count != images.size();
 	bool detected_alpha = false;
-	err = preprocess_images(p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha, ignore_dimensions);
+	err = preprocess_images(TEXTURE_LAYERED, report, res_info, p_path, dest_path, num_images_w, num_images_h, lossy, images, had_mipmaps, detected_alpha, ignore_dimensions);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to preprocess images for texture " + p_path);
 #if 0 // This was an attempt at fixing incorrectly imported cubemaps; if it was incorrectly imported by the original author, we should just leave it be.
 	if (mode == TextureLayered::LAYERED_TYPE_CUBEMAP || mode == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY) {
@@ -965,7 +950,7 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	err = save_image_with_mipmaps(dest_path, images, num_images_w, num_images_h, lossy, had_mipmaps, override_width, override_height);
 	image_format = Image::get_format_name(images[0]->get_format());
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to concat images for texture " + p_path);
-	set_tex_params(iinfo, tex, ref_img, iinfo->get_ver_major(), TEXTURE_LAYERED);
+	images.clear();
 
 	if (!had_valid_params && iinfo.is_valid()) {
 		if (mode == TextureLayered::LAYERED_TYPE_2D_ARRAY) {
@@ -1094,7 +1079,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 		Ref<Image> img = rli.load(path, "", &err, false, nullptr, ResourceFormatLoader::CACHE_MODE_IGNORE);
 		if (!err && !img.is_null()) {
 			img_format = Image::get_format_name(img->get_format());
-			err = ImageSaver::save_image(dest_path, img, lossy);
+			err = ImageSaver::save_image(dest_path, img, lossy, 1.0, false);
 		}
 	} else if (importer == "texture_atlas" || (importer == "texture" && ver_major <= 2 && iinfo->get_additional_sources().size() > 0)) {
 		if (ver_major <= 2 && (iinfo->get_type() == "ImageTexture" || iinfo->get_additional_sources().size() > 0)) {

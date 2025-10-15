@@ -24,8 +24,8 @@ class GDREFindReplaceBar : public PanelContainer {
 	Label *matches_label = nullptr;
 	Button *find_prev = nullptr;
 	Button *find_next = nullptr;
-	CheckBox *case_sensitive = nullptr;
-	CheckBox *whole_words = nullptr;
+	Button *case_sensitive = nullptr;
+	Button *whole_words = nullptr;
 	Button *hide_button = nullptr;
 
 	LineEdit *replace_text = nullptr;
@@ -73,6 +73,8 @@ class GDREFindReplaceBar : public PanelContainer {
 	void _update_panel_background();
 
 	String get_action_description(const String &p_action_name) const;
+
+	void _set_matches_custom_minimum_size();
 
 protected:
 	void _notification(int p_what);

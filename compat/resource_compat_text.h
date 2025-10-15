@@ -209,6 +209,7 @@ class ResourceFormatSaverCompatTextInstance {
 	bool bundle_resources = false;
 	bool skip_editor = false;
 
+	bool set_format = false;
 	int format_version;
 	uint32_t ver_major;
 	uint32_t ver_minor;
@@ -226,6 +227,7 @@ class ResourceFormatSaverCompatTextInstance {
 	HashMap<Ref<Resource>, String> external_resources;
 	HashMap<Ref<Resource>, String> internal_resources;
 	bool use_compat = true;
+	bool used_packed_vector4array = false;
 
 	String script_class;
 	ResourceUID::ID res_uid;

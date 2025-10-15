@@ -12,7 +12,7 @@
 
 namespace {
 // TODO: move this elsewhere
-static Ref<ImageTexture> generate_icon(int p_index) {
+static Ref<ImageTexture> generate_icon(int p_index, float scale = 1.0) {
 	Ref<Image> img = memnew(Image);
 
 #ifdef MODULE_SVG_ENABLED
@@ -20,16 +20,16 @@ static Ref<ImageTexture> generate_icon(int p_index) {
 	// Generating upsampled icons is slower, and the benefit is hardly visible
 	// with integer scales.
 	ImageLoaderSVG img_loader;
-	img_loader.create_image_from_string(img, gdre_icons_sources[p_index], 1.0, false, false);
+	img_loader.create_image_from_string(img, gdre_icons_sources[p_index], scale, false, false);
 #endif
 
 	return ImageTexture::create_from_image(img);
 }
 
-Ref<ImageTexture> get_gdre_icon(const StringName &p_name) {
+Ref<ImageTexture> get_gdre_icon(const StringName &p_name, float scale = 1.0) {
 	for (int i = 0; i < gdre_icons_count; i++) {
 		if (gdre_icons_names[i] == p_name) {
-			return generate_icon(i);
+			return generate_icon(i, scale);
 		}
 	}
 	return nullptr;
@@ -393,18 +393,16 @@ void GDREFindReplaceBar::_update_results_count() {
 
 void GDREFindReplaceBar::_update_matches_display() {
 	if (search_text->get_text().is_empty() || results_count == -1) {
-		matches_label->hide();
+		matches_label->set_text("");
 	} else {
-		matches_label->show();
-
 		matches_label->add_theme_color_override(SceneStringName(font_color), results_count > 0 ? get_theme_color(SceneStringName(font_color), SNAME("Label")) : get_theme_color(SNAME("error_color"), SNAME("Editor")));
 
 		if (results_count == 0) {
-			matches_label->set_text(RTR("No match"));
+			matches_label->set_text(RTR("No matches"));
 		} else if (results_count_to_current == -1) {
 			matches_label->set_text(vformat(RTRN("%d match", "%d matches", results_count), results_count));
 		} else {
-			matches_label->set_text(vformat(RTRN("%d of %d match", "%d of %d matches", results_count), results_count_to_current, results_count));
+			matches_label->set_text(vformat(RTRN("%d of %d", "%d of %d", results_count), results_count_to_current, results_count));
 		}
 	}
 	find_prev->set_disabled(results_count < 1);
@@ -690,7 +688,7 @@ Ref<Shortcut> get_or_create_shortcut(const String &p_action_name, const String &
 }
 
 String GDREFindReplaceBar::get_action_description(const String &p_action_name) const {
-	String desc = InputMap::get_singleton()->get_action_description(p_action_name);
+	String desc = InputMap::get_singleton()->has_action(p_action_name) ? InputMap::get_singleton()->get_action_description(p_action_name) : "";
 
 	if (desc.is_empty()) {
 		Ref<Shortcut> shortcut;
@@ -819,6 +817,16 @@ void GDREFindReplaceBar::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "replace_enabled"), "set_replace_enabled", "is_replace_enabled");
 }
 
+void GDREFindReplaceBar::_set_matches_custom_minimum_size() {
+	auto size = matches_label->get_size();
+	if (size.x == 0) {
+		// try again
+		callable_mp(this, &GDREFindReplaceBar::_set_matches_custom_minimum_size).call_deferred();
+	}
+	matches_label->set_custom_minimum_size(Size2(size.x, 0));
+	matches_label->set_text("");
+}
+
 GDREFindReplaceBar::GDREFindReplaceBar() {
 	main = memnew(HBoxContainer);
 	main->set_h_size_flags(SIZE_EXPAND_FILL);
@@ -870,10 +878,14 @@ GDREFindReplaceBar::GDREFindReplaceBar() {
 	matches_label = memnew(Label);
 	hbc_button_search->add_child(matches_label);
 	matches_label->set_focus_mode(FOCUS_ACCESSIBILITY);
-	matches_label->hide();
+	matches_label->set_text("No matches");
+	matches_label->show();
+	// call deferred
+	callable_mp(this, &GDREFindReplaceBar::_set_matches_custom_minimum_size).call_deferred();
 
 	find_prev = memnew(Button);
 	find_prev->set_flat(true);
+	find_prev->set_theme_type_variation("FlatMenuButton");
 	find_prev->set_disabled(results_count < 1);
 	find_prev->set_tooltip_text(vformat("%s (%s)", TTRC("Previous Match"), get_action_description("ui_find_previous")));
 	hbc_button_search->add_child(find_prev);
@@ -882,21 +894,30 @@ GDREFindReplaceBar::GDREFindReplaceBar() {
 
 	find_next = memnew(Button);
 	find_next->set_flat(true);
+	find_next->set_theme_type_variation("FlatMenuButton");
 	find_next->set_disabled(results_count < 1);
 	find_next->set_tooltip_text(vformat("%s (%s)", TTRC("Next Match"), get_action_description("ui_find_next")));
 	hbc_button_search->add_child(find_next);
 	find_next->set_focus_mode(FOCUS_ACCESSIBILITY);
 	find_next->connect(SceneStringName(pressed), callable_mp(this, &GDREFindReplaceBar::search_next));
 
-	case_sensitive = memnew(CheckBox);
+	case_sensitive = memnew(Button);
 	hbc_option_search->add_child(case_sensitive);
-	case_sensitive->set_text(TTRC("Match Case"));
+	case_sensitive->set_button_icon(get_gdre_icon(SNAME("CaseSensitive"), 2.0));
+	case_sensitive->set_tooltip_text(TTRC("Match Case"));
+	case_sensitive->set_flat(true);
+	case_sensitive->set_theme_type_variation("FlatMenuButton");
+	case_sensitive->set_toggle_mode(true);
 	case_sensitive->set_focus_mode(FOCUS_ACCESSIBILITY);
 	case_sensitive->connect(SceneStringName(toggled), callable_mp(this, &GDREFindReplaceBar::_search_options_changed));
 
-	whole_words = memnew(CheckBox);
+	whole_words = memnew(Button);
 	hbc_option_search->add_child(whole_words);
-	whole_words->set_text(TTRC("Whole Words"));
+	whole_words->set_tooltip_text(TTRC("Whole Words"));
+	whole_words->set_button_icon(get_gdre_icon(SNAME("WholeWord"), 2.0));
+	whole_words->set_flat(true);
+	whole_words->set_theme_type_variation("FlatMenuButton");
+	whole_words->set_toggle_mode(true);
 	whole_words->set_focus_mode(FOCUS_ACCESSIBILITY);
 	whole_words->connect(SceneStringName(toggled), callable_mp(this, &GDREFindReplaceBar::_search_options_changed));
 

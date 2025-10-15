@@ -7,9 +7,17 @@
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
+#include "modules/gltf/extensions/physics/gltf_document_extension_physics.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
 #include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/occluder_instance_3d.h"
+#include "scene/3d/physics/rigid_body_3d.h"
+#include "scene/3d/physics/static_body_3d.h"
+#include "scene/resources/3d/box_shape_3d.h"
+#include "scene/resources/3d/capsule_shape_3d.h"
+#include "scene/resources/3d/cylinder_shape_3d.h"
+#include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
@@ -37,6 +45,51 @@ struct dep_info {
 	bool uid_remap_path_exists = true;
 	bool parent_is_script_or_shader = false;
 };
+
+Ref<GLTFDocumentExtensionPhysics> get_physics_extension() {
+	Ref<GLTFDocumentExtensionPhysics> physics_ext;
+	for (auto &ext : GLTFDocument::get_all_gltf_document_extensions()) {
+		physics_ext = ext;
+		if (physics_ext.is_valid()) {
+			break;
+		}
+	}
+	return physics_ext;
+}
+
+Ref<GLTFDocumentExtensionPhysicsRemover> get_physics_remover_extension() {
+	Ref<GLTFDocumentExtensionPhysicsRemover> physics_remover_ext;
+	for (auto &ext : GLTFDocument::get_all_gltf_document_extensions()) {
+		physics_remover_ext = ext;
+		if (physics_remover_ext.is_valid()) {
+			break;
+		}
+	}
+	return physics_remover_ext;
+}
+
+void unregister_physics_extension() {
+	auto physics_ext = get_physics_extension();
+	if (physics_ext.is_valid()) {
+		GLTFDocument::unregister_gltf_document_extension(physics_ext);
+	}
+	auto physics_remover_ext = get_physics_remover_extension();
+	if (!physics_remover_ext.is_valid()) {
+		GLTFDocument::register_gltf_document_extension(memnew(GLTFDocumentExtensionPhysicsRemover));
+	}
+}
+
+void register_physics_extension() {
+	Ref<GLTFDocumentExtensionPhysics> physics_ext = get_physics_extension();
+	if (!physics_ext.is_valid()) {
+		GLTFDocument::register_gltf_document_extension(memnew(GLTFDocumentExtensionPhysics), true);
+	}
+	Ref<GLTFDocumentExtensionPhysicsRemover> physics_remover_ext = get_physics_remover_extension();
+	if (physics_remover_ext.is_valid()) {
+		GLTFDocument::unregister_gltf_document_extension(physics_remover_ext);
+	}
+}
+
 void _add_indent(String &r_result, const String &p_indent, int p_size) {
 	if (p_indent.is_empty()) {
 		return;
@@ -727,6 +780,11 @@ String GLBExporterInstance::get_path_res(const Ref<Resource> &res) {
 	return path;
 }
 
+inline bool get_count_majority(const Vector<bool> &p_values) {
+	int64_t count = p_values.count(true);
+	return count >= p_values.size() - count;
+}
+
 ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params() {
 	ObjExporter::MeshInfo global_mesh_info;
 	Vector<bool> global_has_tangents;
@@ -746,10 +804,10 @@ ObjExporter::MeshInfo GLBExporterInstance::_get_mesh_options_for_import_params()
 		// compression enabled is used for forcing disabling, so if ANY of them have it on, we need to set it on
 		global_mesh_info.compression_enabled = global_mesh_info.compression_enabled || E.compression_enabled;
 	}
-	global_mesh_info.has_tangents = global_has_tangents.count(true) > global_has_tangents.size() / 2;
-	global_mesh_info.has_lods = global_has_lods.count(true) > global_has_lods.size() / 2;
-	global_mesh_info.has_shadow_meshes = global_has_shadow_meshes.count(true) > global_has_shadow_meshes.size() / 2;
-	global_mesh_info.has_lightmap_uv2 = global_has_lightmap_uv2.count(true) > global_has_lightmap_uv2.size() / 2;
+	global_mesh_info.has_tangents = get_count_majority(global_has_tangents);
+	global_mesh_info.has_lods = get_count_majority(global_has_lods);
+	global_mesh_info.has_shadow_meshes = get_count_majority(global_has_shadow_meshes);
+	global_mesh_info.has_lightmap_uv2 = get_count_majority(global_has_lightmap_uv2);
 	global_mesh_info.lightmap_uv2_texel_size = gdre::get_most_popular_value(global_lightmap_uv2_texel_size);
 	global_mesh_info.bake_mode = gdre::get_most_popular_value(global_bake_mode);
 
@@ -799,6 +857,17 @@ void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRepor
 	after_4_3 = (ver_major > 4 || (ver_major == 4 && ver_minor > 3));
 	after_4_4 = (ver_major > 4 || (ver_major == 4 && ver_minor > 4));
 	updating_import_info = !force_no_update_import_params && iinfo.is_valid() && iinfo->get_ver_major() >= 4;
+
+	if (iinfo.is_valid()) {
+		scene_name = iinfo->get_source_file().get_file().get_basename();
+	} else {
+		if (res_info.is_valid()) {
+			scene_name = res_info->resource_name;
+		}
+		if (scene_name.is_empty()) {
+			scene_name = source_path.get_file().get_basename();
+		}
+	}
 }
 
 Error GLBExporterInstance::_load_deps() {
@@ -870,6 +939,10 @@ Error GLBExporterInstance::_load_deps() {
 			continue;
 		}
 		if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
+			if (ignore_missing_dependencies) {
+				WARN_PRINT(vformat("%s: Dependency %s -> %s does not exist.", source_path, info.dep, info.remap));
+				continue;
+			}
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
 					vformat("Dependency %s -> %s does not exist.", info.dep, info.remap));
 		} else if (info.uid != ResourceUID::INVALID_ID) {
@@ -900,6 +973,10 @@ Error GLBExporterInstance::_load_deps() {
 							using_threaded_load(),
 							ResourceFormatLoader::CACHE_MODE_IGNORE); // not ignore deep, we want to reuse dependencies if they exist
 					if (err || texture.is_null()) {
+						if (ignore_missing_dependencies) {
+							WARN_PRINT(vformat("%s: Dependency %s:%s failed to load.", source_path, info.dep, info.remap));
+							continue;
+						}
 						GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_MISSING_DEPENDENCIES,
 								vformat("Dependency %s:%s failed to load.", info.dep, info.remap));
 					}
@@ -946,6 +1023,297 @@ Error GLBExporterInstance::_load_deps() {
 	return OK;
 }
 
+namespace SceneExporterEnums {
+enum LightBakeMode {
+	LIGHT_BAKE_DISABLED,
+	LIGHT_BAKE_STATIC,
+	LIGHT_BAKE_STATIC_LIGHTMAPS,
+	LIGHT_BAKE_DYNAMIC,
+};
+
+enum MeshPhysicsMode {
+	MESH_PHYSICS_DISABLED,
+	MESH_PHYSICS_MESH_AND_STATIC_COLLIDER,
+	MESH_PHYSICS_RIGID_BODY_AND_MESH,
+	MESH_PHYSICS_STATIC_COLLIDER_ONLY,
+	MESH_PHYSICS_AREA_ONLY,
+};
+
+enum NavMeshMode {
+	NAVMESH_DISABLED,
+	NAVMESH_MESH_AND_NAVMESH,
+	NAVMESH_NAVMESH_ONLY,
+};
+
+enum OccluderMode {
+	OCCLUDER_DISABLED,
+	OCCLUDER_MESH_AND_OCCLUDER,
+	OCCLUDER_OCCLUDER_ONLY,
+};
+
+enum MeshOverride {
+	MESH_OVERRIDE_DEFAULT,
+	MESH_OVERRIDE_ENABLE,
+	MESH_OVERRIDE_DISABLE,
+};
+
+enum BodyType {
+	BODY_TYPE_STATIC,
+	BODY_TYPE_DYNAMIC,
+	BODY_TYPE_AREA
+};
+
+enum ShapeType {
+	SHAPE_TYPE_DECOMPOSE_CONVEX,
+	SHAPE_TYPE_SIMPLE_CONVEX,
+	SHAPE_TYPE_TRIMESH,
+	SHAPE_TYPE_BOX,
+	SHAPE_TYPE_SPHERE,
+	SHAPE_TYPE_CYLINDER,
+	SHAPE_TYPE_CAPSULE,
+	SHAPE_TYPE_AUTOMATIC,
+};
+} //namespace SceneExporterEnums
+
+Dictionary get_default_node_options() {
+	Dictionary dict;
+	// INTERNAL_IMPORT_CATEGORY_NODE
+	dict["node/node_type"] = "";
+	dict["node/script"] = Variant();
+	dict["import/skip_import"] = false;
+
+	// INTERNAL_IMPORT_CATEGORY_MESH_3D_NODE
+	dict["generate/physics"] = false;
+	dict["generate/navmesh"] = 0;
+	dict["physics/body_type"] = 0;
+	dict["physics/shape_type"] = 7;
+	dict["physics/physics_material_override"] = Variant();
+	dict["physics/layer"] = 1;
+	dict["physics/mask"] = 1;
+
+	dict["mesh_instance/layers"] = 1;
+	dict["mesh_instance/visibility_range_begin"] = 0.0f;
+	dict["mesh_instance/visibility_range_begin_margin"] = 0.0f;
+	dict["mesh_instance/visibility_range_end"] = 0.0f;
+	dict["mesh_instance/visibility_range_end_margin"] = 0.0f;
+	dict["mesh_instance/visibility_range_fade_mode"] = GeometryInstance3D::VISIBILITY_RANGE_FADE_DISABLED;
+	dict["mesh_instance/cast_shadow"] = GeometryInstance3D::SHADOW_CASTING_SETTING_ON;
+
+	// Decomposition
+	Ref<MeshConvexDecompositionSettings> decomposition_default = Ref<MeshConvexDecompositionSettings>();
+	decomposition_default.instantiate();
+	dict["decomposition/advanced"] = false;
+	dict["decomposition/precision"] = 5;
+	dict["decomposition/max_concavity"] = decomposition_default->get_max_concavity();
+	dict["decomposition/symmetry_planes_clipping_bias"] = decomposition_default->get_symmetry_planes_clipping_bias();
+	dict["decomposition/revolution_axes_clipping_bias"] = decomposition_default->get_revolution_axes_clipping_bias();
+	dict["decomposition/min_volume_per_convex_hull"] = decomposition_default->get_min_volume_per_convex_hull();
+	dict["decomposition/resolution"] = decomposition_default->get_resolution();
+	dict["decomposition/max_num_vertices_per_convex_hull"] = decomposition_default->get_max_num_vertices_per_convex_hull();
+	dict["decomposition/plane_downsampling"] = decomposition_default->get_plane_downsampling();
+	dict["decomposition/convexhull_downsampling"] = decomposition_default->get_convex_hull_downsampling();
+	dict["decomposition/normalize_mesh"] = decomposition_default->get_normalize_mesh();
+	dict["decomposition/mode"] = static_cast<int>(decomposition_default->get_mode());
+	dict["decomposition/convexhull_approximation"] = decomposition_default->get_convex_hull_approximation();
+	dict["decomposition/max_convex_hulls"] = decomposition_default->get_max_convex_hulls();
+	dict["decomposition/project_hull_vertices"] = decomposition_default->get_project_hull_vertices();
+
+	// Primitives: Box, Sphere, Cylinder, Capsule.
+	dict["primitive/size"] = Vector3(2.0, 2.0, 2.0);
+	dict["primitive/height"] = 1.0;
+	dict["primitive/radius"] = 1.0;
+	dict["primitive/position"] = Vector3();
+	dict["primitive/rotation"] = Vector3();
+
+	dict["generate/occluder"] = 0;
+	dict["occluder/simplification_distance"] = 0.1f;
+
+	// animation node
+	dict["optimizer/enabled"] = true;
+	dict["optimizer/max_velocity_error"] = 0.01;
+	dict["optimizer/max_angular_error"] = 0.01;
+	dict["optimizer/max_precision_error"] = 3;
+	dict["compression/enabled"] = false;
+	dict["compression/page_size"] = 8;
+	dict["import_tracks/position"] = 1;
+	dict["import_tracks/rotation"] = 1;
+	dict["import_tracks/scale"] = 1;
+
+	// skeleton 3d node
+	dict["rest_pose/load_pose"] = 0;
+	dict["rest_pose/external_animation_library"] = Variant();
+	dict["rest_pose/selected_animation"] = "";
+	dict["rest_pose/selected_timestamp"] = 0.0f;
+
+	return dict;
+}
+
+Dictionary get_node_options(Node *p_node) {
+	Dictionary node_options_dict = Dictionary();
+
+	MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(p_node);
+	AnimationPlayer *animation_player = Object::cast_to<AnimationPlayer>(p_node);
+	Ref<Script> script = p_node->get_script();
+	if (!mesh_instance && !animation_player) {
+		String type_name;
+		if (script.is_valid()) {
+			type_name = script->get_global_name();
+			// TODO: fix FakeScript to not put the path in the global name if it doesn't have a class_name
+			if (type_name.begins_with("res://")) {
+				type_name = "";
+			}
+		}
+		if (type_name.is_empty()) {
+			type_name = p_node->get_class();
+		}
+		if (!type_name.is_empty() && type_name != "Node3D") {
+			node_options_dict["node/node_type"] = type_name;
+		}
+	}
+	if (script.is_valid()) {
+		node_options_dict["node/script"] = script;
+	}
+	if (mesh_instance) {
+		// node_options_dict["import/skip_import"] = false;
+		// only used internally
+		//SHAPE_TYPE_SIMPLE_CONVEX = ConvexPolygonShape3D
+		//SHAPE_TYPE_TRIMESH = ConcavePolygonShape3D
+		//SHAPE_TYPE_BOX = BoxShape3D
+		//SHAPE_TYPE_SPHERE = SphereShape3D
+		//SHAPE_TYPE_CYLINDER = CylinderShape3D
+		//SHAPE_TYPE_CAPSULE = CapsuleShape3D
+		//SHAPE_TYPE_AUTOMATIC = AutomaticShape3D
+		SceneExporterEnums::MeshPhysicsMode mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_DISABLED;
+		SceneExporterEnums::BodyType body_type = SceneExporterEnums::BODY_TYPE_STATIC;
+		SceneExporterEnums::OccluderMode occluder_mode = SceneExporterEnums::OCCLUDER_DISABLED;
+		SceneExporterEnums::NavMeshMode navmesh_mode = SceneExporterEnums::NAVMESH_DISABLED;
+		SceneExporterEnums::ShapeType shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+		Ref<PhysicsMaterial> physics_material_override;
+		uint32_t physics_layer_bits = 1;
+		uint32_t physics_mask_bits = 1;
+		PhysicsBody3D *physics_body_node = nullptr;
+		RigidBody3D *parent_rigid_body = Object::cast_to<RigidBody3D>(p_node->get_parent());
+		float occlusion_simplification_distance = 0.1f;
+		if (parent_rigid_body) {
+			physics_body_node = parent_rigid_body;
+			physics_material_override = parent_rigid_body->get_physics_material_override();
+			mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_RIGID_BODY_AND_MESH;
+			body_type = SceneExporterEnums::BODY_TYPE_DYNAMIC;
+		}
+		for (auto &child : p_node->get_children()) {
+			if (Object::cast_to<StaticBody3D>(child)) {
+				auto static_body = Object::cast_to<StaticBody3D>(child);
+				physics_body_node = static_body;
+				physics_material_override = static_body->get_physics_material_override();
+				body_type = SceneExporterEnums::BODY_TYPE_STATIC;
+				mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_MESH_AND_STATIC_COLLIDER;
+			}
+			// navmesh
+			if (Object::cast_to<NavigationMesh>(child)) {
+				navmesh_mode = SceneExporterEnums::NAVMESH_MESH_AND_NAVMESH;
+			}
+			// occluder
+			if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(child); occluder_instance) {
+				occlusion_simplification_distance = occluder_instance->get_bake_simplification_distance();
+				occluder_mode = SceneExporterEnums::OCCLUDER_MESH_AND_OCCLUDER;
+			}
+		}
+
+		node_options_dict["generate/physics"] = mesh_physics_mode != SceneExporterEnums::MESH_PHYSICS_DISABLED;
+		node_options_dict["generate/navmesh"] = navmesh_mode;
+		Dictionary primtive_options_dict = Dictionary();
+
+		if (physics_body_node) {
+			physics_layer_bits = physics_body_node->get_collision_layer();
+			physics_mask_bits = physics_body_node->get_collision_mask();
+			TypedArray<Node> physics_nodes = p_node->find_children("*", "CollisionObject3D");
+			if (physics_nodes.size() > 1) {
+				// easy, it's decomposing convex
+				shape_type = SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX;
+			} else if (physics_nodes.size() == 1) {
+				CollisionObject3D *physics_node = Object::cast_to<CollisionObject3D>(physics_nodes[0]);
+				if (physics_node) {
+					auto shape = physics_node->get("shape");
+					if (auto convex_shape = Object::cast_to<ConvexPolygonShape3D>(shape); convex_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_SIMPLE_CONVEX;
+					} else if (auto concave_shape = Object::cast_to<ConcavePolygonShape3D>(shape); concave_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_TRIMESH;
+					} else if (auto box_shape = Object::cast_to<BoxShape3D>(shape); box_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_BOX;
+						primtive_options_dict["primitive/size"] = box_shape->get_size();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto sphere_shape = Object::cast_to<SphereShape3D>(shape); sphere_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_SPHERE;
+						primtive_options_dict["primitive/radius"] = sphere_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto cylinder_shape = Object::cast_to<CylinderShape3D>(shape); cylinder_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_CYLINDER;
+						primtive_options_dict["primitive/height"] = cylinder_shape->get_height();
+						primtive_options_dict["primitive/radius"] = cylinder_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else if (auto capsule_shape = Object::cast_to<CapsuleShape3D>(shape); capsule_shape) {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_CAPSULE;
+						primtive_options_dict["primitive/height"] = capsule_shape->get_height();
+						primtive_options_dict["primitive/radius"] = capsule_shape->get_radius();
+						primtive_options_dict["primitive/position"] = physics_node->get_position();
+						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
+					} else {
+						shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+					}
+				}
+			}
+			const auto auto_shape_type = body_type == SceneExporterEnums::BODY_TYPE_DYNAMIC ? SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX : SceneExporterEnums::SHAPE_TYPE_TRIMESH;
+			if (shape_type == auto_shape_type) {
+				shape_type = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
+			}
+
+			node_options_dict["physics/body_type"] = body_type;
+			node_options_dict["physics/shape_type"] = shape_type;
+			node_options_dict["physics/physics_material_override"] = physics_material_override.is_valid() ? (Variant)physics_material_override : Variant();
+			node_options_dict["physics/layer"] = physics_layer_bits;
+			node_options_dict["physics/mask"] = physics_mask_bits;
+			// TODO: Decomposition options in the case of shape_type == SHAPE_TYPE_DECOMPOSE_CONVEX;
+			// as far as I can tell, it's nearly impossible to recover these settings from the DecomposeConvexShape3D node
+		}
+
+		node_options_dict["mesh_instance/layers"] = mesh_instance->get_layer_mask();
+		node_options_dict["mesh_instance/visibility_range_begin"] = mesh_instance->get_visibility_range_begin();
+		node_options_dict["mesh_instance/visibility_range_begin_margin"] = mesh_instance->get_visibility_range_begin_margin();
+		node_options_dict["mesh_instance/visibility_range_end"] = mesh_instance->get_visibility_range_end();
+		node_options_dict["mesh_instance/visibility_range_end_margin"] = mesh_instance->get_visibility_range_end_margin();
+		node_options_dict["mesh_instance/visibility_range_fade_mode"] = mesh_instance->get_visibility_range_fade_mode();
+		node_options_dict["mesh_instance/cast_shadow"] = mesh_instance->get_cast_shadows_setting();
+
+		for (auto &E : primtive_options_dict) {
+			node_options_dict[E.key] = E.value;
+		}
+		node_options_dict["generate/occluder"] = occluder_mode;
+		if (occluder_mode != SceneExporterEnums::OCCLUDER_DISABLED) {
+			node_options_dict["occluder/simplification_distance"] = occlusion_simplification_distance;
+		}
+	}
+
+	return node_options_dict;
+}
+
+NodePath get_node_path(Node *p_node) {
+	const Node *n = p_node;
+
+	Vector<StringName> path;
+
+	while (n) {
+		path.push_back(n->get_name());
+		n = n->get_parent();
+	}
+
+	path.reverse();
+
+	return NodePath(path, true);
+}
+
 void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	root_type = root->get_class();
 	root_name = root->get_name();
@@ -961,12 +1329,19 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		if (skin.is_valid()) {
 			has_skinned_meshes = true;
 			skinned_mesh_instances.insert(mesh_instance);
-			auto mesh = mesh_instance->get_mesh();
-			if (mesh.is_valid()) {
-				meshes_in_mesh_instances.insert(mesh);
-				if (!mesh->get_name().is_empty()) {
-					mesh_name_to_instance_map[mesh->get_name()] = mesh_instance;
-				}
+		}
+		auto mesh = mesh_instance->get_mesh();
+		if (mesh.is_valid()) {
+			meshes_in_mesh_instances.insert(mesh);
+			String path = mesh->get_path(); // external and internal paths
+			if (!path.is_empty()) {
+				mesh_path_to_instance_map[path] = mesh_instance;
+			}
+		}
+		if (updating_import_info) {
+			auto node_path = get_node_path(mesh_instance);
+			if (!node_path.is_empty()) {
+				node_options[node_path.operator String()] = get_node_options(mesh_instance);
 			}
 		}
 	}
@@ -977,11 +1352,15 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	if (has_script) {
 		TypedArray<Node> nodes = { root };
 		nodes.append_array(root->get_children());
-		for (auto &E : nodes) {
+		for (int i = 0; i < nodes.size(); i++) {
+			auto &E = nodes[i];
 			Node *node = static_cast<Node *>(E.operator Object *());
 			ScriptInstance *si = node->get_script_instance();
 			List<PropertyInfo> properties;
 			if (si) {
+				if (updating_import_info) {
+					node_options[get_node_path(node).operator String()] = get_node_options(node);
+				}
 				si->get_property_list(&properties);
 				HashSet<Variant> other_values;
 				Vector<MeshInstance3D *> mesh_instances;
@@ -996,10 +1375,20 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 							// create a new mesh instance
 							auto mesh_instance = memnew(MeshInstance3D());
 							mesh_instance->set_mesh(mesh);
-							mesh_instance->set_name(mesh->get_name());
-							if (!mesh->get_name().is_empty()) {
-								mesh_name_to_instance_map[mesh->get_name()] = mesh_instance;
+							String name = mesh->get_name();
+							String path = mesh->get_path();
+
+							if (name.is_empty()) {
+								name = demangle_name(path.get_file().get_basename());
+								if (name.is_empty() || path.contains("::")) {
+									name = ("Mesh_" + String::num_int64(i));
+								}
+								mesh->set_name(name);
 							}
+							if (!path.is_empty()) {
+								mesh_path_to_instance_map[path] = mesh_instance;
+							}
+							mesh_instance->set_name(name);
 							node->add_child(mesh_instance);
 							mesh_instances.push_back(mesh_instance);
 							// meshes_in_mesh_instances.insert(mesh);
@@ -1045,7 +1434,9 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			}
 		}
 	}
+	Vector<int64_t> fps_values;
 	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
+		bool any_compressed = false;
 		// Force re-compute animation tracks.
 		Vector<Ref<AnimationLibrary>> anim_libs;
 		AnimationPlayer *player = Object::cast_to<AnimationPlayer>(animation_player_nodes[node_i]);
@@ -1060,6 +1451,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		ERR_CONTINUE(!player);
 		auto current_anmation = player->get_current_animation();
 		auto current_pos = current_anmation.is_empty() ? 0 : player->get_current_animation_position();
+		int64_t max_fps = -1;
 		for (auto &anim_lib : anim_libs) {
 			List<StringName> anim_names;
 			anim_lib->get_animation_list(&anim_names);
@@ -1073,6 +1465,8 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				}
 			}
 			for (auto &anim_name : anim_names) {
+				double shortest_frame_duration = 1000.0;
+
 				Ref<Animation> anim = anim_lib->get_animation(anim_name);
 				auto path = get_resource_path(anim);
 				String name = anim_name;
@@ -1089,9 +1483,32 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					}
 					if (!anim->track_is_imported(i)) {
 						external_animation_nodepaths.insert(anim->track_get_path(i));
+					} else if (updating_import_info) {
+						any_compressed = any_compressed || anim->track_is_compressed(i);
+						auto key_count = anim->track_get_key_count(i);
+						double last_key_frame = key_count > 0 ? anim->track_get_key_time(i, 0) : 0;
+						// Ignore the very last frame, it's usually an inserted fast frame to ensure the animation loops.
+						auto max_key_count = key_count - 1;
+						// check the key frames for the shortest frame duration
+						for (size_t j = 1; j < max_key_count; j++) {
+							auto key_frame = anim->track_get_key_time(i, j);
+							double duration = key_frame - last_key_frame;
+							if (duration > 0.0) {
+								shortest_frame_duration = MIN(shortest_frame_duration, key_frame - last_key_frame);
+							}
+							last_key_frame = key_frame;
+						}
 					}
 				}
-				if (ver_major == 4) {
+				int64_t fps = 0;
+				if (shortest_frame_duration > 0.0) {
+					fps = round(1.0 / shortest_frame_duration);
+				}
+				if (fps > 0) {
+					fps_values.push_back(fps);
+					max_fps = MAX(max_fps, fps);
+				}
+				if (updating_import_info) {
 					int i = 1;
 					while (animation_options.has(name)) {
 						// append _001, _002, etc.
@@ -1114,6 +1531,18 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 					anim_options["slices/amount"] = 0;
 				}
 			}
+		}
+		if (updating_import_info) {
+			auto path = get_node_path(player).operator String();
+			node_options[path] = get_node_options(player);
+			if (any_compressed) {
+				node_options[path]["compression/enabled"] = true;
+				// The rest of the options modify the animation tracks.
+				// These will already be reflected in the saved resource, so we don't set them.
+			}
+		}
+		if (max_fps > 0) {
+			baked_fps = MIN(max_fps, 120);
 		}
 	}
 }
@@ -1523,25 +1952,43 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	return { base_material, set_texture };
 }
 
+// TODO: handle Godot version <= 4.2 image naming scheme?
+String GLBExporterInstance::demangle_name(const String &name) {
+	return name.trim_prefix(scene_name + "_");
+}
+
+bool check_children_for_non_physics_nodes(Node *p_scene_node);
+
+bool check_children_for_non_physics_nodes(Node *p_scene_node) {
+	bool has_non_physics_children = false;
+	auto children = p_scene_node->get_children();
+	for (auto child : children) {
+		Node *child_node = Object::cast_to<Node>(child);
+		ERR_CONTINUE(child_node == nullptr);
+		if (!Object::cast_to<CollisionShape3D>(child_node) && !Object::cast_to<CollisionObject3D>(child_node)) {
+			has_non_physics_children = true;
+			break;
+		} else {
+			if (check_children_for_non_physics_nodes(child_node)) {
+				has_non_physics_children = true;
+				break;
+			}
+		}
+	}
+	return has_non_physics_children;
+}
+
+void GLTFDocumentExtensionPhysicsRemover::convert_scene_node(Ref<GLTFState> p_state, Ref<GLTFNode> p_gltf_node, Node *p_scene_node) {
+	if (Object::cast_to<CollisionShape3D>(p_scene_node) || Object::cast_to<CollisionObject3D>(p_scene_node)) {
+		if (!check_children_for_non_physics_nodes(p_scene_node)) {
+			p_gltf_node->set_parent(-2);
+		}
+	}
+}
+
 Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_dest_path) {
 	{
 		GDRE_SCN_EXP_CHECK_CANCEL();
-		String scene_name;
-		if (iinfo.is_valid()) {
-			scene_name = iinfo->get_source_file().get_file().get_basename();
-		} else {
-			if (res_info.is_valid()) {
-				scene_name = res_info->resource_name;
-			}
-			if (scene_name.is_empty()) {
-				scene_name = source_path.get_file().get_slice(".", 0);
-			}
-		}
-
-		// TODO: handle Godot version <= 4.2 image naming scheme?
-		auto demangle_name = [scene_name](const String &path) {
-			return path.trim_prefix(scene_name + "_");
-		};
 		String game_name = GDRESettings::get_singleton()->get_game_name();
 		String copyright_string = vformat(COPYRIGHT_STRING_FORMAT, game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
 		List<String> deps;
@@ -1587,15 +2034,15 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			for (auto &E : state->get_meshes()) {
 				Ref<GLTFMesh> mesh = E;
 				if (mesh.is_valid()) {
-					String original_name = mesh->get_original_name();
-					MeshInstance3D *instance = nullptr;
-					if (!original_name.is_empty() && mesh_name_to_instance_map.has(original_name)) {
-						instance = mesh_name_to_instance_map[original_name];
-					}
 					Ref<ImporterMesh> im = mesh->get_mesh();
 					ERR_CONTINUE_MSG(im.is_null(), "ImporterMesh is null");
 					auto instance_materials = mesh->get_instance_materials();
 
+					String path = get_path_res(im);
+					MeshInstance3D *instance = nullptr;
+					if (!path.is_empty() && mesh_path_to_instance_map.has(path)) {
+						instance = mesh_path_to_instance_map[path];
+					}
 					for (int surface_i = 0; surface_i < im->get_surface_count(); surface_i++) {
 						Ref<ShaderMaterial> shader_material;
 						Ref<BaseMaterial3D> base_material;
@@ -1676,6 +2123,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
 #endif
+		// rename objects in the state so that they will be imported correctly, and gather import params info
 		{
 			auto json = state->get_json();
 			auto materials = state->get_materials();
@@ -1781,42 +2229,79 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				Vector<bool> mesh_is_shadow;
 				auto gltf_meshes = state->get_meshes();
 				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
+				HashSet<Ref<ArrayMesh>> shadow_meshes;
 				for (int i = 0; i < gltf_meshes.size(); i++) {
 					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
 					auto mesh = gltf_mesh->get_mesh();
+					if (mesh.is_valid()) {
+						Ref<ArrayMesh> shadow_mesh = mesh->get_shadow_mesh();
+						if (shadow_mesh.is_valid()) {
+							shadow_meshes.insert(shadow_mesh);
+						}
+					}
+				}
+				for (int i = 0; i < gltf_meshes.size(); i++) {
+					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
+					auto imesh = gltf_mesh->get_mesh();
 					auto original_name = gltf_mesh->get_original_name();
 					Dictionary mesh_dict = json_meshes[i];
 					ObjExporter::MeshInfo mesh_info;
-					if (mesh.is_null()) {
-						id_to_mesh_info.push_back(mesh_info);
+					if (imesh.is_null()) {
 						continue;
 					}
-					String path = get_path_res(mesh);
+					String path = get_path_res(imesh);
 					String name;
 					bool is_internal = path.is_empty() || path.get_file().contains("::");
 					if (is_internal) {
-						name = get_name_res(mesh_dict, mesh, i);
+						name = get_name_res(mesh_dict, imesh, i);
 					} else {
 						name = path.get_file().get_basename();
 					}
 					if (!name.is_empty()) {
 						mesh_dict["name"] = demangle_name(name);
+						if (original_name.is_empty()) {
+							gltf_mesh->set_original_name(name);
+						}
 					} else if (!original_name.is_empty()) {
 						mesh_dict["name"] = original_name;
+						name = original_name;
 					}
-					if (original_name.is_empty()) {
-						gltf_mesh->set_original_name(name);
+					if (!updating_import_info || shadow_meshes.has(imesh) || (path.is_empty() && name.is_empty())) {
+						// mesh that won't be imported, skip
+						continue;
 					}
+					// Set the mesh info so that we can use it to rewrite the import params
 					mesh_info.path = path;
 					mesh_info.name = name;
+					mesh_info.has_shadow_meshes = imesh->get_shadow_mesh().is_valid();
+					mesh_info.has_lightmap_uv2 = imesh->get_lightmap_size_hint() != default_light_map_size;
+					mesh_info.bake_mode = mesh_info.has_lightmap_uv2 ? 2 : 1;
+					if (mesh_path_to_instance_map.has(path)) {
+						Ref<Mesh> instance_mesh = mesh_path_to_instance_map[path]->get_mesh();
+						Ref<ArrayMesh> arr_mesh = instance_mesh;
+						mesh_info.has_shadow_meshes = arr_mesh.is_valid() ? arr_mesh->get_shadow_mesh().is_valid() : mesh_info.has_shadow_meshes;
+						mesh_info.has_lightmap_uv2 = instance_mesh->get_lightmap_size_hint() != default_light_map_size;
 
-					mesh_info.has_shadow_meshes = mesh->get_shadow_mesh().is_valid();
-					mesh_info.has_lightmap_uv2 = mesh_info.has_lightmap_uv2 || mesh->get_lightmap_size_hint() != default_light_map_size;
-					for (int surf_idx = 0; surf_idx < mesh->get_surface_count(); surf_idx++) {
-						auto format = mesh->get_surface_format(surf_idx);
+						auto gi_mode = mesh_path_to_instance_map[path]->get_gi_mode();
+						if (gi_mode == GeometryInstance3D::GI_MODE_DISABLED) {
+							mesh_info.bake_mode = 0; // DISABLED
+						} else if (gi_mode == GeometryInstance3D::GI_MODE_DYNAMIC) {
+							mesh_info.bake_mode = 3; // DYNAMIC
+						} else if (gi_mode == GeometryInstance3D::GI_MODE_STATIC) {
+							if (mesh_info.has_lightmap_uv2) {
+								mesh_info.bake_mode = 2; // STATIC_LIGHTMAPS
+							} else {
+								mesh_info.bake_mode = 1; // STATIC
+							}
+						}
+					}
+					auto surface_count = imesh->get_surface_count();
+					for (int surf_idx = 0; surf_idx < surface_count; surf_idx++) {
+						auto format = imesh->get_surface_format(surf_idx);
 						mesh_info.has_tangents = mesh_info.has_tangents || ((format & Mesh::ARRAY_FORMAT_TANGENT) != 0);
-						mesh_info.has_lods = mesh_info.has_lods || mesh->get_surface_lod_count(surf_idx) > 0;
+						mesh_info.has_lods = mesh_info.has_lods || imesh->get_surface_lod_count(surf_idx) > 0;
 						mesh_info.compression_enabled = mesh_info.compression_enabled || ((format & Mesh::ARRAY_FLAG_COMPRESS_ATTRIBUTES) != 0);
+						// TODO: add lightmap_uv2_texel_size
 						// r_mesh_info.lightmap_uv2_texel_size = p_mesh->surface_get_lightmap_uv2_texel_size(surf_idx);
 					}
 					id_to_mesh_info.push_back(mesh_info);
@@ -1837,59 +2322,13 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					} else {
 						name = path.get_file().get_basename();
 					}
+					// the name in the options import is the name in the gltf file, unlike for meshes
 					if (!name.is_empty()) {
-						material_dict["name"] = demangle_name(name);
+						material_dict["name"] = name;
 					}
 					id_to_material_path.push_back({ name, path });
 				}
 			}
-			auto gltf_nodes = state->get_nodes();
-			// rename animation player nodes to avoid name clashes when reimporting
-			if (gltf_nodes.size() > 0) {
-				Array json_nodes = json["nodes"];
-				Array json_scenes = json["scenes"];
-				Vector<GLTFNodeIndex> nodes_to_remove;
-				for (int node_idx = gltf_nodes.size() - 1; node_idx >= 0; node_idx--) {
-					Ref<GLTFNode> node = gltf_nodes[node_idx];
-					Dictionary json_node = json_nodes[node_idx];
-					if (node.is_valid()) {
-						auto original_name = node->get_original_name();
-						if (!original_name.is_empty() && original_name.contains("AnimationPlayer")) {
-							if (node_idx == json_nodes.size() - 1 && (json_node.size() == 0 || (json_node.size() == 1 && json_node.has("name")))) {
-								// useless node, remove it
-								auto parent = node->get_parent();
-								if (parent != -1) {
-									Dictionary parent_node = json_nodes[parent];
-									Array children = parent_node.get("children", Array());
-									if (children.has(node_idx)) {
-										children.erase(node_idx);
-										parent_node["children"] = children;
-									}
-								}
-								for (int j = 0; j < json_scenes.size(); j++) {
-									Dictionary scene_json = json_scenes[j];
-									Array scene_nodes = scene_json.get("nodes", Array());
-									if (scene_nodes.has(node_idx)) {
-										scene_nodes.erase(node_idx);
-										scene_json["nodes"] = scene_nodes;
-										json_scenes[j] = scene_json;
-									}
-								}
-								json_nodes.remove_at(node_idx);
-								nodes_to_remove.push_back(node_idx);
-								continue;
-							} else {
-								json_node["name"] = original_name + "_ORIG_" + String::num_int64(node_idx);
-							}
-						}
-					}
-				}
-				// nodes_to_remove.sort();
-				// nodes_to_remove.reverse();
-				json["nodes"] = json_nodes;
-				json["scenes"] = json_scenes;
-			}
-
 			Dictionary gltf_asset = json["asset"];
 #if DEBUG_ENABLED
 			// less file churn when testing
@@ -1976,12 +2415,12 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	iinfo->set_param("meshes/ensure_tangents", global_mesh_info.has_tangents);
 	iinfo->set_param("meshes/generate_lods", global_mesh_info.has_lods);
 	iinfo->set_param("meshes/create_shadow_meshes", global_mesh_info.has_shadow_meshes);
-	iinfo->set_param("meshes/light_baking", global_mesh_info.has_lightmap_uv2 ? 2 : global_mesh_info.bake_mode);
+	iinfo->set_param("meshes/light_baking", global_mesh_info.bake_mode);
 	iinfo->set_param("meshes/lightmap_texel_size", global_mesh_info.lightmap_uv2_texel_size);
 	iinfo->set_param("meshes/force_disable_compression", !global_mesh_info.compression_enabled);
 	iinfo->set_param("skins/use_named_skins", true);
 	iinfo->set_param("animation/import", true);
-	iinfo->set_param("animation/fps", 30);
+	iinfo->set_param("animation/fps", baked_fps);
 	iinfo->set_param("animation/trimming", p_dest_path.get_extension().to_lower() == "fbx");
 	iinfo->set_param("animation/remove_immutable_tracks", true);
 	iinfo->set_param("animation/import_rest_as_RESET", has_reset_track);
@@ -1997,7 +2436,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	}
 
 	if (after_4_1) {
-		iinfo->set_param("gltf/naming_version", after_4_1 ? 1 : 0);
+		iinfo->set_param("gltf/naming_version", after_4_4 ? 2 : 1);
 	}
 
 	iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
@@ -2008,9 +2447,6 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 		}
 		Dictionary animations_dict = _subresources_dict["animations"];
 		for (auto &E : animation_options) {
-			// "save_to_file/enabled": true,
-			// "save_to_file/keep_custom_tracks": true,
-			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
 			animations_dict[E.key] = E.value;
 			String path = get_path_options(E.value);
 			if (!(path.is_empty() || path.get_file().contains("::"))) {
@@ -2053,7 +2489,7 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 				external_deps_updated.insert(path);
 			}
 			subres["generate/shadow_meshes"] = get_default_mesh_opt(global_mesh_info.has_shadow_meshes, E.has_shadow_meshes);
-			subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.has_lightmap_uv2, E.has_lightmap_uv2);
+			subres["generate/lightmap_uv"] = get_default_mesh_opt(global_mesh_info.bake_mode == 2, E.has_lightmap_uv2);
 			subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
 			// TODO: get these somehow??
 			if (!after_4_3) {
@@ -2088,6 +2524,32 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 				set_path_options(subres, path, "use_external");
 				external_deps_updated.insert(path);
 			}
+		}
+	}
+	if (node_options.size() > 0) {
+		const Dictionary default_node_options = get_default_node_options();
+		if (!_subresources_dict.has("nodes")) {
+			_subresources_dict["nodes"] = Dictionary();
+		}
+		Dictionary node_Dict = _subresources_dict["nodes"];
+		for (auto &E : node_options) {
+			// If we're not removing physics bodies, we don't want the editor to re-generate them when re-importing.
+			if (!remove_physics_bodies && E.value.get("generate/physics", false)) {
+				E.value["generate/physics"] = false;
+			}
+			for (auto &key : E.value.keys()) {
+				if (default_node_options.has(key) && E.value.get(key, Variant()) == default_node_options.get(key, Variant())) {
+					E.value.erase(key);
+				}
+			}
+			if (E.value.is_empty()) {
+				continue;
+			}
+			String path_key = "PATH:" + E.key.trim_prefix("/" + root_name).trim_prefix("/");
+			node_Dict[path_key] = E.value;
+		}
+		if (node_Dict.is_empty()) {
+			_subresources_dict.erase("nodes");
 		}
 	}
 
@@ -2412,11 +2874,19 @@ void GLBExporterInstance::set_options(const Dictionary &curr_options) {
 	if (!options.has("Exporter/Scene/GLTF/force_require_KHR_node_visibility")) {
 		options["Exporter/Scene/GLTF/force_require_KHR_node_visibility"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	}
+	if (!options.has("Exporter/Scene/GLTF/ignore_missing_dependencies")) {
+		options["Exporter/Scene/GLTF/ignore_missing_dependencies"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
+	}
+	if (!options.has("Exporter/Scene/GLTF/remove_physics_bodies")) {
+		options["Exporter/Scene/GLTF/remove_physics_bodies"] = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	}
 	replace_shader_materials = options.get("Exporter/Scene/GLTF/replace_shader_materials", false);
 	force_lossless_images = options.get("Exporter/Scene/GLTF/force_lossless_images", false);
 	force_export_multi_root = options.get("Exporter/Scene/GLTF/force_export_multi_root", false);
 	force_require_KHR_node_visibility = options.get("Exporter/Scene/GLTF/force_require_KHR_node_visibility", false);
 	use_double_precision = options.get("Exporter/Scene/GLTF/use_double_precision", false);
+	ignore_missing_dependencies = options.get("Exporter/Scene/GLTF/ignore_missing_dependencies", false);
+	remove_physics_bodies = options.get("Exporter/Scene/GLTF/remove_physics_bodies", false);
 }
 
 constexpr bool _check_unsupported(int ver_major, bool is_text_output) {
@@ -2787,6 +3257,10 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 	} else if (non_gltf) {
 		opath = out_path.get_basename() + ".glb";
 	}
+	bool remove_physics_bodies = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	if (remove_physics_bodies) {
+		unregister_physics_extension();
+	}
 	auto token = std::make_shared<BatchExportToken>(out_path.get_base_dir(), iinfo, options);
 	token->p_dest_path = opath;
 	if (non_gltf) {
@@ -2797,10 +3271,16 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 	token->batch_preload();
 	if (token->err != OK) {
 		token->post_export(token->err);
+		if (remove_physics_bodies) {
+			register_physics_extension();
+		}
 		return token->report;
 	}
 	Error err = TaskManager::get_singleton()->run_task(token, nullptr, "Exporting scene " + res_path, -1, true, true, true);
 	token->post_export(err);
+	if (remove_physics_bodies) {
+		register_physics_extension();
+	}
 	return token->report;
 }
 
@@ -2982,6 +3462,12 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	if (tokens.is_empty()) {
 		return reports;
 	}
+
+	bool remove_physics_bodies = GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/remove_physics_bodies", false);
+	if (remove_physics_bodies) {
+		unregister_physics_extension();
+	}
+
 	static constexpr int64_t ONE_MB = 1024LL * 1024LL;
 	static constexpr int64_t ONE_GB = 1024LL * ONE_MB;
 	static constexpr int64_t EIGHT_GB = 8LL * ONE_GB;
@@ -2991,9 +3477,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	int64_t current_memory_usage = OS::get_singleton()->get_static_memory_usage();
 	// available memory does not include disk cache, so we should take the larger of this or peak memory usage (i.e. the most we've allocated)
 	int64_t total_mem_available = MAX((int64_t)mem_info["available"], (int64_t)OS::get_singleton()->get_static_memory_peak_usage() - current_memory_usage);
-	// we should either only allocate ourselves 8GB in memory or the amount of memory available to us, whichever is less
-	int64_t max_usage = MIN(EIGHT_GB, current_memory_usage + total_mem_available);
-	int64_t available_for_threads = MIN(EIGHT_GB - current_memory_usage, total_mem_available);
+	int64_t max_usage = TaskManager::maximum_memory_usage;
 	size_t current_vram_usage = get_vram_usage();
 	size_t peak_vram_usage = current_vram_usage;
 	// TODO: get the real available VRAM; right now we assume 4GB
@@ -3001,11 +3485,10 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	// 75% of the default thread pool size; we can't saturate the thread pool because some loaders may make use of them and we'll cause a deadlock.
 	const size_t default_num_threads = OS::get_singleton()->get_default_thread_pool_size() * 0.75;
 	// The smaller of either the above value, or the amount of memory available to us, divided by 256MB (conservative estimate of 256MB per scene)
-	const size_t number_of_threads = MIN(default_num_threads, available_for_threads / (ONE_GB / 4));
+	const size_t number_of_threads = MIN(default_num_threads, max_usage / (ONE_GB / 4));
 
 	print_line("\nExporting scenes...");
 	perf_print(vformat("Current memory usage: %.02fMB, Total memory available: %.02fMB", (double)current_memory_usage / (double)ONE_MB, (double)total_mem_available / (double)ONE_MB));
-	perf_print(vformat("Max memory usage: %.02fMB, Available for scene export: %.02fMB", (double)max_usage / (double)ONE_MB, (double)available_for_threads / (double)ONE_MB));
 	perf_print(vformat("VRAM usage: %.02fMB", (double)current_vram_usage / (double)ONE_MB));
 	perf_print(vformat("Default thread pool size: %d", OS::get_singleton()->get_default_thread_pool_size()));
 	perf_print(vformat("Number of threads to use for scene export: %d\n", (int64_t)number_of_threads));
@@ -3127,5 +3610,8 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		reports.push_back(token->report);
 	}
 	print_line(vformat("*** Exporting %d scenes took %.02fs\n", tokens.size(), (double)(export_end_time - export_start_time) / 1000.0));
+	if (remove_physics_bodies) {
+		register_physics_extension();
+	}
 	return reports;
 }

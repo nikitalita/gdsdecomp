@@ -21,6 +21,8 @@ public:
 	typedef int64_t DownloadTaskID;
 	typedef int64_t TaskManagerID;
 
+	static int64_t maximum_memory_usage;
+
 	class BaseTemplateTaskData {
 	protected:
 		bool dont_update_progress_bg = false;
@@ -80,6 +82,7 @@ public:
 		WorkerThreadPool::GroupID group_id = -1;
 		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
 		std::atomic<int64_t> last_completed = 0;
+		std::atomic<int64_t> tasks_busy_waiting = 0;
 		int progress_start = 0;
 
 	public:
@@ -102,7 +105,7 @@ public:
 				method(p_method),
 				userdata(p_userdata),
 				elements(p_elements),
-				tasks(p_tasks),
+				tasks(p_tasks == -1 ? WorkerThreadPool::get_singleton()->get_thread_count() : p_tasks),
 				task_step_desc_callback(p_task_step_callback),
 				task(p_task),
 				description(p_description),
@@ -141,6 +144,18 @@ public:
 		bool group_task_callback(uint32_t p_index, U p_userdata) {
 			if (unlikely(canceled)) {
 				return true;
+			}
+			// if we're using too much memory, wait until it goes down
+			if (unlikely(OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage)) {
+				tasks_busy_waiting++;
+				while (OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage) {
+					if (tasks_busy_waiting == tasks) {
+						// all tasks are busy waiting, so we should break to prevent a deadlock and just deal with the potential thrashing.
+						break;
+					}
+					OS::get_singleton()->delay_usec(10000);
+				}
+				tasks_busy_waiting--;
 			}
 			(instance->*method)(p_index, p_userdata);
 			last_completed++;

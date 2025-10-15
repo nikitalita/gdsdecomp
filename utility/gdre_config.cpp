@@ -26,7 +26,7 @@ public:
 					"Load a custom bytecode file.",
 					"",
 					false,
-					true) {
+					false) {
 	}
 
 	virtual bool is_filepicker() const override { return true; }
@@ -260,6 +260,16 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
 				"Force require KHR_node_visibility extension",
 				"By default, the exporter will only require the KHR_node_visibility extension if the scenes are from Godot 4.5 or later.\nThis setting forces the exporter to require the extension regardless of engine version.",
+				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/ignore_missing_dependencies",
+				"Ignore missing dependencies",
+				"Ignore missing dependencies when exporting the scene.",
+				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Scene/GLTF/remove_physics_bodies",
+				"Remove physics bodies",
+				"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
 				false)),
 		memnew(GDREConfigSetting(
 				"Exporter/Scene/GLTF/replace_shader_materials",

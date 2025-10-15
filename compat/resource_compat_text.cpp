@@ -2007,15 +2007,13 @@ void ResourceFormatSaverCompatTextInstance::_find_resources(const Variant &p_var
 		} break;
 		case Variant::PACKED_BYTE_ARRAY: {
 			// Balance between compatibility and performance.
-			// compat: We should only use the newest format if it was explicitly set or it has PackedVector4Arrays.
-#if 0
 			if (use_compat && p_variant.operator PackedByteArray().size() > 64) {
 				use_compat = false;
 			}
-#endif
 		} break;
 		case Variant::PACKED_VECTOR4_ARRAY: {
 			use_compat = false;
+			used_packed_vector4array = true;
 		} break;
 		default: {
 		}
@@ -2074,11 +2072,20 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	}
 
 	// Save resources.
-	use_compat = format_version < 4; // _find_resources() changes this.
 	_find_resources(p_resource, true);
 
-	if (!use_compat && format_version >= 3) {
-		format_version = 4;
+	if (!use_compat) {
+		if (format_version >= 3 && (used_packed_vector4array || (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)))) {
+			format_version = 4;
+		} else {
+			use_compat = true;
+		}
+	} else if (use_compat) {
+		if (format_version >= 3 && !set_format) {
+			format_version = 3;
+		} else {
+			use_compat = false;
+		}
 	}
 	if (packed_scene.is_valid()) {
 		// Add instances to external resources if saving a packed scene.
@@ -2630,6 +2637,7 @@ bool ResourceLoaderCompatText::should_threaded_load() const {
 Ref<ResourceLoader::LoadToken> ResourceLoaderCompatText::start_ext_load(const String &p_path, const String &p_type_hint, const ResourceUID::ID uid, const String id) {
 	Ref<ResourceLoader::LoadToken> load_token;
 	Error err = OK;
+	ERR_FAIL_COND_V_MSG(is_real_load() && p_path == local_path, Ref<ResourceLoader::LoadToken>(), "Circular dependency detected: " + p_path);
 	if (!should_threaded_load()) {
 		ERR_FAIL_COND_V_MSG(!ext_resources.has(id), load_token, "External resources doesn't have id: " + id);
 		load_token = Ref<ResourceLoader::LoadToken>(memnew(ResourceLoader::LoadToken));
@@ -2794,7 +2802,7 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 	format_version = CompatFormatLoader::get_format_version_from_flags(p_flags);
 	ver_major = CompatFormatLoader::get_ver_major_from_flags(p_flags);
 	ver_minor = CompatFormatLoader::get_ver_minor_from_flags(p_flags);
-	bool set_format = format_version != 0 && ver_major != 0;
+	set_format = format_version != 0 && ver_major != 0;
 	String original_path;
 	if (compat.is_valid()) {
 		original_path = compat->original_path;
@@ -2810,7 +2818,8 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 		using_uids = compat->using_uids;
 		using_named_scene_ids = compat->using_named_scene_ids;
 		Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
-		if (!set_format && (orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0)) {
+		set_format = set_format || !(orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0);
+		if (!set_format) {
 			if (orig_format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
 				format_version = 4;
 			} else if (using_uids || using_named_scene_ids || using_script_class) {

@@ -2322,7 +2322,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		for (const StringName &key : keys) {
 			tokens[i].strings.push_back(res->get_message(key));
 		}
-	} else if (!(src_ext == "csv" || src_ext == "json") && ResourceCompatLoader::handles_resource(tokens[i].path)) {
+	} else if (!(src_ext == "dat" || src_ext == "csv" || src_ext == "json") && ResourceCompatLoader::handles_resource(tokens[i].path)) {
 		// avoid spamming the console with errors for empty files
 		GDRELogger::get_thread_errors(); // clear errors if any
 		GDRELogger::set_thread_local_silent_errors(true);
@@ -2370,12 +2370,14 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		if (!gdre::detect_utf8(file_buf)) {
 			return;
 		}
-		if (src_ext == "csvdb" || src_ext == "csv") {
+		String delimiter = ",";
+		bool is_csv = false;
+		if (src_ext.begins_with("csv") || src_ext == "dat") {
+			is_csv = true;
 			// use the built-in CSV parser
 			f->seek(0);
 			// get the first line
 			String header = f->get_line();
-			String delimiter = ",";
 			if (!header.contains(",")) {
 				if (header.contains(";")) {
 					delimiter = ";";
@@ -2383,14 +2385,17 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 					delimiter = "|";
 				} else if (header.contains("\t")) {
 					delimiter = "\t";
+				} else {
+					is_csv = false;
 				}
 			}
+		}
+		if (is_csv) {
 			f->seek(0);
 			while (!f->eof_reached()) {
-				Vector<String> line = f->get_csv_line(delimiter);
-				for (int j = 0; j < line.size(); j++) {
-					if (!line[j].is_numeric()) {
-						tokens[i].strings.append(line[j]);
+				for (const String &line_item : f->get_csv_line(delimiter)) {
+					if (!line_item.is_numeric()) {
+						tokens[i].strings.append(line_item);
 					}
 				}
 			}
@@ -2453,6 +2458,7 @@ void GDRESettings::load_all_resource_strings() {
 	if (!error_encryption) {
 		wildcards.push_back("*.gde");
 	}
+	wildcards.push_back("*.dat");
 	wildcards.push_back("*.csv");
 	wildcards.push_back("*.ini");
 	wildcards.push_back("*.csvdb");

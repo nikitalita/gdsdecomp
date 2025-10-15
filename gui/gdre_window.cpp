@@ -60,11 +60,13 @@ GDREWindow::~GDREWindow() {
 }
 
 void GDREWindow::_notification(int p_what) {
-	if (!next_process_calls.is_empty()) {
-		auto calls = next_process_calls;
-		next_process_calls.clear();
-		for (const auto &callable : calls) {
-			callable.call();
+	if (p_what == NOTIFICATION_PROCESS) {
+		if (!next_process_calls.is_empty()) {
+			auto calls = next_process_calls;
+			next_process_calls.clear();
+			for (const auto &callable : calls) {
+				callable.call();
+			}
 		}
 	}
 }
@@ -72,6 +74,7 @@ void GDREWindow::_notification(int p_what) {
 void GDREWindow::call_on_next_process(const Callable &p_callable) {
 	next_process_calls.push_back(p_callable);
 	if (!is_processing()) {
+		WARN_PRINT("GDREWindow: Setting process to true");
 		set_process(true);
 	}
 }
@@ -115,6 +118,7 @@ void GDREAcceptDialogBase::_notification(int p_what) {
 void GDREAcceptDialogBase::call_on_next_process(const Callable &p_callable) {
 	next_process_calls.push_back(p_callable);
 	if (!is_processing()) {
+		WARN_PRINT("GDREAcceptDialogBase: Setting process to true");
 		set_process(true);
 	}
 }

@@ -95,6 +95,7 @@ enum ExportSceneType {
 	AUTO,
 	TSCN,
 	GLB,
+	GLTF
 }
 
 const DIR_STRUCTURE_NAMES: PackedStringArray = [
@@ -107,6 +108,7 @@ const EXPORT_SCENE_TYPE_NAMES: PackedStringArray = [
 	"Auto",
 	"tscn",
 	"GLB",
+	"GLTF",
 ]
 
 func get_output_file_name(src: String, output_folder: String, dir_structure_option: DirStructure, new_ext: String = "", rel_base: String = "") -> String:
@@ -128,12 +130,12 @@ func _export_scene(file: String, output_dir: String, dir_structure: DirStructure
 	if iinfo:
 		source_file = iinfo.source_file
 
-	var res_ext = file.get_extension().to_lower()
 	var ext = source_file.get_extension().to_lower()
 
 	if export_type == ExportSceneType.GLB:
-		if ext != "glb" and ext != "gltf":
-			ext = "glb"
+		ext = "glb"
+	elif export_type == ExportSceneType.GLTF:
+		ext = "gltf"
 	elif export_type == ExportSceneType.TSCN:
 		ext = "tscn"
 	else: # AUTO
@@ -201,7 +203,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 		var _ret: ImportInfo = GDRESettings.get_import_info_by_dest(file)
 		var file_ext = file.get_extension().to_lower()
 		if file_ext == "scn" or file_ext == "tscn" or (_ret and _ret.get_compat_type() == "PackedScene"):
-			if export_glb != ExportSceneType.GLB and file_ext == "tscn":
+			if export_glb != ExportSceneType.GLB and export_glb != ExportSceneType.GLTF and file_ext == "tscn":
 				var src = file if not is_instance_valid(_ret) else _ret.source_file
 				if src.get_extension().to_lower() == file_ext:
 					# just extract the file
@@ -215,7 +217,7 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 			elif report.error != OK and report.error != ERR_PRINTER_ON_FIRE:
 				if (report.error == ERR_SKIP):
 					errs.append("Exporting cancelled: " + file + "\n" + report.message + "\n" + get_log_error_string(report.get_error_messages()))
-					continue
+					break
 				errs.append("Failed to export resource: " + file + "\n" + report.message + "\n" + get_log_error_string(report.get_error_messages()))
 		elif _ret:
 			var iinfo: ImportInfo = ImportInfo.copy(_ret)
@@ -254,7 +256,12 @@ func _export_files(files: PackedStringArray, output_dir: String, dir_structure: 
 	return errs
 
 func _on_export_resources_confirmed(output_dir: String):
-	self.call_on_next_process(self.call_on_next_process.bind(self._do_export.bind(output_dir)))
+	# Export goes very slow if the preview is visible and something like a 3D scene is being rendered;
+	# We toggle it off during the export and then turn it back on after it's done
+	var export_preview_visible = %GdreResourcePreview.is_main_view_visible()
+	if export_preview_visible:
+		%GdreResourcePreview.set_main_view_visible(false)
+	self.call_on_next_process(self.call_on_next_process.bind(self._do_export.bind(output_dir, export_preview_visible)))
 
 
 func _show_error_or_success(errs: PackedStringArray, success_message: String, output_dir: String):
@@ -263,7 +270,7 @@ func _show_error_or_success(errs: PackedStringArray, success_message: String, ou
 	else:
 		popup_confirm_box(success_message, "Success", func(): OS.shell_open(GDRECommon.path_to_uri(output_dir)), func(): pass, "Open Folder", "OK")
 
-func _do_export(output_dir: String):
+func _do_export(output_dir: String, export_preview_visible: bool):
 	var files: PackedStringArray = []
 	var errs: PackedStringArray = []
 	for item: TreeItem in prev_items:
@@ -276,6 +283,8 @@ func _do_export(output_dir: String):
 	var export_glb: ExportSceneType = options.get(EXPORT_SCENE_OPTION_NAME, int(ExportSceneType.AUTO))
 
 	errs = _export_files(files, output_dir, dir_structure, rel_base, export_glb)
+	if export_preview_visible:
+		%GdreResourcePreview.set_main_view_visible(true)
 
 	self.call_on_next_process(self.call_on_next_process.bind(self._show_error_or_success.bind(errs, "Successfully exported resources", output_dir)))
 
@@ -384,6 +393,7 @@ func _set_file_dialog_options(file_dialog: FileDialog, default_dir_structure: Di
 	#file_dialog.set_option_default(0, int(default_dir_structure))
 	var glb_opts = EXPORT_SCENE_TYPE_NAMES.duplicate()
 	if not include_glb:
+		glb_opts.remove_at(int(ExportSceneType.GLTF))
 		glb_opts.remove_at(int(ExportSceneType.GLB))
 	file_dialog.add_option(EXPORT_SCENE_OPTION_NAME, glb_opts, scene_default)
 

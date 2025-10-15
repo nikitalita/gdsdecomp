@@ -57,7 +57,13 @@ func reset():
 	cached_scenes.clear()
 	_reset()
 
-func make_all_views_invisible():
+func is_main_view_visible() -> bool:
+	return %ResourceView.is_visible_in_tree()
+
+func set_main_view_visible(p_visible: bool):
+	%ResourceView.visible = p_visible
+
+func _make_all_views_invisible():
 	%SwitchViewButton.visible = false
 	%MediaPlayer.visible = false
 	%TextView.visible = false
@@ -68,7 +74,7 @@ func make_all_views_invisible():
 func _reset():
 	current_resource_path = ""
 	current_resource_type = ""
-	make_all_views_invisible()
+	_make_all_views_invisible()
 	%MediaPlayer.reset()
 	%TextView.reset()
 	%TextureInfo.text = ""
@@ -148,13 +154,13 @@ func is_scene(ext, type: String):
 
 func load_mesh(path):
 	var res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_IGNORE_DEEP)
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	if not res:
 		return false
 	# check if the resource is a mesh or a descendant of mesh
 	if not res.get_class().contains("Mesh"):
 		return false
-	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-	%SwitchViewButton.visible = true
 	%MeshPreviewer.edit(res)
 	%MeshPreviewer.visible = true
 	return true
@@ -170,13 +176,13 @@ func load_scene(path):
 	var start_time = Time.get_ticks_msec()
 	if not res:
 		res = ResourceCompatLoader.real_load(path, "", ResourceFormatLoader.CACHE_MODE_REUSE)
+	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
+	%SwitchViewButton.visible = true
 	if not res:
 		return false
 	# check if the resource is a scene or a descendant of scene
 	if not res.get_class().contains("PackedScene"):
 		return false
-	%SwitchViewButton.text = SWITCH_TO_TEXT_TEXT
-	%SwitchViewButton.visible = true
 	%ScenePreviewer3D.edit(res)
 	%ScenePreviewer3D.visible = true
 	var time_to_load = Time.get_ticks_msec() - start_time
@@ -391,7 +397,7 @@ func _on_resized() -> void:
 func _on_switch_view_button_pressed() -> void:
 	var path = current_resource_path
 	var cur_text = %SwitchViewButton.text
-	make_all_views_invisible()
+	_make_all_views_invisible()
 	current_resource_path = path
 	var error_opening = false
 

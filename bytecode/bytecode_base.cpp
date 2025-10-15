@@ -631,8 +631,10 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 
 	int tab_size = 1;
 	bool use_spaces = false;
-	if (columns.size() > 0) {
-		use_spaces = true;
+	if constexpr (FORCE_SPACES_FOR_2_0) {
+		if (columns.size() > 0) {
+			use_spaces = true;
+		}
 	}
 	bool first_line = true;
 

@@ -2,10 +2,23 @@
 #include "main/main.h"
 #include "utility/common.h"
 
+static constexpr int64_t ONE_GB = 1024LL * 1024LL * 1024LL;
+static constexpr int64_t TWELVE_GB = 12 * ONE_GB;
+static constexpr int64_t FOUR_GB = 4 * ONE_GB;
+
+int64_t TaskManager::maximum_memory_usage = TWELVE_GB;
+
 TaskManager *TaskManager::singleton = nullptr;
 
 TaskManager::TaskManager() {
 	singleton = this;
+	Dictionary mem_info = OS::get_singleton()->get_memory_info();
+	// 3/4ths of the physical memory, but no more than 12GB
+	int64_t max_usage = (int64_t)mem_info["physical"] * 0.75;
+	if (max_usage <= 0) {
+		max_usage = FOUR_GB;
+	}
+	maximum_memory_usage = MIN(max_usage, TWELVE_GB);
 }
 
 TaskManager::~TaskManager() {
@@ -153,7 +166,14 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
 		auto last_progress = get_current_task_step_value();
 		bool printed_warning = false;
+		[[maybe_unused]] uint64_t last_reported_mem_usage_ms = 0;
 		while (!is_done()) {
+#if DEBUG_ENABLED
+			if (OS::get_singleton()->get_ticks_msec() - last_reported_mem_usage_ms > 1000) {
+				print_line("Memory usage: " + String::humanize_size(OS::get_singleton()->get_static_memory_usage()));
+				last_reported_mem_usage_ms = OS::get_singleton()->get_ticks_msec();
+			}
+#endif
 			OS::get_singleton()->delay_usec(10000);
 			if (timeout_s_no_progress != 0) {
 				auto curr_progress = get_current_task_step_value();

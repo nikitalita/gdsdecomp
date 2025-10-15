@@ -279,6 +279,38 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 
 	}
 
+	public override void VisitObjectCreateExpression(ObjectCreateExpression objectCreateExpression)
+	{
+		StartNode(objectCreateExpression);
+		WriteKeyword(ObjectCreateExpression.NewKeywordRole);
+		objectCreateExpression.Type.AcceptVisitor(this);
+
+		bool useParenthesis = objectCreateExpression.Arguments.Any() || objectCreateExpression.Initializer.IsNull;
+		var typename = GodotStuff.CSharpTypeToGodotType(objectCreateExpression.Type.ToString());
+		bool isPackedArray = typename.StartsWith("Packed");
+
+		// also use parenthesis if there is an '(' token
+		if (!objectCreateExpression.LParToken.IsNull)
+		{
+			useParenthesis = true;
+		}
+		if (useParenthesis)
+		{
+			Space(policy.SpaceBeforeMethodCallParentheses);
+			WriteCommaSeparatedListInParenthesis(objectCreateExpression.Arguments, policy.SpaceWithinMethodCallParentheses);
+		}
+		else if (isPackedArray)
+		{
+			LPar();
+		}
+		objectCreateExpression.Initializer.AcceptVisitor(this);
+		if (!useParenthesis && isPackedArray)
+		{
+			RPar();
+		}
+		EndNode(objectCreateExpression);
+	}
+
 	public override void VisitInvocationExpression(InvocationExpression invocationExpression)
 	{
 		if (invocationExpression.GetSymbol().Name == "Color8")

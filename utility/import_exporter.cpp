@@ -270,6 +270,46 @@ String ImportExporter::get_file_info_description(uint32_t i, FileInfo *file_info
 	return file_info[i].file;
 }
 
+HashSet<String> get_base_extensions_unique_to_nonv4() {
+	HashSet<String> v2exts;
+	HashSet<String> v3exts;
+	HashSet<String> v4exts;
+	HashSet<String> v2onlyexts;
+	HashSet<String> v3onlyexts;
+	HashSet<String> v4onlyexts;
+
+	auto get_exts_func([&](HashSet<String> &ext, HashSet<String> &ext2, int ver_major) {
+		List<String> exts;
+		ResourceCompatLoader::get_base_extensions(&exts, ver_major);
+		for (const String &extf : exts) {
+			ext.insert(extf);
+			ext2.insert(extf);
+		}
+	});
+	get_exts_func(v2onlyexts, v2exts, 2);
+	get_exts_func(v3onlyexts, v3exts, 3);
+	get_exts_func(v4onlyexts, v4exts, 4);
+
+	for (const String &ext : v2exts) {
+		if (v4exts.has(ext) || v3exts.has(ext)) {
+			v4onlyexts.erase(ext);
+			v3onlyexts.erase(ext);
+			v2onlyexts.erase(ext);
+		}
+	}
+
+	for (const String &ext : v3exts) {
+		if (v4exts.has(ext)) {
+			v4onlyexts.erase(ext);
+			v3onlyexts.erase(ext);
+		}
+	}
+
+	add_all(v2onlyexts, v3onlyexts);
+
+	return v2onlyexts;
+}
+
 void ImportExporter::update_exts() {
 	valid_extensions.clear();
 	textfile_extensions.clear();
@@ -279,8 +319,12 @@ void ImportExporter::update_exts() {
 
 	List<String> extensionsl;
 	ResourceLoader::get_recognized_extensions_for_type("", &extensionsl);
+	HashSet<String> to_remove = get_base_extensions_unique_to_nonv4();
+
 	for (const String &E : extensionsl) {
-		valid_extensions.insert(E);
+		if (!to_remove.has(E)) {
+			valid_extensions.insert(E);
+		}
 	}
 
 	const Vector<String> textfile_ext = (get_settings()->get_project_setting("docks/filesystem/textfile_extensions", "txt,md,cfg,ini,log,json,yml,yaml,toml,xml").operator String().split(",", false));
@@ -805,7 +849,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			} else {
 				// compile the project to prevent editor errors
 				if (GDREConfig::get_singleton()->get_setting("CSharp/compile_after_decompile", false)) {
-					if (get_ver_major() >= 4 && OS::get_singleton()->execute("dotnet", { "version" }) == OK) {
+					int ret_code;
+					if (get_ver_major() >= 4 && OS::get_singleton()->execute("dotnet", { "--version" }, nullptr, &ret_code) == OK && ret_code == 0) {
 						String solution_path = csproj_path.get_basename() + ".sln";
 						process_runner = std::make_shared<ProcessRunnerStruct>("dotnet", Vector<String>({ "build", solution_path, "--property", "WarningLevel=0" }));
 						if (process_runner->pre_run()) {
@@ -850,6 +895,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			exporter_map[importer] = exporter;
 		}
 	}
+	Vector<ExportToken> non_high_priority_tokens;
 	Vector<ExportToken> tokens;
 	Vector<ExportToken> non_multithreaded_tokens;
 	Vector<Ref<ImportInfo>> scene_tokens;
@@ -936,7 +982,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			}
 		} else {
 			if (supports_multithreading) {
-				tokens.push_back({ iinfo, nullptr, supports_multithreading });
+				non_high_priority_tokens.push_back({ iinfo, nullptr, supports_multithreading });
 			} else {
 				non_multithreaded_tokens.push_back({ iinfo, nullptr, supports_multithreading });
 			}
@@ -948,6 +994,10 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			export_dest_to_iinfo.insert(iinfo->get_export_dest(), Vector<Ref<ImportInfo>>({ iinfo }));
 		}
 	}
+	// Shuffle the vector to prevent situations where a bunch of large resources are exported at once and exhausts the memory
+	gdre::shuffle_vector(non_high_priority_tokens);
+	tokens.append_array(non_high_priority_tokens);
+
 	pr->set_progress_length(false, tokens.size() + non_multithreaded_tokens.size());
 
 	HashMap<String, String> dupe_to_orig_src;
@@ -1295,6 +1345,13 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	}
 
 	if (get_settings()->is_project_config_loaded()) { // some pcks do not have project configs
+		if constexpr (GDScriptDecomp::FORCE_SPACES_FOR_2_0) {
+			// if we're at v4.5 or higher (<4.5 doesn't support editor_overrides), we want to set "editor_overrides/text_editor/behavior/indent/type" to "Spaces"
+			// This avoids editor churn on the scripts when they're resaved by the editor
+			if (get_ver_major() == 4 && get_ver_minor() >= 5 && !get_settings()->has_project_setting("editor_overrides/text_editor/behavior/indent/type")) {
+				get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/type", 1);
+			}
+		}
 		if (get_settings()->save_project_config(output_dir) != OK) {
 			print_line("ERROR: Failed to save project config!");
 		} else {
