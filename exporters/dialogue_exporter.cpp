@@ -1,8 +1,8 @@
 #include "dialogue_exporter.h"
+#include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/io/file_access.h"
 #include "utility/common.h"
-#include "compat/resource_loader_compat.h"
 
 int get_dialogue_version(const Ref<ImportInfo> &import_infos) {
 	auto importer = import_infos->get_importer();
@@ -24,9 +24,9 @@ Error DialogueExporter::export_file(const String &out_path, const String &res_pa
 	ERR_FAIL_COND_V_MSG(res.is_null(), ERR_FILE_CANT_OPEN, "Failed to load resource: " + res_path);
 	bool is_valid = false;
 	String content = res->get("raw_text", &is_valid);
-	 // This is an earlier version (< version 11) which did not have the raw_text field
-	 // TODO: We can potentially recreate the text from the `lines` property for earlier versions?
-	 // we would have to recreate a bunch of syntax though as it doesn't have the literal text.
+	// This is an earlier version (< version 11) which did not have the raw_text field
+	// TODO: We can potentially recreate the text from the `lines` property for earlier versions?
+	// we would have to recreate a bunch of syntax though as it doesn't have the literal text.
 	if (!is_valid) {
 		return ERR_UNAVAILABLE;
 	} else if (content.is_empty()) {
@@ -48,9 +48,7 @@ Ref<ExportReport> DialogueExporter::export_resource(const String &output_dir, Re
 	if (report->get_error() == OK) {
 		// Started writing this in version 8.
 		if (import_infos->get_ver_major() >= 4 && get_dialogue_version(import_infos) >= 8) {
-			report->get_import_info()->set_params({
-				{"defaults", true}
-			});
+			report->get_import_info()->set_params({ { "defaults", true } });
 		}
 		report->set_saved_path(dest);
 	} else if (report->get_error() == ERR_UNAVAILABLE) {
