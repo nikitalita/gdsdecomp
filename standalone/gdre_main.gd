@@ -379,23 +379,26 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 		var file_ext = path.get_extension().to_lower()
 		if file_ext == "godot":
 			var loader = ProjectConfigLoader.new()
-			var ver_major = GDRESettings.get_ver_major()
-			var ver_minor = GDRESettings.get_ver_minor()
+			var err = loader.load_cfb(path, 0, 0)
+			if err != OK:
+				had_errors = true
+				continue
+			var config_ver = loader.get_config_version()
 			
-			if ver_major == 0:
-				ver_major = 4
-				var err = loader.load_cfb(path, ver_major, ver_minor)
-				if err != OK:
+			var ver_major = 0
+			var ver_minor = 0
+
+			match config_ver:
+				5:
+					ver_major = 4
+					ver_minor = 0
+				4:
 					ver_major = 3
-					err = loader.load_cfb(path, ver_major, ver_minor)
-					if err != OK:
-						had_errors = true
-						continue
-			else:
-				if loader.load_cfb(path, ver_major, ver_minor) != OK:
-					had_errors = true
-					continue
-			
+					ver_minor = 1
+				3:
+					ver_major = 3
+					ver_minor = 0
+
 			var new_path = path.get_base_dir().path_join(path.get_basename().get_file() + ".binary")
 			if loader.save_custom(new_path, ver_major, ver_minor) != OK:
 				had_errors = true
@@ -1244,17 +1247,26 @@ func text_to_bin(files: PackedStringArray, output_dir: String):
 		
 		if file_ext == "godot":
 			var loader = ProjectConfigLoader.new()
+			var err = loader.load_cfb(path, 0, 0)
+			if err != OK:
+				errors.append(path + ": Failed to load .godot file")
+				continue
+
+			var config_ver = loader.get_config_version()
+			
 			var ver_major = 0
 			var ver_minor = 0
-			
-			ver_major = 4
-			var err = loader.load_cfb(file, ver_major, ver_minor)
-			if err != OK:
-				ver_major = 3
-				err = loader.load_cfb(file, ver_major, ver_minor)
-				if err != OK:
-					errors.append(path + ": Failed to detect version")
-					continue
+
+			match config_ver:
+				5:
+					ver_major = 4
+					ver_minor = 0
+				4:
+					ver_major = 3
+					ver_minor = 1
+				3:
+					ver_major = 3
+					ver_minor = 0
 			
 			var output_file = output_dir.path_join(file.get_basename().get_file() + ".binary")
 			if loader.save_custom(output_file, ver_major, ver_minor) != OK:
