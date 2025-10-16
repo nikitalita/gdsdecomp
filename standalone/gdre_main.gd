@@ -338,13 +338,13 @@ func _on_bin_to_text_file_dialog_files_selected(paths: PackedStringArray) -> voi
 	var had_errors = false
 	for path in paths:
 		var file_ext = path.get_extension().to_lower()
-		if file_ext == "binary":
+		if file_ext == "binary" or file_ext == "cfb":
 			var loader = ProjectConfigLoader.new()
 			var ver_major = GDRESettings.get_ver_major()
 			var ver_minor = GDRESettings.get_ver_minor()
 			
 			if ver_major == 0:
-				ver_major = 4
+				ver_major = 4 if file_ext == "binary" else 2
 				var err = loader.load_cfb(path, ver_major, ver_minor)
 				if err != OK:
 					ver_major = 3
@@ -377,7 +377,7 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 	var had_errors = false
 	for path in paths:
 		var file_ext = path.get_extension().to_lower()
-		if file_ext == "godot":
+		if file_ext == "godot" || path.get_file() == "engine.cfg":
 			var loader = ProjectConfigLoader.new()
 			var err = loader.load_cfb(path, 0, 0)
 			if err != OK:
@@ -397,6 +397,12 @@ func _on_text_to_bin_file_dialog_files_selected(paths: PackedStringArray) -> voi
 					ver_minor = 1
 				3:
 					ver_major = 3
+					ver_minor = 0
+				2:
+					ver_major = 2
+					ver_minor = 0
+				1:
+					ver_major = 1
 					ver_minor = 0
 
 			var new_path = path.get_base_dir().path_join(path.get_basename().get_file() + ".binary")
@@ -1245,7 +1251,7 @@ func text_to_bin(files: PackedStringArray, output_dir: String):
 		var file = get_cli_abs_path(path)
 		var file_ext = file.get_extension().to_lower()
 		
-		if file_ext == "godot":
+		if file_ext == "godot" || file.get_file() == "engine.cfg":
 			var loader = ProjectConfigLoader.new()
 			var err = loader.load_cfb(path, 0, 0)
 			if err != OK:
@@ -1267,7 +1273,13 @@ func text_to_bin(files: PackedStringArray, output_dir: String):
 				3:
 					ver_major = 3
 					ver_minor = 0
-			
+				2:
+					ver_major = 2
+					ver_minor = 0
+				1:
+					ver_major = 1
+					ver_minor = 0
+
 			var output_file = output_dir.path_join(file.get_basename().get_file() + ".binary")
 			if loader.save_custom(output_file, ver_major, ver_minor) != OK:
 				errors.append(path)
@@ -1289,12 +1301,12 @@ func bin_to_text(files: PackedStringArray, output_dir: String):
 		var file = get_cli_abs_path(path)
 		var file_ext = file.get_extension().to_lower()
 		
-		if file_ext == "binary":
+		if file_ext == "binary" or file_ext == "cfb":
 			var loader = ProjectConfigLoader.new()
 			var ver_major = 0
 			var ver_minor = 0
 			
-			ver_major = 4
+			ver_major = 4 if file_ext == "binary" else 2
 			var err = loader.load_cfb(file, ver_major, ver_minor)
 			if err != OK:
 				ver_major = 3
