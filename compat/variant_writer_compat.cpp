@@ -659,6 +659,12 @@ Error VariantParserCompat::parse_value(VariantParser::Token &token, Variant &r_v
 			array.assign(values);
 
 			r_value = array;
+		} else if (id == "Image") { // Old V2 Image
+			return ImageParserV2::parse_image_construct_v2(p_stream, r_value, true, line, r_err_str);
+		} else if (id == "InputEvent") { // Old V2 InputEvent
+			return InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str);
+		} else if (id == "mbutton" || id == "key" || id == "jbutton" || id == "jaxis") { // Old V2 InputEvent in project.cfg
+			return InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str, id);
 		} else {
 			return VariantParser::parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
 		}
@@ -732,25 +738,7 @@ Error VariantParserCompat::parse_tag_assign_eof(VariantParser::Stream *p_stream,
 				r_assign = what;
 				Token token;
 				get_token(p_stream, token, line, r_err_str);
-				Error err;
-				// VariantParserCompat hacks for compatibility
-				if (token.type == TK_IDENTIFIER) {
-					String id = token.value;
-					// Old V2 Image
-					if (id == "Image") {
-						err = ImageParserV2::parse_image_construct_v2(p_stream, r_value, true, line, r_err_str);
-					} else if (id == "InputEvent") { // Old V2 InputEvent
-						err = InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str);
-					} else if (id == "mbutton" || id == "key" || id == "jbutton" || id == "jaxis") { // Old V2 InputEvent in project.cfg
-						err = InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str, id);
-					} else {
-						// Our own compat parse_value
-						err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
-					}
-					return err;
-				}
-				// end hacks
-				err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
+				Error err = parse_value(token, r_value, p_stream, line, r_err_str, p_res_parser);
 				return err;
 			}
 		} else if (c == '\n') {

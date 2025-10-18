@@ -1,6 +1,8 @@
 
 #ifndef TEST_VARIANT_COMPAT_H
 #define TEST_VARIANT_COMPAT_H
+#include "compat/input_event_parser_v2.h"
+#include "compat/variant_decoder_compat.h"
 #include "core/version_generated.gen.h"
 #include "tests/test_macros.h"
 
@@ -302,6 +304,212 @@ TEST_CASE("[GDSDecomp][VariantCompat] Vector<Color>") {
 	Vector<Color> arr = { Color(0, 0, 0, 0), Color(1, 1, 1, 1) };
 	String arg_str = "0, 0, 0, 0, 1, 1, 1, 1";
 	test_vector_write_all("Simple Vector<Color>", arr, "ColorArray", "PoolColorArray", arg_str);
+}
+
+Variant parse_and_get_variant(const String &str, Variant::Type expected_type) {
+	VariantParser::StreamString ss;
+	ss.s = str;
+	Variant variant;
+	String errs;
+	int line;
+	VariantParserCompat::parse(&ss, variant, errs, line);
+	CHECK(errs.is_empty());
+	CHECK(variant.get_type() == expected_type);
+	return variant;
+}
+
+Ref<InputEventKey> parse_and_get_ie_key(const String &str) {
+	Ref<InputEventKey> iek = parse_and_get_variant(str, Variant::Type::OBJECT);
+	REQUIRE(iek.is_valid());
+	return iek;
+}
+
+void expect_ie_key(const Ref<InputEventKey> &iek, Key key, int device = 0, bool ctrl_pressed = false, bool shift_pressed = false, bool alt_pressed = false, bool meta_pressed = false) {
+	REQUIRE(iek.is_valid());
+	CHECK(iek->get_keycode() == key);
+	CHECK(iek->get_device() == 0);
+	CHECK(iek->is_ctrl_pressed() == ctrl_pressed);
+	CHECK(iek->is_shift_pressed() == shift_pressed);
+	CHECK(iek->is_alt_pressed() == alt_pressed);
+	CHECK(iek->is_meta_pressed() == meta_pressed);
+}
+
+void expect_variant_write_match(const Variant &variant, const String &expected_str, int ver_major, bool is_pcfg) {
+	String variant_str;
+	if (is_pcfg) {
+		VariantWriterCompat::write_to_string_pcfg(variant, variant_str, ver_major);
+	} else {
+		VariantWriterCompat::write_to_string(variant, variant_str, ver_major);
+	}
+	CHECK(variant_str == expected_str);
+}
+
+void expect_variant_decode_encode_match(const Ref<InputEvent> &variant, const String &expected_str, int ver_major, bool is_pcfg) {
+	int len;
+	bool p_full_objects = false;
+	Error err = VariantDecoderCompat::encode_variant_compat(ver_major, variant, nullptr, len, p_full_objects);
+	CHECK(err == OK);
+
+	Vector<uint8_t> buff;
+	buff.resize(len);
+
+	uint8_t *w = buff.ptrw();
+	err = VariantDecoderCompat::encode_variant_compat(ver_major, variant, &w[0], len, p_full_objects);
+	CHECK(err == OK);
+
+	Variant decoded;
+	err = VariantDecoderCompat::decode_variant_compat(ver_major, decoded, buff.ptr(), len, nullptr, p_full_objects);
+	CHECK(err == OK);
+	Ref<InputEvent> decoded_ie = decoded;
+	REQUIRE(decoded_ie.is_valid());
+	CHECK(decoded_ie->as_text() == variant->as_text());
+
+	expect_variant_write_match(decoded_ie, expected_str, ver_major, is_pcfg);
+}
+
+inline void expect_iek_decode_encode_write_match(const Ref<InputEvent> &variant, const String &expected_str, int ver_major, bool is_pcfg) {
+	expect_variant_write_match(variant, expected_str, ver_major, is_pcfg);
+	expect_variant_decode_encode_match(variant, expected_str, ver_major, is_pcfg);
+}
+
+void test_iek(const String &fmt, const String &int_fmt, const String &key_str, Key key, bool is_pcfg, int device = 0, bool ctrl_pressed = false, bool shift_pressed = false, bool alt_pressed = false, bool meta_pressed = false) {
+	String iek_str = vformat(fmt, key_str);
+	Ref<InputEventKey> iek = parse_and_get_ie_key(iek_str);
+	expect_ie_key(iek, key, device, ctrl_pressed, shift_pressed, alt_pressed, meta_pressed);
+	V2InputEvent::V2KeyList v2_key = InputEventParserV2::convert_v4_key_to_v2_key(key);
+	String iek_str_int = vformat(int_fmt, (int)v2_key);
+	iek = parse_and_get_ie_key(iek_str_int);
+	expect_ie_key(iek, key, device, ctrl_pressed, shift_pressed, alt_pressed, meta_pressed);
+	if (!is_pcfg) {
+		expect_iek_decode_encode_write_match(iek, iek_str_int, 2, is_pcfg);
+	} else {
+		expect_iek_decode_encode_write_match(iek, iek_str, 2, is_pcfg);
+	}
+}
+
+TEST_CASE("[GDSDecomp][VariantCompat] v2 InputEvent") {
+	SUBCASE("KEY ALL") {
+		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
+			if (value == "Kp Enter" || value.is_empty()) {
+				continue;
+			}
+			test_iek("InputEvent(KEY,%s)", "InputEvent(KEY,%d)", value, key, false);
+		}
+	}
+
+	SUBCASE("KEY ALL (project config)") {
+		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
+			if (value == "Kp Enter" || value.is_empty()) {
+				continue;
+			}
+			test_iek("key(%s)", "key(%d)", value, key, true);
+		}
+	}
+
+	SUBCASE("KEY ALL MODIFIER FLAGS") {
+		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
+			if (value == "Kp Enter" || value.is_empty()) {
+				continue;
+			}
+			test_iek("InputEvent(KEY,%s,CSAM)", "InputEvent(KEY,%d,CSAM)", value, key, false, 0, true, true, true, true);
+		}
+	}
+
+	SUBCASE("KEY ALL (project config modifier flags)") {
+		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
+			if (value == "Kp Enter" || value.is_empty()) {
+				continue;
+			}
+			test_iek("key(%s, CSAM)", "key(%d, CSAM)", value, key, true, 0, true, true, true, true);
+		}
+	}
+
+	SUBCASE("KEY Kp Enter") {
+		String iek_str = "InputEvent(KEY,Kp Enter)";
+		static const String iek_str_int = vformat("InputEvent(KEY,%d)", (int)V2InputEvent::KEY_KP_ENTER);
+		Ref<InputEventKey> iek = parse_and_get_ie_key(iek_str);
+		expect_ie_key(iek, Key::KP_ENTER, 0);
+		CHECK(iek->get_physical_keycode() == (Key)V2InputEvent::V2KeyList::KEY_KP_ENTER);
+		iek = parse_and_get_ie_key(iek_str_int);
+		expect_ie_key(iek, Key::KP_ENTER, 0);
+		CHECK(iek->get_physical_keycode() == (Key)V2InputEvent::V2KeyList::KEY_KP_ENTER);
+		expect_iek_decode_encode_write_match(iek, iek_str_int, 2, false);
+	}
+	SUBCASE("MBUTTON") {
+		static const String iem_str_fmt = "InputEvent(MBUTTON,%d)";
+		for (int i = 1; i <= 7; i++) {
+			String iem_str = vformat(iem_str_fmt, i);
+			Variant iem_parsed = parse_and_get_variant(iem_str, Variant::Type::OBJECT);
+			Ref<InputEventMouseButton> iem = iem_parsed;
+			REQUIRE(iem.is_valid());
+			CHECK(iem->get_button_index() == MouseButton(i));
+			CHECK(iem->get_device() == 0);
+			expect_iek_decode_encode_write_match(iem, iem_str, 2, false);
+		}
+	}
+	SUBCASE("mbutton (project config)") {
+		static const String iem_str_pcfg_fmt = "mbutton(1, %d)";
+		for (int i = 1; i <= 7; i++) {
+			String iem_str_pcfg = vformat(iem_str_pcfg_fmt, i);
+			Variant iem_parsed = parse_and_get_variant(iem_str_pcfg, Variant::Type::OBJECT);
+			Ref<InputEventMouseButton> iem = iem_parsed;
+			REQUIRE(iem.is_valid());
+			CHECK(iem->get_button_index() == MouseButton(i));
+			CHECK(iem->get_device() == 1);
+			expect_iek_decode_encode_write_match(iem, iem_str_pcfg, 2, true);
+		}
+	}
+	SUBCASE("JBUTTON") {
+		static const String iejb_str_fmt = "InputEvent(JBUTTON,%d)";
+		for (int i = 0; i < V2InputEvent::JOY_BUTTON_MAX; i++) {
+			String iejb_str = vformat(iejb_str_fmt, i);
+			Variant iejb_parsed = parse_and_get_variant(iejb_str, Variant::Type::OBJECT);
+			Ref<InputEventJoypadButton> iejb = iejb_parsed;
+			REQUIRE(iejb.is_valid());
+			CHECK(iejb->get_button_index() == JoyButton(i));
+			CHECK(iejb->get_device() == 0);
+			expect_iek_decode_encode_write_match(iejb, iejb_str, 2, false);
+		}
+	}
+	SUBCASE("jbutton (project config)") {
+		static const String iejb_str_pcfg_fmt = "jbutton(1, %d)";
+		for (int i = 0; i < V2InputEvent::JOY_BUTTON_MAX; i++) {
+			String iejb_str_pcfg = vformat(iejb_str_pcfg_fmt, i);
+			Variant iejb_parsed = parse_and_get_variant(iejb_str_pcfg, Variant::Type::OBJECT);
+			Ref<InputEventJoypadButton> iejb = iejb_parsed;
+			REQUIRE(iejb.is_valid());
+			CHECK(iejb->get_button_index() == JoyButton(i));
+			CHECK(iejb->get_device() == 1);
+			expect_iek_decode_encode_write_match(iejb, iejb_str_pcfg, 2, true);
+		}
+	}
+	SUBCASE("JAXIS") {
+		const int jaxis_max = V2InputEvent::JOY_AXIS_MAX;
+		static const String iejaxis_str_fmt = "InputEvent(JAXIS,%d,%d)";
+		Vector<int> axis_values = { -1, 1 };
+		for (int i = 0; i < jaxis_max; i++) {
+			for (int axis_value : axis_values) {
+				String iejaxis_str = vformat(iejaxis_str_fmt, i, axis_value);
+				Variant iejaxis_parsed = parse_and_get_variant(iejaxis_str, Variant::Type::OBJECT);
+				Ref<InputEventJoypadMotion> iejaxis = iejaxis_parsed;
+				REQUIRE(iejaxis.is_valid());
+				CHECK(iejaxis->get_axis() == JoyAxis(i));
+				CHECK(iejaxis->get_axis_value() == axis_value);
+				CHECK(iejaxis->get_device() == 0);
+				expect_iek_decode_encode_write_match(iejaxis, iejaxis_str, 2, false);
+			}
+		}
+	}
+	SUBCASE("jaxis (project config)") {
+		String iejaxis_str_pcfg = "jaxis(1, 2)";
+		Variant iejaxis_parsed = parse_and_get_variant(iejaxis_str_pcfg, Variant::Type::OBJECT);
+		Ref<InputEventJoypadMotion> iejaxis = iejaxis_parsed;
+		REQUIRE(iejaxis.is_valid());
+		CHECK(iejaxis->get_device() == 1);
+		CHECK(iejaxis->get_axis() == JoyAxis(1));
+		CHECK(iejaxis->get_axis_value() == -1);
+		expect_iek_decode_encode_write_match(iejaxis, iejaxis_str_pcfg, 2, true);
+	}
 }
 
 // The following tests are pilfered from test_variant.h, repurposed for VariantCompat.
