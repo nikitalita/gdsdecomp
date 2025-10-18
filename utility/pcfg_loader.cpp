@@ -280,9 +280,8 @@ Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file,
 		file->store_line("");
 
 		file->store_string("config_version=" + itos(text_config_version) + "\n");
+		file->store_string("\n");
 	}
-
-	file->store_string("\n");
 
 	for (RBMap<String, List<String>>::Element *E = proops.front(); E; E = E->next()) {
 		if (E != proops.front()) {
