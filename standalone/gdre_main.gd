@@ -334,63 +334,33 @@ func _on_ResourcesMenu_item_selected(index):
 			$SampleToWAVFileDialog.popup_centered()
 
 func convert_text_pcfg_to_binary(path: String, output_dir: String):
-	var loader = ProjectConfigLoader.new()
-	var err = loader.load_cfb(path, 0, 0)
 	var errors: PackedStringArray = PackedStringArray()
+	var loader = ProjectConfigLoader.new()
+	var modern: bool = path.get_extension().to_lower() == "godot"
+
+	var new_ext = ".binary" if modern else ".cfb"
+	var err = loader.load_cfb(path, GDRESettings.get_ver_major(), GDRESettings.get_ver_minor())
 	if err != OK:
 		errors.append(path + ": Failed to load project config file")
 		return errors
 
-	var config_ver = loader.get_config_version()
-
-	var ver_major = 0
-	var ver_minor = 0
-
-	match config_ver:
-		5:
-			ver_major = 4
-			ver_minor = 0
-		4:
-			ver_major = 3
-			ver_minor = 1
-		3:
-			ver_major = 3
-			ver_minor = 0
-		2:
-			ver_major = 2
-			ver_minor = 0
-		1:
-			ver_major = 1
-			ver_minor = 0
-
-	var new_ext = ".binary" if ver_major > 2 else ".cfb"
-
 	var output_file = output_dir.path_join(path.get_file().get_basename() + new_ext)
-	if loader.save_custom(output_file, ver_major, ver_minor) != OK:
+	if loader.save_custom(output_file) != OK:
 		errors.append(path)
 	return errors
 
 func convert_binary_pcfg_to_text(path: String, output_dir: String):
 	var errors: PackedStringArray = PackedStringArray()
 	var loader = ProjectConfigLoader.new()
-	var ver_major = GDRESettings.get_ver_major()
-	var ver_minor = GDRESettings.get_ver_minor()
 	var modern: bool = path.get_extension().to_lower() == "binary"
 
-	if ver_major == 0:
-		ver_major = 4 if modern else 2
-	var err = loader.load_cfb(path, ver_major, ver_minor)
+	var new_ext = ".godot" if modern else ".cfg"
+	var err = loader.load_cfb(path, GDRESettings.get_ver_major(), GDRESettings.get_ver_minor())
 	if err != OK:
-		if modern:
-			ver_major = 3
-			err = loader.load_cfb(path, ver_major, ver_minor)
-		if err != OK:
-			errors.append(path + ": Failed to detect version")
-			return errors
-
-	var new_ext = ".godot" if ver_major > 2 else ".cfg"
+		errors.append(path + ": Failed to load project config file")
+		return errors
 	var output_file = output_dir.path_join(path.get_basename().get_file() + new_ext)
-	if loader.save_custom(output_file, ver_major, ver_minor) != OK:
+	if loader.save_custom(output_file) != OK:
 		errors.append(path)
 	return errors
 
