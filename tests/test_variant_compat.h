@@ -390,50 +390,26 @@ void test_iek(const String &fmt, const String &int_fmt, const String &key_str, K
 TEST_CASE("[GDSDecomp][VariantCompat] v2 InputEvent") {
 	SUBCASE("KEY ALL") {
 		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
-			if (value == "Kp Enter" || value.is_empty()) {
-				continue;
-			}
 			test_iek("InputEvent(KEY,%s)", "InputEvent(KEY,%d)", value, key, false);
 		}
 	}
 
 	SUBCASE("KEY ALL (project config)") {
 		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
-			if (value == "Kp Enter" || value.is_empty()) {
-				continue;
-			}
 			test_iek("key(%s)", "key(%d)", value, key, true);
 		}
 	}
 
 	SUBCASE("KEY ALL MODIFIER FLAGS") {
 		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
-			if (value == "Kp Enter" || value.is_empty()) {
-				continue;
-			}
 			test_iek("InputEvent(KEY,%s,CSAM)", "InputEvent(KEY,%d,CSAM)", value, key, false, 0, true, true, true, true);
 		}
 	}
 
 	SUBCASE("KEY ALL (project config modifier flags)") {
 		for (auto &[key, value] : InputEventParserV2::get_key_code_to_v2_string_map()) {
-			if (value == "Kp Enter" || value.is_empty()) {
-				continue;
-			}
 			test_iek("key(%s, CSAM)", "key(%d, CSAM)", value, key, true, 0, true, true, true, true);
 		}
-	}
-
-	SUBCASE("KEY Kp Enter") {
-		String iek_str = "InputEvent(KEY,Kp Enter)";
-		static const String iek_str_int = vformat("InputEvent(KEY,%d)", (int)V2InputEvent::KEY_KP_ENTER);
-		Ref<InputEventKey> iek = parse_and_get_ie_key(iek_str);
-		expect_ie_key(iek, Key::KP_ENTER, 0);
-		CHECK(iek->get_physical_keycode() == (Key)V2InputEvent::V2KeyList::KEY_KP_ENTER);
-		iek = parse_and_get_ie_key(iek_str_int);
-		expect_ie_key(iek, Key::KP_ENTER, 0);
-		CHECK(iek->get_physical_keycode() == (Key)V2InputEvent::V2KeyList::KEY_KP_ENTER);
-		expect_iek_decode_encode_write_match(iek, iek_str_int, 2, false);
 	}
 	SUBCASE("MBUTTON") {
 		static const String iem_str_fmt = "InputEvent(MBUTTON,%d)";

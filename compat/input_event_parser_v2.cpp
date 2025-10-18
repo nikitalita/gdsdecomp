@@ -267,13 +267,6 @@ static const HashSet<String> v2_keys_with_spaces_prefixes{
 
 Key convert_v2_key_to_v4_key(V2KeyList spkey) {
 	if (spkey & V2InputEvent::SPKEY) {
-		// KP_ENTER changed from v2 to v4
-		if (spkey == V2KeyList::KEY_KP_ENTER) {
-			return Key::KP_ENTER;
-		}
-		if (spkey == V2KeyList::KEY_RETURN) {
-			return Key::ENTER;
-		}
 		return Key(spkey ^ V2InputEvent::SPKEY) | Key::SPECIAL;
 	}
 	return Key(spkey);
@@ -287,9 +280,6 @@ V2KeyList InputEventParserV2::convert_v4_key_to_v2_key(Key spkey) {
 }
 
 V2KeyList InputEventParserV2::get_v2_key_from_iek(Ref<InputEventKey> iek) {
-	if (iek->get_keycode() == Key::KP_ENTER && (uint32_t)iek->get_physical_keycode() == V2KeyList::KEY_KP_ENTER) {
-		return V2KeyList::KEY_KP_ENTER;
-	}
 	return convert_v4_key_to_v2_key(iek->get_keycode());
 }
 
@@ -314,9 +304,6 @@ String keycode_get_v2_string(Key p_code) {
 }
 
 String get_v2_string_from_iek(Ref<InputEventKey> iek) {
-	if (iek->get_keycode() == Key::KP_ENTER && (uint32_t)iek->get_physical_keycode() == V2KeyList::KEY_KP_ENTER) {
-		return "Kp Enter";
-	}
 	return keycode_get_v2_string(iek->get_keycode());
 }
 
@@ -519,23 +506,6 @@ Ref<InputEvent> convert_v2_joy_button_event_to_v4(uint32_t btn_index) {
 	iej.instantiate();
 	iej->set_button_index(JoyButton(btn_index));
 	return iej;
-	// switch (btn_index) {
-	// 		// Godot 4.x doesn't have buttons for L2 and R2, it maps those buttons to Axis
-	// 	case V2InputEvent::JOY_L2:
-	// 	case V2InputEvent::JOY_R2: {
-	// 		Ref<InputEventJoypadMotion> iejm;
-	// 		iejm.instantiate();
-	// 		iejm->set_axis(btn_index == V2InputEvent::JOY_L2 ? JoyAxis::TRIGGER_LEFT : JoyAxis::TRIGGER_RIGHT);
-	// 		iejm->set_axis_value(1.0);
-	// 		return iejm;
-	// 	}
-	// 	default: {
-	// 		Ref<InputEventJoypadButton> iej;
-	// 		iej.instantiate();
-	// 		iej->set_button_index(convert_v2_joy_button_to_v4_joy_button(V2JoyButton(btn_index)));
-	// 		return iej;
-	// 	}
-	// }
 }
 
 Error InputEventParserV2::decode_input_event(Variant &r_variant, const uint8_t *p_buffer, int p_len, int *r_len) {
@@ -555,10 +525,6 @@ Error InputEventParserV2::decode_input_event(Variant &r_variant, const uint8_t *
 			uint32_t scancode = decode_uint32(&p_buffer[16]);
 			Ref<InputEventKey> iek;
 			iek = InputEventKey::create_reference(convert_v2_key_to_v4_key(V2InputEvent::V2KeyList(scancode)));
-			// this was removed in v4, workaround
-			if (scancode == V2KeyList::KEY_KP_ENTER) {
-				iek->set_physical_keycode(Key(V2KeyList::KEY_KP_ENTER));
-			}
 			if (mods & V2InputEvent::KEY_MASK_SHIFT) {
 				iek->set_shift_pressed(true);
 			}
@@ -636,10 +602,6 @@ Error InputEventParserV2::decode_input_event(Variant &r_variant, const uint8_t *
 
 Key convert_v2_key_string_to_v4_keycode(const String &p_code) {
 	const _KeyCodeText *kct = &_keycodes[0];
-	// Doesn't exist in v4
-	if (p_code == "Kp Enter") {
-		return Key::KP_ENTER;
-	}
 	while (kct->text) {
 		if (p_code.nocasecmp_to(kct->text) == 0) {
 			return kct->code;
@@ -705,14 +667,8 @@ Error InputEventParserV2::parse_input_event_construct_v2(VariantParser::Stream *
 				name += " " + (token.type == VariantParser::TK_IDENTIFIER ? token.value.operator String() : String::num_int64((int64_t)token.value));
 			}
 			iek->set_keycode(convert_v2_key_string_to_v4_keycode(name));
-			if (name == "Kp Enter") {
-				iek->set_physical_keycode(Key(V2KeyList::KEY_KP_ENTER));
-			}
 		} else if (token.type == VariantParser::TK_NUMBER) {
 			iek->set_keycode(convert_v2_key_to_v4_key(token.value));
-			if ((int)token.value == V2KeyList::KEY_KP_ENTER) {
-				iek->set_physical_keycode(Key(V2KeyList::KEY_KP_ENTER));
-			}
 		} else {
 			r_err_str = "Expected string or integer for keycode";
 			return ERR_PARSE_ERROR;
@@ -1052,6 +1008,9 @@ int InputEventParserV2::encode_input_event(const Ref<InputEvent> &ie, uint8_t *p
 HashMap<Key, String> InputEventParserV2::get_key_code_to_v2_string_map() {
 	HashMap<Key, String> map;
 	for (auto &[key, value] : _keycodes) {
+		if (value == nullptr) {
+			continue;
+		}
 		map[key] = value;
 	}
 	return map;
