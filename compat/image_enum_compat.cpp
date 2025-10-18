@@ -262,6 +262,9 @@ String ImageEnumCompat::get_v2_format_identifier_pcfg(V2Image::Format p_format, 
 		case V2Image::IMAGE_FORMAT_BC5:
 			return "bc5";
 			break;
+		case V2Image::IMAGE_FORMAT_ETC:
+			return "etc";
+			break;
 		case V2Image::IMAGE_FORMAT_CUSTOM:
 			return "custom custom_size=" + itos(p_img_size) + "";
 			break;

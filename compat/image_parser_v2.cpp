@@ -118,6 +118,7 @@ String ImageParserV2::image_v2_to_string(const Variant &r_v, bool is_pcfg) {
 	return imgstr;
 }
 
+// used in resource_format_binary
 Error ImageParserV2::write_image_v2_to_bin(Ref<FileAccess> f, const Variant &r_v, bool compress_lossless) {
 	Ref<Image> val = r_v;
 	if (val.is_null() || val->is_empty()) {
@@ -141,9 +142,12 @@ Error ImageParserV2::write_image_v2_to_bin(Ref<FileAccess> f, const Variant &r_v
 		f->store_32(val->get_width());
 		f->store_32(val->get_height());
 		int mipmaps = val->get_mipmap_count();
-		V2Image::Format fmt = ImageEnumCompat::convert_image_format_enum_v4_to_v2(val->get_format());
+		int fmt = ImageEnumCompat::convert_image_format_enum_v4_to_v2(val->get_format());
 		ERR_FAIL_COND_V_MSG(fmt == V2Image::IMAGE_FORMAT_V2_MAX, ERR_FILE_CORRUPT,
 				"Can't convert new image to v2 image variant!");
+		if (fmt >= V2Image::Format::FORMAT_YUV_422 + 2) {
+			fmt -= 2; // remove the 2 from the YUV422 and YUV444 formats
+		}
 		f->store_32(mipmaps);
 		f->store_32(fmt);
 		int dlen = val->get_data().size();
@@ -167,6 +171,7 @@ Error ImageParserV2::write_image_v2_to_bin(Ref<FileAccess> f, const Variant &r_v
 	return OK;
 }
 
+// used in resource_format_binary
 Error ImageParserV2::decode_image_v2(Ref<FileAccess> f, Variant &r_v, bool convert_indexed) {
 	uint32_t encoding = f->get_32();
 	Ref<Image> img;
@@ -180,6 +185,9 @@ Error ImageParserV2::decode_image_v2(Ref<FileAccess> f, Variant &r_v, bool conve
 		uint32_t height = f->get_32();
 		uint32_t mipmaps = f->get_32();
 		uint32_t old_format = f->get_32();
+		if (old_format >= V2Image::Format::FORMAT_YUV_422) {
+			old_format += 2; // the image format enum for resources doesn't have YUV422 and YUV444 formats, so it's off by 2 after
+		}
 		Image::Format fmt = ImageEnumCompat::convert_image_format_enum_v2_to_v4((V2Image::Format)old_format);
 
 		uint32_t datalen = f->get_32();

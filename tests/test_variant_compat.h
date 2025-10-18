@@ -1,6 +1,7 @@
 
 #ifndef TEST_VARIANT_COMPAT_H
 #define TEST_VARIANT_COMPAT_H
+#include "compat/image_enum_compat.h"
 #include "compat/image_parser_v2.h"
 #include "compat/input_event_parser_v2.h"
 #include "compat/variant_decoder_compat.h"
@@ -656,8 +657,9 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
 			}
 			data_str += itos(data[i]);
 		}
+		String pcfg_data_str = String::hex_encode_buffer(data.ptr(), data.size()).to_upper();
 		String expected_v2 = vformat("Image( 2, 2, %d, RGBA, %s )", img->get_mipmap_count(), data_str);
-		String expected_v2_pcfg = vformat("img(rgba, %d, 2, 2, %s)", img->get_mipmap_count(), String::hex_encode_buffer(data.ptr(), data.size()).to_upper());
+		String expected_v2_pcfg = vformat("img(rgba, %d, 2, 2, %s)", img->get_mipmap_count(), pcfg_data_str);
 		test_image_variant("Image with Mipmaps", img, expected_v2, expected_v2_pcfg, false);
 	}
 	SUBCASE("Empty Image") {
@@ -685,6 +687,32 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
 		String expected_v2 = "Image( 2, 2, 0, GRAYSCALE, 0, 85, 170, 255 )";
 		String expected_v2_pcfg = "img(grayscale, 0, 2, 2, 0055AAFF)";
 		test_image_variant("Simple Grayscale Image", img, expected_v2, expected_v2_pcfg);
+	}
+
+	SUBCASE("Other formats") {
+		for (int i = 0; i < V2Image::IMAGE_FORMAT_V2_MAX; i++) {
+			auto fmt = ImageEnumCompat::convert_image_format_enum_v2_to_v4((V2Image::Format)i);
+			if (fmt == Image::FORMAT_MAX) {
+				continue;
+			}
+			Ref<Image> img = Image::create_empty(2, 2, false, fmt);
+
+			String data_str;
+			auto data = img->get_data();
+			for (int i = 0; i < data.size(); i++) {
+				if (i > 0) {
+					data_str += ", ";
+				}
+				data_str += itos(data[i]);
+			}
+			String pcfg_data_str = String::hex_encode_buffer(data.ptr(), data.size()).to_upper();
+
+			String format_identifier = ImageEnumCompat::get_v2_format_identifier((V2Image::Format)i);
+
+			String expected_v2 = vformat("Image( 2, 2, %d, %s, %s )", img->get_mipmap_count(), format_identifier, data_str);
+			String expected_v2_pcfg = vformat("img(%s, %d, 2, 2, %s)", format_identifier.to_lower(), img->get_mipmap_count(), pcfg_data_str);
+			test_image_variant("Other formats: " + format_identifier, img, expected_v2, expected_v2_pcfg);
+		}
 	}
 
 	SUBCASE("Parse Image from String") {
