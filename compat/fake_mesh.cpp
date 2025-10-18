@@ -1539,6 +1539,6 @@ FakeMesh::FakeMesh() {
 FakeMesh::~FakeMesh() {
 	if (mesh.is_valid()) {
 		ERR_FAIL_NULL(RenderingServer::get_singleton());
-		RenderingServer::get_singleton()->free(mesh);
+		RenderingServer::get_singleton()->free_rid(mesh);
 	}
 }
