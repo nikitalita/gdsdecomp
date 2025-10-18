@@ -1,12 +1,16 @@
 
 #ifndef TEST_VARIANT_COMPAT_H
 #define TEST_VARIANT_COMPAT_H
+#include "compat/image_parser_v2.h"
 #include "compat/input_event_parser_v2.h"
 #include "compat/variant_decoder_compat.h"
+#include "core/io/image.h"
+#include "core/variant/variant.h"
 #include "core/version_generated.gen.h"
 #include "tests/test_macros.h"
 
 #include "../compat/variant_writer_compat.h"
+#include "utility/file_access_buffer.h"
 
 namespace TestVariantCompat {
 
@@ -485,6 +489,268 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 InputEvent") {
 		CHECK(iejaxis->get_axis() == JoyAxis(1));
 		CHECK(iejaxis->get_axis_value() == -1);
 		expect_iek_decode_encode_write_match(iejaxis, iejaxis_str_pcfg, 2, true);
+	}
+}
+
+// Helper functions for image testing
+Ref<Image> create_test_image(int width, int height, Image::Format format, const Vector<uint8_t> &data = Vector<uint8_t>()) {
+	if (data.is_empty()) {
+		Ref<Image> img;
+		img.instantiate();
+		img->initialize_data(width, height, false, format);
+		return img;
+	} else {
+		return Image::create_from_data(width, height, false, format, data);
+	}
+}
+
+Ref<Image> create_simple_rgba_image() {
+	// Create a simple 2x2 RGBA image with red, green, blue, white pixels
+	Vector<uint8_t> data = {
+		255, 0, 0, 255, // Red
+		0, 255, 0, 255, // Green
+		0, 0, 255, 255, // Blue
+		255, 255, 255, 255 // White
+	};
+	return create_test_image(2, 2, Image::FORMAT_RGBA8, data);
+}
+
+Ref<Image> create_simple_rgb_image() {
+	// Create a simple 2x2 RGB image
+	Vector<uint8_t> data = {
+		255, 0, 0, // Red
+		0, 255, 0, // Green
+		0, 0, 255, // Blue
+		255, 255, 255 // White
+	};
+	return create_test_image(2, 2, Image::FORMAT_RGB8, data);
+}
+
+Ref<Image> create_simple_grayscale_image() {
+	// Create a simple 2x2 grayscale image
+	Vector<uint8_t> data = {
+		0, // Black
+		85, // Dark gray
+		170, // Light gray
+		255 // White
+	};
+	return create_test_image(2, 2, Image::FORMAT_L8, data);
+}
+
+void expect_image_write_match(const Ref<Image> &img, const String &expected_str, int ver_major, bool is_pcfg) {
+	String img_str;
+	if (is_pcfg) {
+		VariantWriterCompat::write_to_string_pcfg(img, img_str, ver_major);
+	} else {
+		VariantWriterCompat::write_to_string(img, img_str, ver_major);
+	}
+	CHECK(img_str == expected_str);
+}
+
+Ref<Image> parse_and_get_image(const String &str) {
+	VariantParser::StreamString ss;
+	ss.s = str;
+	Variant variant;
+	String errs;
+	int line;
+	VariantParserCompat::parse(&ss, variant, errs, line);
+	CHECK(errs.is_empty());
+	CHECK(variant.get_type() == Variant::Type::OBJECT);
+	Ref<Image> img = variant;
+	REQUIRE(img.is_valid());
+	return img;
+}
+
+void compare_images(const Ref<Image> &original_img, const Ref<Image> &decoded_image) {
+	// Compare image properties
+	CHECK(original_img->get_width() == decoded_image->get_width());
+	CHECK(original_img->get_height() == decoded_image->get_height());
+	CHECK(original_img->get_format() == decoded_image->get_format());
+	CHECK(original_img->get_mipmap_count() == decoded_image->get_mipmap_count());
+
+	// Compare image data
+	Vector<uint8_t> original_data = original_img->get_data();
+	Vector<uint8_t> decoded_data = decoded_image->get_data();
+	CHECK(original_data.size() == decoded_data.size());
+	for (int i = 0; i < original_data.size(); i++) {
+		CHECK(original_data[i] == decoded_data[i]);
+	}
+}
+
+void expect_image_decode_encode_match(const Ref<Image> &img, const String &expected_str, int ver_major, bool is_pcfg) {
+	int len;
+	bool p_full_objects = false;
+	Error err = VariantDecoderCompat::encode_variant_compat(ver_major, img, nullptr, len, p_full_objects);
+	CHECK(err == OK);
+
+	Vector<uint8_t> buff;
+	buff.resize(len);
+
+	uint8_t *w = buff.ptrw();
+	err = VariantDecoderCompat::encode_variant_compat(ver_major, img, &w[0], len, p_full_objects);
+	CHECK(err == OK);
+
+	Variant decoded;
+	err = VariantDecoderCompat::decode_variant_compat(ver_major, decoded, buff.ptr(), len, nullptr, p_full_objects);
+	CHECK(err == OK);
+	Ref<Image> decoded_img = decoded;
+	REQUIRE(decoded_img.is_valid());
+
+	compare_images(img, decoded_img);
+
+	expect_image_write_match(decoded_img, expected_str, ver_major, is_pcfg);
+}
+
+void test_image_variant(const String &test_name, const Ref<Image> &img, const String &expected_v2_str, const String &expected_v2_pcfg_str, bool compress_lossless = true) {
+	SUBCASE(vformat("%s write v2", test_name).utf8().get_data()) {
+		expect_image_write_match(img, expected_v2_str, 2, false);
+	}
+
+	SUBCASE(vformat("%s write v2 pcfg", test_name).utf8().get_data()) {
+		expect_image_write_match(img, expected_v2_pcfg_str, 2, true);
+	}
+
+	SUBCASE(vformat("%s decode/encode v2", test_name).utf8().get_data()) {
+		expect_image_decode_encode_match(img, expected_v2_str, 2, false);
+	}
+
+	SUBCASE(vformat("%s decode/encode v2 pcfg", test_name).utf8().get_data()) {
+		expect_image_decode_encode_match(img, expected_v2_pcfg_str, 2, true);
+	}
+
+	SUBCASE(vformat("%s parse and compare", test_name).utf8().get_data()) {
+		Ref<Image> parsed_img = parse_and_get_image(expected_v2_str);
+		compare_images(img, parsed_img);
+	}
+
+	SUBCASE(vformat("%s parse and compare pcfg", test_name).utf8().get_data()) {
+		Ref<Image> parsed_img = parse_and_get_image(expected_v2_pcfg_str);
+		compare_images(img, parsed_img);
+	}
+
+	SUBCASE(vformat("%s decode and encode in resources", test_name).utf8().get_data()) {
+		Ref<FileAccessBuffer> f = FileAccessBuffer::create();
+		bool compress = compress_lossless;
+		Error err = ImageParserV2::write_image_v2_to_bin(f, img, compress);
+		CHECK(err == OK);
+		f->seek(0);
+		Variant variant;
+		err = ImageParserV2::decode_image_v2(f, variant);
+		CHECK(err == OK);
+		Ref<Image> decoded_img = variant;
+		REQUIRE(decoded_img.is_valid());
+		compare_images(img, decoded_img);
+		expect_image_write_match(decoded_img, expected_v2_str, 2, false);
+	}
+}
+
+TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
+	SUBCASE("Image with Mipmaps") {
+		Ref<Image> img = create_simple_rgba_image();
+		img->generate_mipmaps();
+		String data_str;
+		auto data = img->get_data();
+		for (int i = 0; i < data.size(); i++) {
+			if (i > 0) {
+				data_str += ", ";
+			}
+			data_str += itos(data[i]);
+		}
+		String expected_v2 = vformat("Image( 2, 2, %d, RGBA, %s )", img->get_mipmap_count(), data_str);
+		String expected_v2_pcfg = vformat("img(rgba, %d, 2, 2, %s)", img->get_mipmap_count(), String::hex_encode_buffer(data.ptr(), data.size()).to_upper());
+		test_image_variant("Image with Mipmaps", img, expected_v2, expected_v2_pcfg, false);
+	}
+	SUBCASE("Empty Image") {
+		Ref<Image> empty_img;
+		empty_img.instantiate();
+		test_image_variant("Empty Image", empty_img, "Image()", "img()");
+	}
+
+	SUBCASE("Simple RGBA Image") {
+		Ref<Image> img = create_simple_rgba_image();
+		String expected_v2 = "Image( 2, 2, 0, RGBA, 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255 )";
+		String expected_v2_pcfg = "img(rgba, 0, 2, 2, FF0000FF00FF00FF0000FFFFFFFFFFFF)";
+		test_image_variant("Simple RGBA Image", img, expected_v2, expected_v2_pcfg);
+	}
+
+	SUBCASE("Simple RGB Image") {
+		Ref<Image> img = create_simple_rgb_image();
+		String expected_v2 = "Image( 2, 2, 0, RGB, 255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255 )";
+		String expected_v2_pcfg = "img(rgb, 0, 2, 2, FF000000FF000000FFFFFFFF)";
+		test_image_variant("Simple RGB Image", img, expected_v2, expected_v2_pcfg);
+	}
+
+	SUBCASE("Simple Grayscale Image") {
+		Ref<Image> img = create_simple_grayscale_image();
+		String expected_v2 = "Image( 2, 2, 0, GRAYSCALE, 0, 85, 170, 255 )";
+		String expected_v2_pcfg = "img(grayscale, 0, 2, 2, 0055AAFF)";
+		test_image_variant("Simple Grayscale Image", img, expected_v2, expected_v2_pcfg);
+	}
+
+	SUBCASE("Parse Image from String") {
+		String img_str = "Image( 2, 2, 0, RGBA, 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255 )";
+		Ref<Image> parsed_img = parse_and_get_image(img_str);
+		CHECK(parsed_img->get_width() == 2);
+		CHECK(parsed_img->get_height() == 2);
+		CHECK(parsed_img->get_format() == Image::FORMAT_RGBA8);
+		CHECK(parsed_img->get_mipmap_count() == 0);
+
+		Vector<uint8_t> data = parsed_img->get_data();
+		CHECK(data.size() == 16); // 2x2x4 bytes
+		CHECK(data[0] == 255); // Red pixel R
+		CHECK(data[1] == 0); // Red pixel G
+		CHECK(data[2] == 0); // Red pixel B
+		CHECK(data[3] == 255); // Red pixel A
+	}
+
+	SUBCASE("Parse Image from String (pcfg format)") {
+		String img_str = "img(rgba, 0, 2, 2, FF0000FF00FF00FF0000FFFFFFFFFFFF)";
+		Ref<Image> parsed_img = parse_and_get_image(img_str);
+		CHECK(parsed_img->get_width() == 2);
+		CHECK(parsed_img->get_height() == 2);
+		CHECK(parsed_img->get_format() == Image::FORMAT_RGBA8);
+		CHECK(parsed_img->get_mipmap_count() == 0);
+
+		Vector<uint8_t> data = parsed_img->get_data();
+		CHECK(data.size() == 16); // 2x2x4 bytes
+		CHECK(data[0] == 255); // Red pixel R
+		CHECK(data[1] == 0); // Red pixel G
+		CHECK(data[2] == 0); // Red pixel B
+		CHECK(data[3] == 255); // Red pixel A
+	}
+
+	SUBCASE("Parse Empty Image") {
+		String img_str = "Image()";
+		Ref<Image> parsed_img = parse_and_get_image(img_str);
+		CHECK(parsed_img->is_empty());
+	}
+
+	SUBCASE("Parse Empty Image (pcfg format)") {
+		String img_str = "img()";
+		Ref<Image> parsed_img = parse_and_get_image(img_str);
+		CHECK(parsed_img->is_empty());
+	}
+
+	SUBCASE("Roundtrip Test - Write then Parse") {
+		Ref<Image> original_img = create_simple_rgba_image();
+		String written_str;
+		VariantWriterCompat::write_to_string(original_img, written_str, 2);
+
+		Ref<Image> parsed_img = parse_and_get_image(written_str);
+
+		// Compare properties
+		CHECK(parsed_img->get_width() == original_img->get_width());
+		CHECK(parsed_img->get_height() == original_img->get_height());
+		CHECK(parsed_img->get_format() == original_img->get_format());
+		CHECK(parsed_img->get_mipmap_count() == original_img->get_mipmap_count());
+
+		// Compare data
+		Vector<uint8_t> original_data = original_img->get_data();
+		Vector<uint8_t> parsed_data = parsed_img->get_data();
+		CHECK(original_data.size() == parsed_data.size());
+		for (int i = 0; i < original_data.size(); i++) {
+			CHECK(original_data[i] == parsed_data[i]);
+		}
 	}
 }
 

@@ -659,8 +659,8 @@ Error VariantParserCompat::parse_value(VariantParser::Token &token, Variant &r_v
 			array.assign(values);
 
 			r_value = array;
-		} else if (id == "Image") { // Old V2 Image
-			return ImageParserV2::parse_image_construct_v2(p_stream, r_value, true, line, r_err_str);
+		} else if (id == "Image" || id == "img") { // Old V2 Image
+			return ImageParserV2::parse_image_construct_v2(p_stream, r_value, true, line, r_err_str, id == "img");
 		} else if (id == "InputEvent") { // Old V2 InputEvent
 			return InputEventParserV2::parse_input_event_construct_v2(p_stream, r_value, line, r_err_str);
 		} else if (id == "mbutton" || id == "key" || id == "jbutton" || id == "jaxis") { // Old V2 InputEvent in project.cfg

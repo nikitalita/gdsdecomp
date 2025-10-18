@@ -1401,6 +1401,12 @@ Error VariantDecoderCompat::decode_variant_2(Variant &r_variant, const uint8_t *
 				} else if (fmt != Image::FORMAT_MAX) {
 					img = Image::create_from_data(w, h, mipmaps, fmt, data);
 				}
+			} else {
+				if (w == 0 && h == 0) {
+					img.instantiate();
+				} else {
+					img = Image::create_empty(w, h, mipmaps, fmt);
+				}
 			}
 			r_variant = img;
 			if (r_len) {
