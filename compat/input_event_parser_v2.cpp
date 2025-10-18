@@ -769,6 +769,12 @@ Error InputEventParserV2::parse_input_event_construct_v2(VariantParser::Stream *
 	return OK;
 }
 
+#undef EXPECT_TOKEN
+#undef EXPECT_COMMA_MSG
+#undef EXPECT_COMMA
+#undef EXPECT_PAREN_CLOSE
+#undef ERR_PARSE_V2INPUTEVENT_FAIL
+
 const HashMap<String, String> InputEventConverterCompat::old_prop_to_new_prop = {
 	// InputEventWithModifiers properties
 	{ "alt", "alt_pressed" },
