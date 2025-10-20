@@ -50,31 +50,42 @@ gdre_tools --headless <main_command> [options]
 ```
 ```
 Main commands:
---recover=<GAME_PCK/EXE/APK/DIR>         Perform full project recovery on the specified PCK, APK, EXE, or extracted project directory.
---extract=<GAME_PCK/EXE/APK>             Extract the specified PCK, APK, or EXE.
---compile=<GD_FILE>                      Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
---decompile=<GDC_FILE>                   Decompile GDC files to text (can be repeated and use globs)
---pck-create=<PCK_DIR>                   Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
---pck-patch=<GAME_PCK/EXE>               Patch a PCK file with the specified files
---list-bytecode-versions                 List all available bytecode versions
---txt-to-bin=<FILE>                      Convert text-based scene or resource files to binary format (can be repeated)
---bin-to-txt=<FILE>                      Convert binary scene or resource files to text-based format (can be repeated)
+--recover=<GAME_PCK/EXE/APK/DIR>              Perform full project recovery on the specified PCK, APK, EXE, or extracted project directory.
+--extract=<GAME_PCK/EXE/APK>                  Extract the specified PCK, APK, or EXE.
+--list-files=<GAME_PCK/EXE/APK>               List all files in the specified PCK, APK, or EXE and exit (can be repeated)
+--compile=<GD_FILE>                           Compile GDScript files to bytecode (can be repeated and use globs, requires --bytecode)
+--decompile=<GDC_FILE>                        Decompile GDC files to text (can be repeated and use globs)
+--pck-create=<PCK_DIR>                        Create a PCK file from the specified directory (requires --pck-version and --pck-engine-version)
+--pck-patch=<GAME_PCK/EXE>                    Patch a PCK file with the specified files
+--list-bytecode-versions                      List all available bytecode versions
+--dump-bytecode-versions=<DIR>                Dump all available bytecode definitions to the specified directory in JSON format
+--txt-to-bin=<FILE>                           Convert text-based scene or resource files to binary format (can be repeated)
+--bin-to-txt=<FILE>                           Convert binary scene or resource files to text-based format (can be repeated)
+--patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
+                                                 (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
 
 Recover/Extract Options:
---key=<KEY>                              The Key to use if project is encrypted as a 64-character hex string,
-                                              e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
---output=<DIR>                           Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
---scripts-only                           Only extract/recover scripts
---include=<GLOB>                         Include files matching the glob pattern (can be repeated)
---exclude=<GLOB>                         Exclude files matching the glob pattern (can be repeated)
---ignore-checksum-errors                 Ignore MD5 checksum errors when extracting/recovering
---csharp-assembly=<PATH>                 Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
+
+--key=<KEY>                          The Key to use if project is encrypted as a 64-character hex string,
+                                         e.g.: '000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F'
+--output=<DIR>                       Output directory, defaults to <NAME_extracted>, or the project directory if one of specified
+--scripts-only                       Only extract/recover scripts
+--include=<GLOB>                     Include files matching the glob pattern (can be repeated, see notes below)
+--exclude=<GLOB>                     Exclude files matching the glob pattern (can be repeated, see notes below)
+--ignore-checksum-errors             Ignore MD5 checksum errors when extracting/recovering
+--skip-checksum-check                Skip MD5 checksum check when extracting/recovering
+--csharp-assembly=<PATH>             Optional path to the C# assembly for C# projects; auto-detected from PCK path if not specified
+--force-bytecode-version=<VERSION>   Force the bytecode version to be the specified value. Can be either a commit hash (e.g. 'f3f05dc') or version string (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>   Load a custom bytecode definition file from the specified JSON file and use it for the recovery session
+--translation-hint=<FILE>            Load a translation key hint file (.csv, .txt, .po, .mo) and use it during translation recovery
+--skip-loading-resource-strings      Skip loading resource strings from all resources during translation recovery
 
 Decompile/Compile Options:
---bytecode=<COMMIT_OR_VERSION>           Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')
---output=<DIR>                           Directory where compiled files will be output to.
-                                         - If not specified, compiled files will be output to the same location
-                                           (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
+--bytecode=<COMMIT_OR_VERSION>          Either the commit hash of the bytecode revision (e.g. 'f3f05dc'), or the version of the engine (e.g. '4.3.0')
+--load-custom-bytecode=<JSON_FILE>      Load a custom bytecode definition file from the specified JSON file and use it for the session
+--output=<DIR>                          Directory where compiled files will be output to.
+                                          - If not specified, compiled files will be output to the same location
+                                          (e.g. '<PROJ_DIR>/main.gd' -> '<PROJ_DIR>/main.gdc')
 
 Create PCK Options:
 --output=<OUTPUT_PCK/EXE>                The output PCK file to create
@@ -90,6 +101,12 @@ Patch PCK Options:
 --exclude=<GLOB>                         Exclude files from original PCK matching the glob pattern (can be repeated)
 --embed=<EXE_TO_EMBED>                   The executable to embed the patched PCK into
 --key=<KEY>                              64-character hex string to decrypt/encrypt the PCK with
+
+Patch Translations Options:
+(Note: This can be used in combination with --pck-patch and its options)
+--pck=<GAME_PCK>                        The PCK file with the source translations (if used in combination with --pck-patch, this can be omitted)
+--output=<OUTPUT_DIR>                   The output directory to save the patched translations to (optional if used in combination with --pck-patch)
+--locales=<LOCALES>                     The locales to patch (comma-separated list, defaults to only newly-added locales)
 ```
 
 #### Notes on Include/Exclude globs:
