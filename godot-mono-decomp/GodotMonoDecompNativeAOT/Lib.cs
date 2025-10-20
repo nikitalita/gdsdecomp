@@ -114,8 +114,6 @@ static public class Lib
 
 		private CancellationTokenSource cancelSource;
 
-		private GCHandle cancelSourceHandle;
-
 		public CancellationToken CancellationToken => cancelSource.Token;
 
 
@@ -124,7 +122,6 @@ static public class Lib
 			if (reportFunc == IntPtr.Zero) return;
 			this.userData = userData;
 			this.cancelSource = new CancellationTokenSource();
-			this.cancelSourceHandle = GCHandle.Alloc(cancelSource);
 			progressFunction = Marshal.GetDelegateForFunctionPointer<ProgressFunction>(reportFunc);
 		}
 
