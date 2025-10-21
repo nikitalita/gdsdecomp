@@ -1806,7 +1806,12 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 
 		} break;
 		default: {
-		}
+			p_store_string_func(p_store_string_ud, "null");
+			if (p_variant.get_type() >= Variant::VARIANT_MAX) {
+				ERR_FAIL_V_MSG(ERR_INVALID_DATA, vformat("Corrupted variant type: %d", (int)p_variant.get_type()));
+			}
+			ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, vformat("Unsupported variant type for v%d: %s", ver_major, Variant::get_type_name(p_variant.get_type())));
+		} break;
 	}
 	return OK;
 } // VarWriter::write_compat_v2_v3

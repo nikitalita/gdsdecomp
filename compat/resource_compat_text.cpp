@@ -2292,9 +2292,13 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 		} else {
 			String line = "[sub_resource ";
 			if (res->get_scene_unique_id().is_empty()) {
+				int last_id = used_unique_ids.size();
 				String new_id;
 				while (true) {
 					new_id = _resource_get_class(res) + "_" + Resource::generate_scene_unique_id();
+					if (format_version < 3) {
+						new_id = itos(++last_id);
+					}
 
 					if (!used_unique_ids.has(new_id)) {
 						break;

@@ -246,6 +246,7 @@ class ResourceFormatSaverCompatTextInstance {
 	String _write_resource(const Ref<Resource> &res);
 	String get_id_for_ext_resource(Ref<Resource> res, int ext_resources_size);
 	void ensure_ids_are_unique();
+	void ensure_internal_resource_scene_ids_are_unique();
 	Error set_save_settings(const Ref<Resource> &p_resource, uint32_t p_flags);
 
 	static String get_local_path(const String &p_path, const Ref<Resource> &p_resource);
