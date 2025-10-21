@@ -652,7 +652,7 @@ Error InputEventParserV2::parse_input_event_construct_v2(VariantParser::Stream *
 		EXPECT_PAREN_CLOSE();
 	} else if (id == "KEY") {
 		Ref<InputEventKey> iek;
-		iek.instantiate();
+		Key key;
 
 		VariantParser::get_token(p_stream, token, line, r_err_str);
 		if (token.type == VariantParser::TK_IDENTIFIER || (token.type == VariantParser::TK_NUMBER && (int)token.value < 10)) {
@@ -666,13 +666,14 @@ Error InputEventParserV2::parse_input_event_construct_v2(VariantParser::Stream *
 				}
 				name += " " + (token.type == VariantParser::TK_IDENTIFIER ? token.value.operator String() : String::num_int64((int64_t)token.value));
 			}
-			iek->set_keycode(convert_v2_key_string_to_v4_keycode(name));
+			key = convert_v2_key_string_to_v4_keycode(name);
 		} else if (token.type == VariantParser::TK_NUMBER) {
-			iek->set_keycode(convert_v2_key_to_v4_key(token.value));
+			key = convert_v2_key_to_v4_key(token.value);
 		} else {
 			r_err_str = "Expected string or integer for keycode";
 			return ERR_PARSE_ERROR;
 		}
+		iek = InputEventKey::create_reference(key);
 
 		VariantParser::get_token(p_stream, token, line, r_err_str);
 

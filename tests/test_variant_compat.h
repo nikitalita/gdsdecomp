@@ -122,7 +122,6 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
-		expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
 		if (!no_encode_decode) {
 			expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
 			test_variant_write_binary_resource(name, p_val, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR);
@@ -442,6 +441,20 @@ void expect_inputevent_decode_encode_match(const Ref<InputEvent> &variant, const
 	auto expected_ie_text = variant->as_text();
 	ERR_PRINT_ON
 	CHECK(decoded_ie_text == expected_ie_text);
+	List<PropertyInfo> decoded_ie_props;
+	List<PropertyInfo> expected_ie_props;
+	decoded_ie->get_property_list(&decoded_ie_props);
+	variant->get_property_list(&expected_ie_props);
+	CHECK(decoded_ie_props.size() == expected_ie_props.size());
+	for (int i = 0; i < decoded_ie_props.size(); i++) {
+		CHECK(decoded_ie_props.get(i).name == expected_ie_props.get(i).name);
+		CHECK(decoded_ie_props.get(i).type == expected_ie_props.get(i).type);
+		CHECK(decoded_ie_props.get(i).hint == expected_ie_props.get(i).hint);
+		CHECK(decoded_ie_props.get(i).hint_string == expected_ie_props.get(i).hint_string);
+		CHECK(decoded_ie_props.get(i).usage == expected_ie_props.get(i).usage);
+		auto name = decoded_ie_props.get(i).name;
+		CHECK(decoded_ie->get(name) == variant->get(name));
+	}
 
 	expect_variant_write_match(decoded_ie, expected_str, ver_major, 0, is_pcfg);
 }
