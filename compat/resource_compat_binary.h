@@ -173,6 +173,8 @@ public:
 	virtual Error rename_dependencies(const String &p_path, const HashMap<String, String> &p_map) override;
 
 	static Error rewrite_v2_import_metadata(const String &p_path, const String &p_dst, Ref<ResourceImportMetadatav2> imd);
+
+	static Error test_writing_parsing_variant(Variant p_v, Variant &r_v, int ver_major, int ver_minor);
 };
 
 class ResourceFormatSaverCompatBinaryInstance {

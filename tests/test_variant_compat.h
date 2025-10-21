@@ -4,6 +4,7 @@
 #include "compat/image_enum_compat.h"
 #include "compat/image_parser_v2.h"
 #include "compat/input_event_parser_v2.h"
+#include "compat/resource_compat_binary.h"
 #include "compat/variant_decoder_compat.h"
 #include "core/io/image.h"
 #include "core/variant/variant.h"
@@ -67,6 +68,13 @@ void expect_variant_decode_encode_match(const Variant &variant, const String &ex
 	expect_variant_write_match(decoded, expected_str, ver_major, ver_minor, is_pcfg, is_compat);
 }
 
+void test_variant_write_binary_resource(const String &name, Variant p_val, int ver_major, int ver_minor) {
+	Variant r_v;
+	Error err = ResourceFormatLoaderCompatBinary::test_writing_parsing_variant(p_val, r_v, 2, 0);
+	CHECK(err == OK);
+	CHECK(r_v == p_val);
+}
+
 template <class T>
 void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, const String &expected_v2 = "", bool no_encode_decode = false) {
 	// we need to use a macro here to get the name of the type, as we cannot use typeid(T).name() in a constexpr context
@@ -79,6 +87,7 @@ void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, c
 			CHECK(compat_ret == expected_v2);
 			if (!no_encode_decode) {
 				expect_variant_decode_encode_match(p_val, compat_ret, 2, 0, false, false);
+				test_variant_write_binary_resource(name, p_val, 2, 0);
 			}
 		}
 	}
@@ -96,6 +105,7 @@ void _ALWAYS_INLINE_ test_variant_write_v3(const String &name, const T &p_val, c
 			CHECK(compat_ret == expected_v3);
 			if (!no_encode_decode) {
 				expect_variant_decode_encode_match(p_val, compat_ret, 3, 0, false, false);
+				test_variant_write_binary_resource(name, p_val, 3, 0);
 			}
 		}
 	}
@@ -115,6 +125,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
 		if (!no_encode_decode) {
 			expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
+			test_variant_write_binary_resource(name, p_val, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR);
 		}
 	}
 	SUBCASE(vformat("%s write_to_string v4 no compat", name).utf8().get_data()) {
@@ -128,6 +139,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		CHECK(compat_ret == gd_ret);
 		if (!no_encode_decode) {
 			expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, false, false);
+			test_variant_write_binary_resource(name, p_val, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR);
 		}
 	}
 }
@@ -425,7 +437,11 @@ void expect_inputevent_decode_encode_match(const Ref<InputEvent> &variant, const
 	CHECK(err == OK);
 	Ref<InputEvent> decoded_ie = decoded;
 	REQUIRE(decoded_ie.is_valid());
-	CHECK(decoded_ie->as_text() == variant->as_text());
+	ERR_PRINT_OFF
+	auto decoded_ie_text = decoded_ie->as_text();
+	auto expected_ie_text = variant->as_text();
+	ERR_PRINT_ON
+	CHECK(decoded_ie_text == expected_ie_text);
 
 	expect_variant_write_match(decoded_ie, expected_str, ver_major, 0, is_pcfg);
 }

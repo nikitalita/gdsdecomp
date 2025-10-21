@@ -45,6 +45,7 @@
 
 #include "compat/fake_scene_state.h"
 #include "compat/image_parser_v2.h"
+#include "utility/file_access_buffer.h"
 #include "utility/gdre_settings.h"
 #include "utility/resource_info.h"
 
@@ -3613,4 +3614,41 @@ String ResourceFormatSaverCompatBinaryInstance::get_local_path(const String &p_p
 		return GDRESettings::get_singleton()->localize_path(p_path);
 	}
 	return p_resource.is_valid() ? p_resource->get_path() : "";
+}
+
+Error ResourceFormatLoaderCompatBinary::test_writing_parsing_variant(Variant p_v, Variant &r_v, int ver_major, int ver_minor) {
+	ResourceFormatSaverCompatBinaryInstance saver;
+	int format = ResourceFormatSaverCompatBinary::get_default_format_version(ver_major, ver_minor);
+	auto fa = FileAccessBuffer::create();
+	saver.ver_format = format;
+	saver.ver_major = ver_major;
+	saver.ver_minor = ver_minor;
+	saver.bundle_resources = true;
+	saver._find_resources(p_v, false);
+	HashMap<Ref<Resource>, int> resource_map;
+	int idx = 0;
+	for (const auto &s : saver.saved_resources) {
+		resource_map[s] = idx++;
+	}
+
+	HashMap<Ref<Resource>, int> external_resources;
+	saver.write_variant(fa, p_v, resource_map, external_resources, saver.string_map);
+
+	ResourceLoaderCompatBinary loader;
+	fa->seek(0);
+	loader.f = fa;
+	loader.string_map = saver.strings;
+	loader.ver_format = format;
+	loader.ver_major = ver_major;
+	loader.ver_minor = ver_minor;
+	loader.using_named_scene_ids = false;
+	for (const auto &[k, v] : resource_map) {
+		loader.internal_index_cache["::" + itos(v)] = k;
+	}
+
+	Error err = loader.parse_variant(r_v);
+	if (err != OK) {
+		return err;
+	}
+	return OK;
 }
