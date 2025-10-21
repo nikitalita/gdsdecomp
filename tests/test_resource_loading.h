@@ -166,7 +166,7 @@ TEST_CASE("[GDSDecomp][ResourceLoading] Resource loading modes") {
 	}
 }
 
-void set_prop_dict_with_v4_variants(TypedDictionary<StringName, Variant> &dict) {
+void set_prop_dict_with_v4_variants(TypedDictionary<String, Variant> &dict) {
 	dict["rect2i_property"] = Rect2i(1, 2, 3, 4);
 	dict["vector2i_property"] = Vector2i(1, 2);
 	dict["vector3i_property"] = Vector3i(1, 2, 3);
@@ -177,8 +177,10 @@ void set_prop_dict_with_v4_variants(TypedDictionary<StringName, Variant> &dict) 
 	dict["packed_vector4_array_property"] = PackedVector4Array({ Vector4(1.0, 2.0, 3.0, 4.0), Vector4(5.0, 6.0, 7.0, 8.0) });
 }
 
-TypedDictionary<StringName, Variant> get_prop_dict(bool v4) {
-	TypedDictionary<StringName, Variant> dict = {
+TypedDictionary<String, Variant> get_prop_dict(bool v4) {
+	Ref<Resource> subresource = memnew(Resource);
+	subresource->set_name("subresource");
+	TypedDictionary<String, Variant> dict = {
 		{ "int_property", 123 },
 		{ "float_property", 123.456 },
 		{ "string_property", "Hello, World!" },
@@ -203,7 +205,8 @@ TypedDictionary<StringName, Variant> get_prop_dict(bool v4) {
 		{ "packed_color_array_property", PackedColorArray({ Color(1.0, 2.0, 3.0, 4.0), Color(5.0, 6.0, 7.0, 8.0) }) },
 		{ "dictionary_property", Dictionary({ { "key1", "value1" }, { "key2", 2 } }) },
 		{ "array_property", Array({ 1, 2, 3 }) },
-		{ "object_property", InputEventKey::create_reference(Key::KEY_1) },
+		{ "subresource_property", subresource },
+		{ "input_event_property", InputEventKey::create_reference(Key::KEY_1) }
 	};
 	if (v4) {
 		set_prop_dict_with_v4_variants(dict);
@@ -217,15 +220,20 @@ Ref<Resource> get_test_resource_with_data(bool v4) {
 	for (auto &[key, value] : get_prop_dict(v4)) {
 		resource->set_meta(key, value);
 	}
+	resource->set_name("resource_with_data");
 
 	return resource;
 }
 
 void check_resource_data(const Ref<Resource> &loaded_resource, bool v4) {
 	REQUIRE(loaded_resource.is_valid());
+	CHECK(loaded_resource->get_name() == "resource_with_data");
 	for (auto &[key, expected_value] : get_prop_dict(v4)) {
 		Variant loaded_value = loaded_resource->get_meta(key);
-		if (loaded_value.get_type() == Variant::Type::OBJECT) {
+		if (key == "subresource_property") {
+			Ref<Resource> resource = Object::cast_to<Resource>(loaded_value.operator Object *());
+			CHECK(resource->get_name() == "subresource");
+		} else if (loaded_value.get_type() == Variant::Type::OBJECT) {
 			REQUIRE(loaded_value.operator Object *());
 			CHECK(loaded_value.operator Object *()->to_string() == expected_value.operator Object *()->to_string());
 		} else {
@@ -281,27 +289,27 @@ TEST_CASE("[GDSDecomp][ResourceLoading] Resource with data") {
 	}
 }
 
+static const Vector<Pair<int, int>> versions_to_test = {
+	{ 2, 0 },
+	{ 3, 0 },
+	{ 3, 1 },
+	{ 3, 2 },
+	{ 3, 3 },
+	{ 3, 4 },
+	{ 3, 5 },
+	{ 3, 6 },
+	{ 4, 0 },
+	{ 4, 1 },
+	{ 4, 2 },
+	{ 4, 3 },
+	{ 4, 4 },
+	{ 4, 5 },
+	{ 4, 6 },
+};
+
 TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 	String tmp_dir = get_tmp_path().path_join("resource_loading_test");
 	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
-
-	Vector<Pair<int, int>> versions = {
-		{ 2, 0 },
-		{ 3, 0 },
-		{ 3, 1 },
-		{ 3, 2 },
-		{ 3, 3 },
-		{ 3, 4 },
-		{ 3, 5 },
-		{ 3, 6 },
-		{ 4, 0 },
-		{ 4, 1 },
-		{ 4, 2 },
-		{ 4, 3 },
-		{ 4, 4 },
-		{ 4, 5 },
-		{ 4, 6 },
-	};
 
 	SUBCASE("Saving a resource with v4 variants on v2 and v3 (text format)") {
 		Vector<Pair<int, int>> test_ver = {
@@ -325,7 +333,7 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 			List<StringName> list;
 			loaded_resource->get_meta_list(&list);
 			CHECK(list.size() == v2_v3_dict.size());
-			TypedDictionary<StringName, Variant> v4_only_dict;
+			TypedDictionary<String, Variant> v4_only_dict;
 			set_prop_dict_with_v4_variants(v4_only_dict);
 			for (const auto &meta : list) {
 				CHECK(v4_only_dict.has(meta) == false);
@@ -333,9 +341,8 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 		}
 	}
 	SUBCASE("Save and load resource (text format) with different versions") {
-		const String resource_path = tmp_dir.path_join("resource_with_data.tres");
-
-		for (const auto &version : versions) {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("resource_with_data_%d_%d.tres", version.first, version.second));
 			bool use_v4 = version.first >= 4;
 			Ref<Resource> resource = get_test_resource_with_data(use_v4);
 			REQUIRE(resource.is_valid());
@@ -344,7 +351,133 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 			check_resource_data(loaded_resource, use_v4);
 		}
 	}
+
+	SUBCASE("Save and load resource (binary format) with different versions") {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("resource_with_data_%d_%d.res", version.first, version.second));
+			bool use_v4 = version.first >= 4;
+			Ref<Resource> resource = get_test_resource_with_data(use_v4);
+			if (version.first == 2) {
+				// InputEvents were not written to binary resources in v2
+				resource->set_meta("input_event_property", Variant());
+			}
+			if (version.first == 3) {
+				bool foo = false;
+			}
+
+			REQUIRE(resource.is_valid());
+
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, false);
+			REQUIRE(loaded_resource.is_valid());
+			Dictionary expected_dict = get_prop_dict(use_v4);
+			if (version.first == 2) {
+				expected_dict.erase("input_event_property");
+			}
+			for (auto &[key, expected_value] : expected_dict) {
+				Variant loaded_value = loaded_resource->get_meta(key);
+				if (key == "subresource_property") {
+					Ref<Resource> resource = Object::cast_to<Resource>(loaded_value.operator Object *());
+					CHECK(resource->get_name() == "subresource");
+				} else if (expected_value.get_type() == Variant::Type::OBJECT) {
+					REQUIRE(loaded_value.operator Object *());
+					CHECK(loaded_value.operator Object *()->to_string() == expected_value.operator Object *()->to_string());
+				} else {
+					CHECK(loaded_value == expected_value);
+				}
+			}
+		}
+	}
 }
+
+#include "core/os/thread_safe.h"
+
+Ref<PackedScene> get_test_scene() {
+	bool old_thread_safe = is_current_thread_safe_for_nodes();
+	set_current_thread_safe_for_nodes(true);
+	Node *root = memnew(Node);
+	root->set_name("root");
+	Node *child = memnew(Node);
+	child->set_name("child");
+	root->add_child(child);
+	child->set_owner(root);
+	Node *grandchild1 = memnew(Node);
+	grandchild1->set_name("grandchild1");
+	child->add_child(grandchild1);
+	grandchild1->set_owner(root);
+	Node *grandchild2 = memnew(Node);
+	grandchild2->set_name("grandchild2");
+	child->add_child(grandchild2);
+	grandchild2->set_owner(root);
+	Ref<PackedScene> scene = memnew(PackedScene);
+	scene->pack(root);
+	memdelete(root);
+	set_current_thread_safe_for_nodes(old_thread_safe);
+	return scene;
+}
+
+void check_loaded_scene(const Ref<PackedScene> &loaded_scene) {
+	REQUIRE(loaded_scene.is_valid());
+
+	auto root = loaded_scene->instantiate();
+	{
+		REQUIRE(root != nullptr);
+		CHECK(root->get_name() == "root");
+		auto child = root->get_node(NodePath("child"));
+		REQUIRE(child != nullptr);
+		CHECK(child->get_name() == "child");
+		auto grandchild1 = child->get_node(NodePath("grandchild1"));
+		REQUIRE(grandchild1 != nullptr);
+		CHECK(grandchild1->get_name() == "grandchild1");
+		auto grandchild2 = child->get_node(NodePath("grandchild2"));
+		REQUIRE(grandchild2 != nullptr);
+		CHECK(grandchild2->get_name() == "grandchild2");
+	}
+	memdelete(root);
+}
+
+TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene") {
+	auto saved_scene = get_test_scene();
+	REQUIRE(saved_scene.is_valid());
+	String tmp_dir = get_tmp_path().path_join("scene_saving_test");
+	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
+
+	SUBCASE("Save and load scene (text format)") {
+		const String resource_path = tmp_dir.path_join("test_scene_text.tscn");
+		Ref<Resource> loaded_resource = save_with_real_and_load_with_compat(saved_scene, resource_path);
+		REQUIRE(loaded_resource.is_valid());
+		Ref<PackedScene> loaded_scene = loaded_resource;
+		check_loaded_scene(loaded_scene);
+	}
+
+	SUBCASE("Save and load scene (binary format)") {
+		const String resource_path = tmp_dir.path_join("test_scene_binary.scn");
+		Ref<Resource> loaded_resource = save_with_real_and_load_with_compat(saved_scene, resource_path);
+		REQUIRE(loaded_resource.is_valid());
+		Ref<PackedScene> loaded_scene = loaded_resource;
+		check_loaded_scene(loaded_scene);
+	}
+
+	SUBCASE("Save and load scene (text format) all versions") {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("test_scene_text_%d_%d.tscn", version.first, version.second));
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(saved_scene, resource_path, version, true);
+			REQUIRE(loaded_resource.is_valid());
+			Ref<PackedScene> loaded_scene = loaded_resource;
+			check_loaded_scene(loaded_scene);
+		}
+	}
+
+	SUBCASE("Save and load scene (binary format) all versions") {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("test_scene_binary_%d_%d.scn", version.first, version.second));
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(saved_scene, resource_path, version, false);
+			REQUIRE(loaded_resource.is_valid());
+			Ref<PackedScene> loaded_scene = loaded_resource;
+			check_loaded_scene(loaded_scene);
+		}
+	}
+}
+
 } //namespace TestResourceLoading
 
 #endif

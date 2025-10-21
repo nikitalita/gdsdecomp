@@ -611,7 +611,7 @@ Error ResourceCompatLoader::save_custom(const Ref<Resource> &p_resource, const S
 	return saver.save_custom(p_resource, p_path, ver_format, ver_major, ver_minor);
 }
 
-String ResourceCompatConverter::get_resource_name(const Ref<Resource> &res, int ver_major) {
+String ResourceCompatConverter::get_resource_name(const Ref<MissingResource> &res, int ver_major) {
 	String name;
 	Variant n = ver_major < 3 ? res->get("resource/name") : res->get("resource_name");
 	if (n.get_type() == Variant::STRING) {
@@ -747,9 +747,7 @@ Ref<MissingResource> ResourceCompatConverter::get_missing_resource_from_real(Ref
 	mr->set_name(res->get_name());
 	mr->set_local_to_scene(res->is_local_to_scene());
 	mr->set_script(res->get_script());
-	if (ver_major >= 4 && !res->get_scene_unique_id().is_empty()) {
-		mr->set_scene_unique_id(res->get_scene_unique_id());
-	}
+	mr->set_scene_unique_id(res->get_scene_unique_id());
 	List<PropertyInfo> property_info;
 	res->get_property_list(&property_info);
 	for (auto &property : property_info) {
@@ -785,4 +783,8 @@ Ref<Resource> ResourceCompatConverter::get_real_from_missing_resource(Ref<Missin
 		ERR_FAIL_V_MSG(Ref<Resource>(), "Failed to cast material to object: " + mr->get_path());
 	}
 	return set_real_from_missing_resource(mr, res, load_type, prop_map);
+}
+
+bool CompatFormatLoader::resource_is_resource(Ref<Resource> p_res, int ver_major) {
+	return p_res.is_valid() && !(ver_major <= 2 && (p_res->get_save_class() == "Image" || Ref<InputEvent>(p_res).is_valid()));
 }

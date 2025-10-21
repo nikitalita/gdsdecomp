@@ -766,6 +766,9 @@ Error ResourceLoaderCompatText::load() {
 					}
 
 					if (set_valid) {
+						if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
+							assign = "resource_name";
+						}
 						res->set(assign, value);
 					}
 				}
@@ -966,6 +969,9 @@ Error ResourceLoaderCompatText::load() {
 				}
 
 				if (set_valid) {
+					if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
+						assign = "resource_name";
+					}
 					resource->set(assign, value);
 				}
 				//it's assignment
@@ -2268,6 +2274,12 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	for (List<Ref<Resource>>::Element *E = saved_resources.front(); E; E = E->next()) {
 		Ref<Resource> res = E->get();
 		if (E->next() && res->is_built_in()) {
+			if (format_version < 3) {
+				auto scene_id = res->get_scene_unique_id();
+				if (scene_id.is_empty() || used_unique_ids.has(scene_id) || !scene_id.is_valid_int()) {
+					res->set_scene_unique_id("");
+				}
+			}
 			if (!res->get_scene_unique_id().is_empty()) {
 				if (used_unique_ids.has(res->get_scene_unique_id())) {
 					res->set_scene_unique_id(""); // Repeated.
@@ -2324,6 +2336,14 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 		Dictionary missing_resource_properties = res->get_meta(META_MISSING_RESOURCES, Dictionary());
 
+		auto original_res = res;
+		bool is_missing_resource = res->get_class() == "MissingResource";
+		if (res->get_class() != "MissingResource") {
+			auto converter = ResourceCompatLoader::get_converter_for_type(res->get_save_class(), ver_major);
+			if (converter.is_valid() && converter->has_convert_back()) {
+				res = converter->convert_back(res, ver_major);
+			}
+		}
 		List<PropertyInfo> property_list;
 		res->get_property_list(&property_list);
 
@@ -2380,6 +2400,10 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 				if (pi.type == Variant::OBJECT && value.is_zero() && !(pi.usage & PROPERTY_USAGE_STORE_IF_NULL)) {
 					continue;
+				}
+
+				if (ver_major <= 2 && name == "resource_name" && !is_missing_resource) {
+					name = "resource/name";
 				}
 
 				String vars;

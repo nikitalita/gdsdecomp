@@ -968,6 +968,9 @@ Error ResourceLoaderCompatBinary::load() {
 			}
 
 			if (set_valid) {
+				if (!missing_resource && ver_major <= 2 && name == "resource/name") {
+					name = "resource_name";
+				}
 				res->set(name, value);
 			}
 		}
@@ -2543,9 +2546,17 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 
 			ResourceData &rd = resources.push_back(ResourceData())->get();
 			rd.type = _resource_get_class(E);
+			auto res_for_props = E;
+			bool is_missing_resource = E->get_class() == "MissingResource";
+			if (!is_missing_resource) {
+				auto converter = ResourceCompatLoader::get_converter_for_type(E->get_save_class(), ver_major);
+				if (converter.is_valid() && converter->has_convert_back()) {
+					res_for_props = converter->convert_back(E, ver_major);
+				}
+			}
 
 			List<PropertyInfo> property_list;
-			E->get_property_list(&property_list);
+			res_for_props->get_property_list(&property_list);
 
 			// COMPAT: if the script property isn't at the top, resources that are script instances will have their script properties stripped upon loading in the editor.
 			CompatFormatLoader::move_script_property_to_top(&property_list);
@@ -2572,7 +2583,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 							p.value = non_persistent_map[npk];
 						}
 					} else {
-						p.value = E->get(F.name);
+						p.value = res_for_props->get(F.name);
 					}
 
 					if (F.type == Variant::OBJECT && missing_resource_properties.has(F.name)) {
@@ -2600,6 +2611,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 					}
 
 					p.pi = F;
+					if (ver_major <= 2 && F.name == "resource_name" && !is_missing_resource) {
+						p.pi.name = "resource/name";
+					}
 
 					rd.properties.push_back(p);
 				}
@@ -2660,6 +2674,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	int res_index = 0;
 	for (Ref<Resource> &r : saved_resources) {
 		if (r->is_built_in()) {
+			if (!using_named_scene_ids) {
+				r->set_scene_unique_id(itos(res_index));
+			}
 			if (r->get_scene_unique_id().is_empty()) {
 				String new_id;
 
