@@ -2047,10 +2047,10 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 			f->store_16(np.get_name_count());
 			uint16_t snc = np.get_subname_count();
 			int property_idx = -1;
-			if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+			bool has_no_nodepath_property = ver_format >= FORMAT_VERSION_NO_NODEPATH_PROPERTY;
+			if (!has_no_nodepath_property) {
 				// If there is a property, decrement the subname counter and store the property idx.
-				if (np.get_subname_count() > 1 &&
-						String(np.get_concatenated_subnames()).split(":").size() >= 2) {
+				if (np.get_subname_count() >= 1) {
 					property_idx = np.get_subname_count() - 1;
 					snc--;
 				}
@@ -2075,13 +2075,15 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 				}
 			}
 			if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+				StringName property_name;
 				if (property_idx > -1) {
-					f->store_32(p_string_map[np.get_subname(property_idx)]);
-					// otherwise, store zero-length string
+					property_name = np.get_subname(property_idx);
+				}
+				// otherwise, store zero-length string
+				if (p_string_map.has(property_name)) {
+					f->store_32(uint32_t(p_string_map[property_name]));
 				} else {
-					// 0x80000000 will resolve to a zero length string in the binary parser for any version
-					uint32_t zlen = 0x80000000;
-					f->store_32(zlen);
+					save_unicode_string(f, property_name, true);
 				}
 			}
 
@@ -2603,6 +2605,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 			}
 		}
 	}
+
+	// ensure an empty string is in the string map
+	get_string_index({});
 
 	f->store_32(strings.size()); //string table size
 	for (int i = 0; i < strings.size(); i++) {

@@ -37,8 +37,38 @@ static inline Dictionary build_dictionary(Variant key, Variant item, Targs... Fa
 	return d;
 }
 
+void expect_variant_write_match(const Variant &variant, const String &expected_str, int ver_major, int ver_minor, bool is_pcfg, bool p_compat = false) {
+	String variant_str;
+	if (is_pcfg) {
+		VariantWriterCompat::write_to_string_pcfg(variant, variant_str, ver_major);
+	} else {
+		int ver_minor = ver_major == GODOT_VERSION_MAJOR ? GODOT_VERSION_MINOR : 0;
+		VariantWriterCompat::write_to_string(variant, variant_str, ver_major, ver_minor, nullptr, nullptr, p_compat);
+	}
+	CHECK(variant_str == expected_str);
+}
+
+void expect_variant_decode_encode_match(const Variant &variant, const String &expected_str, int ver_major, int ver_minor, bool is_compat, bool is_pcfg) {
+	int len;
+	bool p_full_objects = false;
+	Error err = VariantDecoderCompat::encode_variant_compat(ver_major, variant, nullptr, len, p_full_objects);
+	CHECK(err == OK);
+
+	Vector<uint8_t> buff;
+	buff.resize(len);
+
+	uint8_t *w = buff.ptrw();
+	err = VariantDecoderCompat::encode_variant_compat(ver_major, variant, &w[0], len, p_full_objects);
+	CHECK(err == OK);
+
+	Variant decoded;
+	err = VariantDecoderCompat::decode_variant_compat(ver_major, decoded, buff.ptr(), len, nullptr, p_full_objects);
+	CHECK(err == OK);
+	expect_variant_write_match(decoded, expected_str, ver_major, ver_minor, is_pcfg, is_compat);
+}
+
 template <class T>
-void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, const String &expected_v2 = "") {
+void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, const String &expected_v2 = "", bool no_encode_decode = false) {
 	// we need to use a macro here to get the name of the type, as we cannot use typeid(T).name() in a constexpr context
 	SUBCASE(vformat("%s write_to_string v2", name).utf8().get_data()) {
 		String compat_ret;
@@ -47,12 +77,15 @@ void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, c
 		if (expected_v2.size() > 0) {
 			CHECK(compat_ret.size() == expected_v2.size());
 			CHECK(compat_ret == expected_v2);
+			if (!no_encode_decode) {
+				expect_variant_decode_encode_match(p_val, compat_ret, 2, 0, false, false);
+			}
 		}
 	}
 }
 
 template <class T>
-void _ALWAYS_INLINE_ test_variant_write_v3(const String &name, const T &p_val, const String &expected_v3 = "") {
+void _ALWAYS_INLINE_ test_variant_write_v3(const String &name, const T &p_val, const String &expected_v3 = "", bool no_encode_decode = false) {
 	// we need to use a macro here to get the name of the type, as we cannot use typeid(T).name() in a constexpr context
 	SUBCASE(vformat("%s write_to_string v3", name).utf8().get_data()) {
 		String compat_ret;
@@ -61,12 +94,15 @@ void _ALWAYS_INLINE_ test_variant_write_v3(const String &name, const T &p_val, c
 		if (expected_v3.size() > 0) {
 			CHECK(compat_ret.size() == expected_v3.size());
 			CHECK(compat_ret == expected_v3);
+			if (!no_encode_decode) {
+				expect_variant_decode_encode_match(p_val, compat_ret, 3, 0, false, false);
+			}
 		}
 	}
 }
 
 template <class T>
-void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val) {
+void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, bool no_encode_decode = false) {
 	SUBCASE(vformat("%s write_to_string v4 compat", name).utf8().get_data()) {
 		String compat_ret;
 		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, true);
@@ -76,6 +112,10 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val) {
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
+		expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
+		if (!no_encode_decode) {
+			expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, true, false);
+		}
 	}
 	SUBCASE(vformat("%s write_to_string v4 no compat", name).utf8().get_data()) {
 		String compat_ret;
@@ -86,14 +126,17 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val) {
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
+		if (!no_encode_decode) {
+			expect_variant_decode_encode_match(p_val, gd_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, false, false);
+		}
 	}
 }
 
 template <class T>
-void _ALWAYS_INLINE_ test_variant_write_all(const String &name, const T &p_val, const String &expected_v2, const String &expected_v3) {
-	test_variant_write_v2(name, p_val, expected_v2);
-	test_variant_write_v3(name, p_val, expected_v3);
-	test_variant_write_v4(name, p_val);
+void _ALWAYS_INLINE_ test_variant_write_all(const String &name, const T &p_val, const String &expected_v2, const String &expected_v3, bool no_encode_decode = false) {
+	test_variant_write_v2(name, p_val, expected_v2, no_encode_decode);
+	test_variant_write_v3(name, p_val, expected_v3, no_encode_decode);
+	test_variant_write_v4(name, p_val, no_encode_decode);
 }
 
 static constexpr const char *byte_array_v2_name = "ByteArray";
@@ -122,6 +165,25 @@ void _ALWAYS_INLINE_ test_vector_write_all(const String &test_name, const Vector
 	test_variant_write_v2(test_name, p_val, make_expected_vec(arg_str, v2name));
 	test_variant_write_v3(test_name, p_val, make_expected_vec(arg_str, v3name));
 	test_variant_write_v4(test_name, p_val);
+}
+
+void test_node_path(const String &test_name, const NodePath &p_val) {
+	SUBCASE(test_name.utf8().get_data()) {
+		String expected = vformat("NodePath(\"%s\")", p_val);
+		test_variant_write_all(test_name, p_val, expected, expected);
+	}
+}
+
+TEST_CASE("[GDSDecomp][VariantCompat] NodePath") {
+	test_node_path("Simple NodePath", NodePath("Hello/World"));
+	test_node_path("NodePath with property", NodePath("Hello/World:property"));
+	test_node_path("NodePath with property and subproperty", NodePath("Hello/World:property:subproperty/test"));
+	test_node_path("NodePath with absolute", NodePath("/Hello/World"));
+	test_node_path("NodePath with relative", NodePath("Hello/World"));
+	test_node_path("NodePath with property and absolute", NodePath("/Hello/World:property"));
+	test_node_path("NodePath with property and subproperty and subsubproperty", NodePath("Hello/World:property:subproperty:subsubproperty"));
+	test_node_path("NodePath with property and subproperty and subsubproperty and subsubsubproperty", NodePath("Hello/World:property:subproperty:subsubproperty:subsubsubproperty"));
+
 }
 
 TEST_CASE("[GDSDecomp][VariantCompat] Vector<uint8_t>") {
@@ -166,10 +228,16 @@ TEST_CASE("[GDSDecomp][VariantCompat] int") {
 	test_variant_write_all<int>("INT_MIN", INT32_MIN, "-2147483648", "-2147483648");
 }
 
+static void test_int64(const String &name, int64_t p_val, const String &expected_v2, const String &expected_v3) {
+	test_variant_write_v2(name, p_val, expected_v2, true);
+	test_variant_write_v3(name, p_val, expected_v3, false);
+	test_variant_write_v4(name, p_val, false);
+}
+
 TEST_CASE("[GDSDecomp][VariantCompat] int64_t") {
-	test_variant_write_all<int64_t>("0", 0, "0", "0");
-	test_variant_write_all<int64_t>("INT64_MAX", INT64_MAX, "9223372036854775807", "9223372036854775807");
-	test_variant_write_all<int64_t>("INT64_MIN", INT64_MIN, "-9223372036854775808", "-9223372036854775808");
+	test_int64("0", 0, "0", "0");
+	test_int64("INT64_MAX", INT64_MAX, "9223372036854775807", "9223372036854775807");
+	test_int64("INT64_MIN", INT64_MIN, "-9223372036854775808", "-9223372036854775808");
 }
 
 TEST_CASE("[GDSDecomp][VariantCompat] float") {
@@ -339,17 +407,7 @@ void expect_ie_key(const Ref<InputEventKey> &iek, Key key, int device = 0, bool 
 	CHECK(iek->is_meta_pressed() == meta_pressed);
 }
 
-void expect_variant_write_match(const Variant &variant, const String &expected_str, int ver_major, bool is_pcfg) {
-	String variant_str;
-	if (is_pcfg) {
-		VariantWriterCompat::write_to_string_pcfg(variant, variant_str, ver_major);
-	} else {
-		VariantWriterCompat::write_to_string(variant, variant_str, ver_major);
-	}
-	CHECK(variant_str == expected_str);
-}
-
-void expect_variant_decode_encode_match(const Ref<InputEvent> &variant, const String &expected_str, int ver_major, bool is_pcfg) {
+void expect_inputevent_decode_encode_match(const Ref<InputEvent> &variant, const String &expected_str, int ver_major, bool is_pcfg) {
 	int len;
 	bool p_full_objects = false;
 	Error err = VariantDecoderCompat::encode_variant_compat(ver_major, variant, nullptr, len, p_full_objects);
@@ -369,12 +427,12 @@ void expect_variant_decode_encode_match(const Ref<InputEvent> &variant, const St
 	REQUIRE(decoded_ie.is_valid());
 	CHECK(decoded_ie->as_text() == variant->as_text());
 
-	expect_variant_write_match(decoded_ie, expected_str, ver_major, is_pcfg);
+	expect_variant_write_match(decoded_ie, expected_str, ver_major, 0, is_pcfg);
 }
 
 inline void expect_iek_decode_encode_write_match(const Ref<InputEvent> &variant, const String &expected_str, int ver_major, bool is_pcfg) {
-	expect_variant_write_match(variant, expected_str, ver_major, is_pcfg);
-	expect_variant_decode_encode_match(variant, expected_str, ver_major, is_pcfg);
+	expect_variant_write_match(variant, expected_str, ver_major, 0, is_pcfg);
+	expect_inputevent_decode_encode_match(variant, expected_str, ver_major, is_pcfg);
 }
 
 void test_iek(const String &fmt, const String &int_fmt, const String &key_str, Key key, bool is_pcfg, int device = 0, bool ctrl_pressed = false, bool shift_pressed = false, bool alt_pressed = false, bool meta_pressed = false) {
