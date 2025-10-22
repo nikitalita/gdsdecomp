@@ -206,7 +206,8 @@ TypedDictionary<String, Variant> get_prop_dict(bool v4) {
 		{ "dictionary_property", Dictionary({ { "key1", "value1" }, { "key2", 2 } }) },
 		{ "array_property", Array({ 1, 2, 3 }) },
 		{ "subresource_property", subresource },
-		{ "input_event_property", InputEventKey::create_reference(Key::KEY_1) }
+		{ "input_event_property", InputEventKey::create_reference(Key::KEY_1) },
+		{ "image_property", Image::create_empty(4, 4, false, Image::FORMAT_RGBA8) }
 	};
 	if (v4) {
 		set_prop_dict_with_v4_variants(dict);
@@ -225,20 +226,35 @@ Ref<Resource> get_test_resource_with_data(bool v4) {
 	return resource;
 }
 
+inline void check_variant_data(const Ref<Resource> &loaded_resource, const String &key, const Variant &expected_value) {
+	Variant loaded_value = loaded_resource->get_meta(key);
+	if (key == "subresource_property") {
+		Ref<Resource> resource = Object::cast_to<Resource>(loaded_value.operator Object *());
+		CHECK(resource->get_name() == "subresource");
+	} else if (expected_value.get_type() == Variant::Type::OBJECT) {
+		REQUIRE(loaded_value.operator Object *());
+		Ref<Image> expected_image = expected_value;
+		if (expected_image.is_valid()) {
+			Ref<Image> loaded_image = loaded_value;
+			REQUIRE(loaded_image.is_valid());
+			CHECK(loaded_image->get_size() == expected_image->get_size());
+			CHECK(loaded_image->get_format() == expected_image->get_format());
+			CHECK(loaded_image->get_mipmap_count() == expected_image->get_mipmap_count());
+			CHECK(loaded_image->get_data().size() == expected_image->get_data().size());
+			CHECK(loaded_image->get_data() == expected_image->get_data());
+		} else {
+			CHECK(loaded_value.operator Object *()->to_string() == expected_value.operator Object *()->to_string());
+		}
+	} else {
+		CHECK(loaded_value == expected_value);
+	}
+}
+
 void check_resource_data(const Ref<Resource> &loaded_resource, bool v4) {
 	REQUIRE(loaded_resource.is_valid());
 	CHECK(loaded_resource->get_name() == "resource_with_data");
 	for (auto &[key, expected_value] : get_prop_dict(v4)) {
-		Variant loaded_value = loaded_resource->get_meta(key);
-		if (key == "subresource_property") {
-			Ref<Resource> resource = Object::cast_to<Resource>(loaded_value.operator Object *());
-			CHECK(resource->get_name() == "subresource");
-		} else if (loaded_value.get_type() == Variant::Type::OBJECT) {
-			REQUIRE(loaded_value.operator Object *());
-			CHECK(loaded_value.operator Object *()->to_string() == expected_value.operator Object *()->to_string());
-		} else {
-			CHECK(loaded_value == expected_value);
-		}
+		check_variant_data(loaded_resource, key, expected_value);
 	}
 }
 
@@ -248,7 +264,7 @@ Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource,
 	Error error = ResourceSaver::save(resource, resource_path);
 	CHECK(error == OK);
 
-	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error);
+	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	CHECK(error == OK);
 	REQUIRE(loaded_resource.is_valid());
 	return loaded_resource;
@@ -260,7 +276,7 @@ Ref<Resource> save_with_compat_and_load_with_compat(const Ref<Resource> &resourc
 	Error error = ResourceCompatLoader::save_custom(resource, resource_path, version.first, version.second);
 	CHECK(error == OK);
 
-	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error);
+	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	CHECK(error == OK);
 	REQUIRE(loaded_resource.is_valid());
 	return loaded_resource;
@@ -309,6 +325,7 @@ static const Vector<Pair<int, int>> versions_to_test = {
 
 TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 	String tmp_dir = get_tmp_path().path_join("resource_loading_test");
+	gdre::rimraf(tmp_dir);
 	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
 
 	SUBCASE("Saving a resource with v4 variants on v2 and v3 (text format)") {
@@ -340,18 +357,6 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 			}
 		}
 	}
-	SUBCASE("Save and load resource (text format) with different versions") {
-		for (const auto &version : versions_to_test) {
-			const String resource_path = tmp_dir.path_join(vformat("resource_with_data_%d_%d.tres", version.first, version.second));
-			bool use_v4 = version.first >= 4;
-			Ref<Resource> resource = get_test_resource_with_data(use_v4);
-			REQUIRE(resource.is_valid());
-
-			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
-			check_resource_data(loaded_resource, use_v4);
-		}
-	}
-
 	SUBCASE("Save and load resource (binary format) with different versions") {
 		for (const auto &version : versions_to_test) {
 			const String resource_path = tmp_dir.path_join(vformat("resource_with_data_%d_%d.res", version.first, version.second));
@@ -369,22 +374,26 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 
 			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, false);
 			REQUIRE(loaded_resource.is_valid());
+			CHECK(loaded_resource->get_name() == "resource_with_data");
 			Dictionary expected_dict = get_prop_dict(use_v4);
 			if (version.first == 2) {
 				expected_dict.erase("input_event_property");
 			}
 			for (auto &[key, expected_value] : expected_dict) {
-				Variant loaded_value = loaded_resource->get_meta(key);
-				if (key == "subresource_property") {
-					Ref<Resource> resource = Object::cast_to<Resource>(loaded_value.operator Object *());
-					CHECK(resource->get_name() == "subresource");
-				} else if (expected_value.get_type() == Variant::Type::OBJECT) {
-					REQUIRE(loaded_value.operator Object *());
-					CHECK(loaded_value.operator Object *()->to_string() == expected_value.operator Object *()->to_string());
-				} else {
-					CHECK(loaded_value == expected_value);
-				}
+				check_variant_data(loaded_resource, key, expected_value);
 			}
+		}
+	}
+
+	SUBCASE("Save and load resource (text format) with different versions") {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("resource_with_data_%d_%d.tres", version.first, version.second));
+			bool use_v4 = version.first >= 4;
+			Ref<Resource> resource = get_test_resource_with_data(use_v4);
+			REQUIRE(resource.is_valid());
+
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
+			check_resource_data(loaded_resource, use_v4);
 		}
 	}
 }
@@ -439,6 +448,7 @@ TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene") {
 	auto saved_scene = get_test_scene();
 	REQUIRE(saved_scene.is_valid());
 	String tmp_dir = get_tmp_path().path_join("scene_saving_test");
+	gdre::rimraf(tmp_dir);
 	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
 
 	SUBCASE("Save and load scene (text format)") {
@@ -457,16 +467,6 @@ TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene") {
 		check_loaded_scene(loaded_scene);
 	}
 
-	SUBCASE("Save and load scene (text format) all versions") {
-		for (const auto &version : versions_to_test) {
-			const String resource_path = tmp_dir.path_join(vformat("test_scene_text_%d_%d.tscn", version.first, version.second));
-			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(saved_scene, resource_path, version, true);
-			REQUIRE(loaded_resource.is_valid());
-			Ref<PackedScene> loaded_scene = loaded_resource;
-			check_loaded_scene(loaded_scene);
-		}
-	}
-
 	SUBCASE("Save and load scene (binary format) all versions") {
 		for (const auto &version : versions_to_test) {
 			const String resource_path = tmp_dir.path_join(vformat("test_scene_binary_%d_%d.scn", version.first, version.second));
@@ -476,6 +476,104 @@ TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene") {
 			check_loaded_scene(loaded_scene);
 		}
 	}
+
+	SUBCASE("Save and load scene (text format) all versions") {
+		for (const auto &version : versions_to_test) {
+			const String resource_path = tmp_dir.path_join(vformat("test_scene_text_%d_%d.tscn", version.first, version.second));
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(saved_scene, resource_path, version, true);
+			REQUIRE(loaded_resource.is_valid());
+			Ref<PackedScene> loaded_scene = loaded_resource;
+			check_loaded_scene(loaded_scene);
+		}
+	}
+}
+
+void check_external_test(const Ref<Resource> &loaded_resource, const Ref<Resource> &reference_external_resource) {
+	REQUIRE(loaded_resource.is_valid());
+	CHECK(loaded_resource->get_meta("external_resource").operator Object *());
+	Ref<Resource> external_resource_from_loaded_resource = loaded_resource->get_meta("external_resource");
+	REQUIRE(external_resource_from_loaded_resource.is_valid());
+	CHECK(external_resource_from_loaded_resource->get_name() == reference_external_resource->get_name());
+	CHECK(external_resource_from_loaded_resource->get_path() == reference_external_resource->get_path());
+}
+
+TEST_CASE("[GDSDecomp][ResourceSaving] Test external resources") {
+	String tmp_dir = get_tmp_path().path_join("external_resources_saving_test");
+	gdre::rimraf(tmp_dir);
+	GDRESettings::get_singleton()->set_project_path(tmp_dir);
+	GDREPackedData::get_singleton()->set_default_file_access();
+	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
+	Ref<Resource> resource = memnew(Resource);
+	const String external_resource_text_path = "res://external_resource.tres";
+	const String external_resource_binary_path = "res://external_resource.res";
+	resource->set_name("resource");
+	Ref<Resource> external_resource = memnew(Resource);
+	external_resource->set_name("external_resource");
+	resource->set_meta("external_resource", external_resource);
+
+	SUBCASE("Save and load external resource (text format)") {
+		const String resource_path = "res://resource.tres";
+		REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+		REQUIRE(GDRESettings::get_singleton()->globalize_path(resource_path) == tmp_dir.path_join(resource_path.get_file()));
+
+		resource->set_path_cache(resource_path);
+		external_resource->set_path_cache(external_resource_text_path);
+
+		Ref<Resource> loaded_external_resource = save_with_real_and_load_with_compat(external_resource, external_resource_text_path);
+		REQUIRE(loaded_external_resource.is_valid());
+		Ref<Resource> loaded_resource = save_with_real_and_load_with_compat(resource, resource_path);
+		REQUIRE(loaded_resource.is_valid());
+		check_external_test(loaded_resource, external_resource);
+	}
+	SUBCASE("Save and load external resource (binary format)") {
+		const String resource_path = "res://resource.res";
+		REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+
+		REQUIRE(GDRESettings::get_singleton()->globalize_path(resource_path) == tmp_dir.path_join(resource_path.get_file()));
+		resource->set_path_cache(resource_path);
+		external_resource->set_path_cache(external_resource_binary_path);
+
+		Ref<Resource> loaded_external_resource = save_with_real_and_load_with_compat(external_resource, external_resource_binary_path);
+		REQUIRE(loaded_external_resource.is_valid());
+		Ref<Resource> loaded_resource = save_with_real_and_load_with_compat(resource, resource_path);
+		REQUIRE(loaded_resource.is_valid());
+		check_external_test(loaded_resource, external_resource);
+	}
+	SUBCASE("Save and load external resource (binary format) all versions") {
+		REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+		for (const auto &version : versions_to_test) {
+			const String resource_path = vformat("res://resource_%d_%d.res", version.first, version.second);
+			resource->set_path_cache(resource_path);
+			external_resource->set_path_cache(external_resource_binary_path);
+			REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+			REQUIRE(GDRESettings::get_singleton()->globalize_path(resource_path) == tmp_dir.path_join(resource_path.get_file()));
+
+			Ref<Resource> loaded_external_resource = save_with_compat_and_load_with_compat(external_resource, external_resource_binary_path, version, false);
+			REQUIRE(loaded_external_resource.is_valid());
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, false);
+			REQUIRE(loaded_resource.is_valid());
+			check_external_test(loaded_resource, loaded_external_resource);
+		}
+	}
+	SUBCASE("Save and load external resource (text format) all versions") {
+		REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+		for (const auto &version : versions_to_test) {
+			// ONLY THE RESOURCE PATH, NOT THE EXTERNAL RESOURCE PATH
+			const String resource_path = vformat("res://resource_%d_%d.tres", version.first, version.second);
+			resource->set_path_cache(resource_path);
+			external_resource->set_path_cache(external_resource_text_path);
+			REQUIRE(GDRESettings::get_singleton()->get_project_path() == tmp_dir);
+			REQUIRE(GDRESettings::get_singleton()->globalize_path(resource_path) == tmp_dir.path_join(resource_path.get_file()));
+
+			Ref<Resource> loaded_external_resource = save_with_compat_and_load_with_compat(external_resource, external_resource_text_path, version, true);
+			REQUIRE(loaded_external_resource.is_valid());
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
+			REQUIRE(loaded_resource.is_valid());
+			check_external_test(loaded_resource, loaded_external_resource);
+		}
+	}
+	GDREPackedData::get_singleton()->reset_default_file_access();
+	GDRESettings::get_singleton()->set_project_path("");
 }
 
 } //namespace TestResourceLoading

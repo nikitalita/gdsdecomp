@@ -2619,7 +2619,7 @@ Error ResourceFormatSaverCompatText::save(const Ref<Resource> &p_resource, const
 		return ERR_FILE_UNRECOGNIZED;
 	}
 #endif
-
+	String path = GDRESettings::get_singleton()->globalize_path(p_path);
 	ResourceFormatSaverCompatTextInstance saver;
 	return saver.save(p_path, p_resource, p_flags);
 }
