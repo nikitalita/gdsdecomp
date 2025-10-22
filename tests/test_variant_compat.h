@@ -194,7 +194,6 @@ TEST_CASE("[GDSDecomp][VariantCompat] NodePath") {
 	test_node_path("NodePath with property and absolute", NodePath("/Hello/World:property"));
 	test_node_path("NodePath with property and subproperty and subsubproperty", NodePath("Hello/World:property:subproperty:subsubproperty"));
 	test_node_path("NodePath with property and subproperty and subsubproperty and subsubsubproperty", NodePath("Hello/World:property:subproperty:subsubproperty:subsubsubproperty"));
-
 }
 
 TEST_CASE("[GDSDecomp][VariantCompat] Vector<uint8_t>") {
