@@ -2108,16 +2108,24 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	_find_resources(p_resource, true);
 
 	if (!use_compat) {
-		if (format_version >= 3 && (used_packed_vector4array || (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)))) {
-			format_version = 4;
+		if (format_version >= 3) {
+			bool engine_version_supports_4 = (ver_major > 4 || (ver_major == 4 && ver_minor >= 3));
+			if ((engine_version_supports_4)) {
+				format_version = 4;
+			} else if (used_packed_vector4array) {
+				if (!engine_version_supports_4) {
+					WARN_PRINT(vformat("Forcing format version to 4 because PackedVector4Array is used but engine version %d.%d is too old", ver_major, ver_minor));
+				}
+				format_version = 4;
+			} else {
+				use_compat = true;
+			}
 		} else {
 			use_compat = true;
 		}
 	} else if (use_compat) {
-		if (format_version >= 3 && !set_format) {
+		if (format_version >= 3) {
 			format_version = 3;
-		} else {
-			use_compat = false;
 		}
 	}
 	if (packed_scene.is_valid()) {

@@ -174,7 +174,6 @@ void set_prop_dict_with_v4_variants(TypedDictionary<String, Variant> &dict) {
 	dict["vector4_property"] = Vector4(1.0, 2.0, 3.0, 4.0);
 	dict["packed_int64_property"] = PackedInt64Array({ 0, 1, -1, INT64_MIN, INT64_MAX });
 	dict["packed_float64_property"] = PackedFloat64Array({ 0.0, 1.234567, INFINITY, -INFINITY, NAN });
-	dict["packed_vector4_array_property"] = PackedVector4Array({ Vector4(1.0, 2.0, 3.0, 4.0), Vector4(5.0, 6.0, 7.0, 8.0) });
 }
 
 TypedDictionary<String, Variant> get_prop_dict(bool v4) {
@@ -270,10 +269,14 @@ Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource,
 	return loaded_resource;
 }
 
-Ref<Resource> save_with_compat_and_load_with_compat(const Ref<Resource> &resource, const String &resource_path, Pair<int, int> version, bool is_text) {
+Error save_with_compat(const Ref<Resource> &resource, const String &resource_path, Pair<int, int> version) {
 	resource->set_path_cache(resource_path);
 	gdre::ensure_dir(resource_path.get_base_dir());
-	Error error = ResourceCompatLoader::save_custom(resource, resource_path, version.first, version.second);
+	return ResourceCompatLoader::save_custom(resource, resource_path, version.first, version.second);
+}
+
+Ref<Resource> save_with_compat_and_load_with_compat(const Ref<Resource> &resource, const String &resource_path, Pair<int, int> version, bool is_text) {
+	Error error = save_with_compat(resource, resource_path, version);
 	CHECK(error == OK);
 
 	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
@@ -284,6 +287,7 @@ Ref<Resource> save_with_compat_and_load_with_compat(const Ref<Resource> &resourc
 
 TEST_CASE("[GDSDecomp][ResourceLoading] Resource with data") {
 	String tmp_dir = get_tmp_path().path_join("resource_loading_test");
+	gdre::rimraf(tmp_dir);
 	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
 
 	SUBCASE("Save and load resource (text format)") {
@@ -323,10 +327,91 @@ static const Vector<Pair<int, int>> versions_to_test = {
 	{ 4, 6 },
 };
 
+static const Vector<Pair<int, int>> test_ver_4_x = {
+	{ 4, 0 },
+	{ 4, 1 },
+	{ 4, 2 },
+	{ 4, 3 },
+	{ 4, 4 },
+	{ 4, 5 },
+	{ 4, 6 },
+};
+
 TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 	String tmp_dir = get_tmp_path().path_join("resource_loading_test");
 	gdre::rimraf(tmp_dir);
 	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
+	SUBCASE("Ensure default format version is 3 for 4.x") {
+		Ref<Resource> resource = memnew(Resource);
+		REQUIRE(resource.is_valid());
+		resource->set_name("test");
+
+		for (const auto &version : test_ver_4_x) {
+			const String resource_path = tmp_dir.path_join("resource_with_data.tres");
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
+			CHECK(loaded_resource.is_valid());
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(loaded_resource);
+			REQUIRE(info.is_valid());
+			CHECK(info->ver_format == 3);
+		}
+	}
+
+	SUBCASE("Ensure setting a long PackedByteArray property forces format version to 4 if version is 4.3 and above") {
+		PackedByteArray long_packed_byte_array;
+		long_packed_byte_array.resize_initialized(1024);
+		for (const auto &version : test_ver_4_x) {
+			Ref<Resource> resource = memnew(Resource);
+			resource->set_name("test");
+			resource->set_meta("packed_byte_array_property", long_packed_byte_array);
+			REQUIRE(resource.is_valid());
+			const String resource_path = tmp_dir.path_join("resource_with_data.tres");
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
+			CHECK(loaded_resource.is_valid());
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(loaded_resource);
+			REQUIRE(info.is_valid());
+			if (version.first >= 4 && version.second >= 3) {
+				CHECK(info->ver_format == 4);
+			} else {
+				CHECK(info->ver_format == 3);
+			}
+		}
+	}
+
+	SUBCASE("Ensure setting a PackedVector4Array property forces format version to 4 for all 4.x versions") {
+		for (const auto &version : test_ver_4_x) {
+			Ref<Resource> resource = memnew(Resource);
+			resource->set_name("test");
+			resource->set_meta("packed_vector4_array_property", PackedVector4Array({ Vector4(1.0, 2.0, 3.0, 4.0), Vector4(5.0, 6.0, 7.0, 8.0) }));
+			REQUIRE(resource.is_valid());
+			const String resource_path = tmp_dir.path_join("resource_with_data.tres");
+			ERR_PRINT_OFF; // silence the warning about Forcing format version to 4
+			Ref<Resource> loaded_resource = save_with_compat_and_load_with_compat(resource, resource_path, version, true);
+			ERR_PRINT_ON;
+			CHECK(loaded_resource.is_valid());
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(loaded_resource);
+			REQUIRE(info.is_valid());
+			CHECK(info->ver_format == 4);
+		}
+	}
+
+	SUBCASE("Ensure 4.2 and below does not save PackedByteArray base64-encoded") {
+		Vector<Pair<int, int>> test_ver = {
+			{ 4, 0 },
+			{ 4, 1 },
+			{ 4, 2 },
+		};
+		for (const auto &version : test_ver) {
+			const String resource_path = tmp_dir.path_join(vformat("ensure_pb_%d_%d.tres", version.first, version.second));
+			bool use_v4 = version.first >= 4;
+			Ref<Resource> resource = get_test_resource_with_data(use_v4);
+			Error error = save_with_compat(resource, resource_path, version);
+			CHECK(error == OK);
+			String content = FileAccess::get_file_as_string(resource_path);
+			CHECK(content.contains("PackedByteArray"));
+			// 'PackedByteArray("' should not be present; they should have been saved as PackedByteArray(0, 1, 2, 3, 4...)
+			CHECK(!content.contains("PackedByteArray(\""));
+		}
+	}
 
 	SUBCASE("Saving a resource with v4 variants on v2 and v3 (text format)") {
 		Vector<Pair<int, int>> test_ver = {
