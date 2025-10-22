@@ -1318,8 +1318,20 @@ String GDRESettings::localize_path(const String &p_path, const String &resource_
 	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
 		return p_path.simplify_path();
 	}
-	if ((p_path.is_absolute_path()) && (res_path == "" || !p_path.begins_with(res_path))) {
-		if (is_pack_loaded()) {
+	if (!res_path.is_empty() && p_path.simplify_path().begins_with(res_path)) {
+		return p_path.replace(res_path, "res://");
+	}
+	if ((p_path.is_absolute_path())) {
+		if (!res_path.is_empty()) {
+			if (p_path.begins_with(res_path)) {
+				return p_path.replace(res_path, "res://");
+			}
+			String path = p_path.simplify_path();
+			if (path.begins_with(res_path)) {
+				return path.replace(res_path, "res://");
+			}
+		}
+		if (is_pack_loaded() && (res_path == "" || !p_path.begins_with(res_path))) {
 			// On rare occasions, import files can sometimes contain absolute paths for the source file(e.g. "C:\Users\John\Desktop\icon.png")
 			// we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
 			String dir_path = p_path.get_base_dir().simplify_path();
