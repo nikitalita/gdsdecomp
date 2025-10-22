@@ -1911,7 +1911,7 @@ String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resour
 		if (format_version >= 3) {
 			id = itos(ext_resources_size + 1) + "_" + Resource::generate_scene_unique_id();
 		} else {
-			id = itos(ext_resources_size);
+			id = itos(ext_resources_size + 1);
 		}
 	}
 	return id;
