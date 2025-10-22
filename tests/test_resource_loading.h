@@ -259,7 +259,6 @@ void check_resource_data(const Ref<Resource> &loaded_resource, bool v4) {
 
 Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource, const String &resource_path) {
 	resource->set_path_cache(resource_path);
-	gdre::ensure_dir(resource_path.get_base_dir());
 	Error error = ResourceSaver::save(resource, resource_path);
 	CHECK(error == OK);
 
@@ -271,7 +270,6 @@ Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource,
 
 Error save_with_compat(const Ref<Resource> &resource, const String &resource_path, Pair<int, int> version) {
 	resource->set_path_cache(resource_path);
-	gdre::ensure_dir(resource_path.get_base_dir());
 	return ResourceCompatLoader::save_custom(resource, resource_path, version.first, version.second);
 }
 

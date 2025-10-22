@@ -600,9 +600,9 @@ bool ResourceCompatLoader::is_globally_available() {
 Error ResourceCompatLoader::save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_major, int ver_minor) {
 	String path = GDRESettings::get_singleton()->globalize_path(p_path);
 	ERR_FAIL_COND_V_MSG(ver_major <= 0, ERR_INVALID_PARAMETER, "Invalid version info");
-	Error err = gdre::ensure_dir(p_path.get_base_dir());
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not ensure directory for " + p_path);
-	if (p_path.get_extension() == "tres" || p_path.get_extension() == "tscn") {
+	Error err = gdre::ensure_dir(path.get_base_dir());
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not ensure directory for " + path);
+	if (path.get_extension() == "tres" || path.get_extension() == "tscn") {
 		int ver_format = ResourceFormatSaverCompatText::get_default_format_version(ver_major, ver_minor);
 		ResourceFormatSaverCompatText saver;
 		return saver.save_custom(p_resource, path, ver_format, ver_major, ver_minor);
