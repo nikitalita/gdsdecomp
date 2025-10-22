@@ -281,6 +281,16 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Create lossless copy",
 				"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
 				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Translation/disable_key_recovery",
+				"Disable translation key recovery",
+				"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
+				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Translation/more_thorough_recovery",
+				"More thorough translation key recovery",
+				"Enable more thorough translation key recovery.\nWARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.",
+				false)),
 		memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile()),
 		memnew(GDREConfigSetting(
 				"Exporter/Translation/skip_loading_resource_strings",
