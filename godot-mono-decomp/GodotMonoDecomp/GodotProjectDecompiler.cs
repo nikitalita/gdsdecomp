@@ -302,6 +302,10 @@ namespace GodotMonoDecomp
 			decompiler.AstTransforms.Add(new RemoveAutoAccessor());
 			decompiler.AstTransforms.Add(new GodotMonoDecomp.RemoveEmbeddedAttributes());
 			decompiler.AstTransforms.Add(new RemoveGeneratedExceptionThrows());
+			if (Settings.GodotVersionOverride?.Major == 3)
+			{
+				decompiler.AstTransforms.Add(new RemoveMathF3x());
+			}
 			return decompiler;
 		}
 
