@@ -2347,6 +2347,11 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 		List<PropertyInfo> property_list;
 		res->get_property_list(&property_list);
 
+		// COMPAT: Godot 3.0 and below wrote an extra empty line after a subresource/resource tag if there were properties to save
+		if ((ver_major < 3 || (ver_major == 3 && ver_minor <= 0)) && property_list.size() > 0) {
+			f->store_line("");
+		}
+
 		// COMPAT: if the script property isn't at the top, resources that are script instances will have their script properties stripped upon loading in the editor.
 		CompatFormatLoader::move_script_property_to_top(&property_list);
 		for (const PropertyInfo &pi : property_list) {
@@ -2501,6 +2506,10 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			}
 
 			f->store_line("]");
+			// COMPAT: Godot 3.0 and below wrote an extra empty line after a node tag if there were properties to save
+			if (format_version <= 2 && state->get_node_property_count(i) > 0) {
+				f->store_line("");
+			}
 
 			for (int j = 0; j < state->get_node_property_count(i); j++) {
 				String vars;
