@@ -416,7 +416,7 @@ Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
 			if (is_gdre_file(p_path)) {
 				WARN_PRINT(vformat("Opening gdre file %s from a loaded external pack???? PLEASE REPORT THIS!!!!", p_path));
 			};
-			return OK;
+			return proxy->get_error();
 		}
 	}
 	String path = p_path;
@@ -426,7 +426,7 @@ Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
 			// this works even when PackedData is disabled
 			proxy = PackedData::get_singleton()->try_open_path(p_path);
 			if (proxy.is_valid()) {
-				return OK;
+				return proxy->get_error();
 			}
 		}
 	}
