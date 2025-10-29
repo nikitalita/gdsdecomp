@@ -449,9 +449,6 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 				// InputEvents were not written to binary resources in v2
 				resource->set_meta("input_event_property", Variant());
 			}
-			if (version.first == 3) {
-				bool foo = false;
-			}
 
 			REQUIRE(resource.is_valid());
 
