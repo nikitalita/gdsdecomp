@@ -30,6 +30,10 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
+int TaskManager::get_max_thread_count() {
+	return WorkerThreadPool::get_singleton()->get_thread_count();
+}
+
 void TaskManager::BaseTemplateTaskData::start() {
 	if (started) {
 		return;

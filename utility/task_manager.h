@@ -358,6 +358,9 @@ public:
 	TaskManager();
 	~TaskManager();
 	static TaskManager *get_singleton();
+
+	static int get_max_thread_count();
+
 	template <typename C, typename M, typename U, typename R>
 	TaskManagerID add_group_task(
 			C *p_instance,
@@ -374,6 +377,12 @@ public:
 			int p_progress_start = 0) {
 		ERR_FAIL_COND_V_MSG(p_elements == 0, -1, "Task has 0 elements, this is not allowed!");
 		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+		if (p_tasks <= 0) {
+			p_tasks = (int)GDREConfig::get_singleton()->get_setting("max_cores_to_use", -1);
+			if (p_tasks <= 0) {
+				p_tasks = MAX(1, get_max_thread_count() - 1);
+			}
+		}
 		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, is_singlethreaded, true, p_preexisting_progress, p_progress_start);
 		task->start();
 		auto group_id = ++current_task_id;

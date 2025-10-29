@@ -164,6 +164,31 @@ public:
 	}
 };
 
+class GDREConfigSetting_MaxCoresToUse : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_MaxCoresToUse, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_MaxCoresToUse() :
+			GDREConfigSetting(
+					"max_cores_to_use",
+					"Max cores for threaded tasks",
+					"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
+					-1,
+					false,
+					false) {}
+
+	virtual bool has_special_value() const override { return true; }
+	virtual Dictionary get_list_of_possible_values() const override {
+		Dictionary ret;
+		ret[-1] = "Auto-detect";
+		// descending order
+		for (int i = WorkerThreadPool::get_singleton()->get_thread_count(); i > 0; i--) {
+			ret[i] = String::num_int64(i);
+		}
+		return ret;
+	}
+};
+
 Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 	return {
 		memnew(GDREConfigSetting(
@@ -181,6 +206,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Delete auto-converted files",
 				"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
 				false)),
+		memnew(GDREConfigSetting_MaxCoresToUse()),
 		memnew(GDREConfigSetting(
 				"force_single_threaded",
 				"Force single-threaded mode",
