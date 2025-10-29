@@ -141,7 +141,7 @@ func extract_and_recover(files_to_extract: PackedStringArray, output_dir: String
 	if (err != OK):
 		var error_str = "Could not extract files:\n" + GDRESettings.get_recent_error_string()
 		if err == ERR_UNAUTHORIZED:
-			error_str = "Encryption error detected, failed to extract one or more files.\nPlease check your encryption key and try again.\n" + error_str
+			error_str = "Encryption error detected, failed to extract one or more files.\nPlease check your encryption key and try again.\n"
 		popup_error_box(error_str, "Error")
 		end_recovery()
 		return
