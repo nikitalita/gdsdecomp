@@ -378,11 +378,7 @@ void GDREConfig::load_config() {
 		if (setting->is_virtual_setting()) {
 			continue;
 		}
-		if (setting->is_ephemeral()) {
-			ephemeral_settings.try_emplace_l(setting->get_full_name(), [=](auto &v) { v.second = setting->get_default_value(); }, setting->get_default_value());
-		} else {
-			set_setting(setting->get_full_name(), setting->get_default_value());
-		}
+		set_setting(setting->get_full_name(), setting->get_default_value(), setting->is_ephemeral());
 	}
 
 	auto cfg_path = get_config_path();
@@ -483,7 +479,7 @@ void GDREConfig::reset_ephemeral_settings() {
 }
 
 GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden, bool p_ephemeral) {
-	full_name = p_full_name;
+	full_name = ::get_full_name(p_full_name);
 	brief_description = p_brief;
 	description = p_description;
 	default_value = p_default_value;
