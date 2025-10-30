@@ -148,7 +148,7 @@ namespace GodotMonoDecomp
 
 		// per-run members
 		HashSet<string> directories = new HashSet<string>(Platform.FileNameComparer);
-		IProjectFileWriter projectWriter;
+		IProjectFileWriter? projectWriter;
 		HashSet<TypeDefinitionHandle> excludeTypes = [];
 		Dictionary<TypeDefinitionHandle, string> handleToFileMap = [];
 
@@ -160,12 +160,12 @@ namespace GodotMonoDecomp
 
 		public ProjectId DecompileGodotProject(MetadataFile file,
 											string targetDirectory,
-											TextWriter? projectFileWriter = null,
-											IEnumerable<TypeDefinitionHandle>? excludeTypes = null,
-											Dictionary<TypeDefinitionHandle, string> handleToFileMap = default,
-											DotNetCoreDepInfo? depInfo = null,
-											CancellationToken cancellationToken = default(CancellationToken),
-											Dictionary<string, string> subProjectMap = default)
+											TextWriter projectFileWriter,
+											IEnumerable<TypeDefinitionHandle>? excludeTypes,
+											Dictionary<TypeDefinitionHandle, string> handleToFileMap,
+											Dictionary<string, string> subProjectMap,
+											DotNetCoreDepInfo? depInfo,
+											CancellationToken cancellationToken = default(CancellationToken))
 		{
 			this.excludeTypes = excludeTypes?.ToHashSet() ?? [];
 			this.handleToFileMap = handleToFileMap ?? [];
@@ -467,7 +467,7 @@ namespace GodotMonoDecomp
 		{
 			foreach (var r in module.Resources.Where(r => r.ResourceType == ResourceType.Embedded))
 			{
-				Stream stream = r.TryOpenStream();
+				Stream? stream = r.TryOpenStream();
 				if (stream == null)
 					continue;
 
@@ -486,22 +486,22 @@ namespace GodotMonoDecomp
 							foreach (var (name, value) in resourcesFile)
 							{
 								string fileName = SanitizeFileName(name);
-								string dirName = Path.GetDirectoryName(fileName);
+								string? dirName = Path.GetDirectoryName(fileName);
 								if (!string.IsNullOrEmpty(dirName) && directories.Add(dirName))
 								{
 									CreateDirectory(Path.Combine(TargetDirectory, dirName));
 								}
-								Stream entryStream = (Stream)value;
+								Stream entryStream = (Stream)value!;
 								entryStream.Position = 0;
 								individualResources.AddRange(
 									WriteResourceToFile(fileName, name, entryStream));
 							}
 							decodedIntoIndividualFiles = true;
 						}
-						else
-						{
-							decodedIntoIndividualFiles = false;
-						}
+						// else
+						// {
+						// 	decodedIntoIndividualFiles = false;
+						// }
 					}
 					catch (BadImageFormatException)
 					{
@@ -611,14 +611,14 @@ namespace GodotMonoDecomp
 			if (resources == null)
 				yield break;
 
-			byte[] appIcon = CreateApplicationIcon(resources);
+			byte[]? appIcon = CreateApplicationIcon(resources);
 			if (appIcon != null)
 			{
 				File.WriteAllBytes(Path.Combine(TargetDirectory, "app.ico"), appIcon);
 				yield return new ProjectItemInfo("ApplicationIcon", "app.ico");
 			}
 
-			byte[] appManifest = CreateApplicationManifest(resources);
+			byte[]? appManifest = CreateApplicationManifest(resources);
 			if (appManifest != null && !IsDefaultApplicationManifest(appManifest))
 			{
 				File.WriteAllBytes(Path.Combine(TargetDirectory, "app.manifest"), appManifest);
@@ -636,7 +636,7 @@ namespace GodotMonoDecomp
 		const int RT_ICON = 3;
 		const int RT_GROUP_ICON = 14;
 
-		unsafe static byte[] CreateApplicationIcon(Win32ResourceDirectory resources)
+		unsafe static byte[]? CreateApplicationIcon(Win32ResourceDirectory resources)
 		{
 			var iconGroup = resources.Find(new Win32ResourceName(RT_GROUP_ICON))?.FirstDirectory()?.FirstData()?.Data;
 			if (iconGroup == null)
@@ -714,7 +714,7 @@ namespace GodotMonoDecomp
 
 		const int RT_MANIFEST = 24;
 
-		unsafe static byte[] CreateApplicationManifest(Win32ResourceDirectory resources)
+		unsafe static byte[]? CreateApplicationManifest(Win32ResourceDirectory resources)
 		{
 			return resources.Find(new Win32ResourceName(RT_MANIFEST))?.FirstDirectory()?.FirstData()?.Data;
 		}
@@ -784,7 +784,7 @@ namespace GodotMonoDecomp
 		/// </summary>
 		static string CleanUpName(string text, bool separateAtDots, bool treatAsFileName, bool treatAsPath)
 		{
-			string extension = null;
+			string? extension = null;
 			int currentSegmentLength = 0;
 			// Extract extension from the end of the name, if valid
 			if (treatAsFileName)

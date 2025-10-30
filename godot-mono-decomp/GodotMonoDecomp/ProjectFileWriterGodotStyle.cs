@@ -199,7 +199,7 @@ namespace GodotMonoDecomp
 			List<DotNetCoreDepInfo> includedDeps = new List<DotNetCoreDepInfo>();
 			HashSet<DotNetCoreDepInfo> includeWarningComment = [];
 
-			foreach (var dep in deps.deps)
+			foreach (var dep in deps?.deps ?? [])
 			{
 				// not a package reference, skip it
 				if (IsImplicitReference(dep.Name) || dep.Serviceable == false || dep.Type != "package")
@@ -552,7 +552,11 @@ namespace GodotMonoDecomp
 					// if relativePath is a subdirectory of the project directory, add it to the excludes
 					if (!relativePath.StartsWith(".."))
 					{
-						excludes.Add(Path.GetDirectoryName(relativePath));
+						var dirName = Path.GetDirectoryName(relativePath);
+						if (dirName != null)
+						{
+							excludes.Add(dirName);
+						}
 					}
 					// this is recursive, so we need to get the excludes for the referenced project as well
 					GetProjectReferenceExcludes(project, dep, excludes, alreadyProcessed);
@@ -714,7 +718,7 @@ namespace GodotMonoDecomp
 				if (!File.Exists(outputPath)) {
 					try
 					{
-						_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
+						_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "");
 					}
 					catch (Exception e)
 					{
