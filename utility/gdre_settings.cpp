@@ -2797,7 +2797,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
 	ClassDB::bind_method(D_METHOD("prepop_plugin_cache", "plugins"), &GDRESettings::prepop_plugin_cache);
-	ClassDB::bind_method(D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);
 	ClassDB::bind_method(D_METHOD("get_auto_display_scale"), &GDRESettings::get_auto_display_scale);
 	ClassDB::bind_method(D_METHOD("set_dotnet_assembly_path", "p_path"), &GDRESettings::set_dotnet_assembly_path);

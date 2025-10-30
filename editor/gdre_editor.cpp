@@ -198,7 +198,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	pck_dialog->connect("canceled", callable_mp(this, &GodotREEditor::_pck_unload));
 	p_control->add_child(pck_dialog);
 
-	auto desktop_dir = GDRESettings::get_singleton()->get_home_dir().path_join("Desktop");
+	auto desktop_dir = GDRESettings::get_home_dir().path_join("Desktop");
 	pck_source_folder = memnew(FileDialog);
 	pck_source_folder->set_access(FileDialog::ACCESS_FILESYSTEM);
 	pck_source_folder->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
