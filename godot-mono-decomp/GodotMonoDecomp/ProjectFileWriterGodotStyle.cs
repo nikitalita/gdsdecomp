@@ -24,9 +24,6 @@ using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Util;
 
-using LightJson;
-using LightJson.Serialization;
-
 
 public interface IGodotProjectWithSettingsProvider : IProjectInfoProvider
 {
