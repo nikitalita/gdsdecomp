@@ -70,7 +70,7 @@ StringName FakeScript::get_instance_base_type() const {
 	if (!base.is_empty()) {
 		String path = GDRESettings::get_singleton()->get_path_for_script_class(base);
 		while (!path.is_empty()) {
-			base = GDRESettings::get_singleton()->get_cached_script_class(path);
+			base = GDRESettings::get_singleton()->get_cached_script_base(path);
 			path = GDRESettings::get_singleton()->get_path_for_script_class(base);
 		}
 	}
