@@ -189,6 +189,19 @@ public:
 	}
 };
 
+class GDREConfigSetting_DefaultParentFolderForRecovery : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_DefaultParentFolderForRecovery, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_DefaultParentFolderForRecovery() :
+			GDREConfigSetting(
+					"default_parent_folder_for_recovery",
+					"Default parent folder for recovery",
+					"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
+					OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP)) {}
+	virtual bool is_dirpicker() const override { return true; }
+};
+
 Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 	return {
 		memnew(GDREConfigSetting(
@@ -206,6 +219,7 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Delete auto-converted files",
 				"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
 				false)),
+		memnew(GDREConfigSetting_DefaultParentFolderForRecovery()),
 		memnew(GDREConfigSetting_MaxCoresToUse()),
 		memnew(GDREConfigSetting(
 				"force_single_threaded",
@@ -537,6 +551,7 @@ void GDREConfigSetting::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_hidden"), &GDREConfigSetting::is_hidden);
 	ClassDB::bind_method(D_METHOD("is_ephemeral"), &GDREConfigSetting::is_ephemeral);
 	ClassDB::bind_method(D_METHOD("is_filepicker"), &GDREConfigSetting::is_filepicker);
+	ClassDB::bind_method(D_METHOD("is_dirpicker"), &GDREConfigSetting::is_dirpicker);
 	ClassDB::bind_method(D_METHOD("is_virtual_setting"), &GDREConfigSetting::is_virtual_setting);
 	ClassDB::bind_method(D_METHOD("get_error_message"), &GDREConfigSetting::get_error_message);
 	ClassDB::bind_method(D_METHOD("clear_error_message"), &GDREConfigSetting::clear_error_message);

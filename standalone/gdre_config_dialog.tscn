@@ -18,16 +18,16 @@ outline_size = 1
 [sub_resource type="LabelSettings" id="LabelSettings_twpvv"]
 font_size = 18
 
-[node name="GDREConfigDialog" type="GDREWindow"]
+[node name="GDREConfigDialog" type="GDREWindow" unique_id=1572235424]
 oversampling_override = 1.0
 title = "Settings"
 position = Vector2i(0, 24)
-size = Vector2i(680, 768)
+size = Vector2i(768, 768)
 min_size = Vector2i(680, 680)
 theme = ExtResource("1_g10qc")
 script = ExtResource("2_rnan2")
 
-[node name="Control" type="Panel" parent="."]
+[node name="Control" type="Panel" parent="." unique_id=1634441306]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -35,12 +35,12 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_rnan2")
 
-[node name="ConfirmClose" type="ConfirmationDialog" parent="."]
+[node name="ConfirmClose" type="ConfirmationDialog" parent="." unique_id=725756413]
 unique_name_in_owner = true
 oversampling_override = 1.0
 size = Vector2i(339, 100)
 
-[node name="Label" type="Label" parent="ConfirmClose"]
+[node name="Label" type="Label" parent="ConfirmClose" unique_id=1857723901]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -52,7 +52,7 @@ grow_horizontal = 2
 grow_vertical = 2
 text = "Do you want to discard current changes?"
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=800859282]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -65,45 +65,45 @@ theme_override_constants/margin_top = 4
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="WindowVBox" type="VBoxContainer" parent="MarginContainer"]
+[node name="WindowVBox" type="VBoxContainer" parent="MarginContainer" unique_id=539383895]
 layout_mode = 2
 
-[node name="MainHBox" type="ScrollContainer" parent="MarginContainer/WindowVBox"]
+[node name="MainHBox" type="ScrollContainer" parent="MarginContainer/WindowVBox" unique_id=941594263]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="FirstSectionVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox"]
+[node name="FirstSectionVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox" unique_id=1186130235]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="GeneralVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox"]
+[node name="GeneralVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox" unique_id=1712224093]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="Label" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox"]
+[node name="Label" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox" unique_id=2117646574]
 layout_mode = 2
 text = "General"
 label_settings = SubResource("LabelSettings_rnan2")
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox" unique_id=789977913]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox" unique_id=1649821416]
 layout_mode = 2
 
-[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer"]
+[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer" unique_id=1440810696]
 layout_mode = 2
 text = "Do stuff"
 
-[node name="CheckButton2" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer"]
+[node name="CheckButton2" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer" unique_id=46319907]
 layout_mode = 2
 text = "Do more stuff"
 
-[node name="ResetHBox" type="HBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer/CheckButton2"]
+[node name="ResetHBox" type="HBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer/CheckButton2" unique_id=1616925306]
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 1.0
@@ -116,105 +116,106 @@ offset_bottom = 15.0
 grow_horizontal = 0
 grow_vertical = 2
 
-[node name="ResetButton" type="Button" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer/CheckButton2/ResetHBox"]
+[node name="ResetButton" type="Button" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/GeneralVBox/VBoxContainer/CheckButton2/ResetHBox" unique_id=1859962147]
 layout_mode = 2
 theme_type_variation = &"FlatButton"
 icon = ExtResource("3_twpvv")
 
-[node name="FoldableContainer" type="FoldableContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox"]
+[node name="FoldableContainer" type="FoldableContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox" unique_id=2139072196]
 visible = false
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 title = "General"
 title_alignment = 1
 
-[node name="GeneralVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer"]
+[node name="GeneralVBox" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer" unique_id=791677957]
 layout_mode = 2
 theme_override_constants/separation = 0
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox" unique_id=799226926]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox" unique_id=1624060003]
 layout_mode = 2
 
-[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox/VBoxContainer"]
+[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/FoldableContainer/GeneralVBox/VBoxContainer" unique_id=598960358]
 layout_mode = 2
 text = "Do stuff"
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox" unique_id=1743003385]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox" unique_id=777454759]
 layout_mode = 2
 
-[node name="SectionLabel" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer"]
+[node name="SectionLabel" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer" unique_id=146307201]
 layout_mode = 2
 text = "Exporter Settings"
 label_settings = SubResource("LabelSettings_rnan2")
 horizontal_alignment = 1
 
-[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer"]
+[node name="HSeparator" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer" unique_id=32880224]
 layout_mode = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer" unique_id=2847037]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer"]
+[node name="Label" type="Label" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer" unique_id=1664973983]
 layout_mode = 2
 text = "Scene Exporter"
 label_settings = SubResource("LabelSettings_twpvv")
 horizontal_alignment = 1
 
-[node name="SceneExportSubsection" type="FoldableContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer"]
+[node name="SceneExportSubsection" type="FoldableContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer" unique_id=227247354]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 title = "GLTF"
 title_alignment = 1
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection"]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection" unique_id=830449182]
 layout_mode = 2
 
-[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection/VBoxContainer"]
+[node name="CheckButton" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection/VBoxContainer" unique_id=638670142]
 layout_mode = 2
 text = "Do stuff"
 
-[node name="CheckButton2" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection/VBoxContainer"]
+[node name="CheckButton2" type="CheckButton" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer/VBoxContainer/SceneExportSubsection/VBoxContainer" unique_id=1727651265]
 layout_mode = 2
 text = "Do other stuff"
 
-[node name="HSeparator2" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer"]
+[node name="HSeparator2" type="HSeparator" parent="MarginContainer/WindowVBox/MainHBox/FirstSectionVBox/VBoxContainer" unique_id=1242051584]
 layout_mode = 2
 
-[node name="ButtonHBox" type="HBoxContainer" parent="MarginContainer/WindowVBox"]
+[node name="ButtonHBox" type="HBoxContainer" parent="MarginContainer/WindowVBox" unique_id=773555784]
 layout_mode = 2
 size_flags_vertical = 8
 theme_override_constants/separation = 30
 alignment = 1
 
-[node name="ResetButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox"]
+[node name="ResetButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox" unique_id=425424242]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Reset to Defaults"
 
-[node name="VSeparator" type="VSeparator" parent="MarginContainer/WindowVBox/ButtonHBox"]
+[node name="VSeparator" type="VSeparator" parent="MarginContainer/WindowVBox/ButtonHBox" unique_id=541333190]
 layout_mode = 2
 
-[node name="CancelButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox"]
+[node name="CancelButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox" unique_id=1357266049]
 unique_name_in_owner = true
 layout_mode = 2
 text = "Cancel"
 
-[node name="OKButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox"]
+[node name="OKButton" type="Button" parent="MarginContainer/WindowVBox/ButtonHBox" unique_id=1473188213]
 unique_name_in_owner = true
 layout_mode = 2
 text = "OK"
 
-[node name="FileDialog" type="FileDialog" parent="."]
+[node name="FileDialog" type="FileDialog" parent="." unique_id=610035988]
 unique_name_in_owner = true
 access = 2
+use_native_dialog = true
 
-[node name="ErrorDialog" type="AcceptDialog" parent="."]
+[node name="ErrorDialog" type="AcceptDialog" parent="." unique_id=419260906]
 unique_name_in_owner = true
 title = "Error"
 
