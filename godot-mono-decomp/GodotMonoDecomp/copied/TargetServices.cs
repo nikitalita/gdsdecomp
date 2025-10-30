@@ -1,20 +1,21 @@
 ﻿// Copyright (c) 2020 Siegfried Pammer
-// 
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this
 // software and associated documentation files (the "Software"), to deal in the Software
 // without restriction, including without limitation the rights to use, copy, modify, merge,
 // publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
 // to whom the Software is furnished to do so, subject to the following conditions:
-// 
+//
 // The above copyright notice and this permission notice shall be included in all copies or
 // substantial portions of the Software.
-// 
+//
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 // PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
 // FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 // OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
+#nullable enable
 
 using System;
 using System.Collections.Generic;
@@ -66,15 +67,15 @@ namespace ICSharpCode.Decompiler.CSharp.ProjectDecompiler
 					break;
 			}
 
-			string targetFrameworkIdentifier = null;
-			string targetFrameworkProfile = null;
+			string? targetFrameworkIdentifier = null;
+			string? targetFrameworkProfile = null;
 
 			string targetFramework = module.DetectTargetFrameworkId();
 			if (!string.IsNullOrEmpty(targetFramework))
 			{
 				string[] frameworkParts = targetFramework.Split(',');
 				targetFrameworkIdentifier = frameworkParts.FirstOrDefault(a => !a.StartsWith(VersionToken, StringComparison.OrdinalIgnoreCase) && !a.StartsWith(ProfileToken, StringComparison.OrdinalIgnoreCase));
-				string frameworkVersion = frameworkParts.FirstOrDefault(a => a.StartsWith(VersionToken, StringComparison.OrdinalIgnoreCase));
+				string? frameworkVersion = frameworkParts.FirstOrDefault(a => a.StartsWith(VersionToken, StringComparison.OrdinalIgnoreCase));
 
 				if (frameworkVersion != null)
 				{
@@ -83,7 +84,7 @@ namespace ICSharpCode.Decompiler.CSharp.ProjectDecompiler
 						versionNumber *= 10;
 				}
 
-				string frameworkProfile = frameworkParts.FirstOrDefault(a => a.StartsWith(ProfileToken, StringComparison.OrdinalIgnoreCase));
+				string? frameworkProfile = frameworkParts.FirstOrDefault(a => a.StartsWith(ProfileToken, StringComparison.OrdinalIgnoreCase));
 				if (frameworkProfile != null)
 					targetFrameworkProfile = frameworkProfile.Substring(ProfileToken.Length);
 			}
@@ -106,7 +107,7 @@ namespace ICSharpCode.Decompiler.CSharp.ProjectDecompiler
 			var headers = module.Reader.PEHeaders;
 			var architecture = headers.CoffHeader.Machine;
 			var characteristics = headers.CoffHeader.Characteristics;
-			var corflags = headers.CorHeader.Flags;
+			var corflags = headers.CorHeader?.Flags;
 
 			switch (architecture)
 			{
@@ -245,7 +246,7 @@ namespace ICSharpCode.Decompiler.CSharp.ProjectDecompiler
 					break;
 				}
 
-				MetadataFile resolvedReference;
+				MetadataFile? resolvedReference;
 				try
 				{
 					resolvedReference = assemblyResolver.Resolve(reference);
