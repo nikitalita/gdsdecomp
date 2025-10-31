@@ -615,7 +615,7 @@ public static class GodotStuff
 	}
 
 
-	public static List<PartialTypeInfo> GetPartialGodotTypes(DecompilerTypeSystem ts,
+	public static List<PartialTypeInfo> GetPartialGodotTypes(MetadataModule module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile)
 	{
 
@@ -651,15 +651,20 @@ public static class GodotStuff
 		}
 		foreach (var type in typesToDecompile)
 		{
-			// get the type definition from allTypeDefs where the metadata token matches
-			var typeDef = ts.GetAllTypeDefinitions()
-				.FirstOrDefault(td => td.MetadataToken.Equals(type));
-			if (typeDef == null)
+			try
 			{
-				continue;
-			}
-			addPartialTypeInfo(typeDef);
+				var typeDef = module.GetDefinition(type);
+				if (typeDef == null)
+				{
+					continue;
+				}
 
+				addPartialTypeInfo(typeDef);
+			}
+			catch
+			{
+				// skip
+			}
 		}
 
 		return partialTypes;

@@ -29,6 +29,7 @@ public class GodotModule
 
 	private GodotProjectDecompiler ProjectDecompiler;
 
+	private DecompilerTypeSystem TypeSystem;
 
 	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo, string? subdir, GodotMonoDecompSettings p_settings, UniversalAssemblyResolver assemblyResolver)
 	{
@@ -54,6 +55,7 @@ public class GodotModule
 		moduleSettings.SetLanguageVersion(languageVersion);
 
 		ProjectDecompiler = new GodotProjectDecompiler(moduleSettings, assemblyResolver, assemblyResolver, debugInfoProvider);
+		TypeSystem = ProjectDecompiler.CreateTypeSystem(Module);
 	}
 
 	public MetadataReader Metadata => Module.Metadata;
@@ -64,6 +66,14 @@ public class GodotModule
 		ProjectDecompiler.ProgressIndicator = progress_reporter;
 		return ProjectDecompiler;
 	}
+
+	public CSharpDecompiler CreateCSharpDecompilerWithPartials(IEnumerable<TypeDefinitionHandle> typesToDecompile)
+	{
+		var decompiler = ProjectDecompiler.CreateDecompiler(TypeSystem);
+		GodotStuff.GetPartialGodotTypes(TypeSystem.MainModule, typesToDecompile).ForEach(p => decompiler.AddPartialTypeDefinition(p));
+		return decompiler;
+	}
+
 }
 
 public class GodotModuleDecompiler
@@ -372,8 +382,7 @@ public class GodotModuleDecompiler
 			);
 		}
 
-		var projectDecompiler = module.GetProjectDecompiler();
-		var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [type]);
+		var decompiler = module.CreateCSharpDecompilerWithPartials([type]);
 		return decompiler.DecompileTypesAsString([type]);
 	}
 
@@ -401,9 +410,8 @@ public class GodotModuleDecompiler
 		}
 
 		var projectDecompiler = module.GetProjectDecompiler();
-		var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, [type]);
-		var allTypeDefs = decompiler.TypeSystem.GetAllTypeDefinitions();
-		var typeDef = allTypeDefs.FirstOrDefault(t => t.MetadataToken == type);
+		var decompiler = module.CreateCSharpDecompilerWithPartials([type]);
+		var typeDef = decompiler.TypeSystem.MainModule.GetDefinition(type);
 
 		if (typeDef == null)
 		{
@@ -764,7 +772,7 @@ public class GodotModuleDecompiler
 		{
 			var projectDecompiler = module.GetProjectDecompiler();
 			var types = projectDecompiler.GetTypesToDecompile(module.Module).ToHashSet();
-			var decompiler = projectDecompiler.CreateDecompilerWithPartials(module.Module, types);
+			var decompiler = module.CreateCSharpDecompilerWithPartials(types);
 			var typeDefs = decompiler.TypeSystem.GetAllTypeDefinitions();
 			var filteredTypeDefs = typeDefs.Where(t =>
 				t.ParentModule?.AssemblyName == module.Name &&
