@@ -187,9 +187,12 @@ namespace GodotMonoDecomp
 				}
 				projectId = DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);
 			}
-			this.excludeTypes.Clear();
-			this.handleToFileMap.Clear();
+			this.excludeTypes = [];
+			this.handleToFileMap = [];
 			this.depInfo = null;
+			this.SubProjectMap = [];
+			this.directories = [];
+			this.ProjectCSProjPath = "";
 			return projectId;
 		}
 
