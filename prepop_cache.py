@@ -34,6 +34,7 @@ PLUGINS_TO_PREPOP = [
     "epic-online-services-godot",
     "godotsteam_server",
     "spine_godot_extension",
+    "sentry",
 ]
 
 
