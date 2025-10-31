@@ -26,16 +26,16 @@ class AssetLibrarySource : public PluginSource {
 private:
 	static HashMap<String, String> GODOT_VERSION_RELEASE_DATES;
 
-	HashMap<uint64_t, EditListCache> edit_list_cache;
-	HashMap<uint64_t, EditCache> edit_cache;
+	HashMap<int64_t, EditListCache> edit_list_cache;
+	HashMap<int64_t, EditCache> edit_cache;
 
 	// Helper methods
-	Vector<Dictionary> get_list_of_edits(int asset_id);
-	Dictionary get_edit(int edit_id);
+	Vector<Dictionary> get_edit_list(int64_t asset_id);
+	Dictionary get_edit(int64_t edit_id);
 	Vector<Dictionary> search_for_assets(const String &plugin_name, int ver_major = 0);
 	Vector<int> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
 	Vector<Dictionary> get_assets_for_plugin(const String &plugin_name);
-	Vector<String> get_version_strings_for_asset(int asset_id);
+	Vector<int64_t> get_valid_edit_ids_for_plugin(int64_t asset_id);
 	void load_edit_list_cache();
 	void load_edit_cache();
 	void save_edit_list_cache();

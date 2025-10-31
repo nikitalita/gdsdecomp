@@ -79,7 +79,7 @@ Vector<int> AssetLibrarySource::search_for_asset_ids(const String &plugin_name, 
 	return asset_ids;
 }
 
-Vector<Dictionary> AssetLibrarySource::get_list_of_edits(int asset_id) {
+Vector<Dictionary> AssetLibrarySource::get_edit_list(int64_t asset_id) {
 	int page = 0;
 	int pages = 1000;
 	double now = OS::get_singleton()->get_unix_time();
@@ -128,7 +128,7 @@ Vector<Dictionary> AssetLibrarySource::get_list_of_edits(int asset_id) {
 	return edits_vec;
 }
 
-Dictionary AssetLibrarySource::get_edit(int edit_id) {
+Dictionary AssetLibrarySource::get_edit(int64_t edit_id) {
 	{
 		constexpr time_t EDIT_EXPIRY_TIME = 24 * 3600; // 1 day in seconds
 		MutexLock lock(cache_mutex);
@@ -177,34 +177,32 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, cons
 	if (parts.size() != 2) {
 		return ReleaseInfo();
 	}
-	auto asset_id = parts[0].to_int();
-	auto version_string = parts[1];
+	int64_t asset_id = parts[0].to_int();
+	int64_t edit_id = parts[1].to_int();
 
-	auto edits = get_list_of_edits(asset_id);
-	for (int i = 0; i < edits.size(); i++) {
-		Dictionary edit = edits[i];
-		int edit_id = int(edit.get("edit_id", {}));
-		if (edit.get("version_string", "") == version_string) {
+	auto edit_list = get_edit_list(asset_id);
+	for (const Dictionary &edit_list_entry : edit_list) {
+		if (int64_t(edit_list_entry.get("edit_id", {})) == edit_id) {
 			Dictionary edit_data = get_edit(edit_id);
 			if (edit_data.is_empty()) {
-				continue;
+				break;
 			}
 
-			String godot_version = edit.get("godot_version", "");
-			String submit_date = edit.get("submit_date", "");
-			String plugin_name_from_edit = edit.get("title", "");
+			String godot_version = edit_list_entry.get("godot_version", "");
+			String submit_date = edit_list_entry.get("submit_date", "");
+			String plugin_name_from_edit = edit_list_entry.get("title", "");
 			if (!is_empty_or_null(submit_date)) {
 				submit_date = submit_date.split(" ")[0];
 			}
 			String version = edit_data.get("version_string", "");
 			String download_commit = edit_data.get("download_commit", "");
 			if (is_empty_or_null(version) || is_empty_or_null(download_commit)) {
-				continue;
+				break;
 			}
 			if (!download_commit.begins_with("http")) {
 				String download_url = edit_data.get("download_url", "");
 				if (is_empty_or_null(download_url) || !download_url.begins_with("http")) {
-					continue;
+					break;
 				}
 				download_commit = download_url;
 			}
@@ -249,15 +247,20 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, cons
 	return ReleaseInfo();
 }
 
-Vector<String> AssetLibrarySource::get_version_strings_for_asset(int asset_id) {
-	Vector<String> versions;
-	auto edits = get_list_of_edits(asset_id);
+Vector<int64_t> AssetLibrarySource::get_valid_edit_ids_for_plugin(int64_t asset_id) {
+	Vector<int64_t> versions;
+	auto edits = get_edit_list(asset_id);
+	HashSet<String> version_strings;
 	for (int i = 0; i < edits.size(); i++) {
 		String version = edits[i].get("version_string", "");
-		if (version.is_empty() || version == "<null>" || versions.has(version)) {
+		if (version.is_empty() || version == "<null>") {
 			continue;
 		}
-		versions.push_back(version);
+		int64_t edit_id = int64_t(edits[i].get("edit_id", {}));
+		if (versions.has(edit_id) || edit_id == 0) {
+			continue;
+		}
+		versions.push_back(edit_id);
 	}
 	return versions;
 }
@@ -266,9 +269,9 @@ Vector<String> AssetLibrarySource::get_plugin_version_numbers(const String &plug
 	auto asset_ids = search_for_asset_ids(plugin_name);
 	Vector<String> versions;
 	for (auto asset_id : asset_ids) {
-		auto new_versions = get_version_strings_for_asset(asset_id);
+		auto new_versions = get_valid_edit_ids_for_plugin(asset_id);
 		for (auto &version : new_versions) {
-			versions.append(itos(asset_id) + "-" + version);
+			versions.append(itos(asset_id) + "-" + itos(version));
 		}
 	}
 	return versions;
