@@ -171,12 +171,11 @@ public class GodotModuleDecompiler
 							);
 					}
 				}
-
 			}
 		}
 
 
-		HashSet<string> excludeSubdirs = AdditionalModules.Select(module => module.Name).ToHashSet();
+		HashSet<string> excludeSubdirs = AdditionalModules.Select(module => module.SubDirectory ?? "").Where(subdir => !string.IsNullOrEmpty(subdir)).ToHashSet();
 
 		var typesToDecompile = CreateProjectDecompiler(MainModule).GetTypesToDecompile(MainModule.Module).ToHashSet();
 		MainModule.fileMap = GodotStuff.CreateFileMap(MainModule.Module, typesToDecompile, this.originalProjectFiles, godot3xMetadata, excludeSubdirs, true);
