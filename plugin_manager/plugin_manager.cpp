@@ -19,8 +19,20 @@ HashMap<String, Pair<String, String>> PluginManager::known_bad_plugin_versions =
 	{ "godotsteam", Pair<String, String>("v4.4.1-gde", "v4.4.2-gde") },
 };
 
-String PluginManager::get_plugin_cache_path() {
-	// check if OS has the environment variable "GDRE_PLUGIN_CACHE_DIR" set
+// A hack because the godotsteam developers are reckless and broke the release urls when they moved to codeberg for certain releases.
+// TODO: remove this when godotsteam fixes their releases.
+HashMap<String, HashMap<String, String>> bad_release_urls = {
+	{ "godotsteam",
+			{
+					// replace it with the codeberg url
+					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip",
+							"https://codeberg.org/godotsteam/godotsteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip" },
+					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.15-gde/godotsteam-4.15-gdextension-plugin-4.4.zip",
+							"https://codeberg.org/godotsteam/godotsteam/archive/81b02cb50e7096e24aa3be863558250b2760e6d4.zip" },
+			} },
+};
+
+String PluginManager::get_plugin_cache_path() { // check if OS has the environment variable "GDRE_PLUGIN_CACHE_DIR" set
 	// if it is set, use that as the cache folder
 	// This is a hack to help prepopulate the cache for releases
 	if (OS::get_singleton()->has_environment(PLUGIN_CACHE_ENV_VAR)) {
@@ -126,6 +138,12 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 						first_version = cached_version.release_info.version;
 						replacement_version = known_bad_plugin_versions[plugin_name].second;
 						break;
+					}
+					if (bad_release_urls.has(plugin_name) && bad_release_urls[plugin_name].has(cached_version.release_info.download_url)) {
+						PluginVersion replacement_version = cached_version;
+						replacement_version.release_info.download_url = bad_release_urls[plugin_name][cached_version.release_info.download_url];
+						print_line("Bad release url found, replacing with: " + replacement_version.release_info.download_url);
+						return replacement_version.to_json();
 					}
 					return cached_version.to_json();
 				}
