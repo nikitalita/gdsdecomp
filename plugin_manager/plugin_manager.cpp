@@ -19,19 +19,6 @@ HashMap<String, Pair<String, String>> PluginManager::known_bad_plugin_versions =
 	{ "godotsteam", Pair<String, String>("v4.4.1-gde", "v4.4.2-gde") },
 };
 
-// A hack because the godotsteam developers are reckless and broke the release urls when they moved to codeberg for certain releases.
-// TODO: remove this when godotsteam fixes their releases.
-HashMap<String, HashMap<String, String>> bad_release_urls = {
-	{ "godotsteam",
-			{
-					// replace it with the codeberg url
-					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip",
-							"https://codeberg.org/godotsteam/godotsteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip" },
-					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.15-gde/godotsteam-4.15-gdextension-plugin-4.4.zip",
-							"https://codeberg.org/godotsteam/godotsteam/archive/81b02cb50e7096e24aa3be863558250b2760e6d4.zip" },
-			} },
-};
-
 String PluginManager::get_plugin_cache_path() { // check if OS has the environment variable "GDRE_PLUGIN_CACHE_DIR" set
 	// if it is set, use that as the cache folder
 	// This is a hack to help prepopulate the cache for releases
@@ -90,6 +77,7 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 	Ref<PluginSource> source = get_source(plugin_name);
 	ERR_FAIL_COND_V_MSG(source.is_null(), Dictionary(), "No source found for plugin: " + plugin_name);
 
+	PluginVersion found_version;
 	// First, check all cached PluginVersions for this plugin
 	{
 		MutexLock lock(plugin_version_cache_mutex);
@@ -108,13 +96,8 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 						replacement_version = known_bad_plugin_versions[plugin_name].second;
 						break;
 					}
-					if (bad_release_urls.has(plugin_name) && bad_release_urls[plugin_name].has(cached_version.release_info.download_url)) {
-						PluginVersion replacement_version = cached_version;
-						replacement_version.release_info.download_url = bad_release_urls[plugin_name][cached_version.release_info.download_url];
-						print_line("Bad release url found, replacing with: " + replacement_version.release_info.download_url);
-						return replacement_version.to_json();
-					}
-					return cached_version.to_json();
+					found_version = cached_version;
+					break;
 				}
 			}
 		}
@@ -123,15 +106,34 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 				const PluginVersion &cached_version = E.value;
 				if (cached_version.is_valid() && cached_version.plugin_name == plugin_name && cached_version.release_info.version == replacement_version) {
 					print_line("Found known bad plugin version: " + plugin_name + ", version: " + first_version + ", replacing with: " + replacement_version);
-					return cached_version.to_json();
+					found_version = cached_version;
 				}
 			}
-			ERR_FAIL_V_MSG(Dictionary(), "!!!!!!!!!\nNO REPLACEMENT FOUND\n!!!!!!!!!!!");
+			ERR_FAIL_COND_V_MSG(!found_version.is_valid(), Dictionary(), "!!!!!!!!!\nNO REPLACEMENT FOUND\n!!!!!!!!!!!");
 		}
+	}
+	auto version_keys = source->get_plugin_version_numbers(plugin_name);
+	if (found_version.is_valid()) {
+		// get the release info from the source
+		auto current_info = source->get_release_info(plugin_name, found_version.release_info.primary_id, found_version.release_info.secondary_id);
+		ERR_FAIL_COND_V_MSG(!current_info.is_valid(), found_version.to_json(), vformat("Could not get current release info for plugin %s, returning cached version", plugin_name));
+		if (current_info == found_version.release_info) {
+			return found_version.to_json();
+		}
+		// recache the plugin version
+		print_line(vformat("Cache for plugin %s, version %s does not match current release info, recaching...", plugin_name, found_version.release_info.version));
+		String cache_key = get_cache_key(current_info.plugin_source, current_info.primary_id, current_info.secondary_id);
+		// Populate PluginVersion from ReleaseInfo
+		PluginVersion new_version = populate_plugin_version_from_release(current_info);
+		ERR_FAIL_COND_V_MSG(!new_version.is_valid(), found_version.to_json(), vformat("Failed to re-populate plugin version from release info for plugin %s, version %s", plugin_name, found_version.release_info.version));
+		cache_plugin_version(cache_key, new_version);
+		if (new_version.bin_hashes_match(hashes)) {
+			return new_version.to_json();
+		}
+		WARN_PRINT(vformat("BIN HASHES DON'T MATCH AFTER RECACHE: plugin %s, version %s", new_version.release_info.version, plugin_name));
 	}
 
 	// If no cached versions match, get all release info and populate PluginVersions
-	auto version_keys = source->get_plugin_version_numbers(plugin_name);
 	for (auto &version_key : version_keys) {
 		if (TaskManager::get_singleton()->is_current_task_canceled()) {
 			break;
@@ -203,7 +205,12 @@ struct PrePopTask {
 		if (release_info.is_valid()) {
 			String cache_key = PluginManager::get_cache_key(release_info.plugin_source, release_info.primary_id, release_info.secondary_id);
 			PluginVersion cached_version = PluginManager::get_cached_plugin_version(cache_key);
-			if (!cached_version.is_valid()) {
+			bool valid = cached_version.is_valid();
+			if (valid && cached_version.release_info != release_info) {
+				print_line("Cached version does not match release info for plugin " + token.plugin_name + " version: " + release_info.version);
+				valid = false;
+			}
+			if (!valid) {
 				PluginVersion plugin_version = PluginManager::populate_plugin_version_from_release(release_info);
 				if (plugin_version.is_valid()) {
 					PluginManager::cache_plugin_version(cache_key, plugin_version);

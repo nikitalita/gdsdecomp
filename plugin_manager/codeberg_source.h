@@ -21,6 +21,8 @@ private:
 	virtual const String &get_release_api_url() override;
 	virtual int get_release_page_limit() override;
 
+	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) override;
+
 	virtual String get_plugin_name() override;
 
 public:

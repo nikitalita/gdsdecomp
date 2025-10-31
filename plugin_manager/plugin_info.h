@@ -68,28 +68,6 @@ struct GDExtInfo {
 	}
 };
 
-// break this up into multiple structs
-// COMPLETED:
-// - PluginVersion
-//   - cache_version
-//   - plugin_name
-//   - min_godot_version
-//   - max_godot_version
-//   - base_folder
-//   - gdexts
-//   - ReleaseInfo
-//     - asset_id - renamed to primary_id in cache keys
-//     - release_id - renamed to secondary_id in cache keys
-//     - changed from_asset_lib to plugin_source
-//     - version
-//     - engine_ver_major
-//     - release_date
-//     - download_url
-// - Changed CACHE_VERSION from 0 to 1
-// - Plugin sources now return ReleaseInfo structs and don't cache PluginVersion structs
-// - PluginManager caches PluginVersion structs with keys: plugin_source-primary_id-secondary_id
-// - PluginVersion structs are populated from ReleaseInfo structs and analysis
-
 struct ReleaseInfo {
 	String plugin_source;
 	int64_t primary_id = 0; // assetlib asset id or github release id
@@ -135,6 +113,9 @@ struct ReleaseInfo {
 				engine_ver_major == other.engine_ver_major &&
 				release_date == other.release_date &&
 				download_url == other.download_url;
+	}
+	bool operator!=(const ReleaseInfo &other) const {
+		return !(*this == other);
 	}
 };
 
