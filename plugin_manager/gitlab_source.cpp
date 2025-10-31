@@ -95,12 +95,12 @@ bool GitLabSource::recache_release_list(const String &plugin_name) {
 	for (int i = 0; i < releases.size(); i++) {
 		Dictionary release = releases[i];
 		String tag_name = release.get("tag_name", "");
-		uint64_t release_id = tag_name.hash(); // GitLab doesn't provide release IDs, so we hash the tag name
+		int64_t release_id = tag_name.hash(); // GitLab doesn't provide release IDs, so we hash the tag name
 		release["id"] = release_id;
 
 		Dictionary assets_obj = release.get("assets", Dictionary());
 		Array assets_arr = assets_obj.get("links", Array());
-		HashMap<uint64_t, Dictionary> asset_map;
+		HashMap<int64_t, Dictionary> asset_map;
 
 		for (int j = 0; j < assets_arr.size(); j++) {
 			Dictionary asset = assets_arr[j];
@@ -109,7 +109,7 @@ bool GitLabSource::recache_release_list(const String &plugin_name) {
 			asset["created_at"] = release.get("created_at", "");
 			asset["updated_at"] = release.get("released_at", "");
 
-			uint64_t asset_id = uint64_t(asset.get("id", 0));
+			int64_t asset_id = int64_t(asset.get("id", 0));
 			asset_map[asset_id] = asset;
 			assets_arr[j] = asset;
 		}

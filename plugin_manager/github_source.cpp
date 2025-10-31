@@ -200,9 +200,9 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 
 	for (int i = 0; i < releases.size(); i++) {
 		Dictionary release = releases[i];
-		uint64_t release_id = uint64_t(release.get("id", 0));
+		int64_t release_id = int64_t(release.get("id", 0));
 		Array assets_arr = release.get("assets", {});
-		HashMap<uint64_t, Dictionary> asset_map;
+		HashMap<int64_t, Dictionary> asset_map;
 		// empty out the author field because it takes up way too much space and its not needed
 		release["author"] = Dictionary();
 		for (int j = 0; j < assets_arr.size(); j++) {
@@ -211,7 +211,7 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 			if (asset.has("uploader")) {
 				asset["uploader"] = Dictionary();
 			}
-			uint64_t asset_id = uint64_t(asset.get("id", 0));
+			int64_t asset_id = int64_t(asset.get("id", 0));
 			asset_map[asset_id] = asset;
 		}
 		cache.releases[release_id] = { release, asset_map };
@@ -230,14 +230,10 @@ bool is_empty_or_null(const String &str) {
 }
 } //namespace
 
-ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, const String &version_key) {
-	auto parts = version_key.split("-");
-	if (parts.size() != 2) {
-		return ReleaseInfo();
-	}
-	auto release_id = parts[0].to_int();
-	auto asset_id = parts[1].to_int();
-	if (release_id == 0 || asset_id == 0) {
+ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+	auto release_id = primary_id;
+	auto asset_id = secondary_id;
+	if (release_id <= 0 || asset_id <= 0) {
 		return ReleaseInfo();
 	}
 
@@ -298,28 +294,28 @@ Vector<Dictionary> GitHubSource::get_list_of_releases(const String &plugin_name)
 	return releases;
 }
 
-Vector<Pair<uint64_t, uint64_t>> GitHubSource::get_gh_asset_pairs(const String &plugin_name) {
+Vector<Pair<int64_t, int64_t>> GitHubSource::get_gh_asset_pairs(const String &plugin_name) {
 	auto thing = get_list_of_releases(plugin_name);
-	Vector<Pair<uint64_t, uint64_t>> release_asset_pairs;
+	Vector<Pair<int64_t, int64_t>> release_asset_pairs;
 	for (auto &release : thing) {
 		auto tag = release.get("tag_name", "");
 		if (should_skip_tag(plugin_name, tag)) {
 			continue;
 		}
-		uint64_t release_id = release.get("id", 0);
+		int64_t release_id = release.get("id", 0);
 		Array assets = release.get("assets", Array());
 		for (auto &asset : assets) {
 			if (should_skip_release(plugin_name, ((Dictionary)asset).get("browser_download_url", ""))) {
 				continue;
 			}
-			uint64_t asset_id = ((Dictionary)asset).get("id", 0);
+			int64_t asset_id = ((Dictionary)asset).get("id", 0);
 			release_asset_pairs.push_back({ release_id, asset_id });
 		}
 	}
 	return release_asset_pairs;
 }
 
-Dictionary GitHubSource::get_release_dict(const String &plugin_name, uint64_t release_id) {
+Dictionary GitHubSource::get_release_dict(const String &plugin_name, int64_t release_id) {
 	if (!recache_release_list(plugin_name)) {
 		return Dictionary();
 	}
@@ -335,13 +331,8 @@ Dictionary GitHubSource::get_release_dict(const String &plugin_name, uint64_t re
 	return Dictionary();
 }
 
-Vector<String> GitHubSource::get_plugin_version_numbers(const String &plugin_name) {
-	auto pairs = get_gh_asset_pairs(plugin_name);
-	Vector<String> versions;
-	for (auto &pair : pairs) {
-		versions.push_back(itos(pair.first) + "-" + itos(pair.second));
-	}
-	return versions;
+Vector<Pair<int64_t, int64_t>> GitHubSource::get_plugin_version_numbers(const String &plugin_name) {
+	return get_gh_asset_pairs(plugin_name);
 }
 
 void GitHubSource::load_cache_internal() {

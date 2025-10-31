@@ -19,7 +19,7 @@ bool PluginSource::is_default() {
 	return false;
 }
 
-ReleaseInfo PluginSource::get_release_info(const String &plugin_name, const String &version_key) {
+ReleaseInfo PluginSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
 	return ReleaseInfo();
 }
 
@@ -31,8 +31,8 @@ void PluginSource::save_cache() {
 	ERR_FAIL_MSG("Not implemented");
 }
 
-Vector<String> PluginSource::get_plugin_version_numbers(const String &plugin_name) {
-	ERR_FAIL_V_MSG(Vector<String>(), "Not implemented");
+Vector<Pair<int64_t, int64_t>> PluginSource::get_plugin_version_numbers(const String &plugin_name) {
+	ERR_FAIL_V_MSG({}, "Not implemented");
 }
 
 void PluginSource::load_cache() {
@@ -43,8 +43,25 @@ String PluginSource::get_plugin_name() {
 	ERR_FAIL_V_MSG(String(), "Not implemented");
 }
 
+Dictionary PluginSource::_get_plugin_version_numbers(const String &plugin_name) {
+	Dictionary d;
+	for (auto &E : get_plugin_version_numbers(plugin_name)) {
+		d[E.first] = E.second;
+	}
+	return d;
+}
+
+Dictionary PluginSource::_get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+	auto rel = get_release_info(plugin_name, primary_id, secondary_id);
+	if (!rel.is_valid()) {
+		return Dictionary();
+	}
+	return rel.to_json();
+}
+
 void PluginSource::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("get_plugin_version_numbers", "plugin_name"), &PluginSource::get_plugin_version_numbers);
+	ClassDB::bind_method(D_METHOD("get_release_info", "plugin_name", "primary_id", "secondary_id"), &PluginSource::_get_release_info);
+	ClassDB::bind_method(D_METHOD("get_plugin_version_numbers", "plugin_name"), &PluginSource::_get_plugin_version_numbers);
 	ClassDB::bind_method(D_METHOD("load_cache"), &PluginSource::load_cache);
 	ClassDB::bind_method(D_METHOD("save_cache"), &PluginSource::save_cache);
 	ClassDB::bind_method(D_METHOD("handles_plugin", "plugin_name"), &PluginSource::handles_plugin);

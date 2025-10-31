@@ -29,7 +29,6 @@ private:
 	static void load_plugin_version_cache();
 	static void save_plugin_version_cache();
 	static Error populate_plugin_version_hashes(PluginVersion &plugin_version);
-	static PluginVersion get_plugin_version_for_key(const String &plugin_name, const String &version);
 
 protected:
 	static void _bind_methods();
@@ -46,7 +45,7 @@ public:
 	// PluginVersion cache management
 	static PluginVersion get_cached_plugin_version(const String &cache_key);
 	static void cache_plugin_version(const String &cache_key, const PluginVersion &version);
-	static String get_cache_key(const String &plugin_source, uint64_t primary_id, uint64_t secondary_id);
+	static String get_cache_key(const String &plugin_source, int64_t primary_id, int64_t secondary_id);
 	static PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info);
 	// Source management
 	static void register_source(Ref<PluginSource> source, bool at_front = false);

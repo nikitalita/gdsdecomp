@@ -92,12 +92,16 @@ struct GDExtInfo {
 
 struct ReleaseInfo {
 	String plugin_source;
-	uint64_t primary_id = 0; // assetlib asset id or github release id
-	uint64_t secondary_id = 0; // assetlib edit_id or github asset id
+	int64_t primary_id = 0; // assetlib asset id or github release id
+	int64_t secondary_id = 0; // assetlib edit_id or github asset id
 	String version;
 	int engine_ver_major = 0;
 	String release_date;
 	String download_url;
+
+	bool is_valid() const {
+		return !plugin_source.is_empty();
+	}
 
 	Dictionary to_json() const {
 		Dictionary d;
@@ -121,6 +125,16 @@ struct ReleaseInfo {
 		info.release_date = d.get("release_date", "");
 		info.download_url = d.get("download_url", "");
 		return info;
+	}
+
+	bool operator==(const ReleaseInfo &other) const {
+		return plugin_source == other.plugin_source &&
+				primary_id == other.primary_id &&
+				secondary_id == other.secondary_id &&
+				version == other.version &&
+				engine_ver_major == other.engine_ver_major &&
+				release_date == other.release_date &&
+				download_url == other.download_url;
 	}
 };
 

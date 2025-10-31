@@ -86,37 +86,6 @@ void PluginManager::unregister_source(Ref<PluginSource> source) {
 	--source_count;
 }
 
-PluginVersion PluginManager::get_plugin_version_for_key(const String &plugin_name, const String &version) {
-	Ref<PluginSource> source = get_source(plugin_name);
-	ERR_FAIL_COND_V_MSG(source.is_null(), PluginVersion::invalid(), "No source found for plugin: " + plugin_name);
-
-	// Get ReleaseInfo from the source
-	ReleaseInfo release_info = source->get_release_info(plugin_name, version);
-	if (release_info.plugin_source.is_empty()) {
-		return PluginVersion::invalid(); // No release info available
-	}
-
-	// Generate cache key
-	String cache_key = get_cache_key(release_info.plugin_source, release_info.primary_id, release_info.secondary_id);
-
-	// Check if we have a cached PluginVersion
-	PluginVersion cached_version = get_cached_plugin_version(cache_key);
-	if (cached_version.cache_version == CACHE_VERSION) {
-		return cached_version;
-	}
-
-	// Populate PluginVersion from ReleaseInfo
-	PluginVersion plugin_version = populate_plugin_version_from_release(release_info);
-	if (!plugin_version.is_valid()) {
-		return PluginVersion::invalid(); // Return empty version on error
-	}
-
-	// Cache the result
-	cache_plugin_version(cache_key, plugin_version);
-
-	return plugin_version;
-}
-
 Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vector<String> &hashes) {
 	Ref<PluginSource> source = get_source(plugin_name);
 	ERR_FAIL_COND_V_MSG(source.is_null(), Dictionary(), "No source found for plugin: " + plugin_name);
@@ -162,13 +131,13 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 	}
 
 	// If no cached versions match, get all release info and populate PluginVersions
-	Vector<String> version_keys = source->get_plugin_version_numbers(plugin_name);
+	auto version_keys = source->get_plugin_version_numbers(plugin_name);
 	for (auto &version_key : version_keys) {
 		if (TaskManager::get_singleton()->is_current_task_canceled()) {
 			break;
 		}
-		ReleaseInfo release_info = source->get_release_info(plugin_name, version_key);
-		if (release_info.plugin_source.is_empty()) {
+		ReleaseInfo release_info = source->get_release_info(plugin_name, version_key.first, version_key.second);
+		if (!release_info.is_valid()) {
 			continue; // Skip if no release info available
 		}
 		// Check if we already have a cached version for this key
@@ -223,15 +192,15 @@ void PluginManager::save_cache() {
 struct PrePopToken {
 	String plugin_name;
 	Ref<PluginSource> source;
-	String version;
+	Pair<int64_t, int64_t> version;
 };
 
 struct PrePopTask {
 	void do_task(uint32_t index, const PrePopToken *tokens) {
 		auto &token = tokens[index];
 		// Use the new workflow: get ReleaseInfo and populate PluginVersion
-		ReleaseInfo release_info = token.source->get_release_info(token.plugin_name, token.version);
-		if (!release_info.plugin_source.is_empty()) {
+		ReleaseInfo release_info = token.source->get_release_info(token.plugin_name, token.version.first, token.version.second);
+		if (release_info.is_valid()) {
 			String cache_key = PluginManager::get_cache_key(release_info.plugin_source, release_info.primary_id, release_info.secondary_id);
 			PluginVersion cached_version = PluginManager::get_cached_plugin_version(cache_key);
 			if (!cached_version.is_valid()) {
@@ -287,7 +256,7 @@ bool PluginManager::is_prepopping() {
 	return prepopping;
 }
 
-String PluginManager::get_cache_key(const String &plugin_source, uint64_t primary_id, uint64_t secondary_id) {
+String PluginManager::get_cache_key(const String &plugin_source, int64_t primary_id, int64_t secondary_id) {
 	return plugin_source + "-" + itos(primary_id) + "-" + itos(secondary_id);
 }
 

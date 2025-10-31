@@ -6,7 +6,7 @@
 
 struct EditListCache {
 	double retrieved_time = 0;
-	uint64_t asset_id = 0;
+	int64_t asset_id = 0;
 	Vector<Dictionary> edit_list;
 	Dictionary to_json() const;
 	static EditListCache from_json(const Dictionary &json);
@@ -14,7 +14,7 @@ struct EditListCache {
 
 struct EditCache {
 	double retrieved_time = 0;
-	uint64_t edit_id = 0;
+	int64_t edit_id = 0;
 	Dictionary edit;
 	Dictionary to_json() const;
 	static EditCache from_json(const Dictionary &json);
@@ -33,7 +33,7 @@ private:
 	Vector<Dictionary> get_edit_list(int64_t asset_id);
 	Dictionary get_edit(int64_t edit_id);
 	Vector<Dictionary> search_for_assets(const String &plugin_name, int ver_major = 0);
-	Vector<int> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
+	Vector<int64_t> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
 	Vector<Dictionary> get_assets_for_plugin(const String &plugin_name);
 	Vector<int64_t> get_valid_edit_ids_for_plugin(int64_t asset_id);
 	void load_edit_list_cache();
@@ -43,8 +43,8 @@ private:
 
 public:
 	// Implementation of PluginSource interface
-	Vector<String> get_plugin_version_numbers(const String &plugin_name) override;
-	ReleaseInfo get_release_info(const String &plugin_name, const String &version_key) override;
+	Vector<Pair<int64_t, int64_t>> get_plugin_version_numbers(const String &plugin_name) override;
+	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) override;
 	void load_cache_internal() override;
 	void save_cache() override;
 	bool handles_plugin(const String &plugin_name) override;

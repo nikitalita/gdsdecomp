@@ -65,9 +65,9 @@ Vector<Dictionary> AssetLibrarySource::search_for_assets(const String &plugin_na
 	return gdre::array_to_vector<Dictionary>(assets);
 }
 
-Vector<int> AssetLibrarySource::search_for_asset_ids(const String &plugin_name, int ver_major) {
+Vector<int64_t> AssetLibrarySource::search_for_asset_ids(const String &plugin_name, int ver_major) {
 	auto assets = search_for_assets(plugin_name, ver_major);
-	Vector<int> asset_ids;
+	Vector<int64_t> asset_ids;
 	for (int i = 0; i < assets.size(); i++) {
 		Dictionary asset = assets[i];
 		if (!asset.has("asset_id")) {
@@ -122,7 +122,7 @@ Vector<Dictionary> AssetLibrarySource::get_edit_list(int64_t asset_id) {
 
 	{
 		MutexLock lock(cache_mutex);
-		edit_list_cache[asset_id] = { now, (uint64_t)asset_id, edits_vec };
+		edit_list_cache[asset_id] = { now, (int64_t)asset_id, edits_vec };
 	}
 
 	return edits_vec;
@@ -158,7 +158,7 @@ Dictionary AssetLibrarySource::get_edit(int64_t edit_id) {
 		MutexLock lock(cache_mutex);
 		edit_cache[edit_id] = {
 			OS::get_singleton()->get_unix_time(),
-			(uint64_t)edit_id,
+			(int64_t)edit_id,
 			response_obj
 		};
 	}
@@ -172,13 +172,12 @@ bool is_empty_or_null(const String &str) {
 }
 } //namespace
 
-ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, const String &version_key) {
-	auto parts = version_key.split("-", true, 1);
-	if (parts.size() != 2) {
+ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+	auto asset_id = primary_id;
+	auto edit_id = secondary_id;
+	if (asset_id <= 0 || edit_id <= 0) {
 		return ReleaseInfo();
 	}
-	int64_t asset_id = parts[0].to_int();
-	int64_t edit_id = parts[1].to_int();
 
 	auto edit_list = get_edit_list(asset_id);
 	for (const Dictionary &edit_list_entry : edit_list) {
@@ -265,13 +264,13 @@ Vector<int64_t> AssetLibrarySource::get_valid_edit_ids_for_plugin(int64_t asset_
 	return versions;
 }
 
-Vector<String> AssetLibrarySource::get_plugin_version_numbers(const String &plugin_name) {
+Vector<Pair<int64_t, int64_t>> AssetLibrarySource::get_plugin_version_numbers(const String &plugin_name) {
 	auto asset_ids = search_for_asset_ids(plugin_name);
-	Vector<String> versions;
+	Vector<Pair<int64_t, int64_t>> versions;
 	for (auto asset_id : asset_ids) {
 		auto new_versions = get_valid_edit_ids_for_plugin(asset_id);
 		for (auto &version : new_versions) {
-			versions.append(itos(asset_id) + "-" + itos(version));
+			versions.append({ asset_id, version });
 		}
 	}
 	return versions;
