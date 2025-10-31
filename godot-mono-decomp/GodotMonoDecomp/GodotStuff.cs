@@ -646,11 +646,7 @@ public static class GodotStuff
 			// embedded types, too
 			for (int i = 0; i < typeDef.NestedTypes.Count; i++)
 			{
-				var nestedType = typeDef.NestedTypes[i];
-				if (GodotStuff.IsGodotPartialClass(nestedType))
-				{
-					addPartialTypeInfo(nestedType);
-				}
+				addPartialTypeInfo(typeDef.NestedTypes[i]);
 			}
 		}
 		foreach (var type in typesToDecompile)
