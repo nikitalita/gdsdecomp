@@ -273,7 +273,7 @@ String gdre::get_md5_for_dir(const String &dir, bool ignore_code_signature) {
 }
 
 namespace {
-Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, float *p_progress, bool *p_cancelled) {
+Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, const Vector<String> &extra_headers, float *p_progress, bool *p_cancelled) {
 #define WGET_CANCELLED_CHECK()         \
 	if (p_cancelled && *p_cancelled) { \
 		return ERR_SKIP;               \
@@ -301,7 +301,7 @@ Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, flo
 			return ERR_CANT_CONNECT;
 		}
 		WGET_CANCELLED_CHECK();
-		Error request_err = client->request(HTTPClient::METHOD_GET, url, Vector<String>(), nullptr, 0);
+		Error request_err = client->request(HTTPClient::METHOD_GET, url, extra_headers, nullptr, 0);
 		ERR_FAIL_COND_V_MSG(request_err, request_err, "Failed to connect to host " + url);
 		return OK;
 	};
@@ -389,7 +389,7 @@ Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, flo
 				return err;
 			}
 		}
-		return _wget_sync(p_url, response, retries, p_progress, p_cancelled);
+		return _wget_sync(p_url, response, retries, extra_headers, p_progress, p_cancelled);
 	};
 	size_t downloaded = 0;
 
@@ -447,9 +447,9 @@ Error _wget_sync(const String &p_url, Ref<FileAccess> response, int retries, flo
 }
 } //namespace
 
-Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, float *p_progress, bool *p_cancelled) {
+Error gdre::wget_sync(const String &p_url, Vector<uint8_t> &response, int retries, const Vector<String> &extra_headers, float *p_progress, bool *p_cancelled) {
 	Ref<FileAccessBuffer> fa = FileAccessBuffer::create(FileAccessBuffer::RESIZE_STRICT);
-	Error err = _wget_sync(p_url, fa, retries, p_progress, p_cancelled);
+	Error err = _wget_sync(p_url, fa, retries, extra_headers, p_progress, p_cancelled);
 	if (err) {
 		return err;
 	}
@@ -467,7 +467,7 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path, f
 		return ERR_FILE_CANT_WRITE;
 	}
 
-	Error download_err = _wget_sync(p_url, fa, 5, p_progress, p_cancelled);
+	Error download_err = _wget_sync(p_url, fa, 5, {}, p_progress, p_cancelled);
 	if (download_err) {
 		fa->close();
 		gdre::rimraf(output_path);

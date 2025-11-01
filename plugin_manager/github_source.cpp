@@ -156,10 +156,18 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 	Vector<Dictionary> releases;
 	int pages = 1000;
 	for (int page = 1; page < pages; page++) {
+		Vector<String> extra_headers;
+		// add the github api key if it's set; this is primarily used for prepopulating the cache to avoid rate limiting
+		if (get_plugin_name() == "github") {
+			String api_key = OS::get_singleton()->get_environment("GITHUB_API_KEY");
+			if (!api_key.is_empty()) {
+				extra_headers.push_back("Authorization: Bearer " + api_key);
+			}
+		}
 		String request_url = get_release_api_url().replace("{0}", org).replace("{1}", repo).replace("{2}", itos(page));
 
 		Vector<uint8_t> response;
-		Error err = gdre::wget_sync(request_url, response, 20);
+		Error err = gdre::wget_sync(request_url, response, 20, extra_headers);
 		if (err) {
 			if (err == ERR_UNAUTHORIZED) { // rate limit exceeded
 				// use the cached releases if they exist
