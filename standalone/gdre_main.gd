@@ -734,7 +734,9 @@ var MAIN_CMD_NOTES = """Main commands:
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
-												(e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+                                                (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+--gdre-help                        Print the help message and exit
+--gdre-version                     Print the version of GDRE tools and exit
 """
 
 var GLOB_NOTES = """Notes on Include/Exclude globs:
@@ -808,8 +810,6 @@ func print_usage():
 	print("Godot Reverse Engineering Tools")
 	print("")
 	print("Without any CLI options, the tool will start in GUI mode")
-	print("\nGeneral options:")
-	print("  -h, --help: Display this help message")
 	print("\nFull Project Recovery options:")
 	print("Usage: GDRE_Tools.exe --headless <main_command> [options]")
 	print(MAIN_CMD_NOTES)
