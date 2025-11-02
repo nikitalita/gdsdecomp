@@ -16,19 +16,6 @@ static const HashMap<String, String> plugin_map = {
 	{ "godotsteam_server", "https://codeberg.org/GodotSteam/GodotSteam-Server" },
 };
 
-// A hack because the godotsteam developers are reckless and broke the release urls when they moved to codeberg for certain releases.
-// TODO: remove this when godotsteam fixes their releases.
-static const HashMap<String, HashMap<String, String>> bad_release_urls = {
-	{ "godotsteam",
-			{
-					// replace it with the codeberg url
-					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip",
-							"https://codeberg.org/godotsteam/godotsteam/releases/download/v4.14-gde/godotsteam-4.14-gdextension-plugin-4.4.zip" },
-					{ "https://github.com/GodotSteam/GodotSteam/releases/download/v4.15-gde/godotsteam-4.15-gdextension-plugin-4.4.zip",
-							"https://codeberg.org/godotsteam/godotsteam/archive/81b02cb50e7096e24aa3be863558250b2760e6d4.zip" },
-			} },
-};
-
 } // namespace
 
 CodebergSource::CodebergSource() {
@@ -66,14 +53,4 @@ const String &CodebergSource::get_release_api_url() {
 
 int CodebergSource::get_release_page_limit() {
 	return 30;
-}
-
-ReleaseInfo CodebergSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
-	auto rel = GitHubSource::get_release_info(plugin_name, primary_id, secondary_id);
-	if (rel.is_valid() && bad_release_urls.has(plugin_name)) {
-		if (bad_release_urls[plugin_name].has(rel.download_url)) {
-			rel.download_url = bad_release_urls[plugin_name][rel.download_url];
-		}
-	}
-	return rel;
 }
