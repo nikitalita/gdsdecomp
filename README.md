@@ -64,7 +64,7 @@ Main commands:
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
                                                  (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
 --gdre-help                                   Print the help message and exit
---gdre-version                                Print the version of the GDRE tools and exit
+--gdre-version                                Print the version of GDRE tools and exit
 
 Recover/Extract Options:
 
