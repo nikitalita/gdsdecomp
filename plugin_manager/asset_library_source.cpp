@@ -394,3 +394,27 @@ Dictionary EditCache::to_json() const {
 		{ "edit", edit }
 	};
 }
+
+Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
+	auto asset_ids = search_for_asset_ids(plugin_name);
+	Vector<ReleaseInfo> release_infos;
+	Vector<int64_t> edit_ids;
+	for (auto asset_id : asset_ids) {
+		auto edits = get_edit_list(asset_id);
+		for (int i = 0; i < edits.size(); i++) {
+			String version = edits[i].get("version_string", "");
+			if (version == tag) {
+				int64_t edit_id = int64_t(edits[i].get("edit_id", 0));
+				if (edit_ids.has(edit_id) || edit_id == 0) {
+					continue;
+				}
+				edit_ids.push_back(edit_id);
+				auto rel_info = get_release_info(plugin_name, asset_id, edit_id);
+				if (rel_info.is_valid()) {
+					release_infos.push_back(rel_info);
+				}
+			}
+		}
+	}
+	return release_infos;
+}

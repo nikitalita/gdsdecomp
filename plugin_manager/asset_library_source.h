@@ -50,6 +50,7 @@ public:
 	bool handles_plugin(const String &plugin_name) override;
 	bool is_default() override { return true; }
 	String get_plugin_name() override;
+	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag) override;
 };
 
 #endif // ASSET_LIBRARY_SOURCE_H

@@ -96,6 +96,7 @@ public:
 	bool handles_plugin(const String &plugin_name) override;
 	bool is_default() override { return false; }
 	// void load_cache_data(const String &plugin_name, const Dictionary &data) override; // Deprecated
+	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag) override;
 };
 
 #endif // GITHUB_SOURCE_H

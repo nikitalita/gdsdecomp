@@ -117,6 +117,10 @@ struct ReleaseInfo {
 	bool operator!=(const ReleaseInfo &other) const {
 		return !(*this == other);
 	}
+
+	String get_cache_key() const {
+		return plugin_source + "-" + itos(primary_id) + "-" + itos(secondary_id);
+	}
 };
 
 struct PluginVersion {

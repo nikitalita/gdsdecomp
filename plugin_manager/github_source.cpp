@@ -397,3 +397,33 @@ bool GitHubSource::handles_plugin(const String &plugin_name) {
 String GitHubSource::get_plugin_name() {
 	return "github";
 }
+
+Vector<ReleaseInfo> GitHubSource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
+	Vector<Dictionary> releases = get_list_of_releases(plugin_name);
+	Vector<ReleaseInfo> release_infos;
+	for (auto &release : releases) {
+		int64_t release_id = release.get("id", 0);
+		if (release_id <= 0) {
+			return {};
+		}
+		String tag_name = release.get("tag_name", "");
+		if (tag_name == tag) {
+			Array assets = release.get("assets", {});
+			for (int i = 0; i < assets.size(); i++) {
+				Dictionary asset = assets[i];
+				if (should_skip_release(plugin_name, ((Dictionary)asset).get("browser_download_url", ""))) {
+					continue;
+				}
+				int64_t asset_id = ((Dictionary)asset).get("id", 0);
+				if (asset_id == 0) {
+					continue;
+				}
+				auto rel_info = get_release_info(plugin_name, release_id, asset_id);
+				if (rel_info.is_valid()) {
+					release_infos.push_back(rel_info);
+				}
+			}
+		}
+	}
+	return release_infos;
+}

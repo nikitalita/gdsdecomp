@@ -28,6 +28,7 @@ public:
 	virtual void save_cache();
 	virtual bool handles_plugin(const String &plugin_name);
 	virtual bool is_default();
+	virtual Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag);
 	// Helper method for cache expiration
 	static constexpr time_t EXPIRY_TIME = 3600; // 1 hour in seconds
 	bool is_cache_expired(double retrieved_time) {
