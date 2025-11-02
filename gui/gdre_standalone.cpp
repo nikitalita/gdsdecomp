@@ -168,8 +168,5 @@ GodotREEditorStandalone::~GodotREEditorStandalone() {
 	if (GDREProgressDialog::get_singleton()) {
 		GDREProgressDialog::get_singleton()->queue_free();
 	}
-	if (audio_stream_preview_generator_node) {
-		audio_stream_preview_generator_node->queue_free();
-	}
 	singleton = nullptr;
 }
