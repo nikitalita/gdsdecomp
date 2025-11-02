@@ -63,6 +63,7 @@ Main commands:
 --bin-to-txt=<FILE>                           Convert binary scene or resource files to text-based format (can be repeated)
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
                                                  (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+--gdre-help                                   Print the help message and exit
 --gdre-version                                Print the version of the GDRE tools and exit
 
 Recover/Extract Options:
