@@ -360,15 +360,19 @@ void TaskManager::DownloadTaskData::callback_data(void *p_data) {
 	start_time = OS::get_singleton()->get_ticks_msec();
 	download_error = gdre::download_file_sync(download_url, save_path, &download_progress, &canceled, &size);
 	done = true;
-#if DEBUG_ENABLED
+#if TOOLS_ENABLED
 	speed_history.sort();
 	int64_t end_time = OS::get_singleton()->get_ticks_msec();
-	int64_t median_speed = speed_history.size() > 0 ? speed_history[speed_history.size() / 2] : 0;
+	int64_t median_speed = speed_history.size() > 0 ? speed_history[speed_history.size() / 2] : size;
 	int64_t average_speed = 0;
-	for (int64_t speed : speed_history) {
-		average_speed += speed;
+	if (speed_history.size() > 0) {
+		for (int64_t speed : speed_history) {
+			average_speed += speed;
+		}
+		average_speed /= speed_history.size();
+	} else {
+		average_speed = size;
 	}
-	average_speed /= speed_history.size();
 	print_line(vformat("%s: Downloaded %s in %sms, Median speed: %s, Average speed: %s", download_url.get_file(), String::humanize_size(size), end_time - start_time, String::humanize_size(median_speed), String::humanize_size(average_speed)));
 #endif
 }
