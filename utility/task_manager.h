@@ -300,6 +300,9 @@ public:
 	class DownloadTaskData : public BaseTemplateTaskData {
 		String download_url;
 		String save_path;
+		int64_t size = -1;
+		int64_t start_time = 0;
+		Vector<int64_t> speed_history;
 		bool silent = false;
 		float download_progress = 0.0f;
 		Error download_error = OK;
