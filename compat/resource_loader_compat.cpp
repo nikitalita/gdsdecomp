@@ -463,7 +463,7 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		Error err;
 		Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ, &err);
 		if (f.is_null() || err != OK) {
-			if (err == ERR_UNAUTHORIZED) {
+			if (err == ERR_UNAUTHORIZED || err == ERR_FILE_CORRUPT) {
 				return "ERROR: Can't read encrypted file: " + path;
 			}
 			return "ERROR: Failed to open file: " + path;
@@ -480,7 +480,7 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 	Error err = OK;
 	Ref<Resource> res = _load_for_text_conversion(path, orig_path, &err);
 	if (err != OK || res.is_null()) {
-		if (err == ERR_UNAUTHORIZED) {
+		if (err == ERR_UNAUTHORIZED || err == ERR_FILE_CORRUPT) {
 			return "ERROR: Can't read encrypted file: " + path;
 		}
 		return "ERROR: Failed to load " + path;
