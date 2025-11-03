@@ -30,13 +30,13 @@ private:
 	HashMap<int64_t, EditCache> edit_cache;
 
 	// Helper methods
-	Vector<Dictionary> get_edit_list(int64_t asset_id);
-	Dictionary get_edit(int64_t edit_id);
-	Vector<Dictionary> search_for_assets(const String &plugin_name, int ver_major = 0);
-	Vector<int64_t> search_for_asset_ids(const String &plugin_name, int ver_major = 0);
-	Vector<Dictionary> get_assets_for_plugin(const String &plugin_name);
-	Vector<int64_t> get_valid_edit_ids_for_plugin(int64_t asset_id);
-	void load_edit_list_cache();
+	Error get_edit_list(int64_t asset_id, Vector<Dictionary> &r_edits);
+	Error get_edit(int64_t edit_id, Dictionary &r_edit);
+	Error search_for_assets(const String &plugin_name, Vector<Dictionary> &r_assets, int ver_major = 0);
+	Error search_for_asset_ids(const String &plugin_name, Vector<int64_t> &r_asset_ids, int ver_major = 0);
+	Error get_assets_for_plugin(const String &plugin_name, Vector<Dictionary> &r_assets);
+	Error get_valid_edit_ids_for_plugin(int64_t asset_id, Vector<int64_t> &r_versions);
+	Error load_edit_list_cache();
 	void load_edit_cache();
 	void save_edit_list_cache();
 	void save_edit_cache();

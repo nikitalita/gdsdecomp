@@ -23,7 +23,7 @@ HashMap<String, String> AssetLibrarySource::GODOT_VERSION_RELEASE_DATES = {
 	{ "4.5", "2025-09-15" },
 };
 
-Vector<Dictionary> AssetLibrarySource::search_for_assets(const String &plugin_name, int ver_major) {
+Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Dictionary> &r_assets, int ver_major) {
 	static const Vector<String> _GODOT_VERSIONS = { "2.99", "3.99", "4.99" };
 	Vector<String> godot_versions;
 	if (ver_major == 0) {
@@ -45,9 +45,7 @@ Vector<Dictionary> AssetLibrarySource::search_for_assets(const String &plugin_na
 										 .replace("{3}", itos(page));
 			Vector<uint8_t> response;
 			Error err = gdre::wget_sync(request_url, response);
-			if (err) {
-				break;
-			}
+			ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get assets ids for plugin " + plugin_name + " godot version " + godot_version);
 			String response_str;
 			response_str.append_utf8((const char *)response.ptr(), response.size());
 			Dictionary dict = JSON::parse_string(response_str);
@@ -62,24 +60,31 @@ Vector<Dictionary> AssetLibrarySource::search_for_assets(const String &plugin_na
 			assets.append_array(page_assets);
 		}
 	}
-	return gdre::array_to_vector<Dictionary>(assets);
+	r_assets = gdre::array_to_vector<Dictionary>(assets);
+	return OK;
 }
 
-Vector<int64_t> AssetLibrarySource::search_for_asset_ids(const String &plugin_name, int ver_major) {
-	auto assets = search_for_assets(plugin_name, ver_major);
-	Vector<int64_t> asset_ids;
+Error AssetLibrarySource::search_for_asset_ids(const String &plugin_name, Vector<int64_t> &r_asset_ids, int ver_major) {
+	Vector<Dictionary> assets;
+	Error err = search_for_assets(plugin_name, assets, ver_major);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to search for assets for plugin " + plugin_name);
+	r_asset_ids.clear();
 	for (int i = 0; i < assets.size(); i++) {
 		Dictionary asset = assets[i];
 		if (!asset.has("asset_id")) {
 			continue;
 		}
-		asset_ids.push_back(asset.get("asset_id", 0));
+		r_asset_ids.push_back(asset.get("asset_id", 0));
 	}
-	asset_ids.sort();
-	return asset_ids;
+	r_asset_ids.sort();
+	return OK;
 }
 
-Vector<Dictionary> AssetLibrarySource::get_edit_list(int64_t asset_id) {
+Error AssetLibrarySource::get_assets_for_plugin(const String &plugin_name, Vector<Dictionary> &r_assets) {
+	return search_for_assets(plugin_name, r_assets, 0);
+}
+
+Error AssetLibrarySource::get_edit_list(int64_t asset_id, Vector<Dictionary> &r_edits) {
 	int page = 0;
 	int pages = 1000;
 	double now = OS::get_singleton()->get_unix_time();
@@ -90,20 +95,19 @@ Vector<Dictionary> AssetLibrarySource::get_edit_list(int64_t asset_id) {
 		if (edit_list_cache.has(asset_id)) {
 			auto &cache = edit_list_cache[asset_id];
 			if (!is_cache_expired(cache.retrieved_time)) {
-				return cache.edit_list;
+				r_edits = cache.edit_list;
+				return OK;
 			}
 		}
 	}
 
+	static const String URL_TEMPLATE = "https://godotengine.org/asset-library/api/asset/edit?asset={0}&status=accepted&page={1}";
 	for (page = 0; page < pages; page++) {
-		String URL = "https://godotengine.org/asset-library/api/asset/edit?asset={0}&status=accepted&page={1}";
-		URL = URL.replace("{0}", itos(asset_id)).replace("{1}", itos(page));
+		String URL = URL_TEMPLATE.replace("{0}", itos(asset_id)).replace("{1}", itos(page));
 
 		Vector<uint8_t> response;
 		Error err = gdre::wget_sync(URL, response);
-		if (err) {
-			break;
-		}
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get edit list for asset " + itos(asset_id));
 		String response_str;
 		response_str.append_utf8((const char *)response.ptr(), response.size());
 		Dictionary response_obj = JSON::parse_string(response_str);
@@ -125,17 +129,19 @@ Vector<Dictionary> AssetLibrarySource::get_edit_list(int64_t asset_id) {
 		edit_list_cache[asset_id] = { now, (int64_t)asset_id, edits_vec };
 	}
 
-	return edits_vec;
+	r_edits = edits_vec;
+	return OK;
 }
 
-Dictionary AssetLibrarySource::get_edit(int64_t edit_id) {
+Error AssetLibrarySource::get_edit(int64_t edit_id, Dictionary &r_edit) {
 	{
 		constexpr time_t EDIT_EXPIRY_TIME = 24 * 3600; // 1 day in seconds
 		MutexLock lock(cache_mutex);
 		if (edit_cache.has(edit_id)) {
 			auto &cache = edit_cache[edit_id];
 			if (!cache.retrieved_time + EDIT_EXPIRY_TIME <= OS::get_singleton()->get_unix_time()) {
-				return cache.edit;
+				r_edit = cache.edit;
+				return OK;
 			}
 		}
 	}
@@ -145,25 +151,26 @@ Dictionary AssetLibrarySource::get_edit(int64_t edit_id) {
 	Vector<uint8_t> response;
 	Error err = gdre::wget_sync(URL, response);
 	if (err || response.size() == 0) {
-		return Dictionary();
+		return err;
 	}
 	String response_str;
 	response_str.append_utf8((const char *)response.ptr(), response.size());
 	Dictionary response_obj = JSON::parse_string(response_str);
 	if (response_obj.is_empty()) {
-		return Dictionary();
+		return ERR_PARSE_ERROR;
 	}
 
+	r_edit = response_obj;
 	{
 		MutexLock lock(cache_mutex);
 		edit_cache[edit_id] = {
 			OS::get_singleton()->get_unix_time(),
 			(int64_t)edit_id,
-			response_obj
+			r_edit
 		};
 	}
 
-	return response_obj;
+	return OK;
 }
 
 namespace {
@@ -179,12 +186,16 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int6
 		return ReleaseInfo();
 	}
 
-	auto edit_list = get_edit_list(asset_id);
+	Vector<Dictionary> edit_list;
+	Error err = get_edit_list(asset_id, edit_list);
+	ERR_FAIL_COND_V_MSG(err != OK, ReleaseInfo(), "Failed to get edit list for asset " + itos(asset_id));
 	for (const Dictionary &edit_list_entry : edit_list) {
 		if (int64_t(edit_list_entry.get("edit_id", {})) == edit_id) {
-			Dictionary edit_data = get_edit(edit_id);
+			Dictionary edit_data;
+			err = get_edit(edit_id, edit_data);
+			ERR_CONTINUE_MSG(err != OK, vformat("Failed to get edit %d for asset %d", edit_id, asset_id));
 			if (edit_data.is_empty()) {
-				break;
+				continue;
 			}
 
 			String godot_version = edit_list_entry.get("godot_version", "");
@@ -246,51 +257,59 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int6
 	return ReleaseInfo();
 }
 
-Vector<int64_t> AssetLibrarySource::get_valid_edit_ids_for_plugin(int64_t asset_id) {
-	Vector<int64_t> versions;
-	auto edits = get_edit_list(asset_id);
-	HashSet<String> version_strings;
+Error AssetLibrarySource::get_valid_edit_ids_for_plugin(int64_t asset_id, Vector<int64_t> &r_versions) {
+	Vector<Dictionary> edits;
+	Error err = get_edit_list(asset_id, edits);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get edit list for asset " + itos(asset_id));
+	r_versions.clear();
+	HashSet<int64_t> seen_ids;
 	for (int i = 0; i < edits.size(); i++) {
 		String version = edits[i].get("version_string", "");
 		if (version.is_empty() || version == "<null>") {
 			continue;
 		}
 		int64_t edit_id = int64_t(edits[i].get("edit_id", {}));
-		if (versions.has(edit_id) || edit_id == 0) {
+		if (seen_ids.has(edit_id) || edit_id == 0) {
 			continue;
 		}
-		versions.push_back(edit_id);
+		seen_ids.insert(edit_id);
+		r_versions.push_back(edit_id);
 	}
-	return versions;
+	return OK;
 }
 
 Vector<Pair<int64_t, int64_t>> AssetLibrarySource::get_plugin_version_numbers(const String &plugin_name) {
-	auto asset_ids = search_for_asset_ids(plugin_name);
+	Vector<int64_t> asset_ids;
+	Error err = search_for_asset_ids(plugin_name, asset_ids);
+	ERR_FAIL_COND_V_MSG(err != OK, {}, "Failed to search for asset IDs for plugin " + plugin_name);
 	Vector<Pair<int64_t, int64_t>> versions;
 	for (auto asset_id : asset_ids) {
-		auto new_versions = get_valid_edit_ids_for_plugin(asset_id);
-		for (auto &version : new_versions) {
-			versions.append({ asset_id, version });
+		Vector<int64_t> edit_ids;
+		err = get_valid_edit_ids_for_plugin(asset_id, edit_ids);
+		ERR_FAIL_COND_V_MSG(err != OK, {}, "Failed to get valid edit IDs for asset " + itos(asset_id));
+		for (auto &edit_id : edit_ids) {
+			versions.push_back({ asset_id, edit_id });
 		}
 	}
 	return versions;
 }
 
-void AssetLibrarySource::load_edit_list_cache() {
+Error AssetLibrarySource::load_edit_list_cache() {
 	MutexLock lock(cache_mutex);
 	String edit_list_cache_file = PluginManager::get_plugin_cache_path().path_join("asset_lib_edit_list_release_cache.json");
 	if (!FileAccess::exists(edit_list_cache_file)) {
-		return;
+		return OK;
 	}
 	auto file = FileAccess::open(edit_list_cache_file, FileAccess::READ);
 	if (file.is_null()) {
-		return;
+		return ERR_FILE_CANT_OPEN;
 	}
 	Dictionary json = JSON::parse_string(file->get_as_text());
 	for (auto &E : json) {
 		edit_list_cache[E.key] = EditListCache::from_json(E.value);
 	}
 	file->close();
+	return OK;
 }
 
 void AssetLibrarySource::load_edit_cache() {
@@ -311,7 +330,11 @@ void AssetLibrarySource::load_edit_cache() {
 }
 
 void AssetLibrarySource::load_cache_internal() {
-	load_edit_list_cache();
+	Error err = load_edit_list_cache();
+	if (err != OK) {
+		ERR_PRINT("Failed to load edit list cache");
+		return;
+	}
 	load_edit_cache();
 }
 
@@ -396,11 +419,15 @@ Dictionary EditCache::to_json() const {
 }
 
 Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
-	auto asset_ids = search_for_asset_ids(plugin_name);
+	Vector<int64_t> asset_ids;
+	Error err = search_for_asset_ids(plugin_name, asset_ids);
+	ERR_FAIL_COND_V_MSG(err != OK, Vector<ReleaseInfo>(), "Failed to search for asset IDs for plugin " + plugin_name);
 	Vector<ReleaseInfo> release_infos;
 	Vector<int64_t> edit_ids;
 	for (auto asset_id : asset_ids) {
-		auto edits = get_edit_list(asset_id);
+		Vector<Dictionary> edits;
+		err = get_edit_list(asset_id, edits);
+		ERR_CONTINUE_MSG(err != OK, vformat("Failed to get edit list for asset %d", asset_id));
 		for (int i = 0; i < edits.size(); i++) {
 			String version = edits[i].get("version_string", "");
 			if (version == tag) {
