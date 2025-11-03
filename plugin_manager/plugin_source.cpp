@@ -1,4 +1,5 @@
 #include "plugin_source.h"
+#include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "plugin_info.h"
 #include "utility/common.h"
@@ -19,7 +20,8 @@ bool PluginSource::is_default() {
 	return false;
 }
 
-ReleaseInfo PluginSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+ReleaseInfo PluginSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_connection_error) {
+	r_connection_error = ERR_UNAVAILABLE;
 	return ReleaseInfo();
 }
 
@@ -31,7 +33,8 @@ void PluginSource::save_cache() {
 	ERR_FAIL_MSG("Not implemented");
 }
 
-Vector<Pair<int64_t, int64_t>> PluginSource::get_plugin_version_numbers(const String &plugin_name) {
+Vector<Pair<int64_t, int64_t>> PluginSource::get_plugin_version_numbers(const String &plugin_name, Error &r_connection_error) {
+	r_connection_error = ERR_UNAVAILABLE;
 	ERR_FAIL_V_MSG({}, "Not implemented");
 }
 
@@ -45,21 +48,26 @@ String PluginSource::get_plugin_name() {
 
 Dictionary PluginSource::_get_plugin_version_numbers(const String &plugin_name) {
 	Dictionary d;
-	for (auto &E : get_plugin_version_numbers(plugin_name)) {
+	Error err = OK;
+	auto pairs = get_plugin_version_numbers(plugin_name, err);
+	ERR_FAIL_COND_V_MSG(err != OK, Dictionary(), "Failed to get plugin version numbers for plugin " + plugin_name);
+	for (auto &E : pairs) {
 		d[E.first] = E.second;
 	}
 	return d;
 }
 
 Dictionary PluginSource::_get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
-	auto rel = get_release_info(plugin_name, primary_id, secondary_id);
-	if (!rel.is_valid()) {
+	Error err = OK;
+	auto rel = get_release_info(plugin_name, primary_id, secondary_id, err);
+	if (!rel.is_valid() || err) {
 		return Dictionary();
 	}
 	return rel.to_json();
 }
 
-Vector<ReleaseInfo> PluginSource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
+Vector<ReleaseInfo> PluginSource::find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) {
+	r_error = ERR_UNAVAILABLE;
 	ERR_FAIL_V_MSG({}, "Not implemented");
 }
 

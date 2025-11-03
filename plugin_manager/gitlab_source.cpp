@@ -1,4 +1,5 @@
 #include "plugin_manager/gitlab_source.h"
+#include "core/error/error_list.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
 #include "utility/common.h"
@@ -47,20 +48,20 @@ int GitLabSource::get_release_page_limit() {
 	return INT_MAX;
 }
 
-bool GitLabSource::recache_release_list(const String &plugin_name) {
+Error GitLabSource::recache_release_list(const String &plugin_name) {
 	{
 		MutexLock lock(cache_mutex);
 		if (release_cache.has(plugin_name)) {
 			auto &cache = release_cache[plugin_name];
 			if (!is_cache_expired(cache.retrieved_time)) {
-				return true;
+				return OK;
 			}
 		}
 	}
 
 	String repo_url = get_repo_url(plugin_name);
 	if (repo_url.is_empty() || !repo_url.contains("gitlab.com")) {
-		return false;
+		return ERR_INVALID_PARAMETER;
 	}
 
 	double now = OS::get_singleton()->get_unix_time();
@@ -74,14 +75,14 @@ bool GitLabSource::recache_release_list(const String &plugin_name) {
 	Vector<uint8_t> response;
 	Error err = gdre::wget_sync(request_url, response, 20);
 	if (err) {
-		return false;
+		return err;
 	}
 
 	String response_str;
 	response_str.append_utf8((const char *)response.ptr(), response.size());
 	Array response_obj = JSON::parse_string(response_str);
 	if (response_obj.is_empty()) {
-		return false;
+		return ERR_PARSE_ERROR;
 	}
 
 	for (int i = 0; i < response_obj.size(); i++) {
@@ -122,7 +123,7 @@ bool GitLabSource::recache_release_list(const String &plugin_name) {
 		release_cache[plugin_name] = cache;
 	}
 
-	return true;
+	return OK;
 }
 
 String GitLabSource::get_plugin_name() {

@@ -43,14 +43,14 @@ private:
 
 public:
 	// Implementation of PluginSource interface
-	Vector<Pair<int64_t, int64_t>> get_plugin_version_numbers(const String &plugin_name) override;
-	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) override;
+	Vector<Pair<int64_t, int64_t>> get_plugin_version_numbers(const String &plugin_name, Error &r_connection_error) override;
+	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_connection_error) override;
 	void load_cache_internal() override;
 	void save_cache() override;
 	bool handles_plugin(const String &plugin_name) override;
 	bool is_default() override { return true; }
 	String get_plugin_name() override;
-	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag) override;
+	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) override;
 };
 
 #endif // ASSET_LIBRARY_SOURCE_H

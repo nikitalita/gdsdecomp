@@ -179,7 +179,7 @@ bool is_empty_or_null(const String &str) {
 }
 } //namespace
 
-ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_connection_error) {
 	auto asset_id = primary_id;
 	auto edit_id = secondary_id;
 	if (asset_id <= 0 || edit_id <= 0) {
@@ -187,13 +187,13 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int6
 	}
 
 	Vector<Dictionary> edit_list;
-	Error err = get_edit_list(asset_id, edit_list);
-	ERR_FAIL_COND_V_MSG(err != OK, ReleaseInfo(), "Failed to get edit list for asset " + itos(asset_id));
+	r_connection_error = get_edit_list(asset_id, edit_list);
+	ERR_FAIL_COND_V_MSG(r_connection_error != OK, ReleaseInfo(), "Failed to get edit list for asset " + itos(asset_id));
 	for (const Dictionary &edit_list_entry : edit_list) {
 		if (int64_t(edit_list_entry.get("edit_id", {})) == edit_id) {
 			Dictionary edit_data;
-			err = get_edit(edit_id, edit_data);
-			ERR_CONTINUE_MSG(err != OK, vformat("Failed to get edit %d for asset %d", edit_id, asset_id));
+			r_connection_error = get_edit(edit_id, edit_data);
+			ERR_FAIL_COND_V_MSG(r_connection_error != OK, ReleaseInfo(), vformat("Failed to get edit %d for asset %d", edit_id, asset_id));
 			if (edit_data.is_empty()) {
 				continue;
 			}
@@ -278,15 +278,15 @@ Error AssetLibrarySource::get_valid_edit_ids_for_plugin(int64_t asset_id, Vector
 	return OK;
 }
 
-Vector<Pair<int64_t, int64_t>> AssetLibrarySource::get_plugin_version_numbers(const String &plugin_name) {
+Vector<Pair<int64_t, int64_t>> AssetLibrarySource::get_plugin_version_numbers(const String &plugin_name, Error &r_connection_error) {
 	Vector<int64_t> asset_ids;
-	Error err = search_for_asset_ids(plugin_name, asset_ids);
-	ERR_FAIL_COND_V_MSG(err != OK, {}, "Failed to search for asset IDs for plugin " + plugin_name);
+	r_connection_error = search_for_asset_ids(plugin_name, asset_ids);
+	ERR_FAIL_COND_V_MSG(r_connection_error != OK, {}, "Failed to search for asset IDs for plugin " + plugin_name);
 	Vector<Pair<int64_t, int64_t>> versions;
 	for (auto asset_id : asset_ids) {
 		Vector<int64_t> edit_ids;
-		err = get_valid_edit_ids_for_plugin(asset_id, edit_ids);
-		ERR_FAIL_COND_V_MSG(err != OK, {}, "Failed to get valid edit IDs for asset " + itos(asset_id));
+		r_connection_error = get_valid_edit_ids_for_plugin(asset_id, edit_ids);
+		ERR_FAIL_COND_V_MSG(r_connection_error != OK, {}, "Failed to get valid edit IDs for asset " + itos(asset_id));
 		for (auto &edit_id : edit_ids) {
 			versions.push_back({ asset_id, edit_id });
 		}
@@ -418,15 +418,15 @@ Dictionary EditCache::to_json() const {
 	};
 }
 
-Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
+Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) {
 	Vector<int64_t> asset_ids;
-	Error err = search_for_asset_ids(plugin_name, asset_ids);
-	ERR_FAIL_COND_V_MSG(err != OK, Vector<ReleaseInfo>(), "Failed to search for asset IDs for plugin " + plugin_name);
+	r_error = search_for_asset_ids(plugin_name, asset_ids);
+	ERR_FAIL_COND_V_MSG(r_error != OK, Vector<ReleaseInfo>(), "Failed to search for asset IDs for plugin " + plugin_name);
 	Vector<ReleaseInfo> release_infos;
 	Vector<int64_t> edit_ids;
 	for (auto asset_id : asset_ids) {
 		Vector<Dictionary> edits;
-		err = get_edit_list(asset_id, edits);
+		Error err = get_edit_list(asset_id, edits);
 		ERR_CONTINUE_MSG(err != OK, vformat("Failed to get edit list for asset %d", asset_id));
 		for (int i = 0; i < edits.size(); i++) {
 			String version = edits[i].get("version_string", "");
@@ -436,7 +436,9 @@ Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &
 					continue;
 				}
 				edit_ids.push_back(edit_id);
-				auto rel_info = get_release_info(plugin_name, asset_id, edit_id);
+				Error err;
+				ReleaseInfo rel_info = get_release_info(plugin_name, asset_id, edit_id, err);
+				ERR_FAIL_COND_V_MSG(err != OK, {}, vformat("Failed to get release info for asset %d edit %d", asset_id, edit_id));
 				if (rel_info.is_valid()) {
 					release_infos.push_back(rel_info);
 				}

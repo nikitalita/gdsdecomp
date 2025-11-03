@@ -1,4 +1,5 @@
 #include "github_source.h"
+#include "core/error/error_list.h"
 #include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
@@ -127,14 +128,14 @@ String GitHubSource::get_repo_url(const String &plugin_name) {
 	return get_plugin_repo_map().has(plugin_name) ? get_plugin_repo_map()[plugin_name] : "";
 }
 
-bool GitHubSource::recache_release_list(const String &plugin_name) {
+Error GitHubSource::recache_release_list(const String &plugin_name) {
 	bool has_cached_releases = false;
 	{
 		MutexLock lock(cache_mutex);
 		if (release_cache.has(plugin_name)) {
 			auto &cache = release_cache[plugin_name];
 			if (!is_cache_expired(cache.retrieved_time)) {
-				return true;
+				return OK;
 			}
 			has_cached_releases = cache.releases.size() > 0;
 		}
@@ -142,7 +143,7 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 
 	String repo_url = get_repo_url(plugin_name);
 	if (repo_url.is_empty()) {
-		return false;
+		return ERR_INVALID_PARAMETER;
 	}
 
 	double now = OS::get_singleton()->get_unix_time();
@@ -174,10 +175,10 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 				print_line(get_plugin_name() + " rate limit exceeded!");
 				if (has_cached_releases) {
 					print_line(get_plugin_name() + " using cached releases...");
-					return true;
+					return OK;
 				}
 				print_line(get_plugin_name() + " no cached releases, failing...");
-				return false;
+				return ERR_UNAUTHORIZED;
 			}
 			if (err == ERR_FILE_NOT_FOUND && page > 1) {
 				// no more releases
@@ -185,7 +186,7 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 			}
 			if (err != OK) {
 				print_line(get_plugin_name() + " failed to get releases: " + itos(err));
-				return false;
+				return err;
 			}
 		}
 
@@ -232,7 +233,7 @@ bool GitHubSource::recache_release_list(const String &plugin_name) {
 		release_cache[plugin_name] = cache;
 	}
 
-	return true;
+	return OK;
 }
 namespace {
 bool is_empty_or_null(const String &str) {
@@ -240,14 +241,14 @@ bool is_empty_or_null(const String &str) {
 }
 } //namespace
 
-ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error) {
 	auto release_id = primary_id;
 	auto asset_id = secondary_id;
 	if (release_id <= 0 || asset_id <= 0) {
 		return ReleaseInfo();
 	}
 
-	auto release = get_release_dict(plugin_name, release_id);
+	auto release = get_release_dict(plugin_name, release_id, r_error);
 	if (release.is_empty()) {
 		return ReleaseInfo();
 	}
@@ -288,8 +289,9 @@ ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, int64_t pr
 	return ReleaseInfo();
 }
 
-Vector<Dictionary> GitHubSource::get_list_of_releases(const String &plugin_name) {
-	if (!recache_release_list(plugin_name)) {
+Vector<Dictionary> GitHubSource::get_list_of_releases(const String &plugin_name, Error &r_error) {
+	r_error = recache_release_list(plugin_name);
+	if (r_error != OK) {
 		return {};
 	}
 	Vector<Dictionary> releases;
@@ -304,8 +306,26 @@ Vector<Dictionary> GitHubSource::get_list_of_releases(const String &plugin_name)
 	return releases;
 }
 
-Vector<Pair<int64_t, int64_t>> GitHubSource::get_gh_asset_pairs(const String &plugin_name) {
-	auto thing = get_list_of_releases(plugin_name);
+Dictionary GitHubSource::get_release_dict(const String &plugin_name, int64_t release_id, Error &r_error) {
+	r_error = recache_release_list(plugin_name);
+	if (r_error != OK) {
+		return Dictionary();
+	}
+	{
+		MutexLock lock(cache_mutex);
+		if (release_cache.has(plugin_name)) {
+			auto &cache = release_cache[plugin_name];
+			if (cache.releases.has(release_id)) {
+				return cache.releases[release_id].release;
+			}
+		}
+	}
+	return Dictionary();
+}
+
+Vector<Pair<int64_t, int64_t>> GitHubSource::get_plugin_version_numbers(const String &plugin_name, Error &r_connection_error) {
+	auto thing = get_list_of_releases(plugin_name, r_connection_error);
+	ERR_FAIL_COND_V_MSG(r_connection_error != OK, {}, "Failed to get list of releases for plugin " + plugin_name);
 	Vector<Pair<int64_t, int64_t>> release_asset_pairs;
 	for (auto &release : thing) {
 		auto tag = release.get("tag_name", "");
@@ -323,26 +343,6 @@ Vector<Pair<int64_t, int64_t>> GitHubSource::get_gh_asset_pairs(const String &pl
 		}
 	}
 	return release_asset_pairs;
-}
-
-Dictionary GitHubSource::get_release_dict(const String &plugin_name, int64_t release_id) {
-	if (!recache_release_list(plugin_name)) {
-		return Dictionary();
-	}
-	{
-		MutexLock lock(cache_mutex);
-		if (release_cache.has(plugin_name)) {
-			auto &cache = release_cache[plugin_name];
-			if (cache.releases.has(release_id)) {
-				return cache.releases[release_id].release;
-			}
-		}
-	}
-	return Dictionary();
-}
-
-Vector<Pair<int64_t, int64_t>> GitHubSource::get_plugin_version_numbers(const String &plugin_name) {
-	return get_gh_asset_pairs(plugin_name);
 }
 
 void GitHubSource::load_cache_internal() {
@@ -398,8 +398,9 @@ String GitHubSource::get_plugin_name() {
 	return "github";
 }
 
-Vector<ReleaseInfo> GitHubSource::find_release_infos_by_tag(const String &plugin_name, const String &tag) {
-	Vector<Dictionary> releases = get_list_of_releases(plugin_name);
+Vector<ReleaseInfo> GitHubSource::find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_connection_error) {
+	Vector<Dictionary> releases = get_list_of_releases(plugin_name, r_connection_error);
+	ERR_FAIL_COND_V_MSG(r_connection_error != OK, {}, "Failed to get list of releases for plugin " + plugin_name);
 	Vector<ReleaseInfo> release_infos;
 	for (auto &release : releases) {
 		int64_t release_id = release.get("id", 0);
@@ -418,7 +419,8 @@ Vector<ReleaseInfo> GitHubSource::find_release_infos_by_tag(const String &plugin
 				if (asset_id == 0) {
 					continue;
 				}
-				auto rel_info = get_release_info(plugin_name, release_id, asset_id);
+				auto rel_info = get_release_info(plugin_name, release_id, asset_id, r_connection_error);
+				ERR_FAIL_COND_V_MSG(r_connection_error, {}, vformat("Failed to get release info for release %d asset %d", release_id, asset_id));
 				if (rel_info.is_valid()) {
 					release_infos.push_back(rel_info);
 				}

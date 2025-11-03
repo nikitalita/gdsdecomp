@@ -21,7 +21,7 @@ private:
 	virtual const String &get_release_api_url() override;
 	virtual int get_release_page_limit() override;
 
-	virtual bool recache_release_list(const String &plugin_name) override;
+	virtual Error recache_release_list(const String &plugin_name) override;
 	virtual String get_plugin_name() override;
 
 public:
