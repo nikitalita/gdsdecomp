@@ -235,9 +235,9 @@ ReleaseInfo AssetLibrarySource::get_release_info(const String &plugin_name, int6
 			release_info.primary_id = asset_id;
 			release_info.secondary_id = edit_id;
 			release_info.version = version;
-			release_info.engine_ver_major = !godot_version.is_empty() ? godot_version.split(".")[0].to_int() : 0;
 			release_info.release_date = submit_date;
 			release_info.download_url = download_commit;
+			release_info.repository_url = "https://godotengine.org/asset-library/asset/" + itos(asset_id);
 
 			return release_info;
 		}

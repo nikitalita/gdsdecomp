@@ -25,7 +25,7 @@ static const HashMap<String, Vector<String>> release_file_exclude_masks = {
 	{ "discord-rpc-gd", { "*Demo*" } },
 	{ "discord-sdk-gd", { "*Demo*" } },
 	{ "epic-online-services-godot", { "*-android-*", "*-ios-*", "*-macos-*", "*-windows-*", "*-linux-*", "*-web*" } },
-	{ "fmod", { "*android.zip" } },
+	{ "fmod", { "*android.zip", "*demo.zip" } },
 	{ "godotgif", { "*_convert_binary_*" } }
 };
 
@@ -276,9 +276,9 @@ ReleaseInfo GitHubSource::get_release_info(const String &plugin_name, int64_t pr
 				release_info.primary_id = release_id;
 				release_info.secondary_id = asset_id;
 				release_info.version = tag_name;
-				release_info.engine_ver_major = 0; // Will be determined during analysis
 				release_info.release_date = asset.get("created_at", "");
 				release_info.download_url = download_url;
+				release_info.repository_url = get_repo_url(plugin_name);
 
 				return release_info;
 			}

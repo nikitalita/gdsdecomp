@@ -12,8 +12,8 @@ static const HashMap<String, Vector<String>> release_file_masks = {};
 static const HashMap<String, Vector<String>> release_file_exclude_masks = {};
 
 static const HashMap<String, String> plugin_map = {
-	{ "godotsteam", "https://codeberg.org/GodotSteam/GodotSteam" },
-	{ "godotsteam_server", "https://codeberg.org/GodotSteam/GodotSteam-Server" },
+	{ "godotsteam", "https://codeberg.org/godotsteam/godotsteam" },
+	{ "godotsteam_server", "https://codeberg.org/godotsteam/godotsteam-server" },
 };
 
 } // namespace

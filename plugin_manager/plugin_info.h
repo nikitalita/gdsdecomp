@@ -2,7 +2,7 @@
 #include "core/variant/variant.h"
 #include "utility/godotver.h"
 
-static constexpr int CACHE_VERSION = 2;
+static constexpr int CACHE_VERSION = 3;
 
 struct PluginBin {
 	String name;
@@ -73,9 +73,9 @@ struct ReleaseInfo {
 	int64_t primary_id = 0; // assetlib asset id or github release id
 	int64_t secondary_id = 0; // assetlib edit_id or github asset id
 	String version;
-	int engine_ver_major = 0;
 	String release_date;
 	String download_url;
+	String repository_url;
 
 	bool is_valid() const {
 		return !plugin_source.is_empty();
@@ -87,9 +87,9 @@ struct ReleaseInfo {
 		d["primary_id"] = primary_id;
 		d["secondary_id"] = secondary_id;
 		d["version"] = version;
-		d["engine_ver_major"] = engine_ver_major;
 		d["release_date"] = release_date;
 		d["download_url"] = download_url;
+		d["repository_url"] = repository_url;
 		return d;
 	}
 
@@ -99,9 +99,9 @@ struct ReleaseInfo {
 		info.primary_id = d.get("primary_id", 0);
 		info.secondary_id = d.get("secondary_id", 0);
 		info.version = d.get("version", "");
-		info.engine_ver_major = d.get("engine_ver_major", 0);
 		info.release_date = d.get("release_date", "");
 		info.download_url = d.get("download_url", "");
+		info.repository_url = d.get("repository_url", "");
 		return info;
 	}
 
@@ -110,9 +110,9 @@ struct ReleaseInfo {
 				primary_id == other.primary_id &&
 				secondary_id == other.secondary_id &&
 				version == other.version &&
-				engine_ver_major == other.engine_ver_major &&
 				release_date == other.release_date &&
-				download_url == other.download_url;
+				download_url == other.download_url &&
+				repository_url == other.repository_url;
 	}
 	bool operator!=(const ReleaseInfo &other) const {
 		return !(*this == other);
@@ -130,6 +130,7 @@ struct PluginVersion {
 	String min_godot_version;
 	String max_godot_version;
 	String base_folder;
+	int64_t size = 0;
 	Vector<GDExtInfo> gdexts;
 
 	static PluginVersion invalid() {
@@ -179,6 +180,7 @@ struct PluginVersion {
 		d["min_godot_version"] = min_godot_version;
 		d["max_godot_version"] = max_godot_version;
 		d["base_folder"] = base_folder;
+		d["size"] = size;
 		Array gdexts_arr;
 		for (const auto &gdext : gdexts) {
 			gdexts_arr.push_back(gdext.to_json());
@@ -195,6 +197,7 @@ struct PluginVersion {
 		version.min_godot_version = d.get("min_godot_version", "");
 		version.max_godot_version = d.get("max_godot_version", "");
 		version.base_folder = d.get("base_folder", "");
+		version.size = d.get("size", 0);
 		Array gdexts_arr = d.get("gdexts", {});
 		for (int i = 0; i < gdexts_arr.size(); i++) {
 			version.gdexts.push_back(GDExtInfo::from_json(gdexts_arr[i]));

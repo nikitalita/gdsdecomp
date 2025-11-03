@@ -348,6 +348,8 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 		return err;
 	}
 
+	plugin_version.size = FileAccess::get_size(zip_path);
+
 	Ref<ZIPReader> zip;
 	zip.instantiate();
 	err = zip->open(zip_path);
