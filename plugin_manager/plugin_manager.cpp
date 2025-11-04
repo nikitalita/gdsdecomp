@@ -1,4 +1,5 @@
 #include "plugin_manager.h"
+#include "core/error/error_macros.h"
 #include "core/io/dir_access.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
@@ -73,23 +74,24 @@ void PluginManager::unregister_source(Ref<PluginSource> source) {
 	--source_count;
 }
 
-PluginVersion PluginManager::get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id) {
+PluginVersion PluginManager::get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error) {
 	Ref<PluginSource> source = get_source(plugin_name);
 	ERR_FAIL_COND_V_MSG(source.is_null(), PluginVersion::invalid(), "No source found for plugin: " + plugin_name);
 
-	Error err = OK;
+	r_error = OK;
 	// Get ReleaseInfo from the source
-	ReleaseInfo release_info = source->get_release_info(plugin_name, primary_id, secondary_id, err);
-	ERR_FAIL_COND_V_MSG(err != OK, PluginVersion::invalid(), vformat("Failed to get release info for plugin %s primary id %d secondary id %d", plugin_name, primary_id, secondary_id));
+	ReleaseInfo release_info = source->get_release_info(plugin_name, primary_id, secondary_id, r_error);
+	ERR_FAIL_COND_V_MSG(r_error != OK, PluginVersion::invalid(), vformat("Failed to get release info for plugin %s primary id %d secondary id %d", plugin_name, primary_id, secondary_id));
 	if (!release_info.is_valid()) {
 		return PluginVersion::invalid(); // No release info available
 	}
 
-	return _get_plugin_version_for_current_release_info(release_info);
+	return _get_plugin_version_for_current_release_info(release_info, r_error);
 }
 
-PluginVersion PluginManager::_get_plugin_version_for_current_release_info(const ReleaseInfo &release_info) {
+PluginVersion PluginManager::_get_plugin_version_for_current_release_info(const ReleaseInfo &release_info, Error &r_error) {
 	// Generate cache key
+	r_error = OK;
 	String cache_key = release_info.get_cache_key();
 
 	{
@@ -100,7 +102,7 @@ PluginVersion PluginManager::_get_plugin_version_for_current_release_info(const 
 	}
 
 	// Populate PluginVersion from ReleaseInfo
-	PluginVersion plugin_version = populate_plugin_version_from_release(release_info);
+	PluginVersion plugin_version = populate_plugin_version_from_release(release_info, r_error);
 	if (!plugin_version.is_valid()) {
 		return PluginVersion::invalid(); // Return empty version on error
 	}
@@ -167,7 +169,8 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 		ERR_FAIL_COND_V_MSG(err != OK, found_version.to_json(), vformat("Failed to find release infos for plugin %s tag %s", plugin_name, found_version.release_info.version));
 		if (!release_infos.is_empty()) {
 			for (auto &current_info : release_infos) {
-				PluginVersion plugin_version = _get_plugin_version_for_current_release_info(current_info);
+				PluginVersion plugin_version = _get_plugin_version_for_current_release_info(current_info, err);
+				ERR_CONTINUE_MSG(err != OK, vformat("Failed to populate plugin version for plugin %s primary id %d secondary id %d", plugin_name, current_info.primary_id, current_info.secondary_id));
 				if (plugin_version.is_valid() && plugin_version.bin_hashes_match(hashes)) {
 					String previous_cache_key = found_version.release_info.get_cache_key();
 					String cache_key = plugin_version.release_info.get_cache_key();
@@ -195,7 +198,8 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 		if (!release_info.is_valid()) {
 			continue; // Skip if no release info available
 		}
-		auto plugin_version = _get_plugin_version_for_current_release_info(release_info);
+		auto plugin_version = _get_plugin_version_for_current_release_info(release_info, err);
+		ERR_CONTINUE_MSG(err != OK, vformat("Failed to populate plugin version for plugin %s primary id %d secondary id %d", plugin_name, version_key.first, version_key.second));
 		if (plugin_version.is_valid() && plugin_version.bin_hashes_match(hashes)) {
 			print_line("Found matching plugin after population: " + plugin_name + ", version: " + plugin_version.release_info.version + ", download url: " + plugin_version.release_info.download_url);
 			return plugin_version.to_json();
@@ -235,13 +239,14 @@ struct PrePopToken {
 	String plugin_name;
 	Ref<PluginSource> source;
 	Pair<int64_t, int64_t> version;
+	Error error = OK;
 };
 
 struct PrePopTask {
-	void do_task(uint32_t index, const PrePopToken *tokens) {
+	void do_task(uint32_t index, PrePopToken *tokens) {
+		Error &err = tokens[index].error;
 		auto &token = tokens[index];
 		// Use the new workflow: get ReleaseInfo and populate PluginVersion
-		Error err = OK;
 		ReleaseInfo release_info = token.source->get_release_info(token.plugin_name, token.version.first, token.version.second, err);
 		ERR_FAIL_COND_MSG(err != OK, vformat("Failed to get release info for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
 		if (release_info.is_valid()) {
@@ -253,7 +258,8 @@ struct PrePopTask {
 				valid = false;
 			}
 			if (!valid) {
-				PluginVersion plugin_version = PluginManager::populate_plugin_version_from_release(release_info);
+				PluginVersion plugin_version = PluginManager::populate_plugin_version_from_release(release_info, err);
+				ERR_FAIL_COND_MSG(err != OK, vformat("Failed to populate plugin version for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
 				if (plugin_version.is_valid()) {
 					PluginManager::cache_plugin_version(cache_key, plugin_version);
 				}
@@ -292,12 +298,20 @@ Error PluginManager::prepop_cache(const Vector<String> &plugin_names) {
 		auto group_id = WorkerThreadPool::get_singleton()->add_template_group_task(
 				&task,
 				&PrePopTask::do_task,
-				tokens.ptr(),
+				tokens.ptrw(),
 				tokens.size(), -1, true, SNAME("GDRESettings::prepop_plugin_cache_gh"));
 		WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_id);
+		for (int i = 0; i < tokens.size(); i++) {
+			if (tokens[i].error != OK) {
+				return tokens[i].error;
+			}
+		}
 	} else {
 		for (int i = 0; i < tokens.size(); i++) {
-			task.do_task(i, tokens.ptr());
+			task.do_task(i, tokens.ptrw());
+			if (tokens[i].error != OK) {
+				return tokens[i].error;
+			}
 		}
 	}
 	print_plugin_cache();
@@ -328,7 +342,7 @@ void PluginManager::cache_plugin_version(const String &cache_key, const PluginVe
 	plugin_version_cache[cache_key] = version;
 }
 
-PluginVersion PluginManager::populate_plugin_version_from_release(const ReleaseInfo &release_info) {
+PluginVersion PluginManager::populate_plugin_version_from_release(const ReleaseInfo &release_info, Error &r_error) {
 	PluginVersion version;
 	version.release_info = release_info;
 	version.plugin_name = ""; // Will be populated during analysis
@@ -337,8 +351,8 @@ PluginVersion PluginManager::populate_plugin_version_from_release(const ReleaseI
 	version.base_folder = "";
 
 	// Download and analyze the plugin using the new method
-	Error err = populate_plugin_version_hashes(version);
-	if (err != OK) {
+	r_error = populate_plugin_version_hashes(version);
+	if (r_error != OK) {
 		return PluginVersion::invalid(); // Return empty version on error
 	}
 
@@ -371,6 +385,8 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 
 	plugin_version.size = FileAccess::get_size(zip_path);
 
+	// check the magic number of the zip file before opening it
+	ERR_FAIL_COND_V_MSG(!gdre::is_zip_file(zip_path), ERR_FILE_CORRUPT, "File is not a zip file: " + zip_path);
 	Ref<ZIPReader> zip;
 	zip.instantiate();
 	err = zip->open(zip_path);

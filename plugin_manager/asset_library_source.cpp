@@ -421,13 +421,13 @@ Dictionary EditCache::to_json() const {
 Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) {
 	Vector<int64_t> asset_ids;
 	r_error = search_for_asset_ids(plugin_name, asset_ids);
-	ERR_FAIL_COND_V_MSG(r_error != OK, Vector<ReleaseInfo>(), "Failed to search for asset IDs for plugin " + plugin_name);
+	ERR_FAIL_COND_V_MSG(r_error != OK, {}, "Failed to search for asset IDs for plugin " + plugin_name);
 	Vector<ReleaseInfo> release_infos;
 	Vector<int64_t> edit_ids;
 	for (auto asset_id : asset_ids) {
 		Vector<Dictionary> edits;
-		Error err = get_edit_list(asset_id, edits);
-		ERR_CONTINUE_MSG(err != OK, vformat("Failed to get edit list for asset %d", asset_id));
+		r_error = get_edit_list(asset_id, edits);
+		ERR_FAIL_COND_V_MSG(r_error != OK, {}, vformat("Failed to get edit list for asset %d", asset_id));
 		for (int i = 0; i < edits.size(); i++) {
 			String version = edits[i].get("version_string", "");
 			if (version == tag) {
@@ -436,9 +436,8 @@ Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &
 					continue;
 				}
 				edit_ids.push_back(edit_id);
-				Error err;
-				ReleaseInfo rel_info = get_release_info(plugin_name, asset_id, edit_id, err);
-				ERR_FAIL_COND_V_MSG(err != OK, {}, vformat("Failed to get release info for asset %d edit %d", asset_id, edit_id));
+				ReleaseInfo rel_info = get_release_info(plugin_name, asset_id, edit_id, r_error);
+				ERR_FAIL_COND_V_MSG(r_error != OK, {}, vformat("Failed to get release info for asset %d edit %d", asset_id, edit_id));
 				if (rel_info.is_valid()) {
 					release_infos.push_back(rel_info);
 				}
