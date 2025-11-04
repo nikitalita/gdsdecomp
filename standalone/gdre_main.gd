@@ -615,7 +615,7 @@ func _ready():
 	var args = get_sanitized_args()
 	if handle_cli(args):
 		deferred_calls.push_back(func():
-			get_tree().quit()
+			get_tree().quit(ret_code)
 		)
 		return
 
@@ -875,7 +875,7 @@ func recovery(  input_files:PackedStringArray,
 		else:
 			print_usage()
 			print("Error: failed to locate " + file)
-			return
+			return 1
 	print("Input files: ", str(_new_files))
 	input_files = _new_files
 	var input_file = input_files[0]
@@ -898,19 +898,19 @@ func recovery(  input_files:PackedStringArray,
 	if da == null:
 		print_usage()
 		print("Error: failed to locate parent dir for " + input_file)
-		return
+		return 1
 	#directory
 	if da.dir_exists(input_file):
 		if input_files.size() > 1:
 			print_usage()
 			print("Error: cannot specify multiple directories")
-			return
+			return 1
 		if input_file.get_extension().to_lower() == "app":
 			is_dir = false
 		elif !da.dir_exists(input_file.path_join(".import")) && !da.dir_exists(input_file.path_join(".godot")):
 			print_usage()
 			print("Error: " + input_file + " does not appear to be a project directory")
-			return
+			return 1
 		else:
 			parent_dir = input_file
 			is_dir = true
@@ -918,7 +918,7 @@ func recovery(  input_files:PackedStringArray,
 	elif not da.file_exists(input_file):
 		print_usage()
 		print("Error: failed to locate " + input_file)
-		return
+		return 1
 
 	GDRESettings.open_log_file(output_dir)
 	if (enc_key != ""):
@@ -926,13 +926,13 @@ func recovery(  input_files:PackedStringArray,
 		if (err != OK):
 			print_usage()
 			print("Error: failed to set key!")
-			return
+			return 1
 
 	err = GDRESettings.load_project(input_files, extract_only, csharp_assembly)
 	if (err != OK):
 		print_usage()
 		print("Error: failed to open ", (GDRECommon.get_files_for_paths(input_files)))
-		return
+		return 1
 
 	print("Successfully loaded PCK!")
 	var ver_major = GDRESettings.get_ver_major()
@@ -942,10 +942,10 @@ func recovery(  input_files:PackedStringArray,
 	var files: PackedStringArray = []
 	if translation_only and scripts_only:
 		print("Error: cannot specify both --translation-only and --scripts-only")
-		return
+		return 1
 	elif ((translation_only or scripts_only) and (includes.size() > 0 or excludes.size() > 0)):
 		print("Error: cannot specify both --translation-only or --scripts-only and --include or --exclude")
-		return
+		return 1
 	if (translation_only):
 		var new_files:PackedStringArray = []
 		# remove all the non ".translation" files
@@ -972,7 +972,7 @@ func recovery(  input_files:PackedStringArray,
 				print("Error: no files found that match includes")
 				print("Includes: " + str(includes))
 				print(GLOB_NOTES)
-				return
+				return 1
 		else:
 			files = GDRESettings.get_file_list()
 		if excludes.size() > 0:
@@ -986,38 +986,41 @@ func recovery(  input_files:PackedStringArray,
 			if len(excludes) > 0:
 				print("Excludes: " + str(excludes))
 			print(GLOB_NOTES)
-			return
+			return 1
 
 	if output_dir != input_file and not is_dir:
 		if (da.file_exists(output_dir)):
 			print("Error: output dir appears to be a file, not extracting...")
-			return
+			return 1
 	if is_dir:
 		if extract_only:
 			print("Why did you open a folder to extract it??? What's wrong with you?!!?")
-			return
+			return 1
 		if output_dir.simplify_path() != input_file.simplify_path() and GDRECommon.copy_dir(input_file, output_dir) != OK:
 			print("Error: failed to copy " + input_file + " to " + output_dir)
-			return
+			return 1
 	else:
 		err = dump_files(output_dir, files, ignore_checksum_errors, skip_md5)
 		if (err != OK):
 			print("Error: failed to extract PAK file, not exporting assets")
-			return
+			return 1
 	var end_time;
 	var secs_taken;
 	if (extract_only):
 		end_time = Time.get_ticks_msec()
 		secs_taken = (end_time - start_time) / 1000
 		print("Extraction operation complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
-		return
+		return 0
 	err = export_imports(output_dir, files)
 	if err != OK and err != ERR_SKIP:
 		print("Error: failed to export imports: " + GDRESettings.get_recent_error_string())
+		return 1
+	if err == ERR_SKIP:
+		return 2
 	end_time = Time.get_ticks_msec()
 	secs_taken = (end_time - start_time) / 1000
 	print("Recovery finished in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
-
+	return 0
 
 func load_pck(input_files: PackedStringArray, extract_only: bool, includes, excludes, enc_key: String = ""):
 	var _new_files = []
@@ -1277,25 +1280,25 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 	if (pck_version < 0 or pck_engine_version == ""):
 		print_usage()
 		print("Error: --pck-version and --pck-engine-version are required for --pck-create")
-		return "Error: --pck-version and --pck-engine-version are required for --pck-create"
+		return 1
 	if (pck_file.is_empty()):
 		print_usage()
 		print("Error: --output is required for --pck-create")
-		return "Error: --output is required for --pck-create"
+		return 1
 
 	pck_dir = get_cli_abs_path(pck_dir)
 	pck_file = get_cli_abs_path(pck_file)
 	if (not DirAccess.dir_exists_absolute(pck_dir)):
 		print_usage()
 		print("Error: directory '" + pck_dir + "' does not exist")
-		return "Error: --output is required for --pck-create"
+		return 1
 	var pck = PckCreator.new()
 	pck.pack_version = pck_version
 	# split the engine version
 	var split = pck_engine_version.split(".")
 	if (split.size() != 3):
 		print("Error: invalid engine version format (x.y.z)")
-		return "Error: invalid engine version format (x.y.z)"
+		return 1
 	pck.ver_major = split[0].to_int()
 	pck.ver_minor = split[1].to_int()
 	pck.ver_rev = split[2].to_int()
@@ -1303,18 +1306,22 @@ func create_pck(pck_file: String, pck_dir: String, pck_version: int, pck_engine_
 		var err = GDRESettings.set_encryption_key_string(enc_key)
 		if (err != OK):
 			print("Error: failed to set key!")
-			return "Error: failed to set key!"
+			return 1
 		pck.set_encrypt(true)
 	if (not embed_pck.is_empty()):
 		embed_pck = get_cli_abs_path(embed_pck)
 		if (not FileAccess.file_exists(embed_pck)):
 			print("Error: embed EXE file '" + embed_pck + "' does not exist")
-			return "Error: embed EXE file '" + embed_pck + "' does not exist"
+			return 1
 		pck.exe_to_embed = embed_pck
 		print("Embedding PCK: " + embed_pck)
 	if (not watermark.is_empty()):
 		pck.watermark = watermark
-	pck.pck_create(pck_file, pck_dir, includes, excludes)
+	var err = pck.pck_create(pck_file, pck_dir, includes, excludes)
+	if err != OK:
+		print("Error: failed to create PCK file: " + err)
+		return 1
+	return 0
 
 
 func load_custom_bytecode(json_file: String):
@@ -1513,13 +1520,16 @@ func handle_cli(args: PackedStringArray) -> bool:
 			bytecode_version = load_custom_bytecode(custom_bytecode_file)
 			if bytecode_version == "":
 				print("Error: failed to load custom bytecode definition file: " + custom_bytecode_file)
+				ret_code = 1
 				return true
 			if not set_bytecode_version_override(bytecode_version):
+				ret_code = 1
 				return true
 			set_setting = true
 		elif arg.begins_with("--force-bytecode-version"):
 			bytecode_version = get_arg_value(arg)
 			if not set_bytecode_version_override(bytecode_version):
+				ret_code = 1
 				return true
 			set_setting = true
 		elif arg.begins_with("--list-files"):
@@ -1530,7 +1540,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			return true
 		elif arg.begins_with("--dump-bytecode-versions"):
 			output_dir = get_cli_abs_path(get_arg_value(arg))
-			var err = dump_bytecode_versions(output_dir)
+			ret_code = dump_bytecode_versions(output_dir)
 			return true
 		elif arg.begins_with("--bytecode"):
 			bytecode_version = get_arg_value(arg)
@@ -1573,6 +1583,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			if patch_files.is_empty():
 				print_usage()
 				print("ERROR: invalid --patch-translations format: must be <src_file>=<dest_file>")
+				ret_code = 1
 				return true
 			patch_translations[get_cli_abs_path(dequote(patch_files[0]).strip_edges())] = dequote(patch_files[1]).strip_edges()
 		elif arg.begins_with("--pck"):
@@ -1584,6 +1595,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			if patch_files.is_empty():
 				print_usage()
 				print("ERROR: invalid --patch-file format: must be <src_file>=<dest_file>")
+				ret_code = 1
 				return true
 			patch_map[get_cli_abs_path(dequote(patch_files[0]).strip_edges())] = dequote(patch_files[1]).strip_edges()
 		elif arg.begins_with("--csharp-assembly"):
@@ -1594,10 +1606,12 @@ func handle_cli(args: PackedStringArray) -> bool:
 			if translation_hint_file.is_empty():
 				print_usage()
 				print("Error: file path is required for --translation-hint")
+				ret_code = 1
 				return true
 			if GDRESettings.load_translation_key_hint_file(translation_hint_file) != OK:
 				print_usage()
 				print("Error: failed to load translation key hint file: " + translation_hint_file)
+				ret_code = 1
 				return true
 			set_setting = true
 		elif arg.begins_with("--skip-loading-resource-strings"):
@@ -1607,14 +1621,17 @@ func handle_cli(args: PackedStringArray) -> bool:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
 			print("Args: " + str(args))
+			ret_code = 1
 			return true
 		if last_error != "":
 			print_usage()
 			print(last_error)
+			ret_code = 1
 			return true
 	if main_cmds.size() > 1:
 		print_usage()
 		print("ERROR: invalid option! Must specify only one of " + ", ".join(MAIN_COMMANDS))
+		ret_code = 1
 		return true
 
 	if set_setting and main_cmds.size() == 0:
@@ -1630,7 +1647,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			var secs_taken = (end_time - start_time) / 1000
 			print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 		elif main_cmds.has("list-files"):
-			list_files(input_file)
+			ret_code = list_files(input_file)
 		elif compile_files.size() > 0:
 			ret_code = compile(compile_files, bytecode_version, output_dir)
 		elif decompile_files.size() > 0:
@@ -1654,26 +1671,27 @@ func handle_cli(args: PackedStringArray) -> bool:
 				return
 		elif patch_translations.size() > 0:
 			var rmap = {}
-			patch_translations(input_file, patch_translations, output_dir, locales_to_patch, rmap)
+			ret_code = patch_translations(input_file, patch_translations, output_dir, locales_to_patch, rmap)
 		elif not input_file.is_empty():
 			print("Recovery started")
 			print("input_file: ", input_file)
-			recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, skip_md5, csharp_assembly)
+			ret_code = recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, skip_md5, csharp_assembly)
 			GDRESettings.unload_project()
 			close_log()
 		elif not input_extract_file.is_empty():
-			recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes, skip_md5)
+			ret_code = recovery(input_extract_file, output_dir, enc_key, true, ignore_md5, excludes, includes, skip_md5)
 			GDRESettings.unload_project()
 			close_log()
 		elif txt_to_bin.is_empty() == false:
-			text_to_bin(txt_to_bin, output_dir)
+			ret_code = text_to_bin(txt_to_bin, output_dir)
 		elif bin_to_txt.is_empty() == false:
-			bin_to_text(bin_to_txt, output_dir)
+			ret_code = bin_to_text(bin_to_txt, output_dir)
 		elif not pck_create_dir.is_empty():
-			create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
+			ret_code = create_pck(output_dir, pck_create_dir, pck_version, pck_engine_version, includes, excludes, enc_key, embed_pck)
 		else:
 			print_usage()
 			print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
+			ret_code = 1
 	)
 	return true
 
@@ -1698,31 +1716,29 @@ func patch_pck(src_file: String, dest_pck:String, patch_file_map: Dictionary, in
 	if (src_file.is_empty()):
 		print_usage()
 		print("Error: --pck-patch is required")
-		return "Error: --pck-patch is required"
+		return 1
 	if (dest_pck.is_empty()):
 		print_usage()
 		print("Error: --output is required")
-		return "Error: --output is required"
+		return 1
 	src_file = get_cli_abs_path(src_file)
 	if (not FileAccess.file_exists(src_file)):
 		print("Error: PCK file '" + src_file + "' does not exist")
-		return "Error: PCK file '" + src_file + "' does not exist"
+		return 1
 	var existing_pck_files = load_pck([src_file], true, includes, excludes, enc_key)
 	if (existing_pck_files.size() == 0):
 		print("Error: failed to load PCK file")
-		return "Error: failed to load PCK file"
+		return 1
 	var pack_infos = GDRESettings.get_pack_info_list()
 	if (pack_infos.is_empty()):
 		print("Error: no PCK existing_pck_files loaded")
-		return "Error: no PCK files loaded"
+		return 1
 	if (pack_infos.size() > 1):
 		print("Error: multiple PCK existing_pck_files loaded, specify which one to patch")
-		return "Error: multiple PCK files loaded, specify which one to patch"
-
+		return 1
 	if (pack_infos[0].get_type() != 0 and pack_infos[0].get_type() != 4):
 		print("Error: file is not a PCK or EXE")
-		return "Error: file is not a PCK or EXE"
-
+		return 1
 	var reverse_map:Dictionary[String, String] = {}
 	for key in patch_file_map.keys():
 		reverse_map[patch_file_map[key]] = key
@@ -1736,22 +1752,22 @@ func patch_pck(src_file: String, dest_pck:String, patch_file_map: Dictionary, in
 	var err = pck_patcher.add_files(patch_file_map)
 	if (err != OK):
 		print("Error: failed to add files to patch PCK: " + pck_patcher.get_error_message())
-		return "Error: failed to add files to patch PCK: " + pck_patcher.get_error_message()
+		return 1
 	err = pck_patcher.finish_pck()
 	GDRESettings.unload_project()
 	if err == ERR_PRINTER_ON_FIRE: # rename file
 		var tmp_path = pck_patcher.get_error_message()
 		err = DirAccess.remove_absolute(dest_pck)
 		if (err != OK):
-			print("Error: failed to remove existing PCK: " + pck_patcher.get_error_message())
-			return "Error: failed to remove existing PCK: " + pck_patcher.get_error_message()
+			print("Error: failed to remove existing PCK")
+			return 1
 		err = DirAccess.rename_absolute(tmp_path, dest_pck)
 
 	if (err != OK):
 		print("Error: failed to write patching PCK:" + pck_patcher.get_error_message())
-		return "Error: failed to finish patching PCK:" + pck_patcher.get_error_message()
+		return 1
 	print("Patched PCK file: " + dest_pck)
-	return ""
+	return 0
 
 
 func _on_gdre_patch_pck_do_patch_pck(dest_pck: String, file_map: Dictionary[String, String], should_embed: bool) -> void:
