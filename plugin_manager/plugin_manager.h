@@ -42,7 +42,7 @@ public:
 	static Dictionary get_plugin_info(const String &plugin_name, const Vector<String> &hashes);
 	static void load_cache();
 	static void save_cache();
-	static void prepop_cache(const Vector<String> &plugin_names, bool multithread = true);
+	static Error prepop_cache(const Vector<String> &plugin_names);
 	static bool is_prepopping();
 	// PluginVersion cache management
 	static PluginVersion get_cached_plugin_version(const String &cache_key);

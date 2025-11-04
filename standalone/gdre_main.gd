@@ -1622,7 +1622,10 @@ func handle_cli(args: PackedStringArray) -> bool:
 	deferred_calls.push_back(func():
 		if prepop.size() > 0:
 			var start_time = Time.get_ticks_msec()
-			GDRESettings.prepop_plugin_cache(prepop)
+			var err = PluginManager.prepop_cache(prepop)
+			if err != OK:
+				print("Error: failed to prepop plugin cache: " + err)
+				ret_code = 1
 			var end_time = Time.get_ticks_msec()
 			var secs_taken = (end_time - start_time) / 1000
 			print("Prepop complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])

@@ -262,7 +262,8 @@ struct PrePopTask {
 	}
 };
 
-void PluginManager::prepop_cache(const Vector<String> &plugin_names, bool multithread) {
+Error PluginManager::prepop_cache(const Vector<String> &plugin_names) {
+	bool multithread = !GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 	prepopping = true;
 	String plugin_names_str = String(", ").join(plugin_names);
 	print_line("Prepopulating cache for " + plugin_names_str);
@@ -276,7 +277,7 @@ void PluginManager::prepop_cache(const Vector<String> &plugin_names, bool multit
 		}
 		Error err = OK;
 		auto versions = source->get_plugin_version_numbers(plugin_name, err);
-		ERR_FAIL_COND_MSG(err != OK, vformat("Failed to get plugin version numbers for plugin %s", plugin_name));
+		ERR_FAIL_COND_V_MSG(err != OK, err, vformat("Failed to get plugin version numbers for plugin %s", plugin_name));
 		for (auto &version : versions) {
 			PrePopToken token;
 			token.plugin_name = plugin_name;
@@ -302,6 +303,7 @@ void PluginManager::prepop_cache(const Vector<String> &plugin_names, bool multit
 	print_plugin_cache();
 
 	prepopping = false;
+	return OK;
 }
 
 bool PluginManager::is_prepopping() {
@@ -585,7 +587,7 @@ void PluginManager::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_plugin_info", "plugin_name", "hashes"), &PluginManager::get_plugin_info);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("load_cache"), &PluginManager::load_cache);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_cache"), &PluginManager::save_cache);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("prepop_cache", "plugin_names", "multithread"), &PluginManager::prepop_cache, DEFVAL(true));
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("prepop_cache", "plugin_names"), &PluginManager::prepop_cache);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("register_source", "name", "source"), &PluginManager::register_source);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("unregister_source", "name"), &PluginManager::unregister_source);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("print_plugin_cache"), &PluginManager::print_plugin_cache);
