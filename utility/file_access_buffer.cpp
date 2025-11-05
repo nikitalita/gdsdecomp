@@ -56,7 +56,16 @@ Error FileAccessBuffer::open_custom(const Vector<uint8_t> &p_data) {
 }
 
 Error FileAccessBuffer::open_internal(const String &p_path, int p_mode_flags) {
-	ERR_FAIL_V(ERR_UNAVAILABLE);
+	path = p_path;
+	if (p_mode_flags == FileAccess::WRITE) {
+		return open_new();
+	}
+	pos = 0;
+	return OK;
+}
+
+String FileAccessBuffer::get_path() const {
+	return path;
 }
 
 bool FileAccessBuffer::is_open() const {
@@ -96,8 +105,9 @@ uint64_t FileAccessBuffer::get_buffer(uint8_t *p_dst, uint64_t p_length) const {
 	if (read < p_length) {
 		WARN_PRINT("Reading less data than requested");
 	}
-
-	memcpy(p_dst, &data[pos], read);
+	if (read > 0) {
+		memcpy(p_dst, &data[pos], read);
+	}
 	pos += read;
 
 	return read;
@@ -161,6 +171,9 @@ void FileAccessBuffer::set_auto_resize_behavior(ResizeBehavior p_resize_behavior
 }
 
 Vector<uint8_t> FileAccessBuffer::get_data() const {
+	if (real_size != (size_t)data.size()) {
+		return data.slice(0, real_size);
+	}
 	return data;
 }
 
