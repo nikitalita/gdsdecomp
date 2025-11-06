@@ -20,7 +20,6 @@ git reset --hard $HEAD
 
 BRANCHES_TO_MERGE=(
 	fix-pack-error
-	gltf-use-orm-texture
 	convert-3.x-escn
 )
 
