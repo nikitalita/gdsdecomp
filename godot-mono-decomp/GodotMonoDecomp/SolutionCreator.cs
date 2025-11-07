@@ -174,11 +174,11 @@ namespace GodotMonoDecomp
 			{
 				XDocument projectDoc = XDocument.Load(project.FilePath);
 
-				var referencesItemGroups = projectDoc.Root
+				var referencesItemGroups = projectDoc.Root?
 					.Elements(ProjectFileNamespace + "ItemGroup")
 					.Where(e => e.Elements(ProjectFileNamespace + "Reference").Any());
 
-				foreach (var itemGroup in referencesItemGroups)
+				foreach (var itemGroup in referencesItemGroups ?? [])
 				{
 					FixProjectReferences(project.FilePath, itemGroup, projectsMap);
 				}

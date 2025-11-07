@@ -1465,6 +1465,18 @@ Error VariantDecoderCompat::decode_variant_2(Variant &r_variant, const uint8_t *
 			} else {
 				//old format, just a string
 
+				buf += 4;
+				len -= 4;
+				ERR_FAIL_COND_V((int)strlen > len, ERR_INVALID_DATA);
+
+				String str;
+				str.append_utf8((const char *)buf, strlen);
+
+				r_variant = NodePath(str);
+
+				if (r_len)
+					(*r_len) += 4 + strlen;
+
 				ERR_FAIL_V(ERR_INVALID_DATA);
 			}
 
@@ -2590,8 +2602,7 @@ Error VariantDecoderCompat::encode_variant_2(const Variant &p_variant, uint8_t *
 			int property_idx = -1;
 			uint16_t snc = np.get_subname_count(); // this is the canonical subname count for v2 variants
 			// If there is a property, decrement the subname counter and store the property idx.
-			if (np.get_subname_count() > 1 &&
-					String(np.get_concatenated_subnames()).split(":").size() >= 2) {
+			if (np.get_subname_count() >= 1) {
 				property_idx = np.get_subname_count() - 1;
 				snc--;
 			}
@@ -2622,7 +2633,7 @@ Error VariantDecoderCompat::encode_variant_2(const Variant &p_variant, uint8_t *
 				if (i < np.get_name_count())
 					str = np.get_name(i);
 				else if (i < np.get_name_count() + snc)
-					str = np.get_subname(i - snc);
+					str = np.get_subname(i - np.get_name_count());
 				else // property
 					str = np.get_subname(property_idx);
 

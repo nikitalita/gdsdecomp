@@ -17,7 +17,7 @@ public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 	private IMember targetMember;
 	private GodotProjectDecompiler godotDecompiler;
 	private bool found = false;
-	private SyntaxTree syntaxTree;
+	private SyntaxTree? syntaxTree;
 
 	public GetFieldInitializerValueVisitor(IMember member, GodotProjectDecompiler godotDecompiler)
 	{
@@ -98,7 +98,7 @@ public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 				if (sym is IMember symMem && symMem.DeclaringType.Equals(targetMember.DeclaringType))
 				{
 					var vis = new GetFieldInitializerValueVisitor(symMem, godotDecompiler);
-					this.syntaxTree.AcceptVisitor(vis);
+					this.syntaxTree?.AcceptVisitor(vis);
 					value = vis.strVal;
 				}
 				else
@@ -148,7 +148,7 @@ public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 					{
 						IMember prop = (IMember)s;
 						var declaringType = prop.DeclaringType.GetDefinition();
-						if (declaringType == null || declaringType.ParentModule == null)
+						if (declaringType == null || declaringType.ParentModule == null || declaringType.ParentModule.MetadataFile == null)
 						{
 							return GodotExpressionOutputVisitor.GetString(memberReferenceExpression);
 						}
@@ -325,7 +325,7 @@ public static class GodotStuff
 	{
 		var fileMap = new Dictionary<string, TypeDefinitionHandle>();
 		var metadata = module.Metadata;
-		Dictionary<string, string> metadataFQNToFileMap = null;
+		Dictionary<string, string>? metadataFQNToFileMap = null;
 		if (scriptMetadata != null)
 		{
 			// create a map of metadata FQN to file path
@@ -615,7 +615,7 @@ public static class GodotStuff
 	}
 
 
-	public static List<PartialTypeInfo> GetPartialGodotTypes(DecompilerTypeSystem ts,
+	public static List<PartialTypeInfo> GetPartialGodotTypes(MetadataModule module,
 		IEnumerable<TypeDefinitionHandle> typesToDecompile)
 	{
 
@@ -646,24 +646,25 @@ public static class GodotStuff
 			// embedded types, too
 			for (int i = 0; i < typeDef.NestedTypes.Count; i++)
 			{
-				var nestedType = typeDef.NestedTypes[i];
-				if (GodotStuff.IsGodotPartialClass(nestedType))
-				{
-					addPartialTypeInfo(nestedType);
-				}
+				addPartialTypeInfo(typeDef.NestedTypes[i]);
 			}
 		}
 		foreach (var type in typesToDecompile)
 		{
-			// get the type definition from allTypeDefs where the metadata token matches
-			var typeDef = ts.GetAllTypeDefinitions()
-				.FirstOrDefault(td => td.MetadataToken.Equals(type));
-			if (typeDef == null)
+			try
 			{
-				continue;
-			}
-			addPartialTypeInfo(typeDef);
+				var typeDef = module.GetDefinition(type);
+				if (typeDef == null)
+				{
+					continue;
+				}
 
+				addPartialTypeInfo(typeDef);
+			}
+			catch
+			{
+				// skip
+			}
 		}
 
 		return partialTypes;
@@ -864,7 +865,7 @@ public static class GodotStuff
 			{
 				return false;
 			}
-			IMember member = baseType.GetMembers().FirstOrDefault(m => m.Name == memberName);
+			IMember? member = baseType.GetMembers().FirstOrDefault(m => m.Name == memberName);
 
 			if ((isGetter || isSetter) && member is IProperty prop)
 			{
@@ -1074,7 +1075,7 @@ public static class GodotStuff
 		var newType = csharpType;
 		var subType = csharpType;
 		bool isArray = false;
-		bool isDictionary = false;
+		// bool isDictionary = false;
 		// Godot 3.x PackedArray types
 		if (csharpType.StartsWith("Pool") && csharpType.EndsWith("Array"))
 		{

@@ -109,19 +109,19 @@ static public class Lib
 	{
 		private delegate int ProgressFunction(IntPtr userData, int current, int total, IntPtr status);
 
-		private ProgressFunction progressFunction;
-		private IntPtr userData;
+		private readonly ProgressFunction? progressFunction;
+		private readonly IntPtr userData;
 
-		private CancellationTokenSource cancelSource;
+		private readonly CancellationTokenSource cancelSource;
 
 		public CancellationToken CancellationToken => cancelSource.Token;
 
 
 		public AOTGodotModuleDecompilerProgress(IntPtr reportFunc, IntPtr userData)
 		{
-			if (reportFunc == IntPtr.Zero) return;
 			this.userData = userData;
 			this.cancelSource = new CancellationTokenSource();
+			if (reportFunc == IntPtr.Zero) return;
 			progressFunction = Marshal.GetDelegateForFunctionPointer<ProgressFunction>(reportFunc);
 		}
 
@@ -172,7 +172,7 @@ static public class Lib
 	)
 	{
 		var cancellationToken = GCHandle.FromIntPtr(cancellationSourcePtr).Target as CancellationTokenSource;
-		cancellationToken.Cancel();
+		cancellationToken?.Cancel();
 		return 0;
 	}
 

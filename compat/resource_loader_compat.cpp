@@ -218,7 +218,7 @@ String _validate_local_path(const String &p_path) {
 		return ResourceUID::get_singleton()->get_id_path(uid);
 	} else if (p_path.is_relative_path()) {
 		return ("res://" + p_path).simplify_path();
-	} else if (GDRESettings::get_singleton()->is_pack_loaded() && p_path.is_absolute_path() && !p_path.begins_with("res://") && !p_path.begins_with("user://")) {
+	} else if ((GDRESettings::get_singleton()->is_pack_loaded() || !GDRESettings::get_singleton()->get_project_path().is_empty()) && p_path.is_absolute_path() && !p_path.begins_with("res://") && !p_path.begins_with("user://")) {
 		return GDRESettings::get_singleton()->localize_path(p_path);
 	}
 	return p_path;
@@ -451,25 +451,40 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 	if (!FileAccess::exists(path)) {
 		orig_path = path;
 		path = GDRESettings::get_singleton()->get_mapped_path(path);
-		ERR_FAIL_COND_V_MSG(!FileAccess::exists(path), "", "File does not exist: " + path);
+		if (!FileAccess::exists(path)) {
+			return "ERROR: File does not exist: " + path;
+		}
 	}
 	if (path.get_file().to_lower() == "engine.cfb" || path.get_file().to_lower() == "project.binary") {
 		return ProjectConfigLoader::get_project_settings_as_string(path);
 	}
 	String ext = path.get_extension().to_lower();
 	if (ext == "tres" || ext == "tscn" || !handles_resource(path, "")) {
-		auto buf = FileAccess::get_file_as_bytes(path);
+		Error err;
+		Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ, &err);
+		if (f.is_null() || err != OK) {
+			if (err == ERR_UNAUTHORIZED) {
+				return "ERROR: Can't read encrypted file: " + path;
+			}
+			return "ERROR: Failed to open file: " + path;
+		}
+		auto buf = f->get_buffer(f->get_length());
 		if (ext == "tres" || ext == "tscn" || gdre::detect_utf8(buf)) {
 			String str;
 			str.append_utf8((const char *)buf.ptr(), buf.size());
 			return str;
 		}
-		ERR_FAIL_V_MSG("", "Failed to detect UTF-8 encoding for " + path);
+		return "ERROR: Failed to detect UTF-8 encoding for " + path;
 	}
 
 	Error err = OK;
 	Ref<Resource> res = _load_for_text_conversion(path, orig_path, &err);
-	ERR_FAIL_COND_V_MSG(err != OK || res.is_null(), "", "Failed to load " + path);
+	if (err != OK || res.is_null()) {
+		if (err == ERR_UNAUTHORIZED) {
+			return "ERROR: Can't read encrypted file: " + path;
+		}
+		return "ERROR: Failed to load " + path;
+	}
 
 	int64_t length = FileAccess::get_size(path);
 	Ref<Script> script = res;
@@ -491,7 +506,9 @@ String ResourceCompatLoader::resource_to_string(const String &p_path, bool p_ski
 		save_path = path.get_basename() + (res->get_save_class() == "PackedScene" ? ".tscn" : ".tres");
 		err = saver.save_to_file(f, save_path, res, 0);
 	}
-	ERR_FAIL_COND_V_MSG(err != OK, "", "Failed to save resource '" + path + "'.");
+	if (err != OK) {
+		return "ERROR: Failed to save resource '" + path + "'.";
+	}
 	return f->whole_file_as_utf8_string();
 }
 
@@ -598,20 +615,21 @@ bool ResourceCompatLoader::is_globally_available() {
 }
 
 Error ResourceCompatLoader::save_custom(const Ref<Resource> &p_resource, const String &p_path, int ver_major, int ver_minor) {
+	String path = GDRESettings::get_singleton()->globalize_path(p_path);
 	ERR_FAIL_COND_V_MSG(ver_major <= 0, ERR_INVALID_PARAMETER, "Invalid version info");
-	Error err = gdre::ensure_dir(p_path.get_base_dir());
-	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not ensure directory for " + p_path);
-	if (p_path.get_extension() == "tres" || p_path.get_extension() == "tscn") {
+	Error err = gdre::ensure_dir(path.get_base_dir());
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not ensure directory for " + path);
+	if (path.get_extension() == "tres" || path.get_extension() == "tscn") {
 		int ver_format = ResourceFormatSaverCompatText::get_default_format_version(ver_major, ver_minor);
 		ResourceFormatSaverCompatText saver;
-		return saver.save_custom(p_resource, p_path, ver_format, ver_major, ver_minor);
+		return saver.save_custom(p_resource, path, ver_format, ver_major, ver_minor);
 	}
 	int ver_format = ResourceFormatSaverCompatBinary::get_default_format_version(ver_major, ver_minor);
 	ResourceFormatSaverCompatBinary saver;
-	return saver.save_custom(p_resource, p_path, ver_format, ver_major, ver_minor);
+	return saver.save_custom(p_resource, path, ver_format, ver_major, ver_minor);
 }
 
-String ResourceCompatConverter::get_resource_name(const Ref<Resource> &res, int ver_major) {
+String ResourceCompatConverter::get_resource_name(const Ref<MissingResource> &res, int ver_major) {
 	String name;
 	Variant n = ver_major < 3 ? res->get("resource/name") : res->get("resource_name");
 	if (n.get_type() == Variant::STRING) {
@@ -747,9 +765,7 @@ Ref<MissingResource> ResourceCompatConverter::get_missing_resource_from_real(Ref
 	mr->set_name(res->get_name());
 	mr->set_local_to_scene(res->is_local_to_scene());
 	mr->set_script(res->get_script());
-	if (ver_major >= 4 && !res->get_scene_unique_id().is_empty()) {
-		mr->set_scene_unique_id(res->get_scene_unique_id());
-	}
+	mr->set_scene_unique_id(res->get_scene_unique_id());
 	List<PropertyInfo> property_info;
 	res->get_property_list(&property_info);
 	for (auto &property : property_info) {
@@ -785,4 +801,8 @@ Ref<Resource> ResourceCompatConverter::get_real_from_missing_resource(Ref<Missin
 		ERR_FAIL_V_MSG(Ref<Resource>(), "Failed to cast material to object: " + mr->get_path());
 	}
 	return set_real_from_missing_resource(mr, res, load_type, prop_map);
+}
+
+bool CompatFormatLoader::resource_is_resource(Ref<Resource> p_res, int ver_major) {
+	return p_res.is_valid() && !(ver_major <= 2 && (p_res->get_save_class() == "Image" || Ref<InputEvent>(p_res).is_valid()));
 }

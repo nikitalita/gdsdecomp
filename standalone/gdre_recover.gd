@@ -12,7 +12,6 @@ var DIRECTORY: LineEdit = null
 var RESOURCE_PREVIEW: Control = null
 var HSPLIT_CONTAINER: HSplitContainer = null
 var SHOW_PREVIEW_BUTTON: Button = null
-var DESKTOP_DIR = OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP)
 
 var isHiDPI = false #DisplayServer.screen_get_dpi() >= 240
 var root: TreeItem = null
@@ -401,7 +400,8 @@ func setup_export_resources_dir_dialog():
 func setup_extract_resources_dir_dialog():
 	%ExtractResDirDialog.connect("dir_selected", self._on_extract_resources_dir_selected)
 
-
+func get_default_dir() -> String:
+	return GDREConfig.get_setting("default_parent_folder_for_recovery", OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP))
 
 func _ready():
 	FILE_TREE =      %FileTree
@@ -430,7 +430,7 @@ func _ready():
 	setup_extract_dir_dialog()
 	setup_export_resources_dir_dialog()
 	setup_extract_resources_dir_dialog()
-	DIRECTORY.text = DESKTOP_DIR
+	DIRECTORY.text = get_default_dir()
 	FILE_TREE.add_custom_right_click_item("Extract Selected...", self._on_extract_resources_pressed)
 	FILE_TREE.add_custom_right_click_item("Export Selected...", self._on_export_resources_pressed)
 	# load_test()
@@ -454,7 +454,7 @@ func add_project(paths: PackedStringArray) -> int:
 	INFO_TEXT.text = "Total files: " + String.num_int64(FILE_TREE.num_files)# +
 	if FILE_TREE.num_broken > 0 or FILE_TREE.num_malformed > 0:
 		INFO_TEXT.text += "   Broken files: " + String.num_int64(FILE_TREE.num_broken) + "    Malformed paths: " + String.num_int64(FILE_TREE.num_malformed)
-	DIRECTORY.text = DESKTOP_DIR.path_join(GDRESettings.get_pack_path().get_file().get_basename())
+	DIRECTORY.text = get_default_dir().path_join(GDRESettings.get_game_name())
 
 	if GodotMonoDecompWrapper.is_godot_mono_decomp_enabled() and GDRESettings.project_requires_dotnet_assembly():
 		# don't show the assembly picker if the assembly is loaded from a temp directory

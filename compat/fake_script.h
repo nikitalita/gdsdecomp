@@ -167,7 +167,10 @@ public:
 	virtual Variant call_const(const StringName &p_method, const Variant **p_args, int p_argcount, Callable::CallError &r_error) override; // implement if language supports const functions
 	virtual void notification(int p_notification, bool p_reversed = false) override;
 	virtual String to_string(bool *r_valid) override {
-		return "FAKE_SCRIPT_INSTANCE";
+		if (r_valid) {
+			*r_valid = false;
+		}
+		return String();
 	}
 
 	//this is used by script languages that keep a reference counter of their own

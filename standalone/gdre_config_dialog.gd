@@ -23,6 +23,7 @@ var force_change = false
 var setting_value_map: Dictionary = {}
 var setting_button_map: Dictionary = {}
 const RESET_BUTTON_ICON = preload("res://gdre_icons/gdre_Reload.svg")
+const FILEPICKER_ICON = preload("res://gdre_icons/gdre_FileBrowse.svg")
 
 func create_section_label(text: String) -> Label:
 	var label: Label = Label.new()
@@ -74,11 +75,15 @@ func create_new_subsubsection(text: String, subsection: VBoxContainer) -> VBoxCo
 var section_map: Dictionary = {}
 var vboxes: Array[VBoxContainer] = []
 
-func make_button_hbox(setting: GDREConfigSetting, button: Control, label: Label) -> HBoxContainer:
+func make_button_hbox(setting: GDREConfigSetting, button: Control, label: Label, extra_label: Label = null) -> HBoxContainer:
 	var hbox: HBoxContainer = HBoxContainer.new()
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(label)
-	hbox.add_child(make_reset_button(setting, button))
+	var reset_parent = button
+	if extra_label:
+		reset_parent = extra_label
+		hbox.add_child(extra_label)
+	hbox.add_child(make_reset_button(setting, reset_parent))
 	hbox.add_child(button)
 	return hbox
 
@@ -123,34 +128,41 @@ func setting_callback(setting: GDREConfigSetting, value: Variant, control: Contr
 
 	else:
 		set_setting_value(setting, value)
-	# check if the control is a button
-	if control is Button:
-		control.get_child(0).get_child(0).visible = value != setting.get_default_value()
-	elif control is HBoxContainer:
-		control.get_child(1).visible = value != setting.get_default_value()
+		if control is Button:
+			control.get_child(0).get_child(0).visible = value != setting.get_default_value()
+		elif control is HBoxContainer:
+			var child = control.get_child(1)
+			if child is Label:
+				child.text = String(value) if value else ""
+				child = control.get_child(2)
+			if child is Button:
+				child.visible = value != setting.get_default_value()
+
 
 	if (reset):
 		clear(false)
 
-
 func reset_callback(setting: GDREConfigSetting, control: Control, reset_button: Control):
 	reset_button.visible = false
 	var default_val = setting.get_default_value()
-	if control is OptionButton:
+	if control is Label:
+		control.text = default_val
+	elif control is OptionButton:
 		for i in range(0, control.item_count):
 			if (control.get_item_metadata(i) == default_val):
 				control.selected = i
 				break
 	elif control is CheckButton:
-		control.button_pressed = setting.get_default_value()
+		control.button_pressed = default_val
 	elif control is SpinBox:
-		control.value = setting.get_default_value()
+		control.value = default_val
 	elif control is LineEdit:
-		control.text = setting.get_default_value()
-	set_setting_value(setting, setting.get_default_value())
+		control.text = default_val
+	set_setting_value(setting, default_val)
 
 func make_reset_button(setting: GDREConfigSetting, parent: Control) -> Button:
 	var button: Button = Button.new()
+	button.name = &"Reset"
 	button.theme_type_variation = &"FlatButton"
 	button.icon = RESET_BUTTON_ICON
 	button.pressed.connect(func(): reset_callback(setting, parent, button))
@@ -175,12 +187,13 @@ func add_reset_button_to_toggle_button(setting: GDREConfigSetting, button: Butto
 	hbox.add_child(reset_button)
 
 
-func _on_file_picker_file_selected(path: String, callback: Callable):
-	%FileDialog.file_selected.disconnect(_on_file_picker_file_selected.bindv([callback]))
-	callback.call(path)
-
-func open_file_picker(callback: Callable):
-	%FileDialog.file_selected.connect(_on_file_picker_file_selected.bindv([callback]))
+func open_file_picker(is_dir: bool, callback: Callable):
+	if is_dir:
+		%FileDialog.dir_selected.connect(callback, CONNECT_ONE_SHOT)
+		%FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+	else:
+		%FileDialog.file_selected.connect(callback, CONNECT_ONE_SHOT)
+		%FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	%FileDialog.popup_centered()
 
 func create_setting_button(setting: GDREConfigSetting) -> Control:
@@ -189,14 +202,18 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 	var control: Control = null
 	var button = null
 	var value = setting_value_map.get(setting, setting.get_value())
-	if setting.is_filepicker():
+	if setting.is_filepicker() or setting.is_dirpicker():
 		button = Button.new()
-		if (String(value).is_empty()):
-			button.text = "Select File..."
+		if setting.is_virtual_setting():
+			button.text = "Select %s..." % ["File" if setting.is_filepicker() else "Directory"]
 		else:
-			button.text = value
-		control = make_button_hbox(setting, button, make_button_label(setting.get_brief_description()))
-		button.pressed.connect(open_file_picker.bind(func(path: String): setting_callback(setting, path, control)))
+			button.text = ""
+			button.icon = FILEPICKER_ICON
+		var value_text = String(value) if value else ""
+		var extra_label: Label = make_button_label(value_text)
+		extra_label.name = &"ValueLabel"
+		control = make_button_hbox(setting, button, make_button_label(setting.get_brief_description()), extra_label)
+		button.pressed.connect(open_file_picker.bind(setting.is_dirpicker(), func(path: String): setting_callback(setting, path, control)))
 	elif setting.has_special_value():
 		button = OptionButton.new()
 		var items = setting.get_list_of_possible_values()
@@ -242,6 +259,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		button.value_changed.connect(func(val): setting_callback(setting, val, control))
 	elif setting.get_type() == TYPE_STRING:
 		button = LineEdit.new()
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2i(80,0)
 		button.text = value
 		var label: Label = make_button_label(setting.get_brief_description())

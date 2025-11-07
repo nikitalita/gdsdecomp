@@ -167,7 +167,7 @@ public:
 	virtual void set_params(Dictionary params) = 0;
 
 	virtual Error reload() = 0;
-	virtual String to_string() override;
+	virtual String _to_string() override;
 
 	String as_text(bool full = true);
 

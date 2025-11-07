@@ -261,7 +261,7 @@ String SemVer::as_text() const {
 	return ver_text;
 }
 
-String SemVer::to_string() {
+String SemVer::_to_string() {
 	return as_text();
 }
 

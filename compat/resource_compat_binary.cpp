@@ -45,6 +45,7 @@
 
 #include "compat/fake_scene_state.h"
 #include "compat/image_parser_v2.h"
+#include "utility/file_access_buffer.h"
 #include "utility/gdre_settings.h"
 #include "utility/resource_info.h"
 
@@ -967,6 +968,9 @@ Error ResourceLoaderCompatBinary::load() {
 			}
 
 			if (set_valid) {
+				if (!missing_resource && ver_major <= 2 && name == "resource/name") {
+					name = "resource_name";
+				}
 				res->set(name, value);
 			}
 		}
@@ -2047,10 +2051,10 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 			f->store_16(np.get_name_count());
 			uint16_t snc = np.get_subname_count();
 			int property_idx = -1;
-			if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+			bool has_no_nodepath_property = ver_format >= FORMAT_VERSION_NO_NODEPATH_PROPERTY;
+			if (!has_no_nodepath_property) {
 				// If there is a property, decrement the subname counter and store the property idx.
-				if (np.get_subname_count() > 1 &&
-						String(np.get_concatenated_subnames()).split(":").size() >= 2) {
+				if (np.get_subname_count() >= 1) {
 					property_idx = np.get_subname_count() - 1;
 					snc--;
 				}
@@ -2075,13 +2079,15 @@ void ResourceFormatSaverCompatBinaryInstance::write_variant(Ref<FileAccess> f, c
 				}
 			}
 			if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+				StringName property_name;
 				if (property_idx > -1) {
-					f->store_32(p_string_map[np.get_subname(property_idx)]);
-					// otherwise, store zero-length string
+					property_name = np.get_subname(property_idx);
+				}
+				// otherwise, store zero-length string
+				if (p_string_map.has(property_name)) {
+					f->store_32(uint32_t(p_string_map[property_name]));
 				} else {
-					// 0x80000000 will resolve to a zero length string in the binary parser for any version
-					uint32_t zlen = 0x80000000;
-					f->store_32(zlen);
+					save_unicode_string(f, property_name, true);
 				}
 			}
 
@@ -2540,9 +2546,17 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 
 			ResourceData &rd = resources.push_back(ResourceData())->get();
 			rd.type = _resource_get_class(E);
+			auto res_for_props = E;
+			bool is_missing_resource = E->get_class() == "MissingResource";
+			if (!is_missing_resource) {
+				auto converter = ResourceCompatLoader::get_converter_for_type(E->get_save_class(), ver_major);
+				if (converter.is_valid() && converter->has_convert_back()) {
+					res_for_props = converter->convert_back(E, ver_major);
+				}
+			}
 
 			List<PropertyInfo> property_list;
-			E->get_property_list(&property_list);
+			res_for_props->get_property_list(&property_list);
 
 			// COMPAT: if the script property isn't at the top, resources that are script instances will have their script properties stripped upon loading in the editor.
 			CompatFormatLoader::move_script_property_to_top(&property_list);
@@ -2569,7 +2583,7 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 							p.value = non_persistent_map[npk];
 						}
 					} else {
-						p.value = E->get(F.name);
+						p.value = res_for_props->get(F.name);
 					}
 
 					if (F.type == Variant::OBJECT && missing_resource_properties.has(F.name)) {
@@ -2597,12 +2611,18 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 					}
 
 					p.pi = F;
+					if (ver_major <= 2 && F.name == "resource_name" && !is_missing_resource) {
+						p.pi.name = "resource/name";
+					}
 
 					rd.properties.push_back(p);
 				}
 			}
 		}
 	}
+
+	// ensure an empty string is in the string map
+	get_string_index({});
 
 	f->store_32(strings.size()); //string table size
 	for (int i = 0; i < strings.size(); i++) {
@@ -2654,6 +2674,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	int res_index = 0;
 	for (Ref<Resource> &r : saved_resources) {
 		if (r->is_built_in()) {
+			if (!using_named_scene_ids) {
+				r->set_scene_unique_id(itos(res_index));
+			}
 			if (r->get_scene_unique_id().is_empty()) {
 				String new_id;
 
@@ -3608,4 +3631,41 @@ String ResourceFormatSaverCompatBinaryInstance::get_local_path(const String &p_p
 		return GDRESettings::get_singleton()->localize_path(p_path);
 	}
 	return p_resource.is_valid() ? p_resource->get_path() : "";
+}
+
+Error ResourceFormatLoaderCompatBinary::test_writing_parsing_variant(Variant p_v, Variant &r_v, int ver_major, int ver_minor) {
+	ResourceFormatSaverCompatBinaryInstance saver;
+	int format = ResourceFormatSaverCompatBinary::get_default_format_version(ver_major, ver_minor);
+	auto fa = FileAccessBuffer::create();
+	saver.ver_format = format;
+	saver.ver_major = ver_major;
+	saver.ver_minor = ver_minor;
+	saver.bundle_resources = true;
+	saver._find_resources(p_v, false);
+	HashMap<Ref<Resource>, int> resource_map;
+	int idx = 0;
+	for (const auto &s : saver.saved_resources) {
+		resource_map[s] = idx++;
+	}
+
+	HashMap<Ref<Resource>, int> external_resources;
+	saver.write_variant(fa, p_v, resource_map, external_resources, saver.string_map);
+
+	ResourceLoaderCompatBinary loader;
+	fa->seek(0);
+	loader.f = fa;
+	loader.string_map = saver.strings;
+	loader.ver_format = format;
+	loader.ver_major = ver_major;
+	loader.ver_minor = ver_minor;
+	loader.using_named_scene_ids = false;
+	for (const auto &[k, v] : resource_map) {
+		loader.internal_index_cache["::" + itos(v)] = k;
+	}
+
+	Error err = loader.parse_variant(r_v);
+	if (err != OK) {
+		return err;
+	}
+	return OK;
 }

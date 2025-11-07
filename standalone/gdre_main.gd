@@ -139,7 +139,10 @@ func extract_and_recover(files_to_extract: PackedStringArray, output_dir: String
 		end_recovery()
 		return
 	if (err != OK):
-		popup_error_box("Could not extract files:\n" + GDRESettings.get_recent_error_string(), "Error")
+		var error_str = "Could not extract files:\n" + GDRESettings.get_recent_error_string()
+		if err == ERR_UNAUTHORIZED:
+			error_str = "Encryption error detected, failed to extract one or more files.\nPlease check your encryption key and try again.\n"
+		popup_error_box(error_str, "Error")
 		end_recovery()
 		return
 	# check if ExtractOnly is pressed
@@ -731,7 +734,9 @@ var MAIN_CMD_NOTES = """Main commands:
 --txt-to-bin=<FILE>                Convert text-based scene or resource files to binary format (can be repeated)
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
-												(e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+                                                (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+--gdre-help                        Print the help message and exit
+--gdre-version                     Print the version of GDRE tools and exit
 """
 
 var GLOB_NOTES = """Notes on Include/Exclude globs:
@@ -805,8 +810,6 @@ func print_usage():
 	print("Godot Reverse Engineering Tools")
 	print("")
 	print("Without any CLI options, the tool will start in GUI mode")
-	print("\nGeneral options:")
-	print("  -h, --help: Display this help message")
 	print("\nFull Project Recovery options:")
 	print("Usage: GDRE_Tools.exe --headless <main_command> [options]")
 	print(MAIN_CMD_NOTES)
@@ -828,7 +831,7 @@ func get_cli_abs_path(path:String) -> String:
 		return path
 	var exec_path = GDRESettings.get_exec_dir()
 	if path.begins_with('~/'):
-		path = GDRESettings.get_home_dir() + path.trim_prefix('~')
+		return GDRESettings.get_home_dir() + path.trim_prefix('~')
 	var abs_path = exec_path.path_join(path).simplify_path()
 	return abs_path
 

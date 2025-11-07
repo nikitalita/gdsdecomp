@@ -9,7 +9,7 @@ namespace GodotMonoDecomp
 {
     public static class Lib
     {
-        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, string[]? ReferencePaths = null, GodotMonoDecompSettings settings = default)
+        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, string[]? ReferencePaths = null, GodotMonoDecompSettings? settings = default)
         {
             try
             {

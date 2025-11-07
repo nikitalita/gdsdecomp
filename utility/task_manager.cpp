@@ -30,6 +30,10 @@ TaskManager *TaskManager::get_singleton() {
 	return singleton;
 }
 
+int TaskManager::get_max_thread_count() {
+	return WorkerThreadPool::get_singleton()->get_thread_count();
+}
+
 void TaskManager::BaseTemplateTaskData::start() {
 	if (started) {
 		return;
@@ -320,17 +324,59 @@ void TaskManager::DownloadTaskData::cancel_internal() {
 }
 
 String TaskManager::DownloadTaskData::get_current_task_step_description() {
-	return "Downloading " + download_url;
+	if (size == -1) {
+		return "Downloading...";
+	}
+	int64_t current_time = OS::get_singleton()->get_ticks_msec();
+	int64_t elapsed_time_ms = current_time - start_time;
+	int64_t elapsed_time_seconds = elapsed_time_ms / 1000;
+	int64_t bytes_downloaded = int64_t(size * download_progress);
+	String time_remaining_str = "";
+	String bytes_per_second_str = "";
+
+	if (elapsed_time_seconds > 0) {
+		int64_t bytes_per_ms = (bytes_downloaded / elapsed_time_ms);
+		int64_t bytes_per_second = bytes_per_ms * 1000;
+		speed_history.push_back(bytes_per_second);
+		int64_t time_remaining = (size - bytes_downloaded) / bytes_per_second;
+		if (time_remaining > 60) {
+			time_remaining_str = vformat("%dm %02ds left, ", time_remaining / 60, time_remaining % 60);
+		} else if (time_remaining > 3) {
+			time_remaining_str = vformat("%ds left, ", time_remaining);
+		} else {
+			time_remaining_str = "a few seconds left, ";
+		}
+		bytes_per_second_str = vformat(" (%s/sec)", String::humanize_size(bytes_per_second));
+	}
+
+	return vformat("%s%s of %s%s",
+			time_remaining_str,
+			String::humanize_size(bytes_downloaded),
+			String::humanize_size(size),
+			bytes_per_second_str);
 }
 
 void TaskManager::DownloadTaskData::callback_data(void *p_data) {
-	download_error = gdre::download_file_sync(download_url, save_path, &download_progress, &canceled);
+	start_time = OS::get_singleton()->get_ticks_msec();
+	download_error = gdre::download_file_sync(download_url, save_path, &download_progress, &canceled, &size);
 	done = true;
+#if DEBUG_ENABLED
+	speed_history.sort();
+	int64_t end_time = OS::get_singleton()->get_ticks_msec();
+	int64_t median_speed = speed_history.size() > 0 ? speed_history[speed_history.size() / 2] : 0;
+	int64_t average_speed = 0;
+	for (int64_t speed : speed_history) {
+		average_speed += speed;
+	}
+	average_speed /= speed_history.size();
+	print_line(vformat("%s: Downloaded %s in %sms, Median speed: %s, Average speed: %s", download_url.get_file(), String::humanize_size(size), end_time - start_time, String::humanize_size(median_speed), String::humanize_size(average_speed)));
+#endif
 }
 
 void TaskManager::DownloadTaskData::start_internal() {
 	if (!silent) {
-		progress = EditorProgressGDDC::create(nullptr, get_current_task_step_description() + itos(rand()), get_current_task_step_description(), 1000, true);
+		String short_desc = "Downloading " + download_url.get_file();
+		progress = EditorProgressGDDC::create(nullptr, "Downloading " + download_url + itos(rand()), short_desc, 1000, true);
 	}
 }
 

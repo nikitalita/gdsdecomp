@@ -136,7 +136,7 @@ public:
 	}
 
 	operator String() const { return as_text(); }
-	virtual String to_string() override;
+	virtual String _to_string() override;
 	virtual String as_tag() const { return as_text(); }
 
 	bool is_prerelease() { return prerelease != ""; }

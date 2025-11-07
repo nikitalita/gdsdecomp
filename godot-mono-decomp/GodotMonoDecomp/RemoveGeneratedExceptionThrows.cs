@@ -61,10 +61,10 @@ public class RemoveGeneratedExceptionThrows : DepthFirstAstVisitor, IAstTransfor
 	{
 		if (methodInvocation.Target is MemberReferenceExpression member)
 		{
-			var firstChild = member.FirstChild!.ToString();
+			var firstChild = member.FirstChild?.ToString() ?? "";
 			if (firstChild.StartsWith("global::") && firstChild.Contains("PrivateImplementationDetails"))
 			{
-				var lastChild = member.LastChild!.ToString();
+				var lastChild = member.LastChild?.ToString() ?? "";
 				if (lastChild.StartsWith("Throw"))
 				{
 					var exceptionName = "System.Runtime.CompilerServices." + lastChild.Substring(5);

@@ -49,7 +49,7 @@ public static class NugetDetails
 					if (!string.IsNullOrEmpty(metadataJson))
 					{
 						var metadata = JsonConvert.DeserializeObject<Dictionary<string, object>>(metadataJson);
-						if (metadata != null && metadata.TryGetValue("contentHash", out var contentHash) && metadata.TryGetValue("source", out var source) && source != null && source.ToString().StartsWith("https://api.nuget.org"))
+						if (metadata != null && metadata.TryGetValue("contentHash", out var contentHash) && metadata.TryGetValue("source", out var source) && source != null && source.ToString()?.StartsWith("https://api.nuget.org") == true)
 						{
 							return $"sha512-{contentHash}";
 						}
@@ -110,7 +110,7 @@ public static class NugetDetails
         });
         var url = $"https://www.nuget.org/api/v2/Packages(Id='{name}',Version='{version}')";
         var data = "";
-        var AcceptGzipEncoding = true;
+        // var AcceptGzipEncoding = true;
         try
         {
             data = await client.GetStringAsync(url);
@@ -131,7 +131,7 @@ public static class NugetDetails
 
             var entry = xDocument.Element(rootNs);
             var properties = entry?.Element(propertiesNs);
-            return properties?.Element(AttributesNs(attribute))?.Value;
+            return properties?.Element(AttributesNs(attribute))?.Value ?? "";
         }
 
         var packageHash = GetAttribute("PackageHash");

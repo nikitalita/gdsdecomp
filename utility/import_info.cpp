@@ -9,7 +9,7 @@
 #include "utility/common.h"
 #include "utility/glob.h"
 
-String ImportInfo::to_string() {
+String ImportInfo::_to_string() {
 	return as_text(false);
 }
 

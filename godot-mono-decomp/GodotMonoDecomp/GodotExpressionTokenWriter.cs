@@ -323,7 +323,7 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 				return 0;
 			}).ToArray();
 			float[] dargs = args.Select(a => ((float)a) / 255.0f).ToArray();
-			string[] stargs = dargs.Select(a => GodotExpressionTokenWriter.PrintPrimitiveValue(a)).ToArray();
+			string[] stargs = dargs.Select(a => GodotExpressionTokenWriter.PrintPrimitiveValue(a) ?? "0").ToArray();
 			string value = $"Color({string.Join(",", stargs)})";
 			StartNode(invocationExpression);
 			writer.WriteToken(Roles.Identifier, value);
@@ -395,7 +395,7 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 		WriteToken(Roles.LBracket);
 		if (!wrap)
 			Space();
-		AstNode last = null;
+		AstNode? last = null;
 		foreach (var (idx, node) in elements.WithIndex())
 		{
 			if (idx > 0)
@@ -694,7 +694,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 		NewLine();
 	}
 
-	public static string PrintPrimitiveValue(object value)
+	public static string? PrintPrimitiveValue(object? value)
 	{
 		TextWriter writer = new StringWriter();
 		GodotExpressionTokenWriter tokenWriter = new GodotExpressionTokenWriter(writer);
@@ -702,7 +702,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 		return writer.ToString();
 	}
 
-	public override void WritePrimitiveValue(object value, LiteralFormat format = LiteralFormat.None)
+	public override void WritePrimitiveValue(object? value, LiteralFormat format = LiteralFormat.None)
 	{
 		if (value == null)
 		{
@@ -733,7 +733,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 
 		if (value is string)
 		{
-			string tmp = ConvertString(value.ToString());
+			string tmp = ConvertString(value.ToString() ?? "");
 			column += tmp.Length + 2;
 			Length += tmp.Length + 2;
 			textWriter.Write('"');
@@ -893,7 +893,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 		else
 		{
 			textWriter.Write(value.ToString());
-			int length = value.ToString().Length;
+			int length = value.ToString()?.Length ?? 0;
 			column += length;
 			Length += length;
 		}
@@ -922,7 +922,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 	/// Gets the escape sequence for the specified character.
 	/// </summary>
 	/// <remarks>This method does not convert ' or ".</remarks>
-	static string ConvertChar(char ch)
+	static string? ConvertChar(char ch)
 	{
 		switch (ch)
 		{
@@ -984,7 +984,7 @@ public class GodotExpressionTokenWriter : TokenWriter, ILocatable
 		StringBuilder sb = new StringBuilder();
 		foreach (char ch in str)
 		{
-			string s = ch == '"' ? "\\\"" : ConvertChar(ch);
+			string? s = ch == '"' ? "\\\"" : ConvertChar(ch);
 			if (s != null)
 				sb.Append(s);
 			else

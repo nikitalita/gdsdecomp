@@ -85,4 +85,27 @@ TEST_CASE("[GDSDecomp][ResourceFormatLoaderCompatText] ResourceFormatLoaderCompa
 	gdre::rimraf(temp_path);
 }
 
+TEST_CASE("[GDSDecomp][FileAccess] FileAccess opens empty file without error") {
+	// create a temporary file that is empty, then open it and check the error
+	String tmp_file_path = get_tmp_path().path_join("test.txt");
+	gdre::rimraf(tmp_file_path);
+	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
+	auto tmp_file = tmp_file_path;
+	Error err = OK;
+	{
+		Ref<FileAccess> fa = FileAccess::open(tmp_file, FileAccess::WRITE, &err);
+		CHECK(err == OK);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_error() == OK);
+		CHECK(fa->get_length() == 0);
+	}
+	{
+		Ref<FileAccess> fa = FileAccess::open(tmp_file, FileAccess::READ, &err);
+		CHECK(err == OK);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_error() == OK);
+		CHECK(fa->get_length() == 0);
+	}
+}
+
 } //namespace TestEngineAsserts

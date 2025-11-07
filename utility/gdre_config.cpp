@@ -164,6 +164,44 @@ public:
 	}
 };
 
+class GDREConfigSetting_MaxCoresToUse : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_MaxCoresToUse, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_MaxCoresToUse() :
+			GDREConfigSetting(
+					"max_cores_to_use",
+					"Max cores for threaded tasks",
+					"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
+					-1,
+					false,
+					false) {}
+
+	virtual bool has_special_value() const override { return true; }
+	virtual Dictionary get_list_of_possible_values() const override {
+		Dictionary ret;
+		ret[-1] = "Auto-detect";
+		// descending order
+		for (int i = WorkerThreadPool::get_singleton()->get_thread_count(); i > 0; i--) {
+			ret[i] = String::num_int64(i);
+		}
+		return ret;
+	}
+};
+
+class GDREConfigSetting_DefaultParentFolderForRecovery : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_DefaultParentFolderForRecovery, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_DefaultParentFolderForRecovery() :
+			GDREConfigSetting(
+					"default_parent_folder_for_recovery",
+					"Default parent folder for recovery",
+					"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
+					OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP)) {}
+	virtual bool is_dirpicker() const override { return true; }
+};
+
 Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 	return {
 		memnew(GDREConfigSetting(
@@ -181,6 +219,8 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Delete auto-converted files",
 				"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
 				false)),
+		memnew(GDREConfigSetting_DefaultParentFolderForRecovery()),
+		memnew(GDREConfigSetting_MaxCoresToUse()),
 		memnew(GDREConfigSetting(
 				"force_single_threaded",
 				"Force single-threaded mode",
@@ -281,6 +321,16 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Create lossless copy",
 				"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
 				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Translation/disable_key_recovery",
+				"Disable translation key recovery",
+				"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
+				false)),
+		memnew(GDREConfigSetting(
+				"Exporter/Translation/more_thorough_recovery",
+				"More thorough translation key recovery",
+				"Enable more thorough translation key recovery.\nWARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.",
+				false)),
 		memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile()),
 		memnew(GDREConfigSetting(
 				"Exporter/Translation/skip_loading_resource_strings",
@@ -328,11 +378,7 @@ void GDREConfig::load_config() {
 		if (setting->is_virtual_setting()) {
 			continue;
 		}
-		if (setting->is_ephemeral()) {
-			ephemeral_settings.try_emplace_l(setting->get_full_name(), [=](auto &v) { v.second = setting->get_default_value(); }, setting->get_default_value());
-		} else {
-			set_setting(setting->get_full_name(), setting->get_default_value());
-		}
+		set_setting(setting->get_full_name(), setting->get_default_value(), setting->is_ephemeral());
 	}
 
 	auto cfg_path = get_config_path();
@@ -433,7 +479,7 @@ void GDREConfig::reset_ephemeral_settings() {
 }
 
 GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden, bool p_ephemeral) {
-	full_name = p_full_name;
+	full_name = ::get_full_name(p_full_name);
 	brief_description = p_brief;
 	description = p_description;
 	default_value = p_default_value;
@@ -501,6 +547,7 @@ void GDREConfigSetting::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_hidden"), &GDREConfigSetting::is_hidden);
 	ClassDB::bind_method(D_METHOD("is_ephemeral"), &GDREConfigSetting::is_ephemeral);
 	ClassDB::bind_method(D_METHOD("is_filepicker"), &GDREConfigSetting::is_filepicker);
+	ClassDB::bind_method(D_METHOD("is_dirpicker"), &GDREConfigSetting::is_dirpicker);
 	ClassDB::bind_method(D_METHOD("is_virtual_setting"), &GDREConfigSetting::is_virtual_setting);
 	ClassDB::bind_method(D_METHOD("get_error_message"), &GDREConfigSetting::get_error_message);
 	ClassDB::bind_method(D_METHOD("clear_error_message"), &GDREConfigSetting::clear_error_message);

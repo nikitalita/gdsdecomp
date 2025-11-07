@@ -66,10 +66,6 @@ public class MethodInfo
 	public MethodInfo(string name, string returnType, string[] parameterNames, string[] parameterTypes, bool isStatic, bool isAbstract, bool isVirtual)
 	{
 		Name = name;
-		if (name.Contains("ContainsSelectedPatch"))
-		{
-			var f = false;
-		}
 		ReturnType = GodotStuff.CSharpTypeToGodotType(returnType);
 		ParameterNames = parameterNames;
 		ParameterTypes = parameterTypes.Select(GodotStuff.CSharpTypeToGodotType).ToArray();

@@ -766,6 +766,9 @@ Error ResourceLoaderCompatText::load() {
 					}
 
 					if (set_valid) {
+						if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
+							assign = "resource_name";
+						}
 						res->set(assign, value);
 					}
 				}
@@ -966,6 +969,9 @@ Error ResourceLoaderCompatText::load() {
 				}
 
 				if (set_valid) {
+					if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
+						assign = "resource_name";
+					}
 					resource->set(assign, value);
 				}
 				//it's assignment
@@ -1905,7 +1911,7 @@ String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resour
 		if (format_version >= 3) {
 			id = itos(ext_resources_size + 1) + "_" + Resource::generate_scene_unique_id();
 		} else {
-			id = itos(ext_resources_size);
+			id = itos(ext_resources_size + 1);
 		}
 	}
 	return id;
@@ -2102,16 +2108,24 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	_find_resources(p_resource, true);
 
 	if (!use_compat) {
-		if (format_version >= 3 && (used_packed_vector4array || (ver_major > 4 || (ver_major == 4 && ver_minor >= 3)))) {
-			format_version = 4;
+		if (format_version >= 3) {
+			bool engine_version_supports_4 = (ver_major > 4 || (ver_major == 4 && ver_minor >= 3));
+			if ((engine_version_supports_4)) {
+				format_version = 4;
+			} else if (used_packed_vector4array) {
+				if (!engine_version_supports_4) {
+					WARN_PRINT(vformat("Forcing format version to 4 because PackedVector4Array is used but engine version %d.%d is too old", ver_major, ver_minor));
+				}
+				format_version = 4;
+			} else {
+				use_compat = true;
+			}
 		} else {
 			use_compat = true;
 		}
 	} else if (use_compat) {
-		if (format_version >= 3 && !set_format) {
+		if (format_version >= 3) {
 			format_version = 3;
-		} else {
-			use_compat = false;
 		}
 	}
 	if (packed_scene.is_valid()) {
@@ -2268,6 +2282,12 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	for (List<Ref<Resource>>::Element *E = saved_resources.front(); E; E = E->next()) {
 		Ref<Resource> res = E->get();
 		if (E->next() && res->is_built_in()) {
+			if (format_version < 3) {
+				auto scene_id = res->get_scene_unique_id();
+				if (scene_id.is_empty() || used_unique_ids.has(scene_id) || !scene_id.is_valid_int()) {
+					res->set_scene_unique_id("");
+				}
+			}
 			if (!res->get_scene_unique_id().is_empty()) {
 				if (used_unique_ids.has(res->get_scene_unique_id())) {
 					res->set_scene_unique_id(""); // Repeated.
@@ -2292,9 +2312,13 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 		} else {
 			String line = "[sub_resource ";
 			if (res->get_scene_unique_id().is_empty()) {
+				int last_id = used_unique_ids.size();
 				String new_id;
 				while (true) {
 					new_id = _resource_get_class(res) + "_" + Resource::generate_scene_unique_id();
+					if (format_version < 3) {
+						new_id = itos(++last_id);
+					}
 
 					if (!used_unique_ids.has(new_id)) {
 						break;
@@ -2320,8 +2344,21 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 		Dictionary missing_resource_properties = res->get_meta(META_MISSING_RESOURCES, Dictionary());
 
+		auto original_res = res;
+		bool is_missing_resource = res->get_class() == "MissingResource";
+		if (res->get_class() != "MissingResource") {
+			auto converter = ResourceCompatLoader::get_converter_for_type(res->get_save_class(), ver_major);
+			if (converter.is_valid() && converter->has_convert_back()) {
+				res = converter->convert_back(res, ver_major);
+			}
+		}
 		List<PropertyInfo> property_list;
 		res->get_property_list(&property_list);
+
+		// COMPAT: Godot 3.0 and below wrote an extra empty line after a subresource/resource tag if there were properties to save
+		if ((ver_major < 3 || (ver_major == 3 && ver_minor <= 0)) && property_list.size() > 0) {
+			f->store_line("");
+		}
 
 		// COMPAT: if the script property isn't at the top, resources that are script instances will have their script properties stripped upon loading in the editor.
 		CompatFormatLoader::move_script_property_to_top(&property_list);
@@ -2376,6 +2413,10 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 				if (pi.type == Variant::OBJECT && value.is_zero() && !(pi.usage & PROPERTY_USAGE_STORE_IF_NULL)) {
 					continue;
+				}
+
+				if (ver_major <= 2 && name == "resource_name" && !is_missing_resource) {
+					name = "resource/name";
 				}
 
 				String vars;
@@ -2473,6 +2514,10 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			}
 
 			f->store_line("]");
+			// COMPAT: Godot 3.0 and below wrote an extra empty line after a node tag if there were properties to save
+			if (format_version <= 2 && state->get_node_property_count(i) > 0) {
+				f->store_line("");
+			}
 
 			for (int j = 0; j < state->get_node_property_count(i); j++) {
 				String vars;
@@ -2591,7 +2636,7 @@ Error ResourceFormatSaverCompatText::save(const Ref<Resource> &p_resource, const
 		return ERR_FILE_UNRECOGNIZED;
 	}
 #endif
-
+	String path = GDRESettings::get_singleton()->globalize_path(p_path);
 	ResourceFormatSaverCompatTextInstance saver;
 	return saver.save(p_path, p_resource, p_flags);
 }

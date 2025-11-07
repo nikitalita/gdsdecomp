@@ -129,7 +129,11 @@ void PckDumper::_do_extract(uint32_t i, ExtractToken *tokens) {
 	if (err || pck_f.is_null()) {
 		broken_cnt++;
 		completed_cnt++;
-		tokens[i].err = ERR_FILE_CANT_OPEN;
+		if (err == ERR_UNAUTHORIZED) {
+			tokens[i].err = ERR_UNAUTHORIZED;
+		} else {
+			tokens[i].err = ERR_FILE_CANT_OPEN;
+		}
 		return;
 	}
 	String path = file->get_path();
@@ -215,20 +219,25 @@ Error PckDumper::_pck_dump_to_dir(
 			true);
 	files_extracted = completed_cnt;
 	if (broken_cnt > 0) {
-		err = ERR_BUG;
+		err = ERR_UNAUTHORIZED;
 		for (int i = 0; i < tokens.size(); i++) {
 			if (tokens[i].err != OK) {
 				String err_type;
-				if (tokens[i].err == ERR_FILE_CANT_OPEN) {
-					err_type = "FileAccess error";
-				} else if (tokens[i].err == ERR_CANT_CREATE) {
-					err_type = "FileCreate error";
-				} else if (tokens[i].err == ERR_FILE_CANT_WRITE) {
-					err_type = "FileWrite error";
+				if (tokens[i].err == ERR_UNAUTHORIZED) {
+					err_type = "Encryption error";
 				} else {
-					err_type = "Unknown error";
+					err = ERR_BUG;
+					if (tokens[i].err == ERR_FILE_CANT_OPEN) {
+						err_type = "FileAccess error";
+					} else if (tokens[i].err == ERR_CANT_CREATE) {
+						err_type = "FileCreate error";
+					} else if (tokens[i].err == ERR_FILE_CANT_WRITE) {
+						err_type = "FileWrite error";
+					} else {
+						err_type = "Unknown error";
+					}
 				}
-				error_string += tokens[i].file->get_path() + "(" + err_type + ")\n";
+				error_string += tokens[i].file->get_path() + " (" + err_type + ")\n";
 			}
 			if (files.get(i)->is_malformed() && files.get(i)->get_raw_path() != files.get(i)->get_path()) {
 				print_line("Warning: " + files.get(i)->get_raw_path() + " is a malformed path!\nSaving to " + files.get(i)->get_path() + " instead.");

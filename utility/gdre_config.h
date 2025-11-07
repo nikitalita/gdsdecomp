@@ -34,6 +34,7 @@ public:
 	bool is_ephemeral() const;
 	virtual bool is_virtual_setting() const { return false; }
 	virtual bool is_filepicker() const { return false; }
+	virtual bool is_dirpicker() const { return false; }
 	virtual String get_error_message() const { return ""; }
 	virtual void clear_error_message() {}
 

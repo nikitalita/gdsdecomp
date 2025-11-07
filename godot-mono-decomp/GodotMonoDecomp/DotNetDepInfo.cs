@@ -1,7 +1,6 @@
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Util;
-using LightJson;
-using LightJson.Serialization;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -72,12 +71,12 @@ public class DotNetCoreDepInfo
 		this.runtimeComponents = runtimeComponents;
 	}
 
-	static DotNetCoreDepInfo CreateFromJson(string fullName, string version, string target, JsonObject blob)
+	static DotNetCoreDepInfo CreateFromJson(string fullName, string version, string target, JObject blob)
 	{
 		return Create(fullName, version, target, blob, []);
 	}
 
-	static DotNetCoreDepInfo Create(string fullName, string version, string target, JsonObject blob,
+	static DotNetCoreDepInfo Create(string fullName, string version, string target, JObject blob,
 		Dictionary<string, DotNetCoreDepInfo> _deps)
 	{
 		var parts = fullName.Split('/');
@@ -96,25 +95,24 @@ public class DotNetCoreDepInfo
 		var serviceable = false;
 		var path = "";
 		var sha512 = "";
-		var libraryBlob = blob["libraries"][Name + "/" + Version].AsJsonObject;
+		var libraryBlob = blob["libraries"]?[Name + "/" + Version] as JObject;
 		if (libraryBlob != null)
 		{
-			type = libraryBlob["type"].AsString;
-			serviceable = libraryBlob["serviceable"].AsBoolean;
-			path = libraryBlob["path"].AsString ?? "";
-			sha512 = libraryBlob["sha512"].AsString ?? "";
+			type = libraryBlob["type"]?.ToString() ?? type;
+			serviceable = libraryBlob["serviceable"]?.Value<bool>() ?? serviceable;
+			path = libraryBlob["path"]?.ToString() ?? "";
+			sha512 = libraryBlob["sha512"]?.ToString() ?? "";
 		}
 
 		string[] runtimeComponents = Array.Empty<string>();
-		var runtimeBlob = blob["targets"][target].AsJsonObject?[Name + "/" + Version].AsJsonObject?["runtime"]
-			.AsJsonObject;
+		var runtimeBlob = blob["targets"]?[target]?[Name + "/" + Version]?["runtime"] as JObject;
 		if (runtimeBlob != null)
 		{
 			runtimeComponents = new string[runtimeBlob.Count];
 			int i = 0;
-			foreach (var component in runtimeBlob)
+			foreach (var prop in runtimeBlob.Properties())
 			{
-				runtimeComponents[i] = System.IO.Path.GetFileNameWithoutExtension(component.Key);
+				runtimeComponents[i] = System.IO.Path.GetFileNameWithoutExtension(prop.Name);
 				i++;
 			}
 		}
@@ -124,7 +122,7 @@ public class DotNetCoreDepInfo
 	}
 
 
-	static DotNetCoreDepInfo[] getDeps(string Name, string Version, string target, JsonObject blob,
+	static DotNetCoreDepInfo[] getDeps(string Name, string Version, string target, JObject blob,
 		Dictionary<string, DotNetCoreDepInfo>? _deps = null)
 	{
 		if (_deps == null)
@@ -132,14 +130,14 @@ public class DotNetCoreDepInfo
 			_deps = [];
 		}
 
-		var targetBlob = blob["targets"][target].AsJsonObject;
+		var targetBlob = blob["targets"]?[target] as JObject;
 		if (targetBlob == null)
 		{
 			return Empty<DotNetCoreDepInfo>.Array;
 		}
 
-		var depsBlob = targetBlob[Name + "/" + Version].AsJsonObject?["dependencies"].AsJsonObject;
-		var runtimeBlob = targetBlob[Name + "/" + Version].AsJsonObject?["runtime"].AsJsonObject;
+		var depsBlob = targetBlob[Name + "/" + Version]?["dependencies"] as JObject;
+		var runtimeBlob = targetBlob[Name + "/" + Version]?["runtime"] as JObject;
 		if (depsBlob == null && runtimeBlob == null)
 		{
 			return Empty<DotNetCoreDepInfo>.Array;
@@ -151,14 +149,14 @@ public class DotNetCoreDepInfo
 		{
 			foreach (var dep in depsBlob)
 			{
-				var dep_key = dep.Key + "/" + dep.Value.AsString;
+				var dep_key = dep.Key + "/" + dep.Value?.ToString();
 				if (_deps.ContainsKey(dep_key))
 				{
 					result.Add(_deps[dep_key]);
 				}
 				else
 				{
-					var new_dep = Create(dep.Key, dep.Value.AsString, target, blob, _deps);
+					var new_dep = Create(dep.Key, dep.Value?.ToString() ?? string.Empty, target, blob, _deps);
 					_deps.Add(dep_key, new_dep);
 					result.Add(new_dep);
 				}
@@ -177,7 +175,7 @@ public class DotNetCoreDepInfo
 		for (int i = 0; i < deps.Length; i++)
 		{
 			if ((!string.IsNullOrEmpty(type) && deps[i].Type != type) ||
-			    (serviceableAndNuGetOnly && (!deps[i].Serviceable || deps[i].HashMatchesNugetOrgStatus == HashMatchesNugetOrg.NoMatch)))
+				(serviceableAndNuGetOnly && (!deps[i].Serviceable || deps[i].HashMatchesNugetOrgStatus == HashMatchesNugetOrg.NoMatch)))
 			{
 				// skip non-package dependencies if parent is a package
 				continue;
@@ -211,15 +209,22 @@ public class DotNetCoreDepInfo
 			return null;
 		}
 		var depsJson = File.ReadAllText(depsJsonFileName);
-		var dependencies = JsonReader.Parse(depsJson);
+		var dependencies = JObject.Parse(depsJson);
 		// go through each target framework, find the one that matches the module
-		foreach (var target in dependencies["targets"].AsJsonObject)
+		var targets = dependencies["targets"] as JObject;
+		if (targets != null)
 		{
-			foreach (var dependency in target.Value.AsJsonObject)
+			foreach (var target in targets)
 			{
-				if (dependency.Key.StartsWith(moduleName))
+				var targetObj = target.Value as JObject;
+				if (targetObj == null)
+					continue;
+				foreach (var dependency in targetObj)
 				{
-					return DotNetCoreDepInfo.CreateFromJson(dependency.Key, "", target.Key, dependencies.AsJsonObject);
+					if (dependency.Key.StartsWith(moduleName))
+					{
+						return DotNetCoreDepInfo.CreateFromJson(dependency.Key, "", target.Key, dependencies);
+					}
 				}
 			}
 		}
