@@ -129,7 +129,7 @@ void PckDumper::_do_extract(uint32_t i, ExtractToken *tokens) {
 	if (err || pck_f.is_null()) {
 		broken_cnt++;
 		completed_cnt++;
-		if (err == ERR_UNAUTHORIZED) {
+		if (err == ERR_UNAUTHORIZED || err == ERR_FILE_CORRUPT) {
 			tokens[i].err = ERR_UNAUTHORIZED;
 		} else {
 			tokens[i].err = ERR_FILE_CANT_OPEN;

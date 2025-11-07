@@ -31,6 +31,14 @@
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
 #include "utility/task_manager.h"
+
+#ifndef MAKE_GLTF_COPY
+#define MAKE_GLTF_COPY 0
+#endif
+#ifndef PRINT_PERF_CSV
+#define PRINT_PERF_CSV 0
+#endif
+
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
 	String dep;
@@ -2109,7 +2117,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CANT_WRITE, "Failed to serialize glTF document");
 		}
 
-#if DEBUG_ENABLED
+#if MAKE_GLTF_COPY
 		{
 			// save a gltf copy for debugging
 			Dictionary gltf_asset = state->get_json().get("asset", Dictionary());
@@ -2339,7 +2347,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 
 			json["asset"] = gltf_asset;
 		}
-#if DEBUG_ENABLED
+#if MAKE_GLTF_COPY
 		GDRE_SCN_EXP_CHECK_CANCEL();
 		if (p_dest_path.get_extension() == "glb") {
 			// save a gltf copy for debugging
@@ -3602,13 +3610,17 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	perf_print("\n");
 	auto export_end_time = OS::get_singleton()->get_ticks_msec();
 	tokens.sort_custom<BatchExportTokenSort>();
+#if PRINT_PERF_CSV
 	perf_print("scene,time,surface_count");
 	for (auto &token : tokens) {
 		perf_print(vformat("%s,%.02f,%d", token->get_export_dest(), (double)(token->export_end_time - token->export_start_time) / 1000.0, (int64_t)token->surface_count));
-
+	}
+#endif
+	for (auto &token : tokens) {
 		token->post_export(err);
 		reports.push_back(token->report);
 	}
+
 	print_line(vformat("*** Exporting %d scenes took %.02fs\n", tokens.size(), (double)(export_end_time - export_start_time) / 1000.0));
 	if (remove_physics_bodies) {
 		register_physics_extension();

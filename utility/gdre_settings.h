@@ -410,8 +410,6 @@ public:
 	void get_resource_strings(HashSet<String> &r_strings) const;
 	// Returns the detected bytecode revision
 	int get_bytecode_revision() const;
-	// Helper command to prepopulate the plugin version cache for releases
-	void prepop_plugin_cache(const Vector<String> &plugins);
 	static String get_home_dir();
 	// ResourceUID does not provide a way to get a UID for a given path, so we have to do it ourselves
 	ResourceUID::ID get_uid_for_path(const String &p_path) const;

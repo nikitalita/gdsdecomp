@@ -72,12 +72,11 @@ protected:
 	bool should_skip_release(const String &plugin_name, const String &release);
 	String get_repo_url(const String &plugin_name);
 
-	Vector<Dictionary> get_list_of_releases(const String &plugin_name);
+	Vector<Dictionary> get_list_of_releases(const String &plugin_name, Error &r_error);
 
-	Dictionary get_release_dict(const String &plugin_name, int64_t release_id);
-	Vector<Pair<int64_t, int64_t>> get_gh_asset_pairs(const String &plugin_name);
+	Dictionary get_release_dict(const String &plugin_name, int64_t release_id, Error &r_error);
 
-	virtual bool recache_release_list(const String &plugin_name);
+	virtual Error recache_release_list(const String &plugin_name);
 
 	String _get_release_cache_file_name();
 	void _load_release_cache();
@@ -88,15 +87,15 @@ public:
 	~GitHubSource();
 
 	// PluginSource interface implementation
-	Vector<Pair<int64_t, int64_t>> get_plugin_version_numbers(const String &plugin_name) override;
-	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id) override;
+	Vector<Pair<int64_t, int64_t>> get_plugin_version_numbers(const String &plugin_name, Error &r_connection_error) override;
+	ReleaseInfo get_release_info(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_connection_error) override;
 	String get_plugin_name() override;
 	void load_cache_internal() override;
 	void save_cache() override;
 	bool handles_plugin(const String &plugin_name) override;
 	bool is_default() override { return false; }
 	// void load_cache_data(const String &plugin_name, const Dictionary &data) override; // Deprecated
-	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag) override;
+	Vector<ReleaseInfo> find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) override;
 };
 
 #endif // GITHUB_SOURCE_H

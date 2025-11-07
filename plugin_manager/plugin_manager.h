@@ -30,7 +30,7 @@ private:
 	static void save_plugin_version_cache();
 	static Error populate_plugin_version_hashes(PluginVersion &plugin_version);
 
-	static PluginVersion _get_plugin_version_for_current_release_info(const ReleaseInfo &release_info);
+	static PluginVersion _get_plugin_version_for_current_release_info(const ReleaseInfo &release_info, Error &r_error);
 
 protected:
 	static void _bind_methods();
@@ -42,14 +42,14 @@ public:
 	static Dictionary get_plugin_info(const String &plugin_name, const Vector<String> &hashes);
 	static void load_cache();
 	static void save_cache();
-	static void prepop_cache(const Vector<String> &plugin_names, bool multithread = true);
+	static Error prepop_cache(const Vector<String> &plugin_names);
 	static bool is_prepopping();
 	// PluginVersion cache management
 	static PluginVersion get_cached_plugin_version(const String &cache_key);
 	static void erase_cached_plugin_version(const String &cache_key);
 	static void cache_plugin_version(const String &cache_key, const PluginVersion &version);
-	static PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info);
-	static PluginVersion get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id);
+	static PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info, Error &r_error);
+	static PluginVersion get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error);
 	// Source management
 	static void register_source(Ref<PluginSource> source, bool at_front = false);
 	static void unregister_source(Ref<PluginSource> source);

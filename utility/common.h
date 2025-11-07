@@ -358,6 +358,7 @@ String get_java_path();
 int get_java_version();
 bool is_macho_binary(const String &p_path);
 String path_to_uri(const String &p_path);
+bool is_zip_file(const String &p_path);
 } // namespace gdre
 
 class GDRECommon : public Object {

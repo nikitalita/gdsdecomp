@@ -1059,6 +1059,16 @@ String gdre::path_to_uri(const String &p_path) {
 	return (!s.begins_with("/") ? "file:///" : "file://") + s;
 }
 
+bool gdre::is_zip_file(const String &p_path) {
+	Ref<FileAccess> fa = FileAccess::open(p_path, FileAccess::READ);
+	if (fa.is_null()) {
+		return false;
+	}
+	uint8_t header[4];
+	fa->get_buffer(header, 4);
+	return header[0] == 0x50 && header[1] == 0x4b && header[2] == 0x03 && header[3] == 0x04;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
@@ -1081,4 +1091,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("rimraf", "path"), &gdre::rimraf);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_fs_path", "path"), &gdre::is_fs_path);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("path_to_uri", "path"), &gdre::path_to_uri);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_zip_file", "path"), &gdre::is_zip_file);
 }
