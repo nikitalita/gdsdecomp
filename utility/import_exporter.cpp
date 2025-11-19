@@ -1507,13 +1507,13 @@ Error ImportExporter::recreate_plugin_configs() {
 		}
 	}
 	if (!da.is_null()) {
-		addons_dirs = da->get_directories();
+		addons_dirs = gdre::get_directories_at_recursive(addons_dir, false, true);
 	}
 	for (int i = 0; i < enabled_plugins.size(); i++) {
 		String &path = enabled_plugins.write[i];
 		path = path.replace("res://addons/", addons_dir);
 		String dir = path.get_base_dir();
-		if (dir.is_empty()) {
+		if (dir.is_empty() || !dir.is_absolute_path()) {
 			bool found = false;
 			for (int j = 0; j < addons_dirs.size(); j++) {
 				if (addons_dirs[j].filenocasecmp_to(path) == 0) {
