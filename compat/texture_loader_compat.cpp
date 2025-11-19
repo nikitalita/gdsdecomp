@@ -1425,3 +1425,57 @@ Ref<ResourceInfo> ResourceFormatLoaderCompatImage::get_resource_info(const Strin
 	info->extra["extension"] = extension;
 	return info;
 }
+
+Ref<Resource> ResourceFormatLoaderImageTextureCompat::load(const String &p_path, const String &p_original_path, Error *r_error, bool p_use_sub_threads, float *r_progress, CacheMode p_cache_mode) {
+	return custom_load(p_path, p_original_path, get_default_real_load(), r_error, p_use_sub_threads, p_cache_mode);
+}
+
+Ref<Resource> ResourceFormatLoaderImageTextureCompat::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
+	Ref<Image> image = Image::load_from_file(p_path);
+	ERR_FAIL_COND_V_MSG(image.is_null(), Ref<Resource>(), "ResourceFormatLoaderImageTextureCompat: Failed to load image from file " + p_path);
+	Ref<ImageTexture> image_texture = TextureLoaderCompat::create_image_texture(p_path, ResourceInfo::LoadType::REAL_LOAD, image->get_width(), image->get_height(), 0, 0, image->has_mipmaps(), image);
+	return image_texture;
+}
+
+void ResourceFormatLoaderImageTextureCompat::get_recognized_extensions(List<String> *p_extensions) const {
+	// only enable this on ver_major <= 2
+	if (GDRESettings::get_singleton()->get_ver_major() > 2 && GDRESettings::get_singleton()->get_ver_major() != 0) {
+		return;
+	}
+	p_extensions->push_back("png");
+	p_extensions->push_back("webp");
+	p_extensions->push_back("jpg");
+	p_extensions->push_back("jpeg");
+}
+
+bool ResourceFormatLoaderImageTextureCompat::handles_type(const String &p_type) const {
+	if (GDRESettings::get_singleton()->get_ver_major() > 2 && GDRESettings::get_singleton()->get_ver_major() != 0) {
+		return false;
+	}
+	return p_type == "Texture" || p_type == "ImageTexture";
+}
+
+String ResourceFormatLoaderImageTextureCompat::get_resource_type(const String &p_path) const {
+	if (GDRESettings::get_singleton()->get_ver_major() > 2 && GDRESettings::get_singleton()->get_ver_major() != 0) {
+		return String();
+	}
+	return "ImageTexture";
+}
+
+Ref<ResourceInfo> ResourceFormatLoaderImageTextureCompat::get_resource_info(const String &p_path, Error *r_error) const {
+	if (GDRESettings::get_singleton()->get_ver_major() > 2 && GDRESettings::get_singleton()->get_ver_major() != 0) {
+		return Ref<ResourceInfo>();
+	}
+	static const Vector<String> supported_extensions = { "png", "webp", "jpg", "jpeg" };
+	String extension = p_path.get_extension().to_lower();
+	if (!supported_extensions.has(extension)) {
+		return Ref<ResourceInfo>();
+	}
+	Ref<ResourceInfo> info;
+	info.instantiate();
+	info->type = "ImageTexture";
+	info->original_path = p_path;
+	info->resource_format = "ImageTexture";
+	info->ver_major = GDRESettings::get_singleton()->get_ver_major();
+	return info;
+}
