@@ -5,6 +5,7 @@
 #include "core/string/string_builder.h"
 
 #include "compat/variant_writer_compat.h"
+#include "exporters/resource_exporter.h"
 #include "gdre_settings.h"
 #include "utility/common.h"
 #include "utility/glob.h"
@@ -633,7 +634,6 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	}
 	return OK;
 }
-
 Error ImportInfov2::_load(const String &p_path) {
 	Error err;
 	Ref<ResourceInfo> res_info;
@@ -684,8 +684,15 @@ Error ImportInfov2::_load(const String &p_path) {
 			new_ext = "png";
 		} else if (e == "scn" || type == "PackedScene") {
 			new_ext = "glb";
+		} else if (e == "msh") {
+			new_ext = "obj";
 		} else {
-			new_ext = "fixme";
+			auto exporter = Exporter::get_exporter("", type);
+			if (exporter.is_valid()) {
+				new_ext = exporter->get_default_export_extension(p_path);
+			} else {
+				new_ext = "fixme";
+			}
 		}
 		return new_ext;
 	};
