@@ -944,6 +944,43 @@ Vector<String> gdre::get_files_at(const String &p_dir, const Vector<String> &wil
 	return ret;
 }
 
+Vector<String> gdre::get_directories_at_recursive(const String &p_dir, bool absolute, bool include_hidden) {
+	Vector<String> dirs;
+	Error err;
+	Ref<DirAccess> da = DirAccess::open(p_dir, &err);
+	ERR_FAIL_COND_V_MSG(da.is_null(), dirs, "Failed to open directory " + p_dir);
+
+	if (da.is_null()) {
+		return dirs;
+	}
+
+	String base = absolute ? p_dir : "";
+	da->set_include_hidden(include_hidden);
+	da->list_dir_begin();
+	String f = da->get_next();
+	while (!f.is_empty()) {
+		if (f == "." || f == "..") {
+			f = da->get_next();
+			continue;
+		} else if (da->current_is_dir()) {
+			dirs.push_back(base.path_join(f));
+			auto ret = get_directories_at_recursive(p_dir.path_join(f), absolute, include_hidden);
+			if (!absolute) { // f was not appended to the path
+				for (int i = 0; i < ret.size(); i++) {
+					ret.write[i] = f.path_join(ret[i]);
+				}
+			}
+			dirs.append_array(ret);
+		}
+		f = da->get_next();
+	}
+	da->list_dir_end();
+
+	dirs.sort_custom<FileNoCaseComparator>();
+
+	return dirs;
+}
+
 Vector<String> gdre::filter_error_backtraces(const Vector<String> &p_error_messages) {
 	Vector<String> ret;
 	for (auto &err : p_error_messages) {
@@ -1092,4 +1129,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_fs_path", "path"), &gdre::is_fs_path);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("path_to_uri", "path"), &gdre::path_to_uri);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_zip_file", "path"), &gdre::is_zip_file);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_directories_at_recursive", "dir", "absolute", "include_hidden"), &gdre::get_directories_at_recursive);
 }
