@@ -829,7 +829,12 @@ struct VarWriter {
 		if (std::isinf(p_value)) {
 			if (p_value < 0) {
 				if constexpr (is_script) {
-					return "-INF";
+					if constexpr (ver_major <= 2) {
+						// no -INF tokens in v2, use -1.0e+511 instead which will be parsed as -INF
+						return "-1.0e+511";
+					} else {
+						return "-INF";
+					}
 				} else if constexpr (use_inf_neg) {
 					return "inf_neg";
 				} else {
@@ -837,7 +842,12 @@ struct VarWriter {
 				}
 			} else {
 				if constexpr (is_script) {
-					return "INF";
+					if constexpr (ver_major <= 2) {
+						// no INF tokens in v2, use 1.0e+511 instead which will be parsed as INF
+						return "1.0e+511";
+					} else {
+						return "INF";
+					}
 				} else {
 					return "inf";
 				}
