@@ -820,17 +820,27 @@ struct VarWriter {
 			return "0"; // Avoid negative zero (-0) being written, which may annoy git, svn, etc. for changes when they don't exist.
 		}
 		if (std::isnan(p_value)) {
-			return "nan";
+			if constexpr (is_script) {
+				return "NAN";
+			} else {
+				return "nan";
+			}
 		}
 		if (std::isinf(p_value)) {
 			if (p_value < 0) {
-				if constexpr (use_inf_neg) {
+				if constexpr (is_script) {
+					return "-INF";
+				} else if constexpr (use_inf_neg) {
 					return "inf_neg";
 				} else {
 					return "-inf";
 				}
 			} else {
-				return "inf";
+				if constexpr (is_script) {
+					return "INF";
+				} else {
+					return "inf";
+				}
 			}
 		}
 		return String::num_scientific(p_value);
@@ -986,7 +996,12 @@ struct VarWriter {
 
 	static Error write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud);
 	static Error write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count);
+
+	static const HashSet<String> float_special_values;
 }; // struct VariantWriterCompatInstance
+
+template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
+const HashSet<String> VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::float_special_values = { "-inf", "inf", "inf_neg", "nan", "NAN", "INF", "-INF" };
 
 template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
 Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count) {
@@ -1002,7 +1017,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 		} break;
 		case Variant::FLOAT: {
 			String s = rtosfix(p_variant.operator double());
-			if (s != "-inf" && s != "inf" && s != "inf_neg" && s != "nan") {
+			if (!float_special_values.has(s)) {
 				if (!s.contains(".") && !s.contains("e")) {
 					s += ".0";
 				}
@@ -1489,7 +1504,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 		} break;
 		case Variant::FLOAT: { // "REAL" in v2 and v3
 			String s = rtosfix(p_variant.operator double());
-			if (s != "-inf" && s != "inf" && s != "inf_neg" && s != "nan") {
+			if (!float_special_values.has(s)) {
 				if (s.find(".") == -1 && s.find("e") == -1)
 					s += ".0";
 			}
