@@ -2419,7 +2419,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 			if (text.strip_edges().is_empty()) {
 				return;
 			}
-			if (src_ext == "json") {
+			if (src_ext.begins_with("json")) {
 				Variant var = JSON::parse_string(text);
 				gdre::get_strings_from_variant(var, tokens[i].strings, tokens[i].engine_version);
 			} else if (src_ext == "esc") { // Adventure game VM files; only found in PizzaBoy thus far.
