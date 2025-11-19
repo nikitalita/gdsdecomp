@@ -13,10 +13,10 @@
 #include "modules/regex/regex.h"
 #include "modules/zip/zip_reader.h"
 
-Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, bool absolute, bool include_hidden, const String &rel) {
+Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, bool absolute, bool include_hidden) {
 	Vector<String> ret;
 	Error err;
-	Ref<DirAccess> da = DirAccess::open(p_dir.path_join(rel), &err);
+	Ref<DirAccess> da = DirAccess::open(p_dir, &err);
 	ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + p_dir);
 
 	if (da.is_null()) {
@@ -45,18 +45,24 @@ Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<St
 	dirs.sort_custom<FileNoCaseComparator>();
 	files.sort_custom<FileNoCaseComparator>();
 	for (auto &d : dirs) {
-		ret.append_array(get_recursive_dir_list(p_dir, wildcards, absolute, include_hidden, rel.path_join(d)));
+		auto rret = get_recursive_dir_list(p_dir.path_join(d), wildcards, absolute, include_hidden);
+		if (!absolute) { // d was not appended to the path
+			for (int i = 0; i < rret.size(); i++) {
+				rret.write[i] = d.path_join(rret[i]);
+			}
+		}
+		ret.append_array(rret);
 	}
 	for (auto &file : files) {
 		if (wildcards.size() > 0) {
 			for (int i = 0; i < wildcards.size(); i++) {
 				if (file.get_file().matchn(wildcards[i])) {
-					ret.append(base.path_join(rel).path_join(file));
+					ret.append(base.path_join(file));
 					break;
 				}
 			}
 		} else {
-			ret.append(base.path_join(rel).path_join(file));
+			ret.append(base.path_join(file));
 		}
 	}
 
@@ -1109,7 +1115,7 @@ bool gdre::is_zip_file(const String &p_path) {
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
-	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_recursive_dir_list", "dir", "wildcards", "absolute", "include_hidden", "rel"), &gdre::get_recursive_dir_list, DEFVAL(PackedStringArray()), DEFVAL(true), DEFVAL(true), DEFVAL(""));
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_recursive_dir_list", "dir", "wildcards", "absolute", "include_hidden"), &gdre::get_recursive_dir_list, DEFVAL(PackedStringArray()), DEFVAL(true), DEFVAL(true));
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("dir_has_any_matching_wildcards", "dir", "wildcards"), &gdre::dir_has_any_matching_wildcards);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("ensure_dir", "dir"), &gdre::ensure_dir);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_md5", "dir", "ignore_code_signature"), &gdre::get_md5);
