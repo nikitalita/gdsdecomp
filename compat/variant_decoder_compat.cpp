@@ -136,7 +136,7 @@ static const V2TypeToString v2_type_to_string[] = {
 	{ V2Type::ARRAY, "Array" },
 	{ V2Type::RAW_ARRAY, "RawArray" },
 	{ V2Type::INT_ARRAY, "IntArray" },
-	{ V2Type::REAL_ARRAY, "RealArray" },
+	{ V2Type::REAL_ARRAY, "FloatArray" }, // The actual name in v2 is "RealArray", but that's not what's written to the resources and scripts
 	{ V2Type::STRING_ARRAY, "StringArray" },
 	{ V2Type::VECTOR2_ARRAY, "Vector2Array" },
 	{ V2Type::VECTOR3_ARRAY, "Vector3Array" },
