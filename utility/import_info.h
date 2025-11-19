@@ -182,13 +182,16 @@ public:
 protected:
 	static void _bind_methods();
 };
+
+class ConfigFileCompat;
+
 class ImportInfoModern : public ImportInfo {
 	GDCLASS(ImportInfoModern, ImportInfo)
 private:
 	friend class ImportInfo;
 
 	String src_md5;
-	Ref<ConfigFile> cf; // raw v3-v4 import data
+	Ref<ConfigFileCompat> cf; // raw v3-v4 import data
 
 	virtual Error _load(const String &p_path) override;
 
@@ -368,7 +371,7 @@ class ImportInfoGDExt : public ImportInfoDummy {
 private:
 	friend class ImportInfo;
 	String importer = "gdextension";
-	Ref<ConfigFile> cf; // GDExtension/GDNative file
+	Ref<ConfigFileCompat> cf; // GDExtension/GDNative file
 	Error _load_after_cf(const String &p_path);
 	virtual Error _load(const String &p_path) override;
 	String correct_path(const String &p_path) const;

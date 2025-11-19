@@ -417,8 +417,8 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 		return _convert_tex(p_path, dest_path, lossy, image_format, report);
 	}
 	Ref<Texture2D> tex = atex->get_atlas();
-	String tex_path = tex->get_path();
 	ERR_FAIL_COND_V_MSG(tex.is_null(), ERR_PARSE_ERROR, "Failed to load atlas texture " + p_path);
+	String tex_path = tex->get_path();
 	Ref<Image> img = tex->get_image();
 
 	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to load image for texture " + p_path);

@@ -273,6 +273,7 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const
 			for (int i = 0; i < face_triplet_indices.size(); i += 3) {
 				String face_line = "f";
 				for (int k = 2; k >= 0; k--) {
+					ERR_CONTINUE_MSG(i + k >= face_triplet_indices.size(), "Face triplet index out of bounds in mesh " + p_path.get_file());
 					int idx = face_triplet_indices[i + k] + 1; // OBJ indices start at 1
 					face_line += " ";
 					face_line += itos(idx);
@@ -518,6 +519,14 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 
 	// Create the export report
 	Ref<ExportReport> report = memnew(ExportReport(p_import_info, get_name()));
+
+	// TODO: Godot 2.x obj export isn't working at all right now, shapes are broken, even though 2.x mesh loading is ostensibly supported by ArrayMesh.
+	if (p_import_info->get_ver_major() <= 2) {
+		report->set_error(ERR_UNAVAILABLE);
+		report->set_unsupported_format_type("2.x meshes");
+		report->set_message("Godot 2.x obj export is not supported yet");
+		return report;
+	}
 
 	// Load the mesh
 	Error err;

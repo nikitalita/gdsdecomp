@@ -4,7 +4,9 @@
 #include "core/error/error_list.h"
 #include "core/string/string_builder.h"
 
+#include "compat/config_file_compat.h"
 #include "compat/variant_writer_compat.h"
+#include "exporters/resource_exporter.h"
 #include "gdre_settings.h"
 #include "utility/common.h"
 #include "utility/glob.h"
@@ -124,8 +126,8 @@ int ImportInfo::get_import_loss_type() const {
 	return BASE;
 }
 
-Ref<ConfigFile> copy_config_file(Ref<ConfigFile> p_cf) {
-	Ref<ConfigFile> r_cf;
+Ref<ConfigFileCompat> copy_config_file(Ref<ConfigFileCompat> p_cf) {
+	Ref<ConfigFileCompat> r_cf;
 	r_cf.instantiate();
 	Vector<String> sections = p_cf->get_sections();
 	for (int64_t i = 0; i < sections.size(); i++) {
@@ -340,7 +342,7 @@ Vector<String> ImportInfoModern::get_dest_files() const {
 	return cf->get_value("deps", "dest_files", Vector<String>());
 }
 namespace {
-Vector<String> get_remap_paths(const Ref<ConfigFile> &cf) {
+Vector<String> get_remap_paths(const Ref<ConfigFileCompat> &cf) {
 	Vector<String> remap_paths;
 	Vector<String> remap_keys = cf->get_section_keys("remap");
 	// iterate over keys in remap section
@@ -457,7 +459,7 @@ Error ImportInfoModern::_load(const String &p_path) {
 	path = GDRESettings::get_singleton()->localize_path(p_path);
 	Error err = cf->load(path);
 	if (err) {
-		cf = Ref<ConfigFile>();
+		cf = Ref<ConfigFileCompat>();
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + path);
 	import_md_path = path;
@@ -592,14 +594,14 @@ Ref<ImportInfo> ImportInfoDummy::create_dummy(const String &p_path) {
 }
 
 Error ImportInfoRemap::_load(const String &p_path) {
-	Ref<ConfigFile> cf;
+	Ref<ConfigFileCompat> cf;
 	cf.instantiate();
 	source_file = p_path.get_basename(); // res://scene.tscn.remap -> res://scene.tscn
 	String path = p_path;
 	path = GDRESettings::get_singleton()->localize_path(p_path);
 	Error err = cf->load(path);
 	if (err) {
-		cf = Ref<ConfigFile>();
+		cf = Ref<ConfigFileCompat>();
 	}
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load " + path);
 	Vector<String> remap_keys = cf->get_section_keys("remap");
@@ -633,7 +635,6 @@ Error ImportInfoRemap::_load(const String &p_path) {
 	}
 	return OK;
 }
-
 Error ImportInfov2::_load(const String &p_path) {
 	Error err;
 	Ref<ResourceInfo> res_info;
@@ -684,8 +685,15 @@ Error ImportInfov2::_load(const String &p_path) {
 			new_ext = "png";
 		} else if (e == "scn" || type == "PackedScene") {
 			new_ext = "glb";
+		} else if (e == "msh") {
+			new_ext = "obj";
 		} else {
-			new_ext = "fixme";
+			auto exporter = Exporter::get_exporter("", type);
+			if (exporter.is_valid()) {
+				new_ext = exporter->get_default_export_extension(p_path);
+			} else {
+				new_ext = "fixme";
+			}
 		}
 		return new_ext;
 	};
@@ -870,7 +878,7 @@ void ImportInfov2::set_params(Dictionary params) {
 	dirty = true;
 }
 
-String encode_cfg_to_text(const Ref<ConfigFile> &cf, int ver_major, int ver_minor, bool gdext = false) {
+String encode_cfg_to_text(const Ref<ConfigFileCompat> &cf, int ver_major, int ver_minor, bool gdext = false) {
 	StringBuilder sb;
 	bool first = true;
 	static const String null_replacement = String("\"") + ImportInfo::NULL_REPLACEMENT + "\"";
@@ -1086,7 +1094,7 @@ void ImportInfov2::_bind_methods() {
 
 Error ImportInfoGDExt::_load(const String &p_path) {
 	Error err;
-	cf = Ref<ConfigFile>(memnew(ConfigFile));
+	cf = Ref<ConfigFileCompat>(memnew(ConfigFileCompat));
 	err = cf->load(p_path);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_path);
 	return _load_after_cf(p_path);
@@ -1094,7 +1102,7 @@ Error ImportInfoGDExt::_load(const String &p_path) {
 
 Error ImportInfoGDExt::load_from_string(const String &p_fakepath, const String &p_string) {
 	Error err;
-	cf = Ref<ConfigFile>(memnew(ConfigFile));
+	cf = Ref<ConfigFileCompat>(memnew(ConfigFileCompat));
 	err = cf->parse(p_string);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not load resource " + p_fakepath);
 	return _load_after_cf(p_fakepath);

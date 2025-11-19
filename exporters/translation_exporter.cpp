@@ -2409,6 +2409,10 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		translation_export_message += sync_message;
 		if (resave) {
 			translation_export_message += "Too inaccurate, saved " + iinfo->get_source_file().get_file() + " to " + iinfo->get_export_dest() + "\n";
+			// Ensure metadata is not rewritten
+			if (iinfo->get_ver_major() <= 2) {
+				report->set_rewrote_metadata(ExportReport::NOT_IMPORTABLE);
+			}
 		}
 		report->set_message(translation_export_message);
 	}

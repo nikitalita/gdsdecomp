@@ -123,7 +123,7 @@ Error GDScriptDecomp::get_buffer_encrypted(const String &p_path, int engine_ver_
 
 	// Godot v3 only encrypted the scripts and used a different format with different header fields,
 	// So we need to use an older version of FAE to access them
-	if (engine_ver_major == 3) {
+	if (engine_ver_major <= 3) {
 		Ref<FileAccessEncryptedv3> fae;
 		fae.instantiate();
 		ERR_FAIL_COND_V(fae.is_null(), ERR_BUG);

@@ -19,6 +19,7 @@
 #endif
 
 #include "bytecode/bytecode_versions.h"
+#include "compat/config_file_compat.h"
 #include "compat/fake_csharp_script.h"
 #include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
@@ -90,6 +91,7 @@ static Ref<ResourceFormatLoaderCompatBinary> binary_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatTexture2D> texture_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatTexture3D> texture3d_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatTextureLayered> texture_layered_loader = nullptr;
+static Ref<ResourceFormatLoaderImageTextureCompat> image_texture_loader = nullptr;
 static Ref<ResourceFormatGDScriptLoader> script_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatImage> image_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatVideo> video_loader = nullptr;
@@ -148,6 +150,7 @@ void init_loaders() {
 	texture_loader = memnew(ResourceFormatLoaderCompatTexture2D);
 	texture3d_loader = memnew(ResourceFormatLoaderCompatTexture3D);
 	texture_layered_loader = memnew(ResourceFormatLoaderCompatTextureLayered);
+	image_texture_loader = memnew(ResourceFormatLoaderImageTextureCompat);
 	script_loader = memnew(ResourceFormatGDScriptLoader);
 	image_loader = memnew(ResourceFormatLoaderCompatImage);
 	video_loader = memnew(ResourceFormatLoaderCompatVideo);
@@ -162,6 +165,7 @@ void init_loaders() {
 	input_event_converter = memnew(InputEventConverterCompat);
 	ResourceCompatLoader::add_resource_format_loader(binary_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(text_loader, true);
+	ResourceCompatLoader::add_resource_format_loader(image_texture_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(texture_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(texture3d_loader, true);
 	ResourceCompatLoader::add_resource_format_loader(texture_layered_loader, true);
@@ -324,6 +328,9 @@ void deinit_loaders() {
 	if (texture_layered_loader.is_valid()) {
 		ResourceCompatLoader::remove_resource_format_loader(texture_layered_loader);
 	}
+	if (image_texture_loader.is_valid()) {
+		ResourceCompatLoader::remove_resource_format_loader(image_texture_loader);
+	}
 	if (script_loader.is_valid()) {
 		ResourceCompatLoader::remove_resource_format_loader(script_loader);
 	}
@@ -365,6 +372,7 @@ void deinit_loaders() {
 	texture_loader = nullptr;
 	texture3d_loader = nullptr;
 	texture_layered_loader = nullptr;
+	image_texture_loader = nullptr;
 	script_loader = nullptr;
 	image_loader = nullptr;
 	video_loader = nullptr;
@@ -436,6 +444,7 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<ResourceFormatLoaderCompatTexture2D>();
 	ClassDB::register_class<ResourceFormatLoaderCompatTexture3D>();
 	ClassDB::register_class<ResourceFormatLoaderCompatTextureLayered>();
+	ClassDB::register_class<ResourceFormatLoaderImageTextureCompat>();
 	ClassDB::register_class<ResourceFormatGDScriptLoader>();
 	ClassDB::register_class<ResourceFormatLoaderCompatImage>();
 	ClassDB::register_class<ResourceFormatLoaderCompatVideo>();
@@ -491,6 +500,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();
 	ClassDB::register_class<ImageSaver>();
+
+	ClassDB::register_class<ConfigFileCompat>();
 
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);

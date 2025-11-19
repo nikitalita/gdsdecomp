@@ -952,7 +952,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (iinfo->get_ver_major() <= 2 && !iinfo->is_import() && !iinfo->is_auto_converted()) {
 			// filter out v2 binary non-imports
 			String ext = iinfo->get_path().get_extension().to_lower();
-			if (ext == "scn" || ext == "res") {
+			if (ext == "scn" || ext == "res" || iinfo->get_source_file().has_extension("fixme")) {
 				continue;
 			}
 		}

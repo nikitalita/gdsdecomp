@@ -236,13 +236,22 @@ uint64_t BytecodeTester::test_files_2_1(const Vector<String> &p_paths) {
 	bool ed80f45_failed = false;
 	bool _85585c7_failed = false;
 	bool _7124599_failed = false;
+	Vector<uint8_t> key = GDRESettings::get_singleton()->get_encryption_key();
+
 	Ref<GDScriptDecomp_ed80f45> decomp_ed80f45 = memnew(GDScriptDecomp_ed80f45);
 	Ref<GDScriptDecomp_85585c7> decomp_85585c7 = memnew(GDScriptDecomp_85585c7);
 	Ref<GDScriptDecomp_7124599> decomp_7124599 = memnew(GDScriptDecomp_7124599);
 	int func_max = 0;
 	int token_max = 0;
 	for (String path : p_paths) {
-		Vector<uint8_t> data = FileAccess::get_file_as_bytes(path);
+		Vector<uint8_t> data;
+		if (path.has_extension("gde")) {
+			Error err = GDScriptDecomp::get_buffer_encrypted(path, 3, key, data);
+			ERR_FAIL_COND_V_MSG(err == ERR_UNAUTHORIZED, 0, "Failed to decrypt file " + path + " (Did you set the correct key?)");
+			ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to read file " + path);
+		} else {
+			data = FileAccess::get_file_as_bytes(path);
+		}
 		if (data.size() == 0) {
 			continue;
 		}
@@ -326,11 +335,12 @@ uint64_t BytecodeTester::test_files_2_1(const Vector<String> &p_paths) {
 	return rev;
 }
 
-uint64_t BytecodeTester::test_files_3_1(const Vector<String> &p_paths, const Vector<uint8_t> &p_key) {
+uint64_t BytecodeTester::test_files_3_1(const Vector<String> &p_paths) {
 	uint64_t rev = 0;
 	bool _514a3fb_failed = false;
 	bool _1a36141_failed = false;
 	bool _1ca61a3_failed = false;
+	Vector<uint8_t> key = GDRESettings::get_singleton()->get_encryption_key();
 
 	Ref<GDScriptDecomp_514a3fb> decomp_514a3fb = memnew(GDScriptDecomp_514a3fb);
 	Ref<GDScriptDecomp_1a36141> decomp_1a36141 = memnew(GDScriptDecomp_1a36141);
@@ -340,8 +350,8 @@ uint64_t BytecodeTester::test_files_3_1(const Vector<String> &p_paths, const Vec
 
 	for (String path : p_paths) {
 		Vector<uint8_t> data;
-		if (p_key.size() > 0) {
-			Error err = GDScriptDecomp::get_buffer_encrypted(path, 3, p_key, data);
+		if (path.has_extension("gde")) {
+			Error err = GDScriptDecomp::get_buffer_encrypted(path, 3, key, data);
 			ERR_FAIL_COND_V_MSG(err == ERR_UNAUTHORIZED, 0, "Failed to decrypt file " + path + " (Did you set the correct key?)");
 			ERR_FAIL_COND_V_MSG(err != OK, 0, "Failed to read file " + path);
 		} else {
@@ -433,13 +443,8 @@ uint64_t BytecodeTester::test_files_3_1(const Vector<String> &p_paths, const Vec
 uint64_t BytecodeTester::test_files(const Vector<String> &p_paths, int ver_major_hint, int ver_minor_hint, bool print_log_on_fail) {
 	uint64_t rev = 0;
 	ERR_FAIL_COND_V_MSG(p_paths.size() == 0, 0, "No files to test");
-	Vector<uint8_t> key;
-	if (p_paths[0].get_extension().to_lower() == "gde") {
-		key = GDRESettings::get_singleton()->get_encryption_key();
-	}
-
 	if (ver_major_hint == 3 && ver_minor_hint == 1) {
-		rev = test_files_3_1(p_paths, key);
+		rev = test_files_3_1(p_paths);
 	} else if (ver_major_hint == 2 && ver_minor_hint == 1) {
 		rev = test_files_2_1(p_paths);
 	} else {
