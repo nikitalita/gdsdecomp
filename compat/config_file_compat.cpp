@@ -30,9 +30,9 @@
 
 #include "config_file_compat.h"
 
+#include "compat/variant_writer_compat.h"
 #include "core/io/file_access_encrypted.h"
 #include "core/string/string_builder.h"
-#include "compat/variant_writer_compat.h"
 
 void ConfigFileCompat::set_value(const String &p_section, const String &p_key, const Variant &p_value) {
 	if (p_value.get_type() == Variant::NIL) { // Erase key.
@@ -205,7 +205,6 @@ Error ConfigFileCompat::_internal_save(Ref<FileAccess> file, int ver_major, int 
 			file->store_string(F.key.property_name_encode() + "=" + vstr + "\n");
 		}
 	}
-
 
 	return OK;
 }

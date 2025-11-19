@@ -35,7 +35,6 @@
 #include "core/templates/hash_map.h"
 #include "core/variant/variant_parser.h"
 
-
 // This is basically a copy-and-paste of ConfigFile, but with the VariantParser/VariantWriter replaced with the compat versions
 class ConfigFileCompat : public RefCounted {
 	GDCLASS(ConfigFileCompat, RefCounted);
