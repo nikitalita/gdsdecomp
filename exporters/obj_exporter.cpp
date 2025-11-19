@@ -520,6 +520,14 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 	// Create the export report
 	Ref<ExportReport> report = memnew(ExportReport(p_import_info, get_name()));
 
+	// TODO: Godot 2.x obj export isn't working at all right now, shapes are broken, even though 2.x mesh loading is ostensibly supported by ArrayMesh.
+	if (p_import_info->get_ver_major() <= 2) {
+		report->set_error(ERR_UNAVAILABLE);
+		report->set_unsupported_format_type("2.x meshes");
+		report->set_message("Godot 2.x obj export is not supported yet");
+		return report;
+	}
+
 	// Load the mesh
 	Error err;
 	Vector<Ref<Mesh>> meshes;
