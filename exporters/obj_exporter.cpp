@@ -273,6 +273,7 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const
 			for (int i = 0; i < face_triplet_indices.size(); i += 3) {
 				String face_line = "f";
 				for (int k = 2; k >= 0; k--) {
+					ERR_CONTINUE_MSG(i + k >= face_triplet_indices.size(), "Face triplet index out of bounds in mesh " + p_path.get_file());
 					int idx = face_triplet_indices[i + k] + 1; // OBJ indices start at 1
 					face_line += " ";
 					face_line += itos(idx);
