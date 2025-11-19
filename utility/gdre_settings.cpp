@@ -2,6 +2,7 @@
 
 #include "bytecode/bytecode_base.h"
 #include "bytecode/bytecode_tester.h"
+#include "compat/config_file_compat.h"
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
@@ -1939,7 +1940,7 @@ Error GDRESettings::load_pack_gdscript_cache(bool p_reset) {
 		return ERR_FILE_NOT_FOUND;
 	}
 	Array global_class_list;
-	Ref<ConfigFile> cf;
+	Ref<ConfigFileCompat> cf;
 	cf.instantiate();
 	if (cf->load(cache_file) == OK) {
 		// the script cache file has a single key, "list", which is an array of dictionaries
@@ -2351,7 +2352,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		}
 	} else if (src_ext == "cfg" || src_ext == "ini") {
 		// cfg file
-		Ref<ConfigFile> cfg = memnew(ConfigFile);
+		Ref<ConfigFileCompat> cfg = memnew(ConfigFileCompat);
 		tokens[i].err = cfg->load(tokens[i].path);
 		ERR_FAIL_COND_MSG(tokens[i].err, "Failed to load cfg file " + tokens[i].path);
 		auto sections = cfg->get_sections();

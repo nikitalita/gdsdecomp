@@ -19,6 +19,7 @@
 #endif
 
 #include "bytecode/bytecode_versions.h"
+#include "compat/config_file_compat.h"
 #include "compat/fake_csharp_script.h"
 #include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
@@ -499,6 +500,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	ClassDB::register_class<GDREConfig>();
 	ClassDB::register_class<GDREConfigSetting>();
 	ClassDB::register_class<ImageSaver>();
+
+	ClassDB::register_class<ConfigFileCompat>();
 
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);
