@@ -2226,7 +2226,7 @@ bool GDRESettings::pack_has_project_config() const {
 	return false;
 }
 
-String GDRESettings::get_gdre_version() const {
+String GDRESettings::get_gdre_version() {
 	return GDRE_VERSION;
 }
 
@@ -2818,7 +2818,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_project_config", "p_out_dir"), &GDRESettings::save_project_config);
 	ClassDB::bind_method(D_METHOD("save_project_config_binary", "p_out_dir"), &GDRESettings::save_project_config_binary);
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
-	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);

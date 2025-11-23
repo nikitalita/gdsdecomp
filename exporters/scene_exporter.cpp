@@ -2342,7 +2342,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			// less file churn when testing
 			gltf_asset["generator"] = "GDRE Tools";
 #else
-			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_singleton()->get_gdre_version();
+			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_gdre_version();
 #endif
 
 			json["asset"] = gltf_asset;
