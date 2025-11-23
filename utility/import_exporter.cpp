@@ -778,8 +778,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 
 	bool partial_export = (_files_to_export.size() > 0 && _files_to_export.size() != get_settings()->get_file_info_list({}).size());
 	size_t export_files_count = partial_export ? _files_to_export.size() : _files.size();
-	const Vector<String> files_to_export = partial_export ? _files_to_export : get_settings()->get_file_list();
-	HashSet<String> files_to_export_set = vector_to_hashset(files_to_export);
+	const HashSet<String> files_to_export_set = vector_to_hashset(partial_export ? _files_to_export : get_settings()->get_file_list());
 
 	// *** Detect steam
 	if (get_settings()->is_project_config_loaded()) {
