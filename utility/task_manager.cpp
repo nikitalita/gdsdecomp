@@ -1,6 +1,7 @@
 #include "task_manager.h"
 #include "main/main.h"
 #include "utility/common.h"
+#include "utility/gdre_settings.h"
 
 static constexpr int64_t ONE_GB = 1024LL * 1024LL * 1024LL;
 static constexpr int64_t TWELVE_GB = 12 * ONE_GB;
@@ -281,7 +282,7 @@ bool TaskManager::update_progress_bg(bool p_force_refresh, bool called_from_proc
 	}
 	// this should only be called if this wasn't called from `GodotREEditorStandalone::process()` and there are tasks in the queue and none of them have progress enabled
 	if (!called_from_process && !main_loop_iterating && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing() && group_id_to_description.size() > 0) {
-		Main::iteration();
+		GDRESettings::main_iteration();
 	}
 	updating_bg = false;
 	return canceled;

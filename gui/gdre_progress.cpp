@@ -136,7 +136,7 @@ void GDREProgressDialog::_update_ui() {
 	// Run main loop for two frames.
 	if (is_inside_tree()) {
 		DisplayServer::get_singleton()->process_events();
-		Main::iteration();
+		GDRESettings::main_iteration();
 	}
 }
 
@@ -344,7 +344,7 @@ void GDREProgressDialog::_post_add_task(bool p_can_cancel) {
 }
 
 bool GDREProgressDialog::is_safe_to_redraw() {
-	return Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing();
+	return Thread::is_main_thread() && (!MessageQueue::get_singleton() || !MessageQueue::get_singleton()->is_flushing());
 }
 
 void GDREProgressDialog::add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel) {
@@ -541,7 +541,7 @@ bool StdOutProgress::step(int p_step, bool p_force_refresh) {
 	}
 	if ((p_force_refresh || current_tick - last_iteration_tick > ITERATION_TICK_THRESHOLD) && GDREProgressDialog::is_safe_to_redraw()) {
 		// force the main loop to iterate; this is needed to allow for input events to be processed and the command queue to be flushed.
-		Main::iteration();
+		GDRESettings::main_iteration();
 		last_iteration_tick = current_tick;
 	}
 	return false;

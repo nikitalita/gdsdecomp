@@ -13,6 +13,7 @@
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/translation_exporter.h"
+#include "main/main.h"
 #include "modules/zip/zip_reader.h"
 #include "plugin_manager/plugin_manager.h"
 #include "utility/common.h"
@@ -2732,6 +2733,31 @@ String GDRESettings::get_recent_error_string(bool p_filter_backtraces) {
 	}
 	return String("\n").join(GDRESettings::get_errors());
 }
+
+bool GDRESettings::main_iteration() {
+	// For testing, we can't call Main::iteration() because Main hasn't been set up.
+	// We only attempt to sync the renderingserver to flush the messages queue during testing.
+#ifdef TESTS_ENABLED
+	if (GDRESettings::testing) {
+		if (RenderingServer::get_singleton()) {
+			RenderingServer::get_singleton()->sync();
+		}
+		return false;
+	}
+#endif
+	return Main::iteration();
+}
+
+#ifdef TESTS_ENABLED
+bool GDRESettings::testing = false;
+void GDRESettings::set_is_testing(bool p_is_testing) {
+	testing = p_is_testing;
+}
+
+bool GDRESettings::is_testing() {
+	return testing;
+}
+#endif
 
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract", "csharp_assembly_override"), &GDRESettings::load_project, DEFVAL(false), DEFVAL(""));

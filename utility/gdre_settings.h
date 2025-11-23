@@ -446,6 +446,13 @@ public:
 	// or a "stringdump" file (i.e. a dump of all the strings that were found in the project during `load_all_resource_strings()`)
 	Error load_translation_key_hint_file(const String &p_path);
 
+	static bool main_iteration();
+#ifdef TESTS_ENABLED
+
+	static bool testing;
+	static void set_is_testing(bool p_is_testing);
+	static bool is_testing();
+#endif
 	GDRESettings();
 	~GDRESettings();
 };
