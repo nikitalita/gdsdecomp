@@ -7,14 +7,11 @@
 #include "image_parser_v2.h"
 #include "input_event_parser_v2.h"
 
-Error VariantParserCompat::_default_parse_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str, ResourceInfo::LoadType load_type, bool use_sub_threads, ResourceFormatLoader::CacheMode cache_mode) {
-	VariantParser::Token token;
-
-	Error err = OK;
+namespace {
+Error parse_uid_and_path(VariantParser::Stream *p_stream, VariantParser::Token &token, int &line, String &r_err_str, String &uid_string, String &path) {
 	VariantParser::get_token(p_stream, token, line, r_err_str);
 	if (token.type == VariantParser::TK_STRING) {
-		String path = token.value;
-		String uid_string;
+		path = token.value;
 
 		VariantParser::get_token(p_stream, token, line, r_err_str);
 
@@ -45,6 +42,25 @@ Error VariantParserCompat::_default_parse_resource(VariantParser::Stream *p_stre
 			VariantParser::get_token(p_stream, token, line, r_err_str);
 		}
 
+		// if (token.type != VariantParser::TK_PARENTHESIS_CLOSE) {
+		// 	r_err_str = "Expected ')'";
+		// 	return ERR_PARSE_ERROR;
+		// }
+	} else {
+		r_err_str = "Expected string as argument for Resource().";
+		return ERR_PARSE_ERROR;
+	}
+	return OK;
+}
+} //namespace
+
+Error VariantParserCompat::_default_parse_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str, ResourceInfo::LoadType load_type, bool use_sub_threads, ResourceFormatLoader::CacheMode cache_mode) {
+	VariantParser::Token token;
+
+	String uid_string;
+	String path;
+	Error err = parse_uid_and_path(p_stream, token, line, r_err_str, uid_string, path);
+	if (err == OK) {
 		Ref<Resource> res;
 		if (!uid_string.is_empty()) {
 			ResourceUID::ID uid = ResourceUID::get_singleton()->text_to_id(uid_string);
@@ -67,12 +83,25 @@ Error VariantParserCompat::_default_parse_resource(VariantParser::Stream *p_stre
 			r_err_str = "Expected ')'";
 			return ERR_PARSE_ERROR;
 		}
+	}
 
-		r_res = res;
-	} else {
-		r_err_str = "Expected string as argument for Resource().";
+	return err;
+}
+
+Error VariantParserCompat::parse_and_create_missing_resource(void *p_self, VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str) {
+	String uid_string;
+	String path;
+	VariantParser::Token token;
+	Error err = parse_uid_and_path(p_stream, token, line, r_err_str, uid_string, path);
+	if (err) {
+		return err;
+	}
+	r_res = CompatFormatLoader::create_missing_external_resource(path, "", ResourceUID::get_singleton()->text_to_id(uid_string), "");
+	if (token.type != VariantParser::TK_PARENTHESIS_CLOSE) {
+		r_err_str = "Expected ')'";
 		return ERR_PARSE_ERROR;
 	}
+
 	return OK;
 }
 

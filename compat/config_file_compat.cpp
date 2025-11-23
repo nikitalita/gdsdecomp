@@ -34,6 +34,8 @@
 #include "core/io/file_access_encrypted.h"
 #include "core/string/string_builder.h"
 
+#include "utility/gdre_settings.h"
+
 void ConfigFileCompat::set_value(const String &p_section, const String &p_key, const Variant &p_value) {
 	if (p_value.get_type() == Variant::NIL) { // Erase key.
 		if (!values.has(p_section)) {
@@ -284,12 +286,19 @@ Error ConfigFileCompat::_parse(const String &p_path, VariantParser::Stream *p_st
 
 	String section;
 
+	VariantParser::ResourceParser parser;
+	VariantParser::ResourceParser *parser_ptr = nullptr;
+	if (GDRESettings::get_singleton() && !GDRESettings::get_singleton()->is_pack_loaded()) {
+		parser_ptr = &parser;
+		parser.func = VariantParserCompat::parse_and_create_missing_resource;
+	}
+
 	while (true) {
 		assign = Variant();
 		next_tag.fields.clear();
 		next_tag.name = String();
 
-		Error err = VariantParserCompat::parse_tag_assign_eof(p_stream, lines, error_text, next_tag, assign, value, nullptr, true);
+		Error err = VariantParserCompat::parse_tag_assign_eof(p_stream, lines, error_text, next_tag, assign, value, parser_ptr, true);
 		if (err == ERR_FILE_EOF) {
 			return OK;
 		} else if (err != OK) {
