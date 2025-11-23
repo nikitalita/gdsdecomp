@@ -32,6 +32,8 @@ String get_full_path(const String &p_path, DirAccess::AccessType p_access);
 bool directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files);
 Vector<String> get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
 Vector<String> get_directories_at_recursive(const String &p_dir, bool absolute = true, bool include_hidden = true);
+Vector<String> get_dirs_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
+
 String num_scientific(double p_num);
 String num_scientific(float p_num);
 bool is_fs_path(const String &p_path);

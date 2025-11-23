@@ -987,6 +987,23 @@ Vector<String> gdre::get_directories_at_recursive(const String &p_dir, bool abso
 	return dirs;
 }
 
+Vector<String> gdre::get_dirs_at(const String &p_dir, const Vector<String> &wildcards, bool absolute) {
+	Vector<String> ret = DirAccess::get_directories_at(p_dir);
+	for (auto &wc : wildcards) {
+		for (int i = ret.size() - 1; i >= 0; i--) {
+			if (!ret[i].get_file().matchn(wc)) {
+				ret.remove_at(i);
+			}
+		}
+	}
+	if (absolute) {
+		for (int i = 0; i < ret.size(); i++) {
+			ret.write[i] = p_dir.path_join(ret[i]);
+		}
+	}
+	return ret;
+}
+
 Vector<String> gdre::filter_error_backtraces(const Vector<String> &p_error_messages) {
 	Vector<String> ret;
 	for (auto &err : p_error_messages) {
@@ -1136,4 +1153,6 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("path_to_uri", "path"), &gdre::path_to_uri);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_zip_file", "path"), &gdre::is_zip_file);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_directories_at_recursive", "dir", "absolute", "include_hidden"), &gdre::get_directories_at_recursive);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_files_at", "dir", "wildcards", "absolute"), &gdre::get_files_at);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_dirs_at", "dir", "wildcards", "absolute"), &gdre::get_dirs_at);
 }
