@@ -306,6 +306,7 @@ void TaskManager::DownloadTaskData::run_on_current_thread() {
 		return;
 	}
 	callback_data(nullptr);
+	done = true;
 }
 
 void TaskManager::DownloadTaskData::wait_for_task_completion_internal() {
@@ -360,7 +361,6 @@ String TaskManager::DownloadTaskData::get_current_task_step_description() {
 void TaskManager::DownloadTaskData::callback_data(void *p_data) {
 	start_time = OS::get_singleton()->get_ticks_msec();
 	download_error = gdre::download_file_sync(download_url, save_path, &download_progress, &canceled, &size);
-	done = true;
 #if TOOLS_ENABLED
 	speed_history.sort();
 	int64_t end_time = OS::get_singleton()->get_ticks_msec();
@@ -497,9 +497,10 @@ void TaskManager::DownloadQueueThread::worker_main_loop() {
 		if (!running_task) {
 			continue;
 		}
-		running_task->start();
-		running_task->run_on_current_thread();
+		auto task = running_task;
 		running_task = nullptr;
+		task->start();
+		task->run_on_current_thread();
 	}
 }
 
