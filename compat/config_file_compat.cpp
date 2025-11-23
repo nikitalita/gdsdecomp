@@ -200,8 +200,12 @@ Error ConfigFileCompat::_internal_save(Ref<FileAccess> file, int ver_major, int 
 		}
 
 		for (const KeyValue<String, Variant> &F : E.value) {
+			auto val = F.value;
+			if (val == NULL_REPLACEMENT) {
+				val = Variant();
+			}
 			String vstr;
-			VariantWriterCompat::write_to_string(F.value, vstr, ver_major, ver_minor, nullptr, nullptr, true);
+			VariantWriterCompat::write_to_string(val, vstr, ver_major, ver_minor, nullptr, nullptr, true);
 			file->store_string(F.key.property_name_encode() + "=" + vstr + "\n");
 		}
 	}
@@ -294,6 +298,9 @@ Error ConfigFileCompat::_parse(const String &p_path, VariantParser::Stream *p_st
 		}
 
 		if (!assign.is_empty()) {
+			if (value.get_type() == Variant::NIL) {
+				value = NULL_REPLACEMENT;
+			}
 			set_value(section, assign, value);
 		} else if (!next_tag.name.is_empty()) {
 			section = next_tag.name.replace("\\]", "]");

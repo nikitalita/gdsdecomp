@@ -50,6 +50,8 @@ protected:
 	static void _bind_methods();
 
 public:
+	constexpr static const char *NULL_REPLACEMENT = "<!%NULL%!>";
+
 	void set_value(const String &p_section, const String &p_key, const Variant &p_value);
 	Variant get_value(const String &p_section, const String &p_key, const Variant &p_default = Variant()) const;
 
