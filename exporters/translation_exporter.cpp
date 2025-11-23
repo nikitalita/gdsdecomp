@@ -79,7 +79,8 @@ static const Vector<String> STANDARD_SUFFIXES = {
 	"Clue",
 	"Quote",
 	"Event",
-	"Tutorial"
+	"Tutorial",
+	"Item"
 };
 
 template <class K, class V>
