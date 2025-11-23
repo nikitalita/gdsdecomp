@@ -171,8 +171,6 @@ public:
 
 	String as_text(bool full = true);
 
-	virtual int get_import_loss_type() const;
-
 	virtual Error save_to(const String &p_path) = 0;
 	static Error get_resource_info(const String &p_path, Ref<ResourceInfo> &i_info);
 	static Ref<ImportInfo> copy(const Ref<ImportInfo> &p_iinfo);

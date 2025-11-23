@@ -67,65 +67,6 @@ String ImportInfo::as_text(bool full) {
 	return s;
 }
 
-int ImportInfo::get_import_loss_type() const {
-	String importer = get_importer();
-	String source_file = get_source_file();
-	Dictionary params = get_params();
-	if (importer == "scene" || importer == "ogg_vorbis" || importer == "mp3" || importer == "wavefront_obj" || auto_converted_export) {
-		//These are always imported as either native files or losslessly
-		return LOSSLESS;
-	}
-	if (!is_import()) {
-		return BASE;
-	}
-	String ext = source_file.get_extension();
-	bool has_compress_param = params.has("compress/mode") && params["compress/mode"].is_num();
-
-	// textures and layered textures
-	if (importer.begins_with("texture")) {
-		int stat = 0;
-		// These are always imported in such a way that it is impossible to recover the original file
-		// SVG in particular is converted to raster from vector
-		// However, you can convert these and rewrite the imports such that they will be imported losslessly next time
-		if (ext == "svg" || ext == "jpg") {
-			stat |= IMPORTED_LOSSY;
-		}
-		if (ver_major == 2) { //v2 all textures
-			if (params.has("storage") && params["storage"].is_num()) { //v2
-				stat |= (int)params["storage"] != V2ImportEnums::Storage::STORAGE_COMPRESS_LOSSY ? LOSSLESS : STORED_LOSSY;
-			}
-		} else if (importer == "texture" && has_compress_param) { // non-layered textures
-			if (ver_major == 4 || ver_major == 3) {
-				// COMPRESSED_LOSSLESS or COMPRESS_VRAM_UNCOMPRESSED, same in v3 and v4
-				stat |= ((int)params["compress/mode"] == 0 || (int)params["compress/mode"] == 3) ? LOSSLESS : STORED_LOSSY;
-			}
-		} else if (has_compress_param) { // layered textures
-			if (ver_major == 4) {
-				// COMPRESSED_LOSSLESS or COMPRESS_VRAM_UNCOMPRESSED
-				stat |= ((int)params["compress/mode"] == 0 || (int)params["compress/mode"] == 3) ? LOSSLESS : STORED_LOSSY;
-			} else if (ver_major == 3) {
-				stat |= ((int)params["compress/mode"] != V3LTexCompressMode::COMPRESS_VIDEO_RAM) ? LOSSLESS : STORED_LOSSY;
-			}
-		}
-		return LossType(stat);
-	} else if (importer == "wav" || (ver_major == 2 && importer == "sample")) {
-		// Not possible to recover asset used to import losslessly
-		if (has_compress_param) {
-			return (int)params["compress/mode"] == 0 ? LOSSLESS : STORED_LOSSY;
-		}
-	}
-
-	if (ver_major == 2 && importer == "font") {
-		// Not possible to recover asset used to import losslessly
-		if (params.has("mode/mode") && params["mode/mode"].is_num()) {
-			return (int)params["mode/mode"] == V2ImportEnums::FontMode::FONT_DISTANCE_FIELD ? LOSSLESS : STORED_LOSSY;
-		}
-	}
-
-	// We can't say for sure
-	return BASE;
-}
-
 Ref<ConfigFileCompat> copy_config_file(Ref<ConfigFileCompat> p_cf) {
 	Ref<ConfigFileCompat> r_cf;
 	r_cf.instantiate();
@@ -1006,8 +947,6 @@ void ImportInfo::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_ver_major"), &ImportInfo::get_ver_major);
 	ClassDB::bind_method(D_METHOD("get_ver_minor"), &ImportInfo::get_ver_minor);
-
-	ClassDB::bind_method(D_METHOD("get_import_loss_type"), &ImportInfo::get_import_loss_type);
 
 	ClassDB::bind_method(D_METHOD("get_path"), &ImportInfo::get_path);
 	ClassDB::bind_method(D_METHOD("set_preferred_resource_path", "path"), &ImportInfo::set_preferred_resource_path);
