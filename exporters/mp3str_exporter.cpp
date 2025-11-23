@@ -36,6 +36,7 @@ Ref<ExportReport> Mp3StrExporter::export_resource(const String &output_dir, Ref<
 	String src_path = import_infos->get_path();
 	String dst_path = output_dir.path_join(import_infos->get_export_dest().replace("res://", ""));
 	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	report->set_resources_used({ import_infos->get_path() });
 	Error err = OK;
 	Ref<AudioStreamMP3> sample = ResourceCompatLoader::non_global_load(src_path, "", &err);
 	ERR_FAIL_COND_V_MSG(err != OK, report, "Could not load mp3str file " + src_path);

@@ -1010,6 +1010,7 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 			}
 		}
 	}
+	report->set_resources_used({ path });
 	if (!FileAccess::exists(path)) {
 		path = "";
 		for (auto &dest : iinfo->get_dest_files()) {

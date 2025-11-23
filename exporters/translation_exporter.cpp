@@ -2371,6 +2371,8 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 		}
 	}
 
+	report->set_resources_used(iinfo->get_dest_files());
+
 	String output_path = output_dir.simplify_path().path_join(iinfo->get_export_dest().replace("res://", ""));
 	Error export_err = gdre::ensure_dir(output_path.get_base_dir());
 	ERR_FAIL_COND_V_MSG(export_err != OK, report, "Could not create directory " + output_path.get_base_dir());

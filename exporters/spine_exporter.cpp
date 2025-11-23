@@ -41,6 +41,7 @@ Ref<ExportReport> SpineAtlasExporter::export_resource(const String &output_dir, 
 	auto dest = output_dir.path_join(import_infos->get_export_dest().trim_prefix("res://"));
 	Dictionary dict;
 	report->set_error(_export_file(dest, import_infos->get_path(), dict));
+	report->set_resources_used({ import_infos->get_path() });
 	if (report->get_error() == OK) {
 		report->set_saved_path(dest);
 		if (import_infos->get_ver_major() >= 4) {

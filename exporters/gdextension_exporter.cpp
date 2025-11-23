@@ -166,6 +166,7 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 	Ref<ImportInfoGDExt> iinfo = import_infos;
 	String platform = OS::get_singleton()->get_name().to_lower();
 	String parent_dir = GDRESettings::get_singleton()->get_pack_path().get_base_dir();
+	report->set_resources_used({ iinfo->get_path() });
 
 	auto libs = iinfo->get_libaries();
 	// nothing to do if there are no libraries

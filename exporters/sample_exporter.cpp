@@ -255,6 +255,8 @@ Ref<ExportReport> SampleExporter::export_resource(const String &output_dir, Ref<
 	Ref<AudioStreamWAV> sample;
 	Error err = _export_file(dst_path, src_path, sample, import_infos->get_ver_major());
 
+	report->set_resources_used({ import_infos->get_path() });
+
 	if (err == ERR_PRINTER_ON_FIRE) {
 		report->set_loss_type(ImportInfo::STORED_LOSSY);
 	} else if (err != OK) {

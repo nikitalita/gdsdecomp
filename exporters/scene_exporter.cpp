@@ -3160,6 +3160,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 		if (err == OK && !finished) {
 			err = p_skip_type;
 		}
+		report->set_resources_used({ report->get_import_info()->get_dest_files() });
 		report->set_error(err);
 		if (err == ERR_SKIP) {
 			report->set_message("Export cancelled.");

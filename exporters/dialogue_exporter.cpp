@@ -45,6 +45,7 @@ Ref<ExportReport> DialogueExporter::export_resource(const String &output_dir, Re
 	Ref<ExportReport> report = Ref<ExportReport>(memnew(ExportReport(import_infos)));
 	auto dest = output_dir.path_join(import_infos->get_export_dest().trim_prefix("res://"));
 	report->set_error(export_file(dest, import_infos->get_path()));
+	report->set_resources_used({ import_infos->get_path() });
 	if (report->get_error() == OK) {
 		// Started writing this in version 8.
 		if (import_infos->get_ver_major() >= 4 && get_dialogue_version(import_infos) >= 8) {
