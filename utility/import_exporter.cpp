@@ -52,25 +52,6 @@ Ref<ImportExporterReport> ImportExporter::get_report() {
 	return report;
 }
 
-namespace {
-static FileNoCaseComparator file_no_case_comparator;
-}
-struct FileInfoComparator {
-	bool operator()(const ImportExporter::FileInfo &a, const ImportExporter::FileInfo &b) const {
-		String a_base_dir = a.file.get_base_dir();
-		String b_base_dir = b.file.get_base_dir();
-		if (a_base_dir != b_base_dir) {
-			// subdirectories come last
-			if (a_base_dir.begins_with(b_base_dir)) {
-				return false;
-			} else if (b_base_dir.begins_with(a_base_dir)) {
-				return true;
-			}
-		}
-		return file_no_case_comparator(a.file, b.file);
-	}
-};
-
 // Error remove_remap(const String &src, const String &dst, const String &output_dir);
 Error ImportExporter::handle_auto_converted_file(const String &autoconverted_file) {
 	String prefix = autoconverted_file.replace_first("res://", "");
@@ -756,6 +737,55 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 	}
 };
 
+Vector<String> get_recursive_dir_list_subdirs_last(const String &p_dir, const Vector<String> &wildcards, bool absolute, bool include_hidden, const String &rel = "") {
+	Vector<String> ret;
+	Error err;
+	Ref<DirAccess> da = DirAccess::open(p_dir.path_join(rel), &err);
+	ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + p_dir);
+
+	if (da.is_null()) {
+		return ret;
+	}
+	Vector<String> dirs;
+	Vector<String> files;
+
+	String base = absolute ? p_dir : "";
+	da->set_include_hidden(include_hidden);
+	da->list_dir_begin();
+	String f = da->get_next();
+	while (!f.is_empty()) {
+		if (f == "." || f == "..") {
+			f = da->get_next();
+			continue;
+		} else if (da->current_is_dir()) {
+			dirs.push_back(f);
+		} else {
+			files.push_back(f);
+		}
+		f = da->get_next();
+	}
+	da->list_dir_end();
+
+	dirs.sort_custom<FileNoCaseComparator>();
+	files.sort_custom<FileNoCaseComparator>();
+	for (auto &file : files) {
+		if (wildcards.size() > 0) {
+			for (int i = 0; i < wildcards.size(); i++) {
+				if (file.get_file().matchn(wildcards[i])) {
+					ret.append(base.path_join(rel).path_join(file));
+					break;
+				}
+			}
+		} else {
+			ret.append(base.path_join(rel).path_join(file));
+		}
+	}
+	for (auto &d : dirs) {
+		ret.append_array(get_recursive_dir_list_subdirs_last(p_dir, wildcards, absolute, include_hidden, rel.path_join(d)));
+	}
+	return ret;
+}
+
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	ERR_FAIL_COND_V_MSG(p_out_dir.is_empty(), ERR_INVALID_PARAMETER, "Output directory is empty!");
@@ -1376,10 +1406,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (!partial_export || !FileAccess::exists(cache_file)) {
 			update_exts();
 			Vector<FileInfo> file_infos;
-			auto all_files_in_output_dir = gdre::get_recursive_dir_list(output_dir, {}, false, false);
-
 			Vector<Ref<ExportReport>> reports;
-			for (auto &file : all_files_in_output_dir) {
+			for (auto &file : get_recursive_dir_list_subdirs_last(output_dir, {}, false, false)) {
 				String ext = file.get_extension().to_lower();
 				if (ext == "uid" || ext == "import" || file.begins_with(".") || file.get_file().begins_with(".")) {
 					continue;
@@ -1396,7 +1424,6 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					"ImportExporter::export_imports::filesystem_cache",
 					"Generating filesystem cache...",
 					true, -1, true);
-			file_infos.sort_custom<FileInfoComparator>();
 			save_filesystem_cache(file_infos, output_dir);
 		}
 	}
