@@ -3412,7 +3412,7 @@ inline uint64_t get_average_delta(const Vector<uint64_t> &deltas) {
 	for (auto &delta : deltas) {
 		total_delta += delta;
 	}
-	return total_delta / deltas.size();
+	return total_delta / (deltas.size() > 0 ? deltas.size() : 1);
 }
 
 #ifdef DEBUG_ENABLED
@@ -3490,11 +3490,11 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	size_t current_vram_usage = get_vram_usage();
 	size_t peak_vram_usage = current_vram_usage;
 	// TODO: get the real available VRAM; right now we assume 4GB
-	const size_t MAX_VRAM = EIGHT_GB / 2;
+	const int64_t MAX_VRAM = EIGHT_GB / 2;
 	// 75% of the default thread pool size; we can't saturate the thread pool because some loaders may make use of them and we'll cause a deadlock.
-	const size_t default_num_threads = OS::get_singleton()->get_default_thread_pool_size() * 0.75;
+	const int64_t default_num_threads = OS::get_singleton()->get_default_thread_pool_size() * 0.75;
 	// The smaller of either the above value, or the amount of memory available to us, divided by 256MB (conservative estimate of 256MB per scene)
-	const size_t number_of_threads = MIN(default_num_threads, max_usage / (ONE_GB / 4));
+	const int64_t number_of_threads = MIN(default_num_threads, max_usage / (ONE_GB / 4));
 
 	print_line("\nExporting scenes...");
 	perf_print(vformat("Current memory usage: %.02fMB, Total memory available: %.02fMB", (double)current_memory_usage / (double)ONE_MB, (double)total_mem_available / (double)ONE_MB));

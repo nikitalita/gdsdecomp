@@ -2786,10 +2786,10 @@ void ResourceFormatSaverXMLInstance::_find_resources(const Variant &p_variant, b
 
 Error ResourceFormatSaverXMLInstance::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
 	Error err;
-	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
+	Ref<FileAccess> fa = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V(err, ERR_CANT_OPEN);
 
-	return save_to_file(f, p_path, p_resource, p_flags);
+	return save_to_file(fa, p_path, p_resource, p_flags);
 }
 
 Error ResourceFormatSaverXMLInstance::save_to_file(const Ref<FileAccess> &p_f, const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {

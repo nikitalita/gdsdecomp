@@ -80,12 +80,12 @@ Error ImportExporter::remove_remap_and_autoconverted(const String &source_file, 
 	return handle_auto_converted_file(autoconverted_file);
 }
 
-void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, String output_dir) {
+void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, String p_output_dir) {
 	if (get_ver_major() <= 3) {
 		return;
 	}
 	String cache_path = get_ver_minor() < 4 ? "filesystem_cache8" : "filesystem_cache10";
-	String editor_dir = output_dir.path_join(".godot").path_join("editor");
+	String editor_dir = p_output_dir.path_join(".godot").path_join("editor");
 	gdre::ensure_dir(editor_dir);
 	String cache_file = editor_dir.path_join(cache_path);
 	Ref<FileAccess> p_file = FileAccess::open(cache_file, FileAccess::WRITE);
@@ -94,7 +94,7 @@ void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, Stri
 	String current_dir = "";
 	const int64_t curr_time = OS::get_singleton()->get_unix_time();
 	auto get_dir_modified_time = [&](const String &dir) {
-		int64_t time = FileAccess::get_modified_time(output_dir.path_join(dir.trim_prefix("res://")));
+		int64_t time = FileAccess::get_modified_time(p_output_dir.path_join(dir.trim_prefix("res://")));
 		if (time <= 0) {
 			return curr_time;
 		}
@@ -163,23 +163,23 @@ void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, Stri
 void ImportExporter::_do_file_info(uint32_t i, FileInfo *file_infos) {
 	auto &file_info = file_infos[i];
 	String ext = file_info.file.get_extension().to_lower();
-	auto report = src_to_report.has(file_info.file) ? src_to_report.get(file_info.file) : Ref<ExportReport>();
-	if (report.is_valid() && report->modified_time > 0) {
-		auto iinfo = report->get_import_info();
+	auto export_report = src_to_report.has(file_info.file) ? src_to_report.get(file_info.file) : Ref<ExportReport>();
+	if (export_report.is_valid() && export_report->modified_time > 0) {
+		auto iinfo = export_report->get_import_info();
 		bool is_import = iinfo.is_valid() ? iinfo->is_import() : false;
-		file_info.type = report->actual_type;
-		file_info.resource_script_class = report->script_class;
+		file_info.type = export_report->actual_type;
+		file_info.resource_script_class = export_report->script_class;
 		file_info.uid = is_import ? ResourceUID::get_singleton()->text_to_id(iinfo->get_uid()) : GDRESettings::get_singleton()->get_uid_for_path(file_info.file);
-		file_info.modified_time = report->modified_time;
-		file_info.import_modified_time = report->import_modified_time;
-		file_info.import_md5 = report->import_md5;
+		file_info.modified_time = export_report->modified_time;
+		file_info.import_modified_time = export_report->import_modified_time;
+		file_info.import_md5 = export_report->import_md5;
 		file_info.import_dest_paths = is_import ? iinfo->get_dest_files() : Vector<String>();
 		file_info.import_valid = true;
 		auto group_val = is_import ? iinfo->get_iinfo_val("remap", "group_file") : Variant();
 		if (group_val.get_type() == Variant::STRING) {
 			file_info.import_group_file = group_val;
 		}
-		file_info.deps = report->dependencies;
+		file_info.deps = export_report->dependencies;
 		file_info.verified = true;
 	} else if (valid_extensions.has(ext)) {
 		String path = output_dir.path_join(file_info.file.trim_prefix("res://"));

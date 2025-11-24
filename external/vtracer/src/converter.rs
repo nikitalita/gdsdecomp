@@ -9,7 +9,7 @@ use visioncortex::color_clusters::{Cluster, ClusterIndex, Clusters, KeyingAction
 use visioncortex::{Color, ColorImage, ColorName, PathSimplifyMode};
 
 use crate::runner::{Runner, RunnerConfig};
-const NUM_UNUSED_COLOR_ITERATIONS: usize = 6;
+// const NUM_UNUSED_COLOR_ITERATIONS: usize = 6;
 
 /// Convert an in-memory image into an in-memory SVG
 pub fn convert(img: ColorImage, config: Config) -> Result<SvgFile, String> {
@@ -72,7 +72,7 @@ fn find_unused_color_in_image(img: &ColorImage) -> Result<Color, String> {
 		Color::new(211, 111, 40),
 		Color::new(149, 152, 46),
 		Color::new(157, 125, 127),
-		Color::new(15, 10, 188),
+    Color::new(15, 10, 188),
 	];
     for color in special_colors.chain(random_colors) {
         if !color_exists_in_image(img, color) {
