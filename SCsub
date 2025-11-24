@@ -108,10 +108,9 @@ def is_dev_build(env):
     return env["dev_build"] if "dev_build" in env else False
 
 
-def write_version_header():
+def get_version_info():
     git = shutil.which("git")
     version_info = "unknown"
-    is_tag = False
     if git == None:
         print("GDRE WARNING: cannot find git on path, unknown version will be saved in gdre_version.gen.h")
     else:
@@ -167,6 +166,12 @@ def write_version_header():
                 version_info = new_version_info
             else:
                 version_info = res
+    return version_info
+
+
+def write_version_header():
+    git = shutil.which("git")
+    version_info = get_version_info()
 
     f = open("utility/gdre_version.gen.h", "w")
     # check if we're not on a tag
