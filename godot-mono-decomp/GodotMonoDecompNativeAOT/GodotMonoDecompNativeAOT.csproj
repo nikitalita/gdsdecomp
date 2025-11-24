@@ -14,10 +14,26 @@
   </PropertyGroup>
 
   <ItemGroup>
-	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib)' == 'Shared' and $(RuntimeIdentifier.StartsWith('osx'))" />
-	<CustomLinkerArg Include="-Wl,-soname,$(AssemblyName).so" Condition="'$(NativeLib)' == 'Shared' and $(RuntimeIdentifier.StartsWith('linux-bionic'))" />
+	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('osx'))" />
+	<CustomLinkerArg Include="-Wl,-soname,$(AssemblyName).so" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('linux-bionic'))" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GodotMonoDecomp\GodotMonoDecomp.csproj" />
   </ItemGroup>
+  <PropertyGroup>
+    <PrintLinkerArgsDependsOn>
+		ResolvePackageAssets;
+		ResolveFrameworkReferences;
+		ImportRuntimeIlcPackageTarget;
+		SetupProperties;
+		RunResolvePackageDependencies;
+		ComputeIlcCompileInputs;
+		SetupOSSpecificProps;
+	</PrintLinkerArgsDependsOn>
+  </PropertyGroup>
+
+  <Target Name="PrintLinkerArgs" DependsOnTargets="$(PrintLinkerArgsDependsOn)">
+	<Message Importance="high" Text="Linker args: @(LinkerArg)" />
+  </Target>
+
 </Project>

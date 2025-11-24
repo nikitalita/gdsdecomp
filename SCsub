@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import json
 import platform
 import re
 from typing import Any, Literal
@@ -33,6 +34,13 @@ BUILD_DIR: str = env.Dir("#bin").abspath
 EXTERNAL_STEM: str = "external_install"
 EXTERNAL_DIR: str = os.path.join(MODULE_DIR, EXTERNAL_STEM)
 
+# TODO: enable static linking once we figure out why Linux keeps missing symbols
+mono_native_lib_type = "Shared"
+is_using_clang = env["CXX"].lower().endswith("clang++")
+if env["platform"] == "android" or (is_using_clang and env["platform"] == "macos"):
+    # force shared on android because of https://github.com/dotnet/runtime/issues/109341 (fixed in 10.0.0, but we're not upgrading to that yet)
+    # force shared on macos with clang++, because `ld` does not support multiple definitions of the same symbol
+    mono_native_lib_type = "Shared"
 
 etcpak_dir = "#thirdparty/etcpak/"
 mmp3thirdparty_dir = "#thirdparty/minimp3/"
@@ -174,8 +182,6 @@ def write_version_header():
     version_info = get_version_info()
 
     f = open("utility/gdre_version.gen.h", "w")
-    # check if we're not on a tag
-    process = Popen([git, "status", "--porcelain"], stdout=PIPE)
     # define GDRE_VERSION "dev-poc (for Godot 4.0)"
     f.write('#define GDRE_VERSION "')
     f.write(version_info)
@@ -519,7 +525,7 @@ def get_godot_mono_decomp_lib_dir(platform: str, arch: str, dev_build: bool):
 
 
 def get_godot_mono_decomp_lib_paths(_env=env) -> list[Any]:
-    libs = get_godot_mono_decomp_libs(False, _env)
+    libs = get_godot_mono_decomp_libs(mono_native_lib_type == "Static", _env)
     lib_paths = []
     build_dir = get_godot_mono_decomp_lib_dir(
         _env["platform"],
@@ -600,28 +606,41 @@ def get_cmd_env(build_env):
     return cmd_env
 
 
-def godot_mono_builder(target, source, env: dict[str, Any]):
-    print("GODOT MONO DECOMP BUILD: ", target)
-    libs = get_godot_mono_decomp_lib_paths(env)
-    native_lib_type = "Shared"
+def get_dotnet_publish_cmd(env, arch: str):
     dev_build: bool = is_dev_build(env)
-    build_variant = get_dotnet_variant_name(dev_build)
-    print("BUILD VARIANT ", build_variant)
-    BASE_CMD = [
+    build_variant: Literal["Debug", "Release"] = get_dotnet_variant_name(dev_build)
+    BASE_CMD: list[str] = [
         "dotnet",
         "publish",
-        f"/p:NativeLib={native_lib_type}",
+        # "-v",
+        # "diag",
+        # "-fileLogger",
+        # "-fileLoggerParameters:verbosity=detailed",
+        # "-consoleLoggerParameters:Verbosity=normal",
+        f"/p:NativeLib={mono_native_lib_type}",
         "/p:PublishProfile=AOT",
         "-c",
         build_variant,
     ]
-    cmd_env = get_cmd_env(env)
-    dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], env["arch"])]
-    if env["platform"] == "android":
+    dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], arch)]
+    if env["platform"] == "android" or mono_native_lib_type == "Static":
         dotnet_publish_cmd += ["-p:DisableUnsupportedError=true", "-p:PublishAotUsingRuntimePack=true"]
+    if mono_native_lib_type == "Static":
+        dotnet_publish_cmd += ["--use-current-runtime", "--self-contained"]
+    return dotnet_publish_cmd
+
+
+def godot_mono_builder(target, source, env: dict[str, Any]):
+    print("GODOT MONO DECOMP BUILD: ", target)
+    libs = get_godot_mono_decomp_lib_paths(env)
+    dev_build: bool = is_dev_build(env)
+    build_variant = get_dotnet_variant_name(dev_build)
+    print("BUILD VARIANT ", build_variant)
+    cmd_env = get_cmd_env(env)
+    dotnet_publish_cmd = get_dotnet_publish_cmd(env, env["arch"])
     lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], dev_build)
     cwd = GODOT_MONO_DECOMP_DIR
-    print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
+    print("DOTNET PUBLISH CMD", " ".join(dotnet_publish_cmd))
     dotnet_publish_output = ""
     try:
         dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd, stderr=STDOUT, env=cmd_env)
@@ -632,11 +651,10 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
     # parse utf-8
     print("DOTNET PUBLISH OUTPUT", dotnet_publish_output.decode("utf-8"))
     other_lib_dir = ""
-    if env["platform"] == "macos":
+    if env["platform"] == "macos" and mono_native_lib_type == "Shared":
         # run it again for the opposite architecture
         new_arch = "x86_64" if env["arch"] == "arm64" else "arm64"
-        new_triplet = get_godot_mono_triplet(env["platform"], new_arch)
-        dotnet_publish_cmd = BASE_CMD + ["-r", new_triplet]
+        dotnet_publish_cmd = get_dotnet_publish_cmd(env, new_arch)
         other_lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], new_arch, dev_build)
         cwd = GODOT_MONO_DECOMP_DIR
         print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
@@ -644,7 +662,7 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
         print("DOTNET PUBLISH OUTPUT", dotnet_publish_output.decode("utf-8"))
         # lipo them together
 
-    if env["platform"] == "android":
+    if env["platform"] == "android" or mono_native_lib_type == "Static":
         return  # don't copy the libs to the BUILD_DIR
     # if the platform is macos or linux, we need to make a copy with a "lib" prefix
 
@@ -677,17 +695,49 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
             #     shutil.copy(lib.replace(".lib", ".dll"), copy_path.replace(".lib", ".dll"))
 
 
+def get_godot_mono_static_linker_args_from_json(json_output: str) -> tuple[list[str], list[str], list[str]]:
+    # json goes like this:
+    # {
+    #   "Items": {
+    #     "LinkerArg": [
+    #       {
+    #         "Identity": "-gz=zlib",
+    # ...
+    # we want to get the "Identity" field for each item
+    json_blob = json.loads(json_output)
+    linker_args: list[str] = []
+    library_args: list[str] = []
+    framework_args: list[str] = []
+    line: str
+    for item in json_blob["Items"]["LinkerArg"]:
+        line = item["Identity"].strip()
+        if line.startswith("/") or line.startswith("\\") or line[0].isalpha():
+            if "libbootstrapper" in line:  # ignore libbootstrapper
+                continue
+            linker_args.append(line)
+        elif line.startswith("-l"):
+            library_args.append(line.removeprefix("-l").strip())
+        elif line.startswith("-framework"):
+            framework_args.append(line.removeprefix("-framework").strip())
+    return linker_args, library_args, framework_args
+
+
 def build_godot_mono_decomp(module_obj):
     # For pre-built .NET NativeAOT libraries, we just need to link them
     libs = get_godot_mono_decomp_lib_paths()
     # Create empty sources list since we're linking pre-built libraries
     godot_mono_decomp_sources = glob.glob(os.path.join(GODOT_MONO_DECOMP_DIR, "**", "*.cs"), recursive=True)
     # add the get_godot_mono_decomp_lib_dir() to the LIBPATH
-    lib_suffix = ".so"
-    if env.msvc:
-        lib_suffix = ".lib"  # not .dll
-    elif env["platform"] == "macos":
-        lib_suffix = ".dylib"
+    if mono_native_lib_type == "Static":
+        lib_suffix = ".a"
+        if env.msvc:
+            lib_suffix = ".lib"
+    else:
+        lib_suffix = ".so"
+        if env.msvc:
+            lib_suffix = ".lib"  # not .dll
+        elif env["platform"] == "macos":
+            lib_suffix = ".dylib"
 
     src_suffixes = ["*.h", "*.cs", "*.csproj", "*.props", "*.targets", "*.pubxml"]
     env_gdsdecomp["BUILDERS"]["godotMonoDecompBuilder"] = Builder(
@@ -696,7 +746,7 @@ def build_godot_mono_decomp(module_obj):
         src_suffix=src_suffixes,
     )
     depends_libs = []
-    if env["platform"] != "android":
+    if env["platform"] != "android" and mono_native_lib_type == "Shared":
         # if the library doesn't exist in BUILD_DIR, remove the libs from disk to force a rebuild
         for lib in libs:
             new_lib = os.path.join(BUILD_DIR, os.path.basename(lib))
@@ -712,7 +762,7 @@ def build_godot_mono_decomp(module_obj):
         [env_gdsdecomp.godotMonoDecompBuilder(all_libs, godot_mono_decomp_sources)],
     )
 
-    if env["platform"] == "android":
+    if env["platform"] == "android" and mono_native_lib_type == "Shared":
         android_lib_dest = get_android_lib_dest(env) + "/libGodotMonoDecompNativeAOT.so"
         main_lib = libs[0]
         env_gdsdecomp.CommandNoCache(android_lib_dest, main_lib, Copy("$TARGET", "$SOURCE"))
@@ -720,12 +770,57 @@ def build_godot_mono_decomp(module_obj):
     add_libs_to_env(module_obj, libs, godot_mono_decomp_sources)
     env.Depends(module_obj, depends_libs)
 
-    if env["platform"] == "linuxbsd":
+    if env["platform"] == "linuxbsd" and mono_native_lib_type == "Shared":
         # add -Wl,-rpath,'$ORIGIN'
         # env.Append(LINKFLAGS=["-Wl,-rpath,'$ORIGIN'"])
         env.Append( LINKFLAGS = Split('-z origin') )
         env.Append( RPATH = env.Literal('\\$$ORIGIN'))
-    # env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir()])
+    if mono_native_lib_type == "Static":
+        # the `Object` in C# and the `Object` in Godot end up having conflicting symbols for their vtables,
+        # so we need to allow multiple definitions
+        if env.msvc:
+            env.Append(LINKFLAGS=["/FORCE:MULTIPLE"])
+        else:
+            env.Append(LINKFLAGS=["-Wl,--allow-multiple-definition"])
+            # it's in modules/gdsdecomp/godot-mono-decomp/GodotMonoDecompNativeAOT/msbuild.log
+        cmd_env = get_cmd_env(env)
+        properties = {
+            "RuntimeIdentifier": get_godot_mono_triplet(env["platform"], env["arch"]),
+            "UseCurrentRuntimeIdentifier": "True",
+            "NativeLib": "Static",
+            "PublishProfile": "AOT",
+            "SelfContained": "true",
+            "_IsPublishing": "true",
+            "Configuration": get_dotnet_variant_name(is_dev_build(env)),
+        }
+        if env["platform"] == "android" or True:
+            properties["DisableUnsupportedError"] = "true"
+            properties["PublishAotUsingRuntimePack"] = "true"
+        dotnet_get_linker_args_cmd = [
+            "dotnet",
+            "msbuild",
+            "-restore",
+            "-target:PrintLinkerArgs",
+            "-getItem:LinkerArg",
+        ]
+        for property, value in properties.items():
+            dotnet_get_linker_args_cmd.append(f"-p:{property}={value}")
+        for property, value in properties.items():
+            dotnet_get_linker_args_cmd.append(f"-restoreProperty:{property}={value}")
+        print("RUNNING RESTORE: ", " ".join(dotnet_get_linker_args_cmd))
+        ret = check_output(args=dotnet_get_linker_args_cmd, cwd=GODOT_MONO_DECOMP_DIR, env=cmd_env)
+
+        linker_args, library_args, framework_args = get_godot_mono_static_linker_args_from_json(ret.decode("utf-8"))
+        if len(linker_args) == 0:
+            raise Exception("No linker args found in msbuild.log!!!!!!!!!!!!")
+        print("MONO DECOMP LINKER ARGS", linker_args)
+        print("MONO DECOMP LIBRARY ARGS", library_args)
+        print("MONO DECOMP FRAMEWORK ARGS", framework_args)
+        env.Append(LINKFLAGS=linker_args)
+        env.Append(LIBS=library_args)
+        if env["platform"] == "macos":
+            for framework in framework_args:
+                env.Append(LINKFLAGS=["-framework", framework])
 
 
 # link against external/libvtracer.a and godot-mono-decomp libraries
