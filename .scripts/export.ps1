@@ -22,6 +22,12 @@ function Get-GodotUserSettingsPath {
     else {
         $user_settings_dir = Join-Path $env:HOME ".config/godot"
     }
+
+    # mkdir if it doesn't exist
+    if (-not (Test-Path $user_settings_dir)) {
+        New-Item -ItemType Directory -Path $user_settings_dir
+    }
+
     # list all the files in the directory that begin with "editor_settings-4"
     $user_settings_files = Get-ChildItem $user_settings_dir -Filter "editor_settings-4*"
     if ($user_settings_files.Length -eq 0) {
@@ -262,16 +268,29 @@ if ($export_preset -eq "Android") {
         echo "JAVA_HOME is not set, please set it to the path to the Java SDK"
         exit 1
     }
+    if ($env:ANDROID_HOME -eq $null) {
+        echo "ANDROID_HOME is not set, please set it to the path to the Android SDK"
+        exit 1
+    }
     $user_settings_path = Get-GodotUserSettingsPath
     Write-Host "user_settings_path: $user_settings_path"
-    $user_settings = Get-Content $user_settings_path
-    if ($user_settings -eq $null) {
-        $user_settings = "[gd_resource type=""EditorSettings"" format=3]
-[resource]`
+    $user_settings = $null
+    $java_home = $env:JAVA_HOME -replace '\\', '/'
+    $android_home = $env:ANDROID_HOME -replace '\\', '/'
 
-export/android/java_sdk_path = ""$env:JAVA_HOME"""
+    if (Test-Path $user_settings_path) {
+        $user_settings = Get-Content $user_settings_path
+        $user_settings = $user_settings -replace 'export/android/java_sdk_path = ".*"', "export/android/java_sdk_path = ""$java_home"""
+        $user_settings = $user_settings -replace 'export/android/android_sdk_path = ".*"', "export/android/android_sdk_path = ""$android_home"""
+    } else { 
+        New-Item -ItemType File -Path $user_settings_path
+        $user_settings = "[gd_resource type=""EditorSettings"" format=3]
+[resource]
+
+export/android/java_sdk_path = ""$java_home""
+export/android/android_sdk_path = ""$android_home""
+"
     }
-    $user_settings = $user_settings -replace 'export/android/java_sdk_path = ".*"', "export/android/java_sdk_path = ""$env:JAVA_HOME"""
     $user_settings | Set-Content $user_settings_path
 }
 

@@ -451,6 +451,17 @@ jobs:
           Rename-Item ${{ runner.tool_cache }}\rcedit\rcedit-x64.exe ${{ runner.tool_cache }}\rcedit\rcedit.exe
           echo "${{ runner.tool_cache }}\rcedit" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
+      - name: Decode Android keystore
+        shell: bash
+        if: matrix.platform == 'android'
+        run: |
+          set -Eeuo pipefail
+          echo "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" > release.keystore.asc
+          gpg -d --passphrase "${{ secrets.ANDROID_KEYSTORE_PASSPHRASE }}" --batch release.keystore.asc > ~/release.keystore
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+  
       - name: Export standalone GDRE Tools
         shell: pwsh
         run: |
