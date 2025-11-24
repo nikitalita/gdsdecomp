@@ -52,6 +52,7 @@ jobs:
             target: editor
             sconsflags: debug_symbols=no tests=yes
             rust-arch: x86_64-pc-windows-msvc
+            alt-rust-arch: none
             bin: ./bin/godot.windows.editor.x86_64.exe
 
           - name: "Windows Template Release"
@@ -61,6 +62,7 @@ jobs:
             target: template_release
             sconsflags: debug_symbols=no
             rust-arch: x86_64-pc-windows-msvc
+            alt-rust-arch: none
             bin: ./bin/godot.windows.editor.x86_64.exe
 
           - name: "🐧 Linux Editor"
@@ -70,6 +72,7 @@ jobs:
             target: editor
             sconsflags: debug_symbols=no tests=yes
             rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
           # TODO: move into its own workflow
@@ -89,6 +92,7 @@ jobs:
             target: template_debug
             sconsflags: debug_symbols=no tests=yes
             rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
             bin: ./bin/godot.linuxbsd.template_debug.x86_64
 
           - name: "🐧 Linux Template Release"
@@ -97,6 +101,7 @@ jobs:
             platform: linux
             target: template_release
             rust-arch: x86_64-unknown-linux-gnu
+            alt-rust-arch: none
             sconsflags: debug_symbols=no optimize=size use_lto=yes
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
@@ -105,8 +110,9 @@ jobs:
             id: android-template
             platform: android
             target: template_release
-            rust-arch: x86_64-unknown-linux-gnu
-            sconsflags: debug_symbols=no optimize=size use_lto=yes
+            rust-arch: x86_64-linux-android
+            alt-rust-arch: aarch64-linux-android
+            sconsflags: debug_symbols=no optimize=size use_lto=yes generate_android_binaries=yes
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
           - name: "🍎 macOS Editor"
@@ -115,6 +121,7 @@ jobs:
             platform: macos
             target: editor
             rust-arch: x86_64-apple-darwin
+            alt-rust-arch: none
             sconsflags: debug_symbols=no tests=yes use_volk=no vulkan=yes
             bin: ./bin/godot.macos.editor.arm64
 
@@ -124,6 +131,7 @@ jobs:
             platform: macos
             target: template_release
             rust-arch: x86_64-apple-darwin
+            alt-rust-arch: aarch64-apple-darwin
             sconsflags: debug_symbols=no optimize=size use_lto=yes use_volk=no vulkan=yes
             bin: ./bin/godot.macos.editor.arm64
 
@@ -195,16 +203,29 @@ jobs:
         run: |
           rustup target add ${{ matrix.rust-arch }}
 
-      - name: Rust Add aarch64 macos target
-        if: matrix.platform == 'macos'
+      - name: Rust Add alt target
+        if: matrix.alt-rust-arch != 'none'
         shell: sh
         run: |
-          rustup target add aarch64-apple-darwin
+          rustup target add ${{ matrix.alt-rust-arch }}
 
       - name: setup-dotnet
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
+
+      - name: Download pre-built Android Swappy Frame Pacing Library
+        if: matrix.platform == 'android'
+        uses: dsaltares/fetch-gh-release-asset@1.1.2
+        with:
+          repo: godotengine/godot-swappy
+          version: tags/from-source-2025-01-31
+          file: godot-swappy.7z
+          target: swappy/godot-swappy.7z
+
+      - name: Extract pre-built Android Swappy Frame Pacing Library
+        if: matrix.platform == 'android'
+        run: 7za x -y swappy/godot-swappy.7z -o${{github.workspace}}/thirdparty/swappy-frame-pacing
 
       - name: Compile Editor
         if: matrix.target == 'editor'
@@ -216,7 +237,7 @@ jobs:
           target: editor
 
       - name: Compile godot export template (x86_64)
-        if: matrix.target == 'template_release' || matrix.target == 'template_debug'
+        if: matrix.platform != 'android' && (matrix.target == 'template_release' || matrix.target == 'template_debug')
         id: compile-template
         uses: ./.github/actions/godot-build
         with:
@@ -224,9 +245,9 @@ jobs:
           platform: ${{ matrix.platform }}
           target: ${{ matrix.target }}
 
-      - name: Compile godot export template for macos arm64
+      - name: Compile godot export template for arm64
         uses: ./.github/actions/godot-build
-        if: matrix.platform == 'macos' && (matrix.target == 'template_release' || matrix.target == 'template_debug')
+        if: (matrix.platform == 'macos' || matrix.platform == 'android') && (matrix.target == 'template_release' || matrix.target == 'template_debug')
         with:
           scons-flags: arch=arm64 ${{ env.SCONSFLAGS }} ${{ env.SCONSFLAGS_TEMPLATE }} ${{ matrix.sconsflags }} generate_bundle=yes
           platform: ${{ matrix.platform }}

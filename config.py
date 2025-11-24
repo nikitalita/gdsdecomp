@@ -78,73 +78,11 @@ def monkey_patch_macos_generate_bundle():
     # remove the platform_macos_builders from the path
     sys.path.remove(platform_macos_builders_dir)
 
-
-def monkey_patch_generate_android_binaries():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    platform_android_builders_dir = os.path.abspath(os.path.join(current_dir, "../../platform/android"))
-    sys.path.insert(0, platform_android_builders_dir)
-    import platform_android_builders
-
-    old_generate_android_binaries = platform_android_builders.generate_android_binaries
-
-    def generate_android_binaries(target, source, env):
-        if "disable_godot_mono_decomp" in env and env["disable_godot_mono_decomp"]:
-            old_generate_android_binaries(target, source, env)
-            return
-
-        lib_arch_dir = ""
-        if env["arch"] == "arm32":
-            lib_arch_dir = "armeabi-v7a"
-        elif env["arch"] == "arm64":
-            lib_arch_dir = "arm64-v8a"
-        elif env["arch"] == "x86_32":
-            lib_arch_dir = "x86"
-        elif env["arch"] == "x86_64":
-            lib_arch_dir = "x86_64"
-        else:
-            print("Architecture not suitable for embedding into APK; keeping .so at \\bin")
-
-        if env.editor_build:
-            lib_tools_dir = "tools/"
-        else:
-            lib_tools_dir = ""
-        if env.dev_build:
-            lib_type_dir = "dev"
-        elif env.debug_features:
-            if env.editor_build and env["store_release"]:
-                lib_type_dir = "release"
-            else:
-                lib_type_dir = "debug"
-        else:  # Release
-            lib_type_dir = "release"
-
-        jni_libs_dir = "#platform/android/java/lib/libs/" + lib_tools_dir + lib_type_dir + "/"
-        out_dir = jni_libs_dir + lib_arch_dir
-
-        # env_android.CommandNoCache(out_dir + "/libgodot_android.so", lib, Move("$TARGET", "$SOURCE"))
-        lib = env.Dir("#bin").abspath + "/libGodotMonoDecompNativeAOT.so"
-        out_dir_abs = env.Dir(out_dir).abspath
-        # ensure out_dir_abs
-        if not os.path.exists(out_dir_abs):
-            os.makedirs(out_dir_abs, exist_ok=True)
-        # copy it directly using shutil
-        shutil.copy(lib, env.Dir(out_dir).abspath + "/libGodotMonoDecompNativeAOT.so")
-
-        old_generate_android_binaries(target, source, env)
-
-    platform_android_builders.generate_android_binaries = generate_android_binaries
-
-    # remove the platform_android_builders from the path
-    sys.path.remove(platform_android_builders_dir)
-
-
 def configure(env):
     if not env.editor_build:
         monkey_patch_sort_module_list()
     if env["platform"] == "macos":
         monkey_patch_macos_generate_bundle()
-    elif env["platform"] == "android":
-        monkey_patch_generate_android_binaries()
 
 
 def get_doc_classes():
