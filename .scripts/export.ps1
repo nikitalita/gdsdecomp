@@ -343,7 +343,20 @@ export/android/android_sdk_path = ""$android_home""
                 echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD is not set"
             }
             echo "Using default debug keystore"
-            ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH} = Join-Path (Get-GodotUserDataDir) "keystores/debug.keystore"
+            $keystore_path = Join-Path (Get-GodotUserDataDir) "keystores/debug.keystore"
+            # check if it exists
+            if (-not (Test-Path $keystore_path)) {
+                echo "Debug keystore does not exist, creating it"
+                # create the keystore
+                $keytool_path = Join-Path $env:JAVA_HOME "bin/keytool"
+                & $keytool_path -genkey -keystore $keystore_path -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "cn=Godot, ou=Godot Engine, o=Stichting Godot, c=NL"
+                if ($LASTEXITCODE -ne 0) {
+                    echo "Failed to create debug keystore"
+                    exit 1
+                }
+            }
+            ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH} = $keystore_path
+            echo "Release path: ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH}"
             ${env:GODOT_ANDROID_KEYSTORE_RELEASE_USER} = "androiddebugkey"
             ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD} = "android"
         }
