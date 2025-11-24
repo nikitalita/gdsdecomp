@@ -16,7 +16,7 @@ function Get-GodotUserDataDir {
     if ($env:OS -eq "Windows_NT") {
         $user_settings_dir = Join-Path $env:APPDATA "Godot"
     }
-    elseif ($env:OS -eq "OSX") {
+    elseif ($PSVersionTable.Os.StartsWith("Darwin")) {
         $user_settings_dir = Join-Path $env:HOME "Library/Application Support/Godot"
     }
     else {
@@ -222,9 +222,30 @@ $standaloneDir = $scriptDir -replace '/.scripts', '/standalone'
 # we're in ${workspaceDir}/modules/gdsdecomp/.scripts, need to be in ${workspaceDir}/bin
 $godotBinDir = $scriptDir -replace '/modules/gdsdecomp/.scripts', '/bin'
 
+$platform = "linuxbsd"
+if ($env:OS -eq "Windows_NT") {
+    $platform = "windows"
+}
+elseif ($PSVersionTable.Os.StartsWith("Darwin")) {
+    $platform = "macos"
+}
+
 # check if $export_command is empty
 if ($export_command -eq "") {
-    $godotEditor = Get-ChildItem $godotBinDir -Filter "*editor*" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $filter = "godot.$platform.editor*.x86_64"
+    # if windows, add .exe to the filter
+    if ($platform -eq "windows") {
+        $filter += ".exe"
+    }
+    $godotEditor = Get-ChildItem $godotBinDir -Filter $filter | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($godotEditor -eq $null) {
+        # try arm64
+        $filter = "godot.$platform.editor*.arm64"
+        if ($platform -eq "windows") {
+            $filter += ".exe"
+        }
+        $godotEditor = Get-ChildItem $godotBinDir -Filter $filter | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    }
     if ($godotEditor -eq $null) {
         echo "Godot editor path not given and not found in $godotBinDir"
         cd $current_dir
