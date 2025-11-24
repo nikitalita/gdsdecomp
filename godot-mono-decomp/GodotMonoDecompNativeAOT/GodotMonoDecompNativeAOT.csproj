@@ -10,8 +10,13 @@
   <PropertyGroup>
     <PublishTrimmed>true</PublishTrimmed>
     <PublishAot>true</PublishAot>
+	<PublishProfile>AOT</PublishProfile>
   </PropertyGroup>
 
+  <ItemGroup>
+	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib)' == 'Shared' and $(RuntimeIdentifier.StartsWith('osx'))" />
+	<CustomLinkerArg Include="-Wl,-soname,$(AssemblyName).so" Condition="'$(NativeLib)' == 'Shared' and $(RuntimeIdentifier.StartsWith('linux-bionic'))" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GodotMonoDecomp\GodotMonoDecomp.csproj" />
   </ItemGroup>
