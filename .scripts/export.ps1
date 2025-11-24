@@ -325,9 +325,6 @@ export/android/android_sdk_path = ""$android_home""
     }
     $user_settings | Set-Content $user_settings_path
 
-    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
-    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
-    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
     # check for the existence of the keystore vars
     if ($debug -eq $false) {
         # if the keystore vars are not set, use the debug keystore
@@ -343,7 +340,11 @@ export/android/android_sdk_path = ""$android_home""
                 echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD is not set"
             }
             echo "Using default debug keystore"
-            $keystore_path = Join-Path (Get-GodotUserDataDir) "keystores/debug.keystore"
+            $keystore_dir = Join-Path (Get-GodotUserDataDir) "keystores"
+            if (-not (Test-Path $keystore_dir)) {
+                New-Item -ItemType Directory -Path $keystore_dir
+            }
+            $keystore_path = Join-Path $keystore_dir "debug.keystore"
             # check if it exists
             if (-not (Test-Path $keystore_path)) {
                 echo "Debug keystore does not exist, creating it"
