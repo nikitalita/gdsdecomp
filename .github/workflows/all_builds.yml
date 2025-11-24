@@ -237,7 +237,7 @@ jobs:
           target: editor
 
       - name: Compile godot export template (x86_64)
-        if: matrix.platform != 'android' && (matrix.target == 'template_release' || matrix.target == 'template_debug')
+        if: matrix.target == 'template_release' || matrix.target == 'template_debug'
         id: compile-template
         uses: ./.github/actions/godot-build
         with:
@@ -379,6 +379,7 @@ jobs:
             command-export: ${env:GITHUB_WORKSPACE}\bin\godot.windows.editor.x86_64.exe
             export-preset: "Windows Desktop"
             export-name: .export\gdre_tools.exe
+            debug: false
 
           - name: "🐧 Linux"
             os: "ubuntu-24.04"
@@ -387,6 +388,7 @@ jobs:
             command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
             export-preset: "Linux/X11"
             export-name: .export/gdre_tools.x86_64
+            debug: false
 
           - name: "🤖 Android"
             os: "ubuntu-24.04"
@@ -395,6 +397,7 @@ jobs:
             command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
             export-preset: "Android"
             export-name: .export/gdre_tools.apk
+            debug: false
 
           - name: "🍎 macOS"
             os: "macos-latest"
@@ -403,7 +406,7 @@ jobs:
             command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.editor.arm64
             export-preset: "macOS"
             export-name: .export/gdre_tools.universal.zip
-
+            debug: false
     steps:
       - name: checkout-gdsdecomp
         uses: actions/checkout@v4
@@ -451,22 +454,28 @@ jobs:
           Rename-Item ${{ runner.tool_cache }}\rcedit\rcedit-x64.exe ${{ runner.tool_cache }}\rcedit\rcedit.exe
           echo "${{ runner.tool_cache }}\rcedit" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Decode Android keystore
-        shell: bash
-        if: matrix.platform == 'android'
-        run: |
-          set -Eeuo pipefail
-          echo "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" > release.keystore.asc
-          gpg -d --passphrase "${{ secrets.ANDROID_KEYSTORE_PASSPHRASE }}" --batch release.keystore.asc > ~/release.keystore
-          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+      # TODO: Can't do this here because secrets are not available in a pull request
+      # Workaround: export.ps1 just sets the keystore to the debug keystore if the release keystore is not set
+      # - name: Decode Android keystore
+      #   shell: bash
+      #   if: matrix.platform == 'android' && github.event_name != 'pull_request'
+      #   run: |
+      #     set -Eeuo pipefail
+      #     echo "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" > release.keystore.asc
+      #     gpg -d --passphrase "${{ secrets.ANDROID_KEYSTORE_PASSPHRASE }}" --batch release.keystore.asc > ~/release.keystore
+      #     echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
+      #     echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+      #     echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
   
       - name: Export standalone GDRE Tools
         shell: pwsh
         run: |
+          $debug_flag = "--no-debug"
+          if (${{ matrix.debug }}) {
+            $debug_flag = "--debug"
+          }
           cd ${{github.workspace}}/modules/gdsdecomp/standalone
-          pwsh -File ${{github.workspace}}/modules/gdsdecomp/.scripts/export.ps1 "${{ matrix.export-preset }}" -path "${{ matrix.export-name }}"
+          pwsh -File ${{github.workspace}}/modules/gdsdecomp/.scripts/export.ps1 "${{ matrix.export-preset }}" -path "${{ matrix.export-name }}" $debug_flag
 
       - uses: actions/upload-artifact@v4
         with:

@@ -6,7 +6,7 @@ if ($args.Length -lt 1) {
     exit 1
 }
 
-function Get-GodotUserSettingsPath {
+function Get-GodotUserDataDir {
     # - Windows: %APPDATA%\Godot\                    (same as `get_data_dir()`)
     # - macOS: ~/Library/Application Support/Godot/  (same as `get_data_dir()`)
     # - Linux: ~/.config/godot/
@@ -27,6 +27,11 @@ function Get-GodotUserSettingsPath {
     if (-not (Test-Path $user_settings_dir)) {
         New-Item -ItemType Directory -Path $user_settings_dir
     }
+    return $user_settings_dir
+}
+
+function Get-GodotUserSettingsPath {
+    $user_settings_dir = Get-GodotUserDataDir
 
     # list all the files in the directory that begin with "editor_settings-4"
     $user_settings_files = Get-ChildItem $user_settings_dir -Filter "editor_settings-4*"
@@ -188,9 +193,14 @@ if ($args.Length -gt 1) {
             "--debug" {
                 $debug = $true
             }
+            "--no-debug" {
+                $debug = $false
+            }
             default {
-                echo "Unknown argument: $arg"
-                exit 1
+                if ($arg -ne ""){
+                    echo "Unknown argument: $arg"
+                    exit 1
+                }
             }
         }
     }
@@ -217,6 +227,7 @@ if ($export_command -eq "") {
     $godotEditor = Get-ChildItem $godotBinDir -Filter "*editor*" -Recurse | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($godotEditor -eq $null) {
         echo "Godot editor path not given and not found in $godotBinDir"
+        cd $current_dir
         exit 1
     }
     # get the path of the godot executable
@@ -256,13 +267,13 @@ $gradle_build_enabled = $false
 if ($export_preset -eq "Android") {
     # check if gradle_build/use_gradle_build is true
     if ($export_presets -match 'gradle_build/use_gradle_build=true') {
-        echo "Gradle build is enabled, using gradle build directory"
+        $build_dir = "$standaloneDir/../android_build" -replace '\\', '/'
+        $export_presets = $export_presets -replace 'gradle_build/gradle_build_directory=".*"', "gradle_build/gradle_build_directory=""$build_dir"""
+        echo "Gradle build is enabled, using gradle build directory: $build_dir"
         $gradle_build_enabled = $true
     } else {
         echo "Gradle build is disabled"
     }
-    $build_dir = "$standaloneDir/../android_build" -replace '\\', '/'
-    $export_presets = $export_presets -replace 'gradle_build/gradle_build_directory=".*"', "gradle_build/gradle_build_directory=""$build_dir"""
 }
 
 #output the processed export_presets.cfg
@@ -273,15 +284,24 @@ $export_presets | Set-Content export_presets.cfg
 # if preset is "Android", open project.godot and replace the rendering method with "mobile"
 if ($export_preset -eq "Android") {
     $project_godot = Get-Content project.godot
-    $project_godot = $project_godot -replace 'renderer/rendering_method=".*"', "renderer/rendering_method=""gl_compatibility"""
+    $rendering_method = "mobile"
+    # check if "renderer/rendering_method" actually exists
+    if ($project_godot -match 'renderer/rendering_method=".*"') {
+        $project_godot = $project_godot -replace 'renderer/rendering_method=".*"', "renderer/rendering_method=""$rendering_method"""
+    } else {
+        # we have to add it after the [rendering] section
+        $project_godot = $project_godot -replace '\[rendering\]', "[rendering]`n`nrenderer/rendering_method=""$rendering_method""`n"
+    }
     $project_godot | Set-Content project.godot
     # check if JAVA_HOME is set
     if ($env:JAVA_HOME -eq $null) {
         echo "JAVA_HOME is not set, please set it to the path to the Java SDK"
+        cd $current_dir
         exit 1
     }
     if ($env:ANDROID_HOME -eq $null) {
         echo "ANDROID_HOME is not set, please set it to the path to the Android SDK"
+        cd $current_dir
         exit 1
     }
     $user_settings_path = Get-GodotUserSettingsPath
@@ -304,6 +324,30 @@ export/android/android_sdk_path = ""$android_home""
 "
     }
     $user_settings | Set-Content $user_settings_path
+
+    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$HOME/release.keystore" >> "$GITHUB_ENV"
+    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+    #   echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+    # check for the existence of the keystore vars
+    if ($debug -eq $false) {
+        # if the keystore vars are not set, use the debug keystore
+        if ($env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH -eq $null -or $env:GODOT_ANDROID_KEYSTORE_RELEASE_USER -eq $null -or $env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD -eq $null) {
+            echo "WARNING: GODOT_ANDROID_KEYSTORE_RELEASE_* variables are not set:"
+            if ($env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH -eq $null) {
+                echo "GODOT_ANDROID_KEYSTORE_RELEASE_PATH is not set"
+            }
+            if ($env:GODOT_ANDROID_KEYSTORE_RELEASE_USER -eq $null) {
+                echo "GODOT_ANDROID_KEYSTORE_RELEASE_USER is not set"
+            }
+            if ($env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD -eq $null) {
+                echo "GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD is not set"
+            }
+            echo "Using default debug keystore"
+            ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PATH} = Join-Path (Get-GodotUserDataDir) "keystores/debug.keystore"
+            ${env:GODOT_ANDROID_KEYSTORE_RELEASE_USER} = "androiddebugkey"
+            ${env:GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD} = "android"
+        }
+    }
 }
 
 # turn echo on
@@ -311,10 +355,10 @@ export/android/android_sdk_path = ""$android_home""
 $ErrorActionPreference = "Stop"
 
 echo "running: $export_command --headless -e --quit"
-Set-PSDebug -Trace 1
+# Set-PSDebug -Trace 1
 $proc = Start-Process -NoNewWindow -PassThru -FilePath "$export_command" -ArgumentList '--headless -e --quit'
 Wait-Process -Id $proc.id -Timeout 300
-Set-PSDebug -Trace 0
+# Set-PSDebug -Trace 0
 
 $export_flag = "--export-release"
 if ($debug) {
@@ -326,16 +370,16 @@ if ($gradle_build_enabled -and $export_preset -eq "Android") {
     $export_args += " --install-android-build-template"
 }
 echo "running: $export_command $export_args"
-Set-PSDebug -Trace 1
+# Set-PSDebug -Trace 1
 $proc = Start-Process -NoNewWindow -PassThru -FilePath "$export_command" -ArgumentList "$export_args"
 Wait-Process -Id $proc.id -Timeout 300
+# Set-PSDebug -Trace 0
 if ($proc.ExitCode -ne 0) {
     cd $current_dir
     $exit_code = $proc.ExitCode
     echo "Export failed with exit code ""$exit_code"""
     exit 1
 }
-Set-PSDebug -Trace 0
 
 # if the platform is not macos, we need to copy the *GodotMonoDecompNativeAOT.* libraries to the export_dir
 if ($export_preset -ne "macOS") {
