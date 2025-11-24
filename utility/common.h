@@ -23,7 +23,9 @@ String get_md5_for_dir(const String &dir, bool ignore_code_signature = false);
 String get_sha256(const String &file_or_dir);
 Error unzip_file_to_dir(const String &zip_path, const String &output_dir);
 Error wget_sync(const String &p_url, Vector<uint8_t> &response, int retries = 5, const Vector<String> &extra_headers = {}, float *p_progress = nullptr, bool *p_cancelled = nullptr);
+
 Error download_file_sync(const String &url, const String &output_path, float *p_progress = nullptr, bool *p_cancelled = nullptr, int64_t *r_size = nullptr);
+Error wpost_sync(const String &p_url, const Vector<uint8_t> &p_data, const Vector<String> &extra_headers = {}, bool gzip = false, float *p_progress = nullptr, bool *p_cancelled = nullptr);
 Error rimraf(const String &dir);
 bool dir_is_empty(const String &dir);
 Error touch_file(const String &path);
@@ -32,6 +34,8 @@ String get_full_path(const String &p_path, DirAccess::AccessType p_access);
 bool directory_has_any_of(const String &p_dir_path, const Vector<String> &p_files);
 Vector<String> get_files_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
 Vector<String> get_directories_at_recursive(const String &p_dir, bool absolute = true, bool include_hidden = true);
+Vector<String> get_dirs_at(const String &p_dir, const Vector<String> &wildcards, bool absolute = true);
+
 String num_scientific(double p_num);
 String num_scientific(float p_num);
 bool is_fs_path(const String &p_path);

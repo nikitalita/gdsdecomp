@@ -34,6 +34,7 @@ Error GDScriptExporter::_export_file(const String &out_path, Ref<FakeGDScript> g
 
 Ref<ExportReport> GDScriptExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
 	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	report->set_resources_used({ import_infos->get_path() });
 
 	String import_path = import_infos->get_path();
 	String export_path = output_dir.path_join(import_infos->get_export_dest().replace("res://", ""));

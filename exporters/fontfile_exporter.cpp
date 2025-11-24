@@ -39,6 +39,7 @@ Ref<ExportReport> FontFileExporter::export_resource(const String &output_dir, Re
 	String src_path = import_infos->get_path();
 	String dst_path = output_dir.path_join(import_infos->get_export_dest().replace("res://", ""));
 	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	report->set_resources_used({ import_infos->get_path() });
 	if (import_infos->get_importer() == "font_data_dynamic") {
 		Error err = _export_font_data_dynamic(dst_path, src_path);
 		report->set_error(err);

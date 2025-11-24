@@ -2342,7 +2342,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			// less file churn when testing
 			gltf_asset["generator"] = "GDRE Tools";
 #else
-			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_singleton()->get_gdre_version();
+			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_gdre_version();
 #endif
 
 			json["asset"] = gltf_asset;
@@ -3160,6 +3160,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 		if (err == OK && !finished) {
 			err = p_skip_type;
 		}
+		report->set_resources_used({ report->get_import_info()->get_dest_files() });
 		report->set_error(err);
 		if (err == ERR_SKIP) {
 			report->set_message("Export cancelled.");

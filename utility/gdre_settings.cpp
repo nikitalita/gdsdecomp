@@ -13,6 +13,7 @@
 #include "core/object/class_db.h"
 #include "core/string/print_string.h"
 #include "exporters/translation_exporter.h"
+#include "main/main.h"
 #include "modules/zip/zip_reader.h"
 #include "plugin_manager/plugin_manager.h"
 #include "utility/common.h"
@@ -2225,7 +2226,7 @@ bool GDRESettings::pack_has_project_config() const {
 	return false;
 }
 
-String GDRESettings::get_gdre_version() const {
+String GDRESettings::get_gdre_version() {
 	return GDRE_VERSION;
 }
 
@@ -2733,6 +2734,31 @@ String GDRESettings::get_recent_error_string(bool p_filter_backtraces) {
 	return String("\n").join(GDRESettings::get_errors());
 }
 
+bool GDRESettings::main_iteration() {
+	// For testing, we can't call Main::iteration() because Main hasn't been set up.
+	// We only attempt to sync the renderingserver to flush the messages queue during testing.
+#ifdef TESTS_ENABLED
+	if (GDRESettings::testing) {
+		if (RenderingServer::get_singleton()) {
+			RenderingServer::get_singleton()->sync();
+		}
+		return false;
+	}
+#endif
+	return Main::iteration();
+}
+
+#ifdef TESTS_ENABLED
+bool GDRESettings::testing = false;
+void GDRESettings::set_is_testing(bool p_is_testing) {
+	testing = p_is_testing;
+}
+
+bool GDRESettings::is_testing() {
+	return testing;
+}
+#endif
+
 void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("load_project", "p_paths", "cmd_line_extract", "csharp_assembly_override"), &GDRESettings::load_project, DEFVAL(false), DEFVAL(""));
 	ClassDB::bind_method(D_METHOD("unload_project", "no_reset_ephemeral"), &GDRESettings::unload_project, DEFVAL(false));
@@ -2792,7 +2818,7 @@ void GDRESettings::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_project_config", "p_out_dir"), &GDRESettings::save_project_config);
 	ClassDB::bind_method(D_METHOD("save_project_config_binary", "p_out_dir"), &GDRESettings::save_project_config_binary);
 	ClassDB::bind_method(D_METHOD("pack_has_project_config"), &GDRESettings::pack_has_project_config);
-	ClassDB::bind_method(D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_gdre_version"), &GDRESettings::get_gdre_version);
 	ClassDB::bind_method(D_METHOD("get_disclaimer_text"), &GDRESettings::get_disclaimer_text);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_home_dir"), &GDRESettings::get_home_dir);
 	ClassDB::bind_method(D_METHOD("get_errors"), &GDRESettings::get_errors);

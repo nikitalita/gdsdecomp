@@ -519,6 +519,7 @@ Ref<ExportReport> ObjExporter::export_resource(const String &p_output_dir, Ref<I
 
 	// Create the export report
 	Ref<ExportReport> report = memnew(ExportReport(p_import_info, get_name()));
+	report->set_resources_used({ p_import_info->get_path() });
 
 	// TODO: Godot 2.x obj export isn't working at all right now, shapes are broken, even though 2.x mesh loading is ostensibly supported by ArrayMesh.
 	if (p_import_info->get_ver_major() <= 2) {

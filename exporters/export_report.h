@@ -24,6 +24,7 @@ private:
 	String source_path;
 	String new_source_path;
 	String saved_path;
+	Vector<String> resources_used;
 	String unsupported_format_type;
 	Vector<String> error_messages;
 	Vector<String> message_detail;
@@ -53,6 +54,11 @@ public:
 
 	void set_import_info(const Ref<ImportInfo> &p_import_info) { import_info = p_import_info; }
 	Ref<ImportInfo> get_import_info() const { return import_info; }
+
+	void set_resources_used(const Vector<String> &p_resources_used) {
+		resources_used = p_resources_used;
+	}
+	Vector<String> get_resources_used() const { return resources_used; }
 
 	void set_source_path(const String &p_source_path) { source_path = p_source_path; }
 	String get_source_path() const { return source_path; }

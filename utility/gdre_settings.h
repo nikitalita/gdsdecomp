@@ -401,7 +401,7 @@ public:
 	// A copy of `EditorSettings::get_auto_display_scale()`, copied here for non-editor builds
 	// Gets the auto display scale for native GUI elements (gdre_progress, etc.)
 	float get_auto_display_scale() const;
-	String get_gdre_version() const;
+	static String get_gdre_version();
 	String get_disclaimer_text() const;
 	static String get_disclaimer_body();
 	bool loaded_resource_strings() const;
@@ -446,6 +446,13 @@ public:
 	// or a "stringdump" file (i.e. a dump of all the strings that were found in the project during `load_all_resource_strings()`)
 	Error load_translation_key_hint_file(const String &p_path);
 
+	static bool main_iteration();
+#ifdef TESTS_ENABLED
+
+	static bool testing;
+	static void set_is_testing(bool p_is_testing);
+	static bool is_testing();
+#endif
 	GDRESettings();
 	~GDRESettings();
 };

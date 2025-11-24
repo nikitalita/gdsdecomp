@@ -12,6 +12,7 @@ class VariantParserCompat : VariantParser {
 	static Error _parse_array(Array &array, Stream *p_stream, int &line, String &r_err_str, ResourceParser *p_res_parser = nullptr);
 
 public:
+	static Error parse_and_create_missing_resource(void *p_self, VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str);
 	static Error _default_parse_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str, ResourceInfo::LoadType load_type, bool use_sub_threads = false, ResourceFormatLoader::CacheMode cache_mode = ResourceFormatLoader::CACHE_MODE_REUSE);
 	static Error parse_value(VariantParser::Token &token, Variant &value, VariantParser::Stream *p_stream, int &line, String &r_err_str, VariantParser::ResourceParser *p_res_parser);
 	static Error parse_tag(VariantParser::Stream *p_stream, int &line, String &r_err_str, Tag &r_tag, VariantParser::ResourceParser *p_res_parser = nullptr, bool p_simple_tag = false);

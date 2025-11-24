@@ -154,6 +154,8 @@ Ref<ExportReport> OggStrExporter::export_resource(const String &output_dir, Ref<
 	String dst_path = output_dir.path_join(import_info->get_export_dest().replace("res://", ""));
 	// Implement the logic to export the Ogg Vorbis stream to the specified path
 	Ref<ExportReport> report = memnew(ExportReport(import_info, get_name()));
+	report->set_resources_used({ import_info->get_path() });
+
 	Ref<AudioStreamOggVorbis> sample;
 	// Doing this because Godot's ogg vorbis loader loves to spam errors about "invalid comments"
 	GDRELogger::set_thread_local_silent_errors(true);

@@ -206,6 +206,7 @@ Error PckDumper::_pck_dump_to_dir(
 		return OK;
 	}
 
+	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create output directory " + dir);
 	err = TaskManager::get_singleton()->run_multithreaded_group_task(
 			this,
 			&PckDumper::_do_extract,

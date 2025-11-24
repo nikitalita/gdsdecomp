@@ -487,6 +487,205 @@ Error gdre::download_file_sync(const String &p_url, const String &output_path, f
 	return OK;
 }
 
+Error gdre::wpost_sync(const String &p_url, const Vector<uint8_t> &p_data, const Vector<String> &extra_headers, bool gzip, float *p_progress, bool *p_cancelled) {
+#define WPOST_CANCELLED_CHECK()        \
+	if (p_cancelled && *p_cancelled) { \
+		return ERR_SKIP;               \
+	}
+	WPOST_CANCELLED_CHECK();
+	Ref<HTTPClient> client = HTTPClient::create();
+	client->set_blocking_mode(true);
+	Error err;
+	String request_url = p_url;
+	int64_t data_size = p_data.size();
+	Vector<uint8_t> data = p_data;
+	Vector<String> headers = extra_headers;
+	if (gzip) {
+		auto ret = Compression::compress(data.ptrw(), p_data.ptr(), p_data.size(), Compression::MODE_GZIP);
+		if (ret < 0) {
+			return ERR_BUG;
+		}
+		data.resize(ret);
+		if (!headers.has("Content-Encoding: gzip")) {
+			headers.push_back("Content-Encoding: gzip");
+		}
+	}
+
+	auto connect_to_host_and_request = [&](const String &url) {
+		WPOST_CANCELLED_CHECK();
+		bool is_https = url.begins_with("https://");
+		String host = url.get_slice("://", 1).get_slice("/", 0);
+		String thingy = (is_https ? "https://" : "http://") + host;
+		Error connect_err = client->connect_to_host(thingy, is_https ? 443 : 80);
+		ERR_FAIL_COND_V_MSG(connect_err, connect_err, "Failed to connect to host " + url);
+		while (client->get_status() == HTTPClient::STATUS_RESOLVING || client->get_status() == HTTPClient::STATUS_CONNECTING) {
+			WPOST_CANCELLED_CHECK();
+			err = client->poll();
+			if (err) {
+				return err;
+			}
+		}
+		if (client->get_status() != HTTPClient::STATUS_CONNECTED) {
+			return ERR_CANT_CONNECT;
+		}
+		WPOST_CANCELLED_CHECK();
+		// Send PUT request with body data
+		const uint8_t *body_ptr = data_size > 0 ? p_data.ptr() : nullptr;
+		Error request_err = client->request(HTTPClient::METHOD_POST, url, extra_headers, body_ptr, data_size);
+		ERR_FAIL_COND_V_MSG(request_err, request_err, "Failed to send PUT request to " + url);
+		return OK;
+	};
+
+	bool done = false;
+	bool got_response = false;
+	List<String> response_headers;
+	int redirections = 0;
+	int response_code = 0;
+
+	auto _handle_response = [&]() -> Error {
+		WPOST_CANCELLED_CHECK();
+		if (!client->has_response()) {
+			return ERR_BUG;
+		}
+
+		got_response = true;
+		response_code = client->get_response_code();
+		List<String> rheaders;
+		client->get_response_headers(&rheaders);
+		response_headers.clear();
+
+		for (const String &E : rheaders) {
+			response_headers.push_back(E);
+		}
+
+		// Handle error status codes
+		if (response_code == 404) {
+			return ERR_FILE_NOT_FOUND;
+		}
+		if (response_code == 403) {
+			return ERR_UNAUTHORIZED;
+		}
+		if (response_code == 401) {
+			return ERR_UNAUTHORIZED;
+		}
+		if (response_code >= 400) {
+			print_line("Error response code: " + itos(response_code));
+			return ERR_BUG;
+		}
+
+		// Handle redirects (less common for PUT, but possible)
+		if (response_code == 301 || response_code == 302) {
+			if (redirections >= 200) {
+				return ERR_CANT_OPEN;
+			}
+
+			String new_request;
+			for (const String &E : rheaders) {
+				if (E.containsn("Location: ")) {
+					new_request = E.substr(9, E.length()).strip_edges();
+				}
+			}
+
+			if (!new_request.is_empty()) {
+				client->close();
+				redirections += 1;
+				got_response = false;
+				request_url = new_request;
+				return connect_to_host_and_request(new_request);
+			}
+		}
+
+		return OK;
+	};
+
+	err = connect_to_host_and_request(p_url);
+	if (err != OK) {
+		return err;
+	}
+
+	while (!done) {
+		WPOST_CANCELLED_CHECK();
+		auto status = client->get_status();
+		switch (status) {
+			case HTTPClient::STATUS_REQUESTING: {
+				// Request is being sent - update progress if possible
+				if (p_progress && data_size > 0) {
+					// Approximate progress: if we're requesting, assume we're sending data
+					// This is a rough estimate since HTTPClient doesn't expose exact bytes sent
+					*p_progress = 0.5f; // Indicate we're in the middle of sending
+				}
+				err = client->poll();
+				if (err != OK) {
+					return err;
+				}
+				break;
+			}
+			case HTTPClient::STATUS_BODY: {
+				// Response body available (some PUT endpoints return data)
+				if (!got_response) {
+					err = _handle_response();
+					if (err != OK) {
+						return err;
+					}
+					// Update progress to indicate upload complete
+					if (p_progress) {
+						*p_progress = 1.0f;
+					}
+
+					int64_t response_body_length = client->get_response_body_length();
+					// Read response body if present (some APIs return data on PUT)
+					if (response_body_length > 0 || client->is_response_chunked()) {
+						// Consume the response body even if we don't use it
+						// This ensures the connection is properly closed
+						while (client->get_status() == HTTPClient::STATUS_BODY) {
+							WPOST_CANCELLED_CHECK();
+							err = client->poll();
+							if (err != OK) {
+								return err;
+							}
+							client->read_response_body_chunk();
+							// We don't store the response, just consume it
+						}
+					}
+				} else {
+					err = client->poll();
+					if (err != OK) {
+						return err;
+					}
+					client->read_response_body_chunk();
+				}
+				break;
+			}
+			case HTTPClient::STATUS_CONNECTED: {
+				if (!got_response) {
+					err = _handle_response();
+					if (err != OK) {
+						return err;
+					}
+					// Update progress to indicate upload complete
+					if (p_progress) {
+						*p_progress = 1.0f;
+					}
+				} else {
+					done = true;
+				}
+				break;
+			}
+			default: {
+				return ERR_CONNECTION_ERROR;
+			}
+		}
+	}
+
+	// Check if we got a successful response
+	if (response_code < 200 || response_code >= 300) {
+		return ERR_BUG;
+	}
+
+	return OK;
+#undef WPOST_CANCELLED_CHECK
+}
+
 Error gdre::rimraf(const String &dir) {
 	auto da = DirAccess::create_for_path(dir);
 	if (da.is_null()) {
@@ -987,6 +1186,23 @@ Vector<String> gdre::get_directories_at_recursive(const String &p_dir, bool abso
 	return dirs;
 }
 
+Vector<String> gdre::get_dirs_at(const String &p_dir, const Vector<String> &wildcards, bool absolute) {
+	Vector<String> ret = DirAccess::get_directories_at(p_dir);
+	for (auto &wc : wildcards) {
+		for (int i = ret.size() - 1; i >= 0; i--) {
+			if (!ret[i].get_file().matchn(wc)) {
+				ret.remove_at(i);
+			}
+		}
+	}
+	if (absolute) {
+		for (int i = 0; i < ret.size(); i++) {
+			ret.write[i] = p_dir.path_join(ret[i]);
+		}
+	}
+	return ret;
+}
+
 Vector<String> gdre::filter_error_backtraces(const Vector<String> &p_error_messages) {
 	Vector<String> ret;
 	for (auto &err : p_error_messages) {
@@ -1136,4 +1352,6 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("path_to_uri", "path"), &gdre::path_to_uri);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_zip_file", "path"), &gdre::is_zip_file);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_directories_at_recursive", "dir", "absolute", "include_hidden"), &gdre::get_directories_at_recursive);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_files_at", "dir", "wildcards", "absolute"), &gdre::get_files_at);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_dirs_at", "dir", "wildcards", "absolute"), &gdre::get_dirs_at);
 }

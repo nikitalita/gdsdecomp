@@ -13,6 +13,7 @@ Ref<ExportReport> AutoConvertedExporter::export_resource(const String &output_di
 	String src_path = import_infos->get_path();
 	String dst_path = output_dir.path_join(import_infos->get_export_dest().replace("res://", ""));
 	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	report->set_resources_used({ import_infos->get_path() });
 	Error err = ResourceCompatLoader::to_text(src_path, dst_path, 0, import_infos->get_source_file());
 	report->set_error(err);
 	report->set_saved_path(dst_path);

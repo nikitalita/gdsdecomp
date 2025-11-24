@@ -1400,13 +1400,6 @@ GDScriptDecomp::BytecodeTestResult GDScriptDecomp::_test_bytecode(Vector<uint8_t
 				arg_count = { 1, 1 };
 				test_func = true;
 				break;
-			case G_TK_ERROR: {
-				// GDScript 2.0 happily outputs these in the bytecode upon project export if there are tokenizer errors, so
-				// we have to ignore them
-				if (bytecode_version < GDSCRIPT_2_0_VERSION) {
-					ERR_TEST_FAILED("Invalid token: " + String(g_token_str[curr_token]));
-				}
-			} break;
 			case G_TK_CURSOR:
 			case G_TK_MAX:
 				ERR_TEST_FAILED("Invalid token: " + String(g_token_str[curr_token]));
