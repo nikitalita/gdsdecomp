@@ -146,9 +146,9 @@ public:
 				return true;
 			}
 			// if we're using too much memory, wait until it goes down
-			if (unlikely(OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage)) {
+			if (unlikely((int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage)) {
 				tasks_busy_waiting++;
-				while (OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage) {
+				while ((int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage) {
 					if (tasks_busy_waiting == tasks) {
 						// all tasks are busy waiting, so we should break to prevent a deadlock and just deal with the potential thrashing.
 						break;

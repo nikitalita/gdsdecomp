@@ -1,6 +1,7 @@
 def can_build(env, platform):
     return True
 
+
 import methods
 import os
 import sys
@@ -76,7 +77,6 @@ def monkey_patch_macos_generate_bundle():
 
     # remove the platform_macos_builders from the path
     sys.path.remove(platform_macos_builders_dir)
-
 
 def configure(env):
     if not env.editor_build:

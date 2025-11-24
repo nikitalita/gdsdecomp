@@ -48,6 +48,11 @@
 #endif
 #include <stdlib.h>
 
+#ifdef ANDROID_ENABLED
+// #include "drivers/gles3/shader_gles3.h"
+#include "servers/rendering/renderer_rd/shader_rd.h"
+#endif
+
 String GDRESettings::_get_cwd() {
 #if defined(WINDOWS_ENABLED)
 	const DWORD expected_size = ::GetCurrentDirectoryW(0, nullptr);
@@ -206,6 +211,26 @@ GDRESettings::GDRESettings() {
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
 	PluginManager::load_cache();
+#ifdef ANDROID_ENABLED
+	if (!OS::get_singleton()->request_permission("android.permission.READ_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission READ_EXTERNAL_STORAGE is required to access external storage!");
+	}
+	if (!OS::get_singleton()->request_permission("android.permission.WRITE_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission WRITE_EXTERNAL_STORAGE is required to access external storage!");
+	}
+	if (!OS::get_singleton()->request_permission("android.permission.MANAGE_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission WRITE_EXTERNAL_STORAGE is required to access external storage!");
+	}
+	String old_shader_cache_user_dir = ShaderRD::get_shader_cache_user_dir();
+	String new_shader_cache_user_dir = get_gdre_user_path().path_join("shader_cache");
+	print_line("old shader cache user dir: " + old_shader_cache_user_dir);
+	print_line("new shader cache user dir: " + new_shader_cache_user_dir);
+	gdre::ensure_dir(new_shader_cache_user_dir);
+	ShaderRD::set_shader_cache_user_dir(new_shader_cache_user_dir);
+	// String old_gles3_shader_cache_dir = ShaderGLES3::get_shader_cache_dir();
+	// ShaderGLES3::set_shader_cache_dir(get_gdre_user_path().path_join("shader_cache"));
+
+#endif
 }
 
 GDRESettings::~GDRESettings() {

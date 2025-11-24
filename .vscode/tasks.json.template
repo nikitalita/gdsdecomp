@@ -152,5 +152,22 @@
 				"command": "scons arch=x86_64 platform=windows target=template_release module_text_server_fb_enabled=yes minizip=yes deprecated=yes no_editor_splash=yes module_camera_enabled=no module_mobile_vr_enabled=no module_upnp_enabled=no module_websocket_enabled=no module_csg_enabled=yes module_gridmap_enabled=yes use_static_cpp=yes builtin_freetype=yes builtin_libpng=yes builtin_zlib=yes builtin_libwebp=yes builtin_libvorbis=yes builtin_libogg=yes disable_3d=no",
 			},
 		},
+		{
+			"type": "shell",
+			"group": "build",
+			"problemMatcher": [
+				"$msCompile"
+			],
+			"options": {
+				"env": {
+					// Set these to where the android SDK is located on your system
+					"ANDROID_HOME": "~/Library/Android/sdk",
+					"ANDROID_SDK_ROOT": "~/Library/Android/sdk",
+					"ANDROID_NDK_ROOT": "~/Library/Android/sdk/ndk/28.1.13356709"
+				}
+			},
+			"label": "Build: template_release android arm64",
+			"command": "scons arch=arm64 platform=android target=template_release module_gdsdecomp_enabled=yes module_text_server_fb_enabled=yes minizip=yes deprecated=yes generate_android_binaries=yes"
+		},
 	]
 }

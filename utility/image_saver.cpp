@@ -10,7 +10,9 @@
 #include "external/tga/tga.h"
 #include "modules/tinyexr/image_saver_tinyexr.h"
 #include "utility/common.h"
+#ifndef GIFSKI_DISABLED
 #include "vtracer/gifski.h"
+#endif
 #include "vtracer/vtracer.h"
 
 bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
@@ -361,6 +363,7 @@ Error ImageSaver::save_image_as_svg(const String &p_path, const Ref<Image> &p_im
 }
 
 Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector<Ref<Image>> &p_images, const Vector<float> &frame_durations_s, int quality, bool duplicate) {
+#ifndef GIFSKI_DISABLED
 	ERR_FAIL_COND_V_MSG(p_images.is_empty(), ERR_FILE_EOF, "No images provided for animated GIF");
 
 	// Ensure directory exists
@@ -436,6 +439,9 @@ Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector
 	}
 
 	return OK;
+#else
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Saving Animated GIFs is not supported in this build of GDRE Tools.");
+#endif
 }
 
 Error ImageSaver::_save_images_as_animated_gif(const String &p_path, const TypedArray<Image> &p_images, const Vector<float> &frame_durations_s, int quality) {

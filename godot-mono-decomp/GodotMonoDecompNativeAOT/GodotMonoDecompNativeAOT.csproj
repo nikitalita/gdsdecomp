@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+	<AssemblyName Condition="!$(RuntimeIdentifier.StartsWith('win'))">libGodotMonoDecompNativeAOT</AssemblyName>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -9,9 +10,30 @@
   <PropertyGroup>
     <PublishTrimmed>true</PublishTrimmed>
     <PublishAot>true</PublishAot>
+	<PublishProfile>AOT</PublishProfile>
   </PropertyGroup>
 
   <ItemGroup>
+	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('osx'))" />
+	<CustomLinkerArg Include="-Wl,-soname,$(AssemblyName).so" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('linux-bionic'))" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\GodotMonoDecomp\GodotMonoDecomp.csproj" />
   </ItemGroup>
+  <PropertyGroup>
+    <PrintLinkerArgsDependsOn>
+		ResolvePackageAssets;
+		ResolveFrameworkReferences;
+		ImportRuntimeIlcPackageTarget;
+		SetupProperties;
+		RunResolvePackageDependencies;
+		ComputeIlcCompileInputs;
+		SetupOSSpecificProps;
+	</PrintLinkerArgsDependsOn>
+  </PropertyGroup>
+
+  <Target Name="PrintLinkerArgs" DependsOnTargets="$(PrintLinkerArgsDependsOn)">
+	<Message Importance="high" Text="Linker args: @(LinkerArg)" />
+  </Target>
+
 </Project>

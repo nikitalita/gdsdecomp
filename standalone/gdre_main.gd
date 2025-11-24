@@ -1234,6 +1234,9 @@ func get_sanitized_args():
 		args = args.slice(1)
 	if args.size() > 0 and args[0].begins_with("res://gdre") and args[0].ends_with(".tscn"):
 		args = args.slice(1)
+	# if the first argument is #<hex> (bg color parameter), remove it
+	if args.size() > 0 and args[0].begins_with("#") and args[0].substr(1).is_valid_hex_number():
+		args = args.slice(1)
 	return args
 
 func text_to_bin(files: PackedStringArray, output_dir: String):

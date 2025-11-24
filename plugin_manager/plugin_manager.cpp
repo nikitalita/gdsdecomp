@@ -221,10 +221,8 @@ void PluginManager::load_cache() {
 
 	// Load PluginVersion cache
 	load_plugin_version_cache();
-#ifdef TOOLS_ENABLED
 	auto end_time = OS::get_singleton()->get_ticks_msec();
-	print_line(vformat("Loaded plugin cache in %dms", end_time - start_time));
-#endif
+	print_verbose(vformat("Loaded plugin cache in %dms", end_time - start_time));
 }
 
 void PluginManager::save_cache() {
