@@ -512,8 +512,6 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 	auto plugin_files = gdre::get_recursive_dir_list(tmp_dir, {}, false);
 	auto existing_files = gdre::vector_to_hashset(gdre::get_recursive_dir_list(output, {}, false));
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
-	uint64_t start_time = OS::get_singleton()->get_ticks_msec();
-	int64_t files_copied = 0;
 	for (auto &file : plugin_files) {
 		String plugin_path = tmp_dir.path_join(file);
 		String existing_path = output.path_join(file);
@@ -547,13 +545,9 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 		}
 		gdre::ensure_dir(existing_path.get_base_dir());
 		ERR_CONTINUE(DirAccess::copy_absolute(tmp_dir.path_join(file), output.path_join(file)) != OK);
-		files_copied++;
 	}
 	gdre::rimraf(parent_tmp_dir);
 	da->remove(zip_path);
-#if DEBUG_ENABLED
-	print_line(vformat("Time taken to copy %d plugin files for %s: %dms", files_copied, iinfo->get_path(), OS::get_singleton()->get_ticks_msec() - start_time));
-#endif
 	return OK;
 }
 
