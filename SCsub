@@ -644,6 +644,8 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
         print("DOTNET PUBLISH OUTPUT", dotnet_publish_output.decode("utf-8"))
         # lipo them together
 
+    if env["platform"] == "android":
+        return  # don't copy the libs to the BUILD_DIR
     # if the platform is macos or linux, we need to make a copy with a "lib" prefix
 
     bin_paths = []
@@ -694,12 +696,13 @@ def build_godot_mono_decomp(module_obj):
         src_suffix=src_suffixes,
     )
     depends_libs = []
-    # if the library doesn't exist in BUILD_DIR, remove the libs from disk to force a rebuild
-    for lib in libs:
-        new_lib = os.path.join(BUILD_DIR, os.path.basename(lib))
-        if env.msvc:
-            new_lib = new_lib.replace(".lib", ".dll")
-        depends_libs.append(new_lib)
+    if env["platform"] != "android":
+        # if the library doesn't exist in BUILD_DIR, remove the libs from disk to force a rebuild
+        for lib in libs:
+            new_lib = os.path.join(BUILD_DIR, os.path.basename(lib))
+            if env.msvc:
+                new_lib = new_lib.replace(".lib", ".dll")
+            depends_libs.append(new_lib)
 
     all_libs = libs + depends_libs
 
