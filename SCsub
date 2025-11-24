@@ -25,6 +25,7 @@ Import("env_modules")
 
 opts = Variables([], ARGUMENTS)
 opts.Add(BoolVariable("disable_godot_mono_decomp", "Disable Godot Mono Decompilation", False))
+opts.Add(BoolVariable("disable_gifski", "Disable Gifski", False))
 
 opts.Update(env)
 
@@ -63,7 +64,7 @@ if env["platform"] == "macos" and env["arch"] == "x86_64":
     env_modules.Append(CXXFLAGS=["-mmacosx-version-min=10.15"])
     env_modules.Append(ASFLAGS=["-mmacosx-version-min=10.15"])
 env_gdsdecomp = env_modules.Clone()
-
+opts.Update(env_gdsdecomp)
 
 # Append the include path to include the current directory
 # This is a hack for tests, since the test headers get built from tests/test_main.cpp,
@@ -355,6 +356,10 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
     cargo_cmd = ["cargo", "build", "--lib", arch_flag]
     if not dev_build:
         cargo_cmd.append("--release")
+
+    if "disable_gifski" in build_env and build_env["disable_gifski"]:
+        cargo_cmd.extend(["--no-default-features"])
+
     cargo_env = get_cmd_env(build_env)
     if build_env["platform"] == "android":
         write_cargo_config_toml_file(build_env)
@@ -842,6 +847,8 @@ env_gdsdecomp.add_source_files(module_obj, "external/tinygltf/tiny_gltf.cc")
 env_gdsdecomp.add_source_files(module_obj, "module_etc_decompress/*.cpp")
 
 build_vtracer(module_obj)
+if "disable_gifski" in env and env["disable_gifski"]:
+    env_gdsdecomp.Append(CPPDEFINES=["GIFSKI_DISABLED"])
 if "disable_godot_mono_decomp" in env and env["disable_godot_mono_decomp"]:
     env_gdsdecomp.Append(CPPDEFINES=["GODOT_MONO_DECOMP_DISABLED"])
 else:
