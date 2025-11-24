@@ -252,6 +252,18 @@ $export_presets = $export_presets -replace 'application/version=".*"', "applicat
 $export_presets = $export_presets -replace 'version/name=".*"', "version/name=""$version"""
 $export_presets = $export_presets -replace 'application/file_version=".*"', "application/file_version=""$number_only_version.$build_num"""
 $export_presets = $export_presets -replace 'application/product_version=".*"', "application/product_version=""$number_only_version.$build_num"""
+$gradle_build_enabled = $false
+if ($export_preset -eq "Android") {
+    # check if gradle_build/use_gradle_build is true
+    if ($export_presets -match 'gradle_build/use_gradle_build=true') {
+        echo "Gradle build is enabled, using gradle build directory"
+        $gradle_build_enabled = $true
+    } else {
+        echo "Gradle build is disabled"
+    }
+    $build_dir = "$standaloneDir/../android_build" -replace '\\', '/'
+    $export_presets = $export_presets -replace 'gradle_build/gradle_build_directory=".*"', "gradle_build/gradle_build_directory=""$build_dir"""
+}
 
 #output the processed export_presets.cfg
 $export_presets | Set-Content export_presets.cfg
@@ -310,6 +322,9 @@ if ($debug) {
 }
 
 $export_args = "--headless $export_flag `"$export_preset`" `"$export_path`""
+if ($gradle_build_enabled -and $export_preset -eq "Android") {
+    $export_args += " --install-android-build-template"
+}
 echo "running: $export_command $export_args"
 Set-PSDebug -Trace 1
 $proc = Start-Process -NoNewWindow -PassThru -FilePath "$export_command" -ArgumentList "$export_args"
