@@ -344,7 +344,9 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
     cargo_cmd = ["cargo", "build", "--lib", arch_flag]
     if not dev_build:
         cargo_cmd.append("--release")
-    cargo_env = os.environ.copy()
+    cargo_env = get_cmd_env(build_env)
+    if build_env["platform"] == "android":
+        write_cargo_config_toml_file(build_env)
     cargo_env["CARGO_TARGET_DIR"] = build_dir
     # cargo_env["CARGO_INSTALL_ROOT"] = external_dir
     cargo_env["CBINDGEN_TARGET_DIR"] = cbindgen_dir
@@ -356,11 +358,6 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
         cargo_cmd.append("-Zbuild-std=std,panic_abort")
         # need to also set
         cargo_cmd.append("-Zbuild-std-features=panic_immediate_abort")
-    if build_env["platform"] == "android":
-        ndk_llvm_path = find_llvm_prebuild_path(env)
-        print("NDK_LLVM_PATH", ndk_llvm_path)
-        cargo_env["PATH"] = ndk_llvm_path + ":" + os.environ.get("PATH")
-        write_cargo_config_toml_file(build_env)
 
     output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
     print(output.decode("utf-8"))
@@ -580,6 +577,24 @@ def get_android_lib_dest(env):
     return env.Dir(out_dir).abspath
 
 
+def host_is_windows():
+    return platform.system().lower().startswith("win")
+
+
+def get_cmd_env(build_env):
+    cmd_env = os.environ.copy()
+    if build_env["platform"] != "android":
+        return cmd_env
+    ndk_llvm_path = find_llvm_prebuild_path(build_env)
+    print("NDK_LLVM_PATH", ndk_llvm_path)
+    path_joiner = ":" if not host_is_windows() else ";"
+    cmd_env["PATH"] = ndk_llvm_path + path_joiner + os.environ.get("PATH")
+    cmd_env["ANDROID_HOME"] = build_env["ANDROID_HOME"]
+    cmd_env["ANDROID_SDK_ROOT"] = cmd_env["ANDROID_HOME"]
+    cmd_env["ANDROID_NDK_ROOT"] = build_env["ANDROID_NDK_ROOT"]
+    return cmd_env
+
+
 def godot_mono_builder(target, source, env: dict[str, Any]):
     print("GODOT MONO DECOMP BUILD: ", target)
     libs = get_godot_mono_decomp_lib_paths(env)
@@ -595,16 +610,9 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
         "-c",
         build_variant,
     ]
-    cmd_env = os.environ.copy()
-    is_windows = platform.system().lower().startswith("win")
+    cmd_env = get_cmd_env(env)
     dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], env["arch"])]
     if env["platform"] == "android":
-        ndk_llvm_path = find_llvm_prebuild_path(env)
-        print("NDK_LLVM_PATH", ndk_llvm_path)
-        path_joiner = ":" if not is_windows else ";"
-        cmd_env["PATH"] = ndk_llvm_path + path_joiner + os.environ.get("PATH")
-        cmd_env["ANDROID_HOME"] = env["ANDROID_HOME"]
-        cmd_env["ANDROID_NDK_ROOT"] = env["ANDROID_NDK_ROOT"]
         dotnet_publish_cmd += ["-p:DisableUnsupportedError=true", "-p:PublishAotUsingRuntimePack=true"]
     lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], dev_build)
     cwd = GODOT_MONO_DECOMP_DIR
