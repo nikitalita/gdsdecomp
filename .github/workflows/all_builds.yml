@@ -261,6 +261,7 @@ jobs:
         continue-on-error: true
 
       - name: Prepare template artifact
+        if: matrix.platform != 'android'
         uses: ./.github/actions/godot-prepare-artifact
 
       - name: Make macOS template
