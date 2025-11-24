@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
+import platform
 import re
 from typing import Any, Literal
 import gdre_icon_builder
 import shutil
-from subprocess import Popen, PIPE, check_output
+from subprocess import STDOUT, Popen, PIPE, check_output
 import os
 import glob
 from typing import TYPE_CHECKING
@@ -284,6 +285,31 @@ def get_cargo_target(build_env):
     return cargo_target
 
 
+def write_cargo_config_toml_file(env):
+    llvm_prebuild_path = find_llvm_prebuild_path(env)
+    ar = llvm_prebuild_path + "/llvm-ar"
+    min_sdk_ver = env["ndk_platform"].split("-")[1]
+    arm64_linker = llvm_prebuild_path + f"/aarch64-linux-android{min_sdk_ver}-clang"
+    arm_linker = llvm_prebuild_path + f"/arm7a-linux-android{min_sdk_ver}-clang"
+
+    text = f"""
+[target.aarch64-linux-android]
+ar = "{ar}"
+linker = "{arm64_linker}"
+
+[target.armv7-linux-androideabi]
+ar = "{ar}"
+linker = "{arm_linker}"
+"""
+    # ensure external/vtracer/.cargo dir
+    dir = os.path.join(MODULE_DIR, VTRACER_PREFIX, ".cargo")
+    if not os.path.exists(dir):
+        os.makedirs(dir, exist_ok=True)
+    # write the text to the file
+    with open(os.path.join(dir, "config.toml"), "w") as f:
+        f.write(text)
+
+
 def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list[str], build_env):
     output = bytes()
     # get dev_build from env
@@ -312,6 +338,12 @@ def cargo_builder(external_dir: str, source_dir: str, build_dir: str, libs: list
         cargo_cmd.append("-Zbuild-std=std,panic_abort")
         # need to also set
         cargo_cmd.append("-Zbuild-std-features=panic_immediate_abort")
+    if build_env["platform"] == "android":
+        ndk_llvm_path = find_llvm_prebuild_path(env)
+        print("NDK_LLVM_PATH", ndk_llvm_path)
+        cargo_env["PATH"] = ndk_llvm_path + ":" + os.environ.get("PATH")
+        write_cargo_config_toml_file(build_env)
+
     output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
     print(output.decode("utf-8"))
     if env.msvc:
@@ -437,6 +469,9 @@ def get_godot_mono_triplet(platform: str, arch: str):
     elif platform == "windows":
         platform_part = "win"
         arch_part = "arm64" if arch == "arm64" else "x64"
+    elif platform == "android":
+        platform_part = "linux-bionic"
+        arch_part = "arm64" if arch == "arm64" else "x64"
     else:
         raise Exception(f"Unsupported platform: {platform}")
     return f"{platform_part}-{arch_part}"
@@ -481,6 +516,19 @@ def get_godot_mono_decomp_lib_paths(_env=env) -> list[Any]:
 env.Append(LIBPATH=[BUILD_DIR])
 env.Append(LIBPATH=[get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], is_dev_build(env))])
 
+
+def find_llvm_prebuild_path(env):
+    # get the os name from the os lib
+    host_os_name = platform.system().lower()
+    if host_os_name.startswith("win"):
+        host_os_name = "win"
+    ndk_llvm_path = env["ANDROID_NDK_ROOT"] + "/toolchains/llvm/prebuilt"
+    for dir in os.listdir(ndk_llvm_path):
+        if dir.startswith(host_os_name):
+            return os.path.join(ndk_llvm_path, dir, "bin")
+    return None
+
+
 def godot_mono_builder(target, source, env: dict[str, Any]):
     print("GODOT MONO DECOMP BUILD: ", target)
     libs = get_godot_mono_decomp_lib_paths(env)
@@ -496,11 +544,23 @@ def godot_mono_builder(target, source, env: dict[str, Any]):
         "-c",
         build_variant,
     ]
+    cmd_env = os.environ.copy()
     dotnet_publish_cmd = BASE_CMD + ["-r", get_godot_mono_triplet(env["platform"], env["arch"])]
+    if env["platform"] == "android":
+        ndk_llvm_path = find_llvm_prebuild_path(env)
+        print("NDK_LLVM_PATH", ndk_llvm_path)
+        cmd_env["PATH"] = ndk_llvm_path + ":" + os.environ.get("PATH")
+        dotnet_publish_cmd += ["-p:DisableUnsupportedError=true", "-p:PublishAotUsingRuntimePack=true"]
     lib_dir = get_godot_mono_decomp_lib_dir(env["platform"], env["arch"], dev_build)
     cwd = GODOT_MONO_DECOMP_DIR
     print("DOTNET PUBLISH CMD", dotnet_publish_cmd)
-    dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd)
+    dotnet_publish_output = ""
+    try:
+        dotnet_publish_output = check_output(dotnet_publish_cmd, cwd=cwd, stderr=STDOUT, env=cmd_env)
+    except Exception as e:
+        print("ERROR PUBLISHING GODOT MONO DECOMP", e)
+        print(e.output.decode("utf-8"))
+        exit(1)
     # parse utf-8
     print("DOTNET PUBLISH OUTPUT", dotnet_publish_output.decode("utf-8"))
     other_lib_dir = ""

@@ -96,11 +96,21 @@ echo "Build number: $build_num"
 $export_presets = Get-Content export_presets.cfg
 $export_presets = $export_presets -replace 'application/short_version=".*"', "application/short_version=""$version"""
 $export_presets = $export_presets -replace 'application/version=".*"', "application/version=""$version"""
+$export_presets = $export_presets -replace 'version/name=".*"', "version/name=""$version"""
 $export_presets = $export_presets -replace 'application/file_version=".*"', "application/file_version=""$number_only_version.$build_num"""
 $export_presets = $export_presets -replace 'application/product_version=".*"', "application/product_version=""$number_only_version.$build_num"""
 
 #output the processed export_presets.cfg
 $export_presets | Set-Content export_presets.cfg
+
+
+# TODO: use an override.cfg instead
+# if preset is "Android", open project.godot and replace the rendering method with "mobile"
+if ($export_preset -eq "Android") {
+    $project_godot = Get-Content project.godot
+    $project_godot = $project_godot -replace 'renderer/rendering_method=".*"', "renderer/rendering_method=""mobile"""
+    $project_godot | Set-Content project.godot
+}
 
 # turn echo on
 

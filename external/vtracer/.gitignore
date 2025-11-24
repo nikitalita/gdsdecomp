@@ -2,3 +2,4 @@
 *.png
 *.jpg
 target/
+.cargo/config.toml

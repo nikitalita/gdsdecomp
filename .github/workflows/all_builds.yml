@@ -100,6 +100,15 @@ jobs:
             sconsflags: debug_symbols=no optimize=size use_lto=yes
             bin: ./bin/godot.linuxbsd.editor.x86_64
 
+          - name: "🤖 Android Template Release"
+            os: "ubuntu-22.04"
+            id: android-template
+            platform: android
+            target: template_release
+            rust-arch: x86_64-unknown-linux-gnu
+            sconsflags: debug_symbols=no optimize=size use_lto=yes
+            bin: ./bin/godot.linuxbsd.editor.x86_64
+
           - name: "🍎 macOS Editor"
             os: "macos-latest"
             id: macos-editor
@@ -148,13 +157,25 @@ jobs:
         continue-on-error: true
 
       - name: Install Linux deps
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' || matrix.platform == 'android'
         run: |
           sudo apt-get update
           sudo apt-get install build-essential pkg-config libx11-dev libxcursor-dev \
             libxinerama-dev libgl1-mesa-dev libglu-dev libasound2-dev libpulse-dev \
-            libudev-dev libxi-dev libxrandr-dev yasm clang-format libwayland-bin
+            libudev-dev libxi-dev libxrandr-dev yasm clang-format libwayland-bin \
+            patchelf
           sudo apt-get install libwayland-bin
+
+      - name: Set up JDK 17
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        if: matrix.platform == 'android'
+        uses: android-actions/setup-android@v3
 
       - name: Setup python and scons
         uses: ./.github/actions/godot-deps
@@ -229,6 +250,14 @@ jobs:
           mv godot_macos.zip macos.zip
           rm -f libGodotMonoDecompNativeAOT.dylib
           rm -f godot.macos.template_release.*
+          cd ..
+
+      - name: Make Android template
+        if: matrix.platform == 'android' && matrix.target == 'template_release'
+        # just remove the .so file so it doesn't clobber the editor's .so file in the export step
+        run: |
+          cd bin/
+          rm -f libGodotMonoDecompNativeAOT.so
           cd ..
 
       - uses: actions/upload-artifact@v4
@@ -323,6 +352,7 @@ jobs:
         include:
           - name: "Windows"
             os: "windows-latest"
+            editor: windows
             platform: windows
             command-export: ${env:GITHUB_WORKSPACE}\bin\godot.windows.editor.x86_64.exe
             export-preset: "Windows Desktop"
@@ -330,13 +360,23 @@ jobs:
 
           - name: "🐧 Linux"
             os: "ubuntu-24.04"
+            editor: linux
             platform: linux
             command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
             export-preset: "Linux/X11"
             export-name: .export/gdre_tools.x86_64
 
+          - name: "🤖 Android"
+            os: "ubuntu-24.04"
+            editor: linux
+            platform: android
+            command-export: ${env:GITHUB_WORKSPACE}/bin/godot.linuxbsd.editor.x86_64
+            export-preset: "Android"
+            export-name: .export/gdre_tools.apk
+
           - name: "🍎 macOS"
             os: "macos-latest"
+            editor: macos
             platform: macos
             command-export: ${env:GITHUB_WORKSPACE}/bin/godot.macos.editor.arm64
             export-preset: "macOS"
@@ -360,7 +400,7 @@ jobs:
       - name: Download GDRE_tools artifacts
         uses: actions/download-artifact@v4
         with:
-          name: GDRE_tools-editor-${{ matrix.platform }}
+          name: GDRE_tools-editor-${{ matrix.editor }}
           path: bin
 
       - name: Download GDRE_tools template artifacts
@@ -425,6 +465,11 @@ jobs:
         with:
           name: GDRE_tools-standalone-windows
           path: artifacts/windows
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: GDRE_tools-standalone-android
+          path: artifacts/android
       - name: Zip artifacts
         run: |
           ls -la artifacts/*
@@ -435,6 +480,8 @@ jobs:
           cd artifacts/linux
           chmod a+x gdre_tools.x86_64
           zip -r9  "../GDRE_tools-${{ github.ref_name }}-linux.zip" *
+          cd ../android
+          mv gdre_tools.apk "../GDRE_tools-${{ github.ref_name }}-android.apk"
       - name: Release
         uses: nikitalita/action-gh-release@v1.0
         with:
@@ -442,3 +489,4 @@ jobs:
             artifacts/GDRE_tools-${{ github.ref_name }}-windows.zip
             artifacts/GDRE_tools-${{ github.ref_name }}-macos.zip
             artifacts/GDRE_tools-${{ github.ref_name }}-linux.zip
+            artifacts/GDRE_tools-${{ github.ref_name }}-android.apk
