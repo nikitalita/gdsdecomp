@@ -340,7 +340,7 @@ String TaskManager::DownloadTaskData::get_current_task_step_description() {
 		int64_t bytes_per_ms = (bytes_downloaded / elapsed_time_ms);
 		int64_t bytes_per_second = bytes_per_ms * 1000;
 		speed_history.push_back(bytes_per_second);
-		int64_t time_remaining = (size - bytes_downloaded) / bytes_per_second;
+		int64_t time_remaining = (size - bytes_downloaded) / (bytes_per_second > 0 ? bytes_per_second : 1);
 		if (time_remaining > 60) {
 			time_remaining_str = vformat("%dm %02ds left, ", time_remaining / 60, time_remaining % 60);
 		} else if (time_remaining > 3) {
