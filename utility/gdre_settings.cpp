@@ -206,6 +206,17 @@ GDRESettings::GDRESettings() {
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
 	PluginManager::load_cache();
+#ifdef ANDROID_ENABLED
+	if (!OS::get_singleton()->request_permission("android.permission.READ_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission READ_EXTERNAL_STORAGE is required to access external storage!");
+	}
+	if (!OS::get_singleton()->request_permission("android.permission.WRITE_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission WRITE_EXTERNAL_STORAGE is required to access external storage!");
+	}
+	if (!OS::get_singleton()->request_permission("android.permission.MANAGE_EXTERNAL_STORAGE")) {
+		ERR_PRINT("Permission WRITE_EXTERNAL_STORAGE is required to access external storage!");
+	}
+#endif
 }
 
 GDRESettings::~GDRESettings() {
