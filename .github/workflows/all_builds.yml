@@ -274,14 +274,6 @@ jobs:
           rm -f godot.macos.template_release.*
           cd ..
 
-      - name: Make Android template
-        if: matrix.platform == 'android' && matrix.target == 'template_release'
-        # just remove the .so file so it doesn't clobber the editor's .so file in the export step
-        run: |
-          cd bin/
-          rm -f libGodotMonoDecompNativeAOT.so
-          cd ..
-
       - uses: actions/upload-artifact@v4
         if: matrix.id != 'linux-sanitizers'
         with:
