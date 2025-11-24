@@ -6,6 +6,8 @@ if ($args.Length -lt 1) {
     exit 1
 }
 
+$current_dir = Get-Location
+
 $export_preset = $args[0]
 
 $export_command = ""
@@ -108,7 +110,7 @@ $export_presets | Set-Content export_presets.cfg
 # if preset is "Android", open project.godot and replace the rendering method with "mobile"
 if ($export_preset -eq "Android") {
     $project_godot = Get-Content project.godot
-    $project_godot = $project_godot -replace 'renderer/rendering_method=".*"', "renderer/rendering_method=""mobile"""
+    $project_godot = $project_godot -replace 'renderer/rendering_method=".*"', "renderer/rendering_method=""gl_compatibility"""
     $project_godot | Set-Content project.godot
 }
 
@@ -146,3 +148,5 @@ echo "Exported files:"
 Get-ChildItem $export_dir -Recurse | ForEach-Object {
     echo $_.FullName
 }
+
+cd $current_dir
