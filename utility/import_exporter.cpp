@@ -1273,7 +1273,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	// add to report
 	bool has_remaps = GDRESettings::get_singleton()->has_any_remaps();
 	HashSet<String> success_paths;
-	bool doing_cache = get_ver_major() >= 4 && !(get_ver_minor() < 1 && get_ver_major() == 4);
+	bool doing_cache = get_ver_major() >= 4;
 	for (int i = 0; i < tokens.size(); i++) {
 		const ExportToken &token = tokens[i];
 		Ref<ImportInfo> iinfo = token.iinfo;
