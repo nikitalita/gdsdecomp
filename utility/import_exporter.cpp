@@ -52,6 +52,25 @@ Ref<ImportExporterReport> ImportExporter::get_report() {
 	return report;
 }
 
+namespace {
+static FileNoCaseComparator file_no_case_comparator;
+}
+struct FileInfoComparator {
+	bool operator()(const std::shared_ptr<ImportExporter::FileInfo> &a, const std::shared_ptr<ImportExporter::FileInfo> &b) const {
+		String a_base_dir = a->file.get_base_dir();
+		String b_base_dir = b->file.get_base_dir();
+		if (a_base_dir != b_base_dir) {
+			// subdirectories come last
+			if (a_base_dir.begins_with(b_base_dir)) {
+				return false;
+			} else if (b_base_dir.begins_with(a_base_dir)) {
+				return true;
+			}
+		}
+		return file_no_case_comparator(a->file, b->file);
+	}
+};
+
 // Error remove_remap(const String &src, const String &dst, const String &output_dir);
 Error ImportExporter::handle_auto_converted_file(const String &autoconverted_file) {
 	String prefix = autoconverted_file.replace_first("res://", "");
@@ -80,7 +99,7 @@ Error ImportExporter::remove_remap_and_autoconverted(const String &source_file, 
 	return handle_auto_converted_file(autoconverted_file);
 }
 
-void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, String p_output_dir) {
+void ImportExporter::save_filesystem_cache(const Vector<std::shared_ptr<FileInfo>> &reports, String p_output_dir) {
 	if (get_ver_major() <= 3) {
 		return;
 	}
@@ -101,7 +120,8 @@ void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, Stri
 		return time;
 	};
 	const bool is_v4_4_or_newer = get_ver_major() > 4 || (get_ver_major() == 4 && get_ver_minor() >= 4);
-	for (auto &file_info : reports) {
+	for (int i = 0; i < reports.size(); i++) {
+		auto &file_info = *reports[i];
 		if (!file_info.verified) {
 			continue;
 		}
@@ -143,15 +163,17 @@ void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, Stri
 		cache_string.append(itos(file_info.uid));
 		cache_string.append(itos(file_info.modified_time));
 		cache_string.append(itos(file_info.import_modified_time));
-		cache_string.append(itos(1)); // TODO?
-		cache_string.append("");
+		cache_string.append(itos(file_info.import_valid ? 1 : 0));
+		cache_string.append(file_info.import_group_file);
 		Vector<String> parts = {
 			file_info.class_info.name,
 			file_info.class_info.extends,
 			file_info.class_info.icon_path,
 		};
 		if (is_v4_4_or_newer) {
-			parts.append_array({ itos(file_info.class_info.is_abstract), itos(file_info.class_info.is_tool), file_info.import_md5, String("<*>").join(file_info.import_dest_paths) });
+			parts.append_array({ itos(file_info.class_info.is_abstract),
+					itos(file_info.class_info.is_tool),
+					file_info.import_md5, String("<*>").join(file_info.import_dest_paths) });
 		}
 		cache_string.append(String("<>").join(parts));
 		cache_string.append(String("<>").join(file_info.deps));
@@ -160,8 +182,117 @@ void ImportExporter::save_filesystem_cache(const Vector<FileInfo> &reports, Stri
 	}
 }
 
-void ImportExporter::_do_file_info(uint32_t i, FileInfo *file_infos) {
-	auto &file_info = file_infos[i];
+Vector<std::shared_ptr<ImportExporter::FileInfo>> ImportExporter::read_filesystem_cache(const String &p_path) {
+	Vector<std::shared_ptr<FileInfo>> result;
+
+	Ref<FileAccess> p_file = FileAccess::open(p_path, FileAccess::READ);
+	if (p_file.is_null()) {
+		return result;
+	}
+
+	// Skip the first line (MD5 hash)
+	if (!p_file->eof_reached()) {
+		(void)p_file->get_line();
+	}
+
+	String current_dir = "";
+
+	while (!p_file->eof_reached()) {
+		String line = p_file->get_line().strip_edges();
+		if (line.is_empty()) {
+			continue;
+		}
+
+		Vector<String> parts = line.split("::", true, 8);
+		if (parts.size() < 2) {
+			continue;
+		}
+
+		// Check if this is a directory entry (format: ::<path>::<timestamp>)
+		if (parts.size() == 3 && parts[0].is_empty() && parts[2].is_valid_int()) {
+			String dir_path = parts[1];
+			if (dir_path.ends_with("/")) {
+				current_dir = dir_path;
+			} else {
+				current_dir = dir_path + "/";
+			}
+			continue;
+		}
+
+		// This is a file entry (format: <filename>::<type>::<uid>::<modified_time>::<import_modified_time>::<1>::<>::<class_info>::<deps>)
+		if (parts.size() >= 8 && !parts[0].is_empty()) {
+			auto file_info = std::make_shared<FileInfo>();
+
+			// Reconstruct full path
+			String filename = parts[0];
+			if (current_dir.is_empty()) {
+				file_info->file = "res://" + filename;
+			} else {
+				file_info->file = current_dir + filename;
+			}
+
+			// Parse type (may include "/resource_script_class")
+			String type_str = parts[1];
+			int type_slash = type_str.find("/");
+			if (type_slash >= 0) {
+				file_info->type = type_str.substr(0, type_slash);
+				file_info->resource_script_class = type_str.substr(type_slash + 1);
+			} else {
+				file_info->type = type_str;
+			}
+
+			// Parse uid
+			file_info->uid = parts[2].to_int();
+
+			// Parse modified_time
+			file_info->modified_time = parts[3].to_int();
+
+			// Parse import_modified_time
+			file_info->import_modified_time = parts[4].to_int();
+
+			// Skip parts[6] (TODO field) and parts[7] (empty string)
+			file_info->import_valid = parts[5].to_int() != 0;
+			file_info->import_group_file = parts[6];
+			// Parse class_info
+			const String &class_info_str = parts[7];
+			Vector<String> class_info_parts = class_info_str.split("<>", true);
+			if (class_info_parts.size() >= 3) {
+				file_info->class_info.name = class_info_parts[0];
+				file_info->class_info.extends = class_info_parts[1];
+				file_info->class_info.icon_path = class_info_parts[2];
+
+				if (class_info_parts.size() >= 5) {
+					file_info->class_info.is_abstract = class_info_parts[3].to_int() != 0;
+					file_info->class_info.is_tool = class_info_parts[4].to_int() != 0;
+					if (class_info_parts.size() >= 6) {
+						file_info->import_md5 = class_info_parts[5];
+						if (class_info_parts.size() >= 7 && !class_info_parts[6].is_empty()) {
+							file_info->import_dest_paths = class_info_parts[6].split("<*>", true);
+						}
+					}
+				}
+			}
+
+			// Parse deps
+			if (parts.size() >= 9) {
+				const String &deps_str = parts[8];
+				if (!deps_str.is_empty()) {
+					file_info->deps = deps_str.split("<>", false);
+				}
+			}
+
+			file_info->verified = true;
+			file_info->import_valid = true;
+
+			result.push_back(file_info);
+		}
+	}
+
+	return result;
+}
+
+void ImportExporter::_do_file_info(uint32_t i, std::shared_ptr<FileInfo> *file_infos) {
+	auto &file_info = *file_infos[i];
 	String ext = file_info.file.get_extension().to_lower();
 	auto export_report = src_to_report.has(file_info.file) ? src_to_report.get(file_info.file) : Ref<ExportReport>();
 	if (export_report.is_valid() && export_report->modified_time > 0) {
@@ -247,8 +378,8 @@ void ImportExporter::_do_file_info(uint32_t i, FileInfo *file_infos) {
 	}
 }
 
-String ImportExporter::get_file_info_description(uint32_t i, FileInfo *file_info) {
-	return file_info[i].file;
+String ImportExporter::get_file_info_description(uint32_t i, std::shared_ptr<FileInfo> *file_info) {
+	return file_info[i]->file;
 }
 
 HashSet<String> get_base_extensions_unique_to_nonv4() {
@@ -1348,9 +1479,9 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		String editor_dir = output_dir.path_join(".godot").path_join("editor");
 		gdre::ensure_dir(editor_dir);
 		String cache_file = editor_dir.path_join(cache_path);
+		Vector<std::shared_ptr<FileInfo>> file_infos;
+		update_exts();
 		if (!partial_export || !FileAccess::exists(cache_file)) {
-			update_exts();
-			Vector<FileInfo> file_infos;
 			{
 				auto list = gdre::get_recursive_dir_list_multithread(
 						output_dir,
@@ -1363,7 +1494,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 						true);
 				file_infos.resize_initialized(list.size());
 				for (int i = 0; i < list.size(); i++) {
-					file_infos.write[i].file = "res://" + list[i];
+					file_infos.write[i] = std::make_shared<FileInfo>();
+					file_infos.write[i]->file = "res://" + list[i];
 				}
 			}
 
@@ -1376,6 +1508,48 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					"ImportExporter::export_imports::filesystem_cache",
 					"Generating filesystem cache...",
 					true, -1, true);
+		} else {
+			HashSet<String> scan_set;
+			for (auto &E : files_to_export_set) {
+				if (E.contains("/.")) { // hidden files
+					continue;
+				}
+				scan_set.insert(E);
+			}
+			for (auto &E : src_to_report) {
+				if (E.key.contains("/.")) { // hidden files
+					continue;
+				}
+				scan_set.insert(E.key);
+			}
+			file_infos = read_filesystem_cache(cache_file);
+			HashMap<String, std::shared_ptr<FileInfo>> file_info_map;
+			for (int i = 0; i < file_infos.size(); i++) {
+				file_info_map[file_infos[i]->file] = file_infos[i];
+			}
+			Vector<std::shared_ptr<FileInfo>> to_scan;
+			for (auto &path : scan_set) {
+				if (file_info_map.has(path)) {
+					to_scan.push_back(file_info_map[path]);
+				} else {
+					auto file_info = std::make_shared<FileInfo>();
+					file_info->file = path;
+					to_scan.push_back(file_info);
+					file_infos.push_back(file_info);
+				}
+			}
+			err = TaskManager::get_singleton()->run_multithreaded_group_task(
+					this,
+					&ImportExporter::_do_file_info,
+					to_scan.ptrw(),
+					to_scan.size(),
+					&ImportExporter::get_file_info_description,
+					"ImportExporter::export_imports::filesystem_cache",
+					"Generating filesystem cache...",
+					true, -1, true);
+			file_infos.sort_custom<FileInfoComparator>();
+		}
+		if (file_infos.size() > 0) {
 			save_filesystem_cache(file_infos, output_dir);
 		}
 	}

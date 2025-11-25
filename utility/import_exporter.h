@@ -135,10 +135,11 @@ class ImportExporter : public RefCounted {
 
 	void update_exts();
 
-	void save_filesystem_cache(const Vector<FileInfo> &reports, String output_dir);
+	void save_filesystem_cache(const Vector<std::shared_ptr<FileInfo>> &reports, String output_dir);
+	Vector<std::shared_ptr<FileInfo>> read_filesystem_cache(const String &p_path);
 
-	void _do_file_info(uint32_t i, FileInfo *file_info);
-	String get_file_info_description(uint32_t i, FileInfo *file_info);
+	void _do_file_info(uint32_t i, std::shared_ptr<FileInfo> *file_info);
+	String get_file_info_description(uint32_t i, std::shared_ptr<FileInfo> *file_info);
 	void _do_export(uint32_t i, ExportToken *tokens);
 	String get_export_token_description(uint32_t i, ExportToken *tokens);
 	Error handle_auto_converted_file(const String &autoconverted_file);
