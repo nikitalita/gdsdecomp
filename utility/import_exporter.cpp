@@ -731,55 +731,6 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 	}
 };
 
-Vector<String> get_recursive_dir_list_subdirs_last(const String &p_dir, const Vector<String> &wildcards, bool absolute, bool include_hidden, const String &rel = "") {
-	Vector<String> ret;
-	Error err;
-	Ref<DirAccess> da = DirAccess::open(p_dir.path_join(rel), &err);
-	ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + p_dir);
-
-	if (da.is_null()) {
-		return ret;
-	}
-	Vector<String> dirs;
-	Vector<String> files;
-
-	String base = absolute ? p_dir : "";
-	da->set_include_hidden(include_hidden);
-	da->list_dir_begin();
-	String f = da->get_next();
-	while (!f.is_empty()) {
-		if (f == "." || f == "..") {
-			f = da->get_next();
-			continue;
-		} else if (da->current_is_dir()) {
-			dirs.push_back(f);
-		} else {
-			files.push_back(f);
-		}
-		f = da->get_next();
-	}
-	da->list_dir_end();
-
-	dirs.sort_custom<FileNoCaseComparator>();
-	files.sort_custom<FileNoCaseComparator>();
-	for (auto &file : files) {
-		if (wildcards.size() > 0) {
-			for (int i = 0; i < wildcards.size(); i++) {
-				if (file.get_file().matchn(wildcards[i])) {
-					ret.append(base.path_join(rel).path_join(file));
-					break;
-				}
-			}
-		} else {
-			ret.append(base.path_join(rel).path_join(file));
-		}
-	}
-	for (auto &d : dirs) {
-		ret.append_array(get_recursive_dir_list_subdirs_last(p_dir, wildcards, absolute, include_hidden, rel.path_join(d)));
-	}
-	return ret;
-}
-
 // export all the imported resources
 Error ImportExporter::export_imports(const String &p_out_dir, const Vector<String> &_files_to_export) {
 	ERR_FAIL_COND_V_MSG(p_out_dir.is_empty(), ERR_INVALID_PARAMETER, "Output directory is empty!");
@@ -1400,13 +1351,20 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if (!partial_export || !FileAccess::exists(cache_file)) {
 			update_exts();
 			Vector<FileInfo> file_infos;
-			Vector<Ref<ExportReport>> reports;
-			for (auto &file : get_recursive_dir_list_subdirs_last(output_dir, {}, false, false)) {
-				String ext = file.get_extension().to_lower();
-				if (ext == "uid" || ext == "import" || file.begins_with(".") || file.get_file().begins_with(".")) {
-					continue;
+			{
+				auto list = gdre::get_recursive_dir_list_multithread(
+						output_dir,
+						{},
+						false,
+						false,
+						{ "*.uid", "*.import" },
+						true,
+						true,
+						true);
+				file_infos.resize_initialized(list.size());
+				for (int i = 0; i < list.size(); i++) {
+					file_infos.write[i].file = "res://" + list[i];
 				}
-				file_infos.push_back(FileInfo{ "res://" + file });
 			}
 
 			err = TaskManager::get_singleton()->run_multithreaded_group_task(
