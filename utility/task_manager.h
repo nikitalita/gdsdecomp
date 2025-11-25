@@ -377,7 +377,8 @@ public:
 			int p_tasks = -1,
 			bool p_high_priority = true,
 			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
-			int p_progress_start = 0) {
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
 		ERR_FAIL_COND_V_MSG(p_elements == 0, -1, "Task has 0 elements, this is not allowed!");
 		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
 		if (p_tasks <= 0) {
@@ -386,7 +387,10 @@ public:
 				p_tasks = MAX(1, get_max_thread_count() - 1);
 			}
 		}
-		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, is_singlethreaded, true, p_preexisting_progress, p_progress_start);
+		auto task = std::make_shared<GroupTaskData<C, M, U, R>>(
+				p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority,
+				is_singlethreaded,
+				p_show_progress, p_preexisting_progress, p_progress_start);
 		task->start();
 		auto group_id = ++current_task_id;
 		bool already_exists = false;
@@ -410,9 +414,10 @@ public:
 			int p_tasks = -1,
 			bool p_high_priority = true,
 			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
-			int p_progress_start = 0) {
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
 		ERR_FAIL_COND_V_MSG(p_elements == 0, ERR_INVALID_PARAMETER, "Task has 0 elements, this is not allowed!");
-		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, p_preexisting_progress, p_progress_start);
+		auto task_id = add_group_task(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, p_tasks, p_high_priority, p_preexisting_progress, p_progress_start, p_show_progress);
 		return wait_for_task_completion(task_id);
 	}
 
@@ -427,9 +432,10 @@ public:
 			const String &p_label,
 			bool p_can_cancel = true,
 			Ref<EditorProgressGDDC> p_preexisting_progress = nullptr,
-			int p_progress_start = 0) {
+			int p_progress_start = 0,
+			bool p_show_progress = true) {
 		ERR_FAIL_COND_V_MSG(p_elements == 0, ERR_INVALID_PARAMETER, "Task has 0 elements, this is not allowed!");
-		GroupTaskData<C, M, U, R> task = GroupTaskData<C, M, U, R>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, -1, true, true, true, p_preexisting_progress, p_progress_start);
+		GroupTaskData<C, M, U, R> task = GroupTaskData<C, M, U, R>(p_instance, p_method, p_userdata, p_elements, p_task_step_callback, p_task, p_label, p_can_cancel, -1, true, true, p_show_progress, p_preexisting_progress, p_progress_start);
 		task.start();
 		return task.wait_for_completion() ? ERR_SKIP : OK;
 	}
