@@ -12,6 +12,16 @@
 class Image;
 class FileAccess;
 namespace gdre {
+Vector<String> get_recursive_dir_list_multithread(
+		const String &dir,
+		const Vector<String> &wildcards = {},
+		bool absolute = true,
+		bool include_hidden = true,
+		const Vector<String> &exclude_filters = {},
+		bool files_first = false,
+		bool exclude_dot_prefix_and_gdignore = false,
+		bool show_progress = false);
+
 Vector<String> get_recursive_dir_list(const String &dir, const Vector<String> &wildcards = {}, bool absolute = true, bool include_hidden = true);
 bool dir_has_any_matching_wildcards(const String &dir, const Vector<String> &wildcards = {});
 

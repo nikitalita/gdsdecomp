@@ -12,6 +12,199 @@
 #include "core/io/http_client.h"
 #include "modules/regex/regex.h"
 #include "modules/zip/zip_reader.h"
+#include "utility/task_manager.h"
+
+namespace {
+struct RecursiveListDirTaskData {
+	const String dir;
+	const Vector<String> wildcards;
+	const bool absolute;
+	const Vector<String> excludes;
+	const Vector<String> banned_files;
+	const bool include_hidden;
+	const bool files_first;
+	const bool exclude_dot_prefix_and_gdignore;
+	const bool show_progress;
+
+	struct Token {
+		String subdir;
+		Vector<String> ret;
+	};
+
+	bool should_filter_file(const String &file) {
+		for (int64_t j = 0; j < banned_files.size(); j++) {
+			if (file.ends_with(banned_files[j])) {
+				return true;
+			}
+		}
+		// we have to check the exclude filters now
+		for (int64_t j = 0; j < excludes.size(); j++) {
+			if (file.matchn(excludes[j])) {
+				return true;
+			}
+		}
+		if (wildcards.size() > 0) {
+			for (int64_t j = 0; j < wildcards.size(); j++) {
+				if (file.matchn(wildcards[j])) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
+
+	void do_subdir_task(int i, Token *p_subdir) {
+		Token &token = p_subdir[i];
+		token.ret = list_dir(token.subdir, false);
+	}
+
+	String get_step_description(int i, Token *p_subdir) {
+		return "Reading folder " + p_subdir[i].subdir + "...";
+	}
+
+	Vector<String> run() {
+		return list_dir("", true);
+	}
+
+	Vector<String> list_dir(const String &rel, bool is_main = false) {
+		Vector<String> ret;
+		Error err;
+		Ref<DirAccess> da = DirAccess::open(dir.path_join(rel), &err);
+		ERR_FAIL_COND_V_MSG(da.is_null(), ret, "Failed to open directory " + dir);
+
+		if (da.is_null()) {
+			return ret;
+		}
+		Vector<String> dirs;
+		Vector<String> files;
+
+		String base = absolute ? dir : "";
+		da->set_include_hidden(include_hidden);
+		da->list_dir_begin();
+		String f = da->get_next();
+		while (!f.is_empty()) {
+			if (f == "." || f == "..") {
+				f = da->get_next();
+				continue;
+			} else if (exclude_dot_prefix_and_gdignore && f[0] == '.') {
+				f = da->get_next();
+				continue;
+			} else if (da->current_is_dir()) {
+				dirs.push_back(f);
+			} else {
+				if (exclude_dot_prefix_and_gdignore && f == ".gdignore") {
+					// ignore the entire directory
+					return {};
+				}
+				files.push_back(f);
+			}
+			f = da->get_next();
+		}
+		da->list_dir_end();
+
+		dirs.sort_custom<FileNoCaseComparator>();
+		if (is_main) {
+			Vector<RecursiveListDirTaskData::Token> tokens;
+			for (auto &d : dirs) {
+				tokens.push_back(RecursiveListDirTaskData::Token{ rel.path_join(d), {} });
+			}
+
+			Ref<EditorProgressGDDC> ep;
+			TaskManager::TaskManagerID group_id = -1;
+			if (tokens.size() > 0) {
+				String desc = "Reading folder " + dir + " structure...";
+				String task = "ListDirTaskData(" + dir + +")_" + String::num_int64(OS::get_singleton()->get_ticks_usec());
+				if (show_progress) {
+					ep = EditorProgressGDDC::create(nullptr, task, desc, -1, true);
+				}
+				group_id = TaskManager::get_singleton()->add_group_task(
+						this, &RecursiveListDirTaskData::do_subdir_task,
+						tokens.ptrw(), tokens.size(),
+						&RecursiveListDirTaskData::get_step_description,
+						task, desc,
+						true, -1, true, ep, 0, show_progress);
+			}
+			// while we wait for the subdirs to be read, we can filter the files
+			files.sort_custom<FileNoCaseComparator>();
+			for (int64_t i = files.size() - 1; i >= 0; i--) {
+				TaskManager::get_singleton()->update_progress_bg();
+				files.write[i] = base.path_join(rel).path_join(files[i]);
+				if (should_filter_file(files[i])) {
+					files.remove_at(i);
+					continue;
+				}
+			}
+			if (group_id != -1) {
+				TaskManager::get_singleton()->wait_for_task_completion(group_id);
+			}
+			if (files_first) {
+				ret.append_array(std::move(files));
+			}
+			for (auto &t : tokens) {
+				ret.append_array(std::move(t.ret));
+			}
+			if (!files_first) {
+				ret.append_array(std::move(files));
+			}
+		} else {
+			files.sort_custom<FileNoCaseComparator>();
+			if (!files_first) {
+				for (auto &d : dirs) {
+					ret.append_array(list_dir(rel.path_join(d), false));
+				}
+			}
+			for (auto &file : files) {
+				String full_path = base.path_join(rel).path_join(file);
+				if (!should_filter_file(full_path)) {
+					ret.append(full_path);
+				}
+			}
+			if (files_first) {
+				for (auto &d : dirs) {
+					ret.append_array(list_dir(rel.path_join(d), false));
+				}
+			}
+		}
+
+		return ret;
+	}
+};
+
+} //namespace
+
+Vector<String> gdre::get_recursive_dir_list_multithread(
+		const String &dir,
+		const Vector<String> &wildcards,
+		bool absolute,
+		bool include_hidden,
+		const Vector<String> &p_exclude_filters,
+		bool files_first,
+		bool exclude_dot_prefix_and_gdignore,
+		bool show_progress) {
+	Vector<String> banned_files;
+	Vector<String> exclude_filters;
+	for (auto &wc : p_exclude_filters) {
+		// if the wildcard starts with '*/' and has no '/' following it, then it is a banned file
+		if (wc.begins_with("*/") && wc.substr(2).find("/") == -1) {
+			banned_files.push_back(wc.trim_prefix("*/"));
+		} else {
+			exclude_filters.push_back(wc);
+		}
+	}
+	RecursiveListDirTaskData task_data{
+		dir,
+		wildcards,
+		absolute,
+		exclude_filters,
+		banned_files,
+		include_hidden,
+		files_first,
+		exclude_dot_prefix_and_gdignore,
+		show_progress
+	};
+	return task_data.run();
+}
 
 Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<String> &wildcards, bool absolute, bool include_hidden) {
 	Vector<String> ret;
@@ -1354,4 +1547,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_directories_at_recursive", "dir", "absolute", "include_hidden"), &gdre::get_directories_at_recursive);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_files_at", "dir", "wildcards", "absolute"), &gdre::get_files_at);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_dirs_at", "dir", "wildcards", "absolute"), &gdre::get_dirs_at);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_recursive_dir_list_multithread", "dir", "wildcards", "absolute", "include_hidden", "exclude_filters", "files_first", "exclude_dot_prefix_and_gdignore", "show_progress"), &gdre::get_recursive_dir_list_multithread, DEFVAL(PackedStringArray()), DEFVAL(true), DEFVAL(true), DEFVAL(PackedStringArray()), DEFVAL(false), DEFVAL(false), DEFVAL(false));
 }
