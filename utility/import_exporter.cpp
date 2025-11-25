@@ -103,13 +103,23 @@ void ImportExporter::save_filesystem_cache(const Vector<std::shared_ptr<FileInfo
 	if (get_ver_major() <= 3) {
 		return;
 	}
+	static HashMap<int, String> minor_to_default_md5_hash = {
+		{ 0, "fc8a56933c4b1c8d796fdb8f7a9f9475" },
+		{ 1, "ea4bc82a6ad023ab7ee23ee620429895" },
+		{ 2, "ea4bc82a6ad023ab7ee23ee620429895" },
+		{ 3, "ea4bc82a6ad023ab7ee23ee620429895" },
+		{ 4, "ea4bc82a6ad023ab7ee23ee620429895" },
+		{ 5, "63f7b34db8d8cdea90c76aacccf841ec" },
+	};
+
 	String cache_path = get_ver_minor() < 4 ? "filesystem_cache8" : "filesystem_cache10";
 	String editor_dir = p_output_dir.path_join(".godot").path_join("editor");
 	gdre::ensure_dir(editor_dir);
 	String cache_file = editor_dir.path_join(cache_path);
 	Ref<FileAccess> p_file = FileAccess::open(cache_file, FileAccess::WRITE);
 	//write an md5 hash of all 0s
-	p_file->store_line(String("00000000000000000000000000000000"));
+	String default_md5_hash = minor_to_default_md5_hash.has(get_ver_minor()) ? minor_to_default_md5_hash[get_ver_minor()] : "00000000000000000000000000000000";
+	p_file->store_line(default_md5_hash);
 	String current_dir = "";
 	const int64_t curr_time = OS::get_singleton()->get_unix_time();
 	auto get_dir_modified_time = [&](const String &dir) {
@@ -156,6 +166,16 @@ void ImportExporter::save_filesystem_cache(const Vector<std::shared_ptr<FileInfo
 		if (!file_info.resource_script_class.is_empty()) {
 			type += "/" + String(file_info.resource_script_class);
 		}
+		Vector<String> class_info_parts = {
+			file_info.class_info.name,
+			file_info.class_info.extends,
+			file_info.class_info.icon_path,
+		};
+		if (is_v4_4_or_newer) {
+			class_info_parts.append_array({ itos(file_info.class_info.is_abstract),
+					itos(file_info.class_info.is_tool),
+					file_info.import_md5, String("<*>").join(file_info.import_dest_paths) });
+		}
 
 		PackedStringArray cache_string;
 		cache_string.append(source_file.get_file());
@@ -165,17 +185,7 @@ void ImportExporter::save_filesystem_cache(const Vector<std::shared_ptr<FileInfo
 		cache_string.append(itos(file_info.import_modified_time));
 		cache_string.append(itos(file_info.import_valid ? 1 : 0));
 		cache_string.append(file_info.import_group_file);
-		Vector<String> parts = {
-			file_info.class_info.name,
-			file_info.class_info.extends,
-			file_info.class_info.icon_path,
-		};
-		if (is_v4_4_or_newer) {
-			parts.append_array({ itos(file_info.class_info.is_abstract),
-					itos(file_info.class_info.is_tool),
-					file_info.import_md5, String("<*>").join(file_info.import_dest_paths) });
-		}
-		cache_string.append(String("<>").join(parts));
+		cache_string.append(String("<>").join(class_info_parts));
 		cache_string.append(String("<>").join(file_info.deps));
 
 		p_file->store_line(String("::").join(cache_string));
