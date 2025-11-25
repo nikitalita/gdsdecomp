@@ -33,7 +33,7 @@
 #include "utility/task_manager.h"
 
 #ifndef MAKE_GLTF_COPY
-#define MAKE_GLTF_COPY 0
+#define MAKE_GLTF_COPY 1
 #endif
 #ifndef PRINT_PERF_CSV
 #define PRINT_PERF_CSV 0
@@ -1649,6 +1649,12 @@ bool set_param_not_in_property_list(Ref<BaseMaterial3D> p_base_material, const S
 	}
 	return false;
 }
+struct UniformInfo {
+	String scope;
+	String type;
+	String name;
+	String hint;
+};
 
 Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
 	// we need to manually create a BaseMaterial3D from the shader material
@@ -1668,19 +1674,35 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	//(global|instance)?\s*uniform\s+(\w+)\s+(\w+)\s*(?:\:\s+(\w+))?
 
 	String shader_code = shader->get_code();
-	Ref<RegEx> re = RegEx::create_from_string("(global|instance)?\\s*uniform\\s+(\\w+)\\s+(\\w+)\\s*(?:\\:\\s+(\\w+))?");
+	Ref<RegEx> re = RegEx::create_from_string(R"((global|instance)?\s*uniform\s+(?:(?:lowp|mediump|highp)\s+)?(\w+)\s+(\w+)\s*(?:\:((?:\s*\w+\s*,)*\s*\w+))?)");
+	// Don't match "normal" or "form"
+	Ref<RegEx> orm_re = RegEx::create_from_string("(^ORM|[^NF]ORM[a-z_]|[a-z_]ORM|^orm|_orm|[^NnFf]orm_|Orm).*");
+	auto is_orm = [&](const String &p_param_name) {
+		return p_param_name == "orm" || orm_re->search(p_param_name).is_valid();
+	};
 	auto matches = re->search_all(shader_code);
+	bool has_orm = false;
+	HashMap<String, UniformInfo> uniform_infos;
 	for (auto &E : matches) {
 		Ref<RegExMatch> match = E;
-		String specifier = match->get_string(1);
-		String param_type = match->get_string(2);
+		UniformInfo info;
 		String param_name = match->get_string(3);
-		String hint = match->get_string(5);
+
+		info.scope = match->get_string(1);
+		info.type = match->get_string(2);
+		info.name = match->get_string(3);
+		info.hint = match->get_string(4).strip_edges();
+		uniform_infos[info.name] = info;
 		shader_uniforms.insert(param_name);
-		if (specifier == "global") {
+		if (info.scope == "global") {
 			global_uniforms.insert(param_name);
-		} else if (specifier == "instance") {
+		} else if (info.scope == "instance") {
 			instance_uniforms.insert(param_name);
+		}
+		if (info.scope == "sampler2D") {
+			if (is_orm(param_name)) {
+				has_orm = true;
+			}
 		}
 	}
 
@@ -1694,7 +1716,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		}
 	}
 
-	Ref<BaseMaterial3D> base_material = memnew(BaseMaterial3D(false));
+	Ref<BaseMaterial3D> base_material = memnew(BaseMaterial3D(has_orm));
 
 	// this is initialized with the 3.x params that are still valid in 4.x (`_set()` handles the remapping) but won't show up in the property list
 	HashSet<String> base_material_params = {
@@ -1774,6 +1796,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		{ "detail_albedo", BaseMaterial3D::TEXTURE_DETAIL_ALBEDO },
 		{ "detail_normal", BaseMaterial3D::TEXTURE_DETAIL_NORMAL },
 		{ "depth_texture", BaseMaterial3D::TEXTURE_HEIGHTMAP }, // old 3.x name for heightmap texture
+		{ "orm_texture", BaseMaterial3D::TEXTURE_ORM },
 	};
 
 	static const HashMap<BaseMaterial3D::TextureParam, BaseMaterial3D::Feature> feature_to_enable_map = {
@@ -1802,6 +1825,36 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	}
 	HashMap<String, Variant> set_params;
 	HashMap<String, Variant> non_set_params;
+	auto add_orm_texture_candidate = [&](const String &param_name, const Ref<Texture> &tex) {
+		String lparam_name = param_name.to_lower();
+		bool did_set = true;
+		if (lparam_name.contains("metallic") || lparam_name.contains("metalness")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_METALLIC].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (lparam_name.contains("roughness") || lparam_name.contains("rough")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_ROUGHNESS].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (lparam_name.contains("ao") || lparam_name.contains("occlusion") || lparam_name.contains("ambient_occlusion")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (is_orm(param_name)) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_ORM].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else {
+			did_set = false;
+		}
+		return did_set;
+	};
+	auto add_texture_candidate = [&](const String &param_name, const String &hint, const Ref<Texture> &tex) {
+		String lparam_name = param_name.to_lower();
+		if (lparam_name.contains("albedo")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_ALBEDO].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (lparam_name.contains("normal") && !hint.contains("roughness_normal")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_NORMAL].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else if (lparam_name.contains("emissive") || lparam_name.contains("emission")) {
+			base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else {
+			return add_orm_texture_candidate(param_name, tex);
+		}
+		return true;
+	};
+	Vector<Pair<Pair<String, String>, Ref<Texture>>> unknown_texture_candidates;
 	for (auto &E : shader_uniforms) {
 		String param_name = E.trim_prefix("shader_parameter/");
 		Variant val = p_shader_material->get_shader_parameter(param_name);
@@ -1849,14 +1902,11 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 			continue;
 		}
 
+		String hint;
 		// trying to capture "uniform sampler2D emissive_texture : hint_black;"
-		Ref<RegEx> re = RegEx::create_from_string("\\s*uniform\\s+(\\w+)\\s+" + param_name + "\\s+(?:\\:\\s+(\\w+))");
-
-		auto matches = re->search(shader_code);
-		if (matches.is_null() || matches->get_string(2).is_empty()) {
-			continue;
+		if (uniform_infos.has(param_name)) {
+			hint = uniform_infos[param_name].hint;
 		}
-		String hint = matches->get_string(2);
 
 		// renames from 3.x to 4.x
 		// { "hint_albedo", "source_color" },
@@ -1865,17 +1915,12 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		// { "hint_black_albedo", "hint_default_black" },
 		// { "hint_color", "source_color" },
 		// { "hint_white", "hint_default_white" },
+		auto lparam_name = param_name.to_lower();
 
 		if (hint.contains("hint_albedo") || hint.contains("source_color")) {
 			base_material_texture_candidates[BaseMaterial3D::TEXTURE_ALBEDO].push_back(Pair<String, Ref<Texture>>(param_name, tex));
 		} else if (hint.contains("hint_white") || hint.contains("hint_default_white")) {
-			if (param_name.contains("metallic") || param_name.contains("metalness")) {
-				base_material_texture_candidates[BaseMaterial3D::TEXTURE_METALLIC].push_back(Pair<String, Ref<Texture>>(param_name, tex));
-			} else if (param_name.contains("roughness") || param_name.contains("rough")) {
-				base_material_texture_candidates[BaseMaterial3D::TEXTURE_ROUGHNESS].push_back(Pair<String, Ref<Texture>>(param_name, tex));
-			} else if (param_name.contains("ao") || param_name.contains("occlusion") || param_name.contains("ambient_occlusion")) {
-				base_material_texture_candidates[BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
-			}
+			add_orm_texture_candidate(param_name, tex);
 		} else if (hint.contains("hint_normal")) {
 			base_material_texture_candidates[BaseMaterial3D::TEXTURE_NORMAL].push_back(Pair<String, Ref<Texture>>(param_name, tex));
 		} else if (hint.contains("hint_black") || hint.contains("hint_default_black")) {
@@ -1885,7 +1930,12 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 			// 	default_textures[param_name.trim_prefix("shader_parameter/")] = tex;
 			// }
 			base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(Pair<String, Ref<Texture>>(param_name, tex));
+		} else {
+			unknown_texture_candidates.push_back({ { param_name, hint }, tex });
 		}
+	}
+	for (auto &E : unknown_texture_candidates) {
+		add_texture_candidate(E.first.first, E.first.second, E.second);
 	}
 	for (int i = 0; i < BaseMaterial3D::TEXTURE_MAX; i++) {
 		auto &candidates = base_material_texture_candidates[BaseMaterial3D::TextureParam(i)];
