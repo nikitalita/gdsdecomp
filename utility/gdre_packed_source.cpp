@@ -6,7 +6,7 @@
 #include "core/io/file_access_encrypted.h"
 #include "core/io/file_access_pack.h"
 #include "core/object/script_language.h"
-#include "utility/file_access_patched.h"
+#include "utility/file_access_patched_gdre.h"
 
 static_assert(PACK_FORMAT_VERSION == GDREPackedSource::CURRENT_PACK_FORMAT_VERSION, "Pack format version changed.");
 

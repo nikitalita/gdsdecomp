@@ -28,7 +28,7 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "file_access_patched.h"
+#include "file_access_patched_gdre.h"
 
 #include "core/io/file_access_pack.h"
 
