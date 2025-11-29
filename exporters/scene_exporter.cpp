@@ -2287,12 +2287,12 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				Vector<bool> mesh_is_shadow;
 				auto gltf_meshes = state->get_meshes();
 				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
-				HashSet<Ref<ArrayMesh>> shadow_meshes;
+				HashSet<Ref<ImporterMesh>> shadow_meshes;
 				for (int i = 0; i < gltf_meshes.size(); i++) {
 					Ref<GLTFMesh> gltf_mesh = gltf_meshes[i];
 					auto mesh = gltf_mesh->get_mesh();
 					if (mesh.is_valid()) {
-						Ref<ArrayMesh> shadow_mesh = mesh->get_shadow_mesh();
+						auto shadow_mesh = mesh->get_shadow_mesh();
 						if (shadow_mesh.is_valid()) {
 							shadow_meshes.insert(shadow_mesh);
 						}

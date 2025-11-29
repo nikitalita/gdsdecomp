@@ -30,7 +30,7 @@
 #include "core/config/project_settings.h"
 #include "core/io/json.h"
 #include "core/object/script_language.h"
-#include "core/string/translation_po.h"
+#include "core/string/translation.h"
 #include "modules/regex/regex.h"
 #include "servers/rendering/rendering_server.h"
 
@@ -332,7 +332,7 @@ void GDRESettings::remove_current_pack() {
 		gdre::rimraf(current_project->assembly_temp_dir);
 		current_project->assembly_temp_dir = "";
 	}
-	current_project = Ref<PackInfo>();
+	current_project = Ref<ProjectInfo>();
 	packs.clear();
 	import_files.clear();
 	remap_iinfo.clear();
@@ -2346,7 +2346,7 @@ void GDRESettings::_do_string_load(uint32_t i, StringLoadToken *tokens) {
 		tokens[i].err = GDScriptDecomp::get_script_strings(tokens[i].path, get_bytecode_revision(), tokens[i].strings, true);
 		return;
 	} else if (src_ext == "po" || src_ext == "mo") { // Context-aware translation files
-		Ref<TranslationPO> res = ResourceCompatLoader::custom_load(tokens[i].path, "", ResourceInfo::LoadType::REAL_LOAD, &tokens[i].err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		Ref<Translation> res = ResourceCompatLoader::custom_load(tokens[i].path, "", ResourceInfo::LoadType::REAL_LOAD, &tokens[i].err, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 		if (res.is_null()) {
 			WARN_PRINT("Failed to load resource " + tokens[i].path);
 			return;
@@ -2509,11 +2509,6 @@ void GDRESettings::load_all_resource_strings() {
 	wildcards.push_back("*.cfg");
 	wildcards.push_back("*.esc");
 
-	// Just doing this to ensure that the classdb initializes the TranslationPO class before we load the strings
-	// The ClassDB will throw errors if the class gets initialized more than once, which can happen when running multithreaded
-	{
-		Ref<TranslationPO> translation = memnew(TranslationPO);
-	}
 	Vector<String> r_files = get_file_list(wildcards);
 	if (has_loaded_dotnet_assembly()) {
 		// Exporting all the strings from the .NET assembly can take a while, so we push it to the front of the list

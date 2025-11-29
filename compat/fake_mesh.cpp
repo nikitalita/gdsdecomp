@@ -1206,24 +1206,25 @@ AABB FakeMesh::get_custom_aabb() const {
 }
 
 void FakeMesh::regen_normal_maps() {
-	if (surfaces.is_empty()) {
-		return;
-	}
-	Vector<Ref<SurfaceTool>> surfs;
-	Vector<uint64_t> formats;
-	for (int i = 0; i < get_surface_count(); i++) {
-		Ref<SurfaceTool> st = memnew(SurfaceTool);
-		st->create_from(Ref<FakeMesh>(this), i);
-		surfs.push_back(st);
-		formats.push_back(surface_get_format(i));
-	}
+	ERR_FAIL_MSG("Can't regenerate normal maps for a fake mesh.");
+	// if (surfaces.is_empty()) {
+	// 	return;
+	// }
+	// Vector<Ref<SurfaceTool>> surfs;
+	// Vector<uint64_t> formats;
+	// for (int i = 0; i < get_surface_count(); i++) {
+	// 	Ref<SurfaceTool> st = memnew(SurfaceTool);
+	// 	st->create_from(Ref<FakeMesh>(this), i);
+	// 	surfs.push_back(st);
+	// 	formats.push_back(surface_get_format(i));
+	// }
 
-	clear_surfaces();
+	// clear_surfaces();
 
-	for (int i = 0; i < surfs.size(); i++) {
-		surfs.write[i]->generate_tangents();
-		surfs.write[i]->commit(Ref<FakeMesh>(this), formats[i]);
-	}
+	// for (int i = 0; i < surfs.size(); i++) {
+	// 	surfs.write[i]->generate_tangents();
+	// 	surfs.write[i]->commit(Ref<FakeMesh>(this), formats[i]);
+	// }
 }
 
 //dirty hack
@@ -1244,6 +1245,8 @@ Error FakeMesh::lightmap_unwrap(const Transform3D &p_base_transform, float p_tex
 }
 
 Error FakeMesh::lightmap_unwrap_cached(const Transform3D &p_base_transform, float p_texel_size, const Vector<uint8_t> &p_src_cache, Vector<uint8_t> &r_dst_cache, bool p_generate_cache) {
+	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Can't unwrap lightmap for a fake mesh.");
+#if 0
 	ERR_FAIL_NULL_V(array_mesh_lightmap_unwrap_callback, ERR_UNCONFIGURED);
 	ERR_FAIL_COND_V_MSG(blend_shapes.size() != 0, ERR_UNAVAILABLE, "Can't unwrap mesh with blend shapes.");
 	ERR_FAIL_COND_V_MSG(p_texel_size <= 0.0f, ERR_PARAMETER_RANGE_ERROR, "Texel size must be greater than 0.");
@@ -1437,6 +1440,7 @@ Error FakeMesh::lightmap_unwrap_cached(const Transform3D &p_base_transform, floa
 	}
 
 	return OK;
+#endif
 }
 
 void FakeMesh::set_shadow_mesh(const Ref<Resource> &p_mesh) {

@@ -695,11 +695,11 @@ Ref<DiffResult> DiffResult::get_diff_from_list(const HashMap<String, String> &p_
 	Ref<DiffResult> result;
 	result.instantiate();
 	for (const auto &d : p_files) {
-		result = FileDiffResult::get_file_diff(d.key, d.value);
-		if (result.is_null()) {
+		auto file_diff = FileDiffResult::get_file_diff(d.key, d.value);
+		if (file_diff.is_null()) {
 			continue;
 		}
-		result->set_file_diff(d.key, result);
+		result->set_file_diff(d.key, file_diff);
 	}
 	return result;
 }
