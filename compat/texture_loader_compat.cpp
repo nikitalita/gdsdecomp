@@ -1401,7 +1401,7 @@ Ref<ResourceInfo> ResourceFormatLoaderCompatImage::get_resource_info(const Strin
 		if (r_error) {
 			*r_error = ERR_CANT_OPEN;
 		}
-		return Ref<Resource>();
+		return Ref<ResourceInfo>();
 	}
 
 	uint8_t header[4] = { 0, 0, 0, 0 };
@@ -1412,7 +1412,7 @@ Ref<ResourceInfo> ResourceFormatLoaderCompatImage::get_resource_info(const Strin
 		if (r_error) {
 			*r_error = ERR_FILE_UNRECOGNIZED;
 		}
-		ERR_FAIL_V(Ref<Resource>());
+		ERR_FAIL_V(Ref<ResourceInfo>());
 	}
 
 	String extension = f->get_pascal_string();

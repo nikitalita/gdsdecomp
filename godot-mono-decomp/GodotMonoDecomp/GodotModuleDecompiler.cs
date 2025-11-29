@@ -427,7 +427,7 @@ public class GodotModuleDecompiler
 		var fields = typeDef.Fields.Where(p => p.GetAttributes().Any(a => a.AttributeType.Name.Contains("Export")))
 			.ToList();
 		var signals = GodotStuff.GetSignalsInClass(typeDef);
-		var syntaxTree = decompiler.Decompile([type]);
+		var syntaxTree = decompiler.DecompileTypes([type]);
 		var isTool = typeDef.GetAttributes().FirstOrDefault(a => a.AttributeType.Name == "ToolAttribute") != null;
 
 		List<PropertyInfo> propsInfos = [];
@@ -541,8 +541,9 @@ public class GodotModuleDecompiler
 				iconPath = attr.FixedArguments[0].Value as string ?? "";
 			}
 		}
-
-
+        StringWriter stringWriter = new StringWriter();
+        syntaxTree.AcceptVisitor(new CSharpOutputVisitor(stringWriter, Settings.CSharpFormattingOptions));
+		var scriptText = stringWriter.ToString();
 
 		var scriptInfo = new GodotScriptInfo(
 			file,
@@ -556,7 +557,8 @@ public class GodotModuleDecompiler
 			isTool,
 			typeDef.IsAbstract,
 			typeDef.GetAttributes().Any(a => a.AttributeType.Name == "GlobalClassAttribute"),
-			iconPath
+			iconPath,
+			scriptText
 		);
 		return scriptInfo;
 	}

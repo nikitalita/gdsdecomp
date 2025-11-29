@@ -50,7 +50,7 @@ Error FakeCSharpScript::_reload_from_file() {
 		error_message = "No script info found";
 		return ERR_CANT_ACQUIRE_RESOURCE;
 	}
-	source = decompiler->decompile_individual_file(script_path);
+	source = script_info.get("script_text", "");
 	if (source.is_empty()) {
 		error_message = "Failed to decompile script";
 		return ERR_CANT_ACQUIRE_RESOURCE;

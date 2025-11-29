@@ -153,7 +153,7 @@ public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 							return GodotExpressionOutputVisitor.GetString(memberReferenceExpression);
 						}
 						var decompiler = godotDecompiler.CreateDecompilerWithPartials(declaringType.ParentModule.MetadataFile, [(TypeDefinitionHandle)declaringType.MetadataToken]);
-						var tree = decompiler.Decompile([declaringType.MetadataToken]);
+						var tree = decompiler.DecompileTypes([(TypeDefinitionHandle)declaringType.MetadataToken]);
 						GetFieldInitializerValueVisitor vis;
 						if (memberReferenceExpression.GetSymbol() is IMember m)
 						{

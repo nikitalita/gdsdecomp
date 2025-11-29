@@ -108,8 +108,11 @@ public class GodotScriptInfo
 	[JsonPropertyName("icon_path")]
 	public string IconPath { get; set; }
 
-	public GodotScriptInfo(string path, string @namespace, string className, string[] baseClasses, string[] baseTypePaths	,
-		PropertyInfo[] properties, MethodInfo[] signals, MethodInfo[] methods, bool isTool, bool isAbstract, bool isGlobalClass, string iconPath)
+	[JsonPropertyName("script_text")]
+	public string ScriptText { get; set; }
+
+	public GodotScriptInfo(string path, string @namespace, string className, string[] baseClasses, string[] baseTypePaths,
+		PropertyInfo[] properties, MethodInfo[] signals, MethodInfo[] methods, bool isTool, bool isAbstract, bool isGlobalClass, string iconPath, string scriptText)
 	{
 		Path = path;
 		Namespace = @namespace;
@@ -123,6 +126,8 @@ public class GodotScriptInfo
 		IsAbstract = isAbstract;
 		IsGlobalClass = isGlobalClass;
 		IconPath = iconPath;
+		// json escape the script text
+		ScriptText = scriptText;
 	}
 	public static readonly JsonSerializerOptions DefaultJsonOptions = new()
 	{

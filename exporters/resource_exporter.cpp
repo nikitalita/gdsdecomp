@@ -66,7 +66,7 @@ Error ResourceExporter::export_file(const String &out_path, const String &res_pa
 }
 
 Ref<ExportReport> ResourceExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
-	auto thing = Ref<ExportReport>(import_infos);
+	auto thing = Ref<ExportReport>(memnew(ExportReport(import_infos)));
 	thing->set_error(ERR_UNAVAILABLE);
 	return thing;
 }

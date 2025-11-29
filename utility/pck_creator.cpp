@@ -51,10 +51,10 @@ struct PckCreateListDirTaskData {
 		if (wildcards.size() > 0) {
 			for (int64_t j = 0; j < wildcards.size(); j++) {
 				if (file.matchn(wildcards[j])) {
-					return true;
+					return false;
 				}
 			}
-			return false;
+			return true;
 		}
 		return false;
 	}

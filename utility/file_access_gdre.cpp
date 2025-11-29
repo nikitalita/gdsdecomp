@@ -128,19 +128,21 @@ struct __ExpectedPackedFile {
 	PackSource *src = nullptr;
 	bool encrypted;
 	bool bundle;
+	bool delta;
 };
 CHECK_SIZE_MATCH_NO_PADDING(__ExpectedPackedFile, PackedData::PackedFile);
 } //namespace
 
 static_assert(has_same_signature<decltype(&GDREPackedData::add_path), decltype(&PackedData::add_path)>::value, "GDREPackedData::add_path does not have the same signature as PackedData::add_path");
 
-void GDREPackedData::add_path(const String &p_pkg_path, const String &p_path, uint64_t p_ofs, uint64_t p_size, const uint8_t *p_md5, PackSource *p_src, bool p_replace_files, bool p_encrypted, bool p_bundle) {
+void GDREPackedData::add_path(const String &p_pkg_path, const String &p_path, uint64_t p_ofs, uint64_t p_size, const uint8_t *p_md5, PackSource *p_src, bool p_replace_files, bool p_encrypted, bool p_bundle, bool p_delta) {
 	// TODO: This might be a performance hit? If so, use the commented out one.
 	bool p_pck_src = dynamic_cast<GDREPackedSource *>(p_src) != nullptr;
 	// bool p_pck_src = p_src == sources[0];
 	PackedData::PackedFile pf;
-	pf.bundle = p_bundle;
 	pf.encrypted = p_encrypted;
+	pf.bundle = p_bundle;
+	pf.delta = p_delta;
 	pf.pack = p_pkg_path;
 	pf.offset = p_ofs;
 	pf.size = p_size;
@@ -160,9 +162,12 @@ void GDREPackedData::add_path(const String &p_pkg_path, const String &p_path, ui
 
 	bool exists = files.has(pmd5);
 
-	if (!exists || p_replace_files) {
+	if (p_delta) {
+		delta_patches[pmd5].push_back(pf);
+	} else if (!exists || p_replace_files) {
 		files[pmd5] = pf;
 		file_map[path] = pf_info;
+		delta_patches[pmd5].clear();
 	}
 
 	if (!exists) {
@@ -209,6 +214,28 @@ uint8_t *GDREPackedData::get_file_hash(const String &p_path) {
 	}
 
 	return E->value.md5;
+}
+
+Vector<PackedData::PackedFile> GDREPackedData::get_delta_patches(const String &p_path) const {
+	String simplified_path = p_path.simplify_path().trim_prefix("res://");
+	PathMD5 pmd5(simplified_path.md5_buffer());
+	HashMap<PathMD5, Vector<PackedData::PackedFile>, PathMD5>::ConstIterator E = delta_patches.find(pmd5);
+	if (!E) {
+		return Vector<PackedData::PackedFile>();
+	}
+
+	return E->value;
+}
+
+bool GDREPackedData::has_delta_patches(const String &p_path) const {
+	String simplified_path = p_path.simplify_path().trim_prefix("res://");
+	PathMD5 pmd5(simplified_path.md5_buffer());
+	HashMap<PathMD5, Vector<PackedData::PackedFile>, PathMD5>::ConstIterator E = delta_patches.find(pmd5);
+	if (!E) {
+		return false;
+	}
+
+	return !E->value.is_empty();
 }
 
 HashSet<String> GDREPackedData::get_file_paths() const {
@@ -408,6 +435,7 @@ bool is_gdre_file(const String &p_path) {
 }
 
 Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
+	path = p_path;
 	mode_flags = p_mode_flags;
 	//try packed data first
 	if (should_check_pack(p_mode_flags) && GDREPackedData::get_singleton() && !GDREPackedData::get_singleton()->is_disabled()) {
@@ -419,7 +447,6 @@ Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
 			return proxy->get_error();
 		}
 	}
-	String path = p_path;
 	if (should_check_pack(p_mode_flags) && is_gdre_file(p_path)) {
 		WARN_PRINT(vformat("Attempted to open a gdre file %s while we have a pack loaded...", p_path));
 		if (PathFinder::real_packed_data_has_path(p_path)) {
@@ -431,9 +458,9 @@ Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
 		}
 	}
 	// Otherwise, it's on the file system.
-	path = PathFinder::_fix_path_file_access(p_path, p_mode_flags);
+	String fixed_path = PathFinder::_fix_path_file_access(p_path, p_mode_flags);
 	Error err;
-	proxy = _open_filesystem(path, p_mode_flags, &err);
+	proxy = _open_filesystem(fixed_path, p_mode_flags, &err);
 	if (err != OK) {
 		proxy = Ref<FileAccess>();
 	}
