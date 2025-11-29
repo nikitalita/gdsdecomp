@@ -2317,7 +2317,7 @@ Ref<ExportReport> TranslationExporter::export_resource(const String &output_dir,
 	// We can't recover the keys from Optimized translations, we have to guess
 	int missing_keys = 0;
 	int non_blank_keys = 0;
-	bool is_optimized = keys.size() == 0;
+	bool is_optimized = keys.size() == 0 && Object::cast_to<OptimizedTranslation>(default_translation.ptr()) != nullptr;
 	if (GDREConfig::get_singleton()->get_setting("Exporter/Translation/disable_key_recovery", false)) {
 		for (int i = 0; i < default_messages.size(); i++) {
 			if (!all_messages_at_index_are_blank(translation_messages, i)) {
