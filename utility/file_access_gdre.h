@@ -56,6 +56,7 @@ public:
 
 private:
 	HashMap<PathMD5, PackedData::PackedFile, PathMD5> files;
+	HashMap<PathMD5, Vector<PackedData::PackedFile>, PathMD5> delta_patches;
 	HashMap<String, Ref<PackedFileInfo>> file_map;
 
 	Vector<PackSource *> sources;
@@ -79,9 +80,11 @@ public:
 	void set_default_file_access();
 	void reset_default_file_access();
 	void add_pack_source(PackSource *p_source);
-	void add_path(const String &p_pkg_path, const String &p_path, uint64_t p_ofs, uint64_t p_size, const uint8_t *p_md5, PackSource *p_src, bool p_replace_files, bool p_encrypted = false, bool p_bundle = false); // for PackSource
+	void add_path(const String &p_pkg_path, const String &p_path, uint64_t p_ofs, uint64_t p_size, const uint8_t *p_md5, PackSource *p_src, bool p_replace_files, bool p_encrypted = false, bool p_bundle = false, bool p_delta = false); // for PackSource
 	void remove_path(const String &p_path);
 	uint8_t *get_file_hash(const String &p_path);
+	Vector<PackedData::PackedFile> get_delta_patches(const String &p_path) const;
+	bool has_delta_patches(const String &p_path) const;
 	HashSet<String> get_file_paths() const;
 
 	void set_disabled(bool p_disabled);
@@ -115,6 +118,7 @@ public:
 class FileAccessGDRE : public FileAccess {
 	GDCLASS(FileAccessGDRE, FileAccess);
 	friend class GDREPackedData;
+	String path;
 	Ref<FileAccess> proxy;
 	AccessType access_type;
 	int mode_flags = (int)FileAccess::READ;
@@ -137,6 +141,8 @@ protected:
 public:
 	virtual Error open_internal(const String &p_path, int p_mode_flags) override; ///< open a file
 	virtual bool is_open() const override; ///< true when file is open
+	virtual String get_path() const override { return path; }
+	virtual String get_path_absolute() const override { return path; }
 
 	virtual void seek(uint64_t p_position) override; ///< seek to a given position
 	virtual void seek_end(int64_t p_position = 0) override; ///< seek from the end of file
