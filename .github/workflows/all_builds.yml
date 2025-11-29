@@ -1,3 +1,4 @@
+# TODO: we should break this up into multiple workflows, there are too many steps that only run on certain platforms
 name: Build Editor and Standalone
 on:
   push:
@@ -192,7 +193,18 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           sh misc/scripts/install_vulkan_sdk_macos.sh
-
+      - name: Download Direct3D 12 SDK components
+        if: matrix.platform == 'windows'
+        shell: sh
+        id: d3d12-sdk
+        run: |
+          if python ./misc/scripts/install_d3d12_sdk_windows.py; then
+            echo "D3D12_ENABLED=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Windows: Direct3D 12 SDK installation failed, building without Direct3D 12 support."
+            echo "D3D12_ENABLED=no" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
       - name: Show targets
         shell: sh
         run: |
