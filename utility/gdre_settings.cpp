@@ -2603,7 +2603,7 @@ Error GDRESettings::load_project_dotnet_assembly() {
 
 Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_INVALID_PARAMETER, "No project loaded!");
-	if (!current_project->assembly_temp_dir.is_empty()) {
+	if (!current_project->assembly_temp_dir.is_empty() && !p_path.begins_with(current_project->assembly_temp_dir)) {
 		gdre::rimraf(current_project->assembly_temp_dir);
 		current_project->assembly_temp_dir = "";
 	}
