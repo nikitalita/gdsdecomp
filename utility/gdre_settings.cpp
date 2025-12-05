@@ -2695,7 +2695,7 @@ bool GDRESettings::project_requires_dotnet_assembly() const {
 				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
 				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
 	}
-	return has_assembly_setting && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+	return (get_ver_major() <= 3 || has_assembly_setting) && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
 }
 
 String GDRESettings::get_temp_dotnet_assembly_dir() const {
