@@ -3321,6 +3321,7 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 		unregister_physics_extension();
 	}
 	auto token = std::make_shared<BatchExportToken>(out_path.get_base_dir(), iinfo, options);
+	token->set_export_dest(token->get_export_dest().get_basename() + "." + opath.get_extension());
 	token->p_dest_path = opath;
 	if (non_gltf) {
 		token->report->append_message_detail({ "Attempting to export to non-GLTF format, saving to " + opath });
