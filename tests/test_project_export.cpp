@@ -331,7 +331,21 @@ namespace TestProjectExport {
 		gdre::rimraf(exported_recovery_dir);
 		// load the project
 		err = GDRESettings::get_singleton()->load_project({ exported_pck_path }, false);
-		CHECK(err == OK);
+		CHECK_EQ(err, OK);
+		// check that we detected the correct engine version
+		auto ourVersion = GodotVer::parse(version);
+		REQUIRE(ourVersion.is_valid());
+		CHECK(ourVersion->is_valid_semver());
+		auto loadedVersion = GodotVer::parse(GDRESettings::get_singleton()->get_version_string());
+		REQUIRE(loadedVersion.is_valid());
+		CHECK(loadedVersion->is_valid_semver());
+		// Godot 3.1 and below did not write the correct patch version to the PCK
+		if (ourVersion->get_prerelease().is_empty() && ((ourVersion->get_major() == 3 && ourVersion->get_minor() <= 1) || ourVersion->get_major() < 3)) {
+			CHECK_EQ(ourVersion->get_major(), loadedVersion->get_major());
+			CHECK_EQ(ourVersion->get_minor(), loadedVersion->get_minor());
+		} else {
+			CHECK_EQ(*ourVersion.ptr(), loadedVersion);
+		}
 
 		PckDumper dumper;
 		err = dumper.check_md5_all_files();
