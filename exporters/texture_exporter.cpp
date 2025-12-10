@@ -2,6 +2,7 @@
 
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
+#include "core/version_generated.gen.h"
 #include "gdre_test_macros.h"
 #include "utility/common.h"
 
@@ -112,7 +113,7 @@ enum ttttype {
 	TEXTURE_LAYERED
 };
 
-Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ImportInfo> p_import_info, Ref<ResourceInfo> info, int ver_major, ttttype p_type, bool clear_mipmaps = false) {
+Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report, Ref<ResourceInfo> info, int ver_major, ttttype p_type, bool clear_mipmaps = false) {
 	// Import options reference:
 	// compress/mode (int): Controls how the texture is compressed
 	//   0: Lossless (PNG/WebP)
@@ -199,11 +200,15 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ImportInfo> p_import_i
 	// editor/convert_colors_with_editor_theme (bool): Whether to convert SVG colors to match editor theme
 
 	//CompressedTexture2D::DATA_FORMAT_WEBP
+	if (p_report.is_valid() && p_img->is_compressed()) {
+		p_report->set_loss_type((ImportInfo::LossType)(p_report->get_loss_type() | ImportInfo::LossType::IMPORTED_LOSSY));
+	}
 
-	if (!(p_import_info.is_valid() && ver_major >= 4)) {
+	if (p_report.is_null() || ver_major < GODOT_VERSION_MAJOR) {
 		GDRE_ERR_DECOMPRESS_OR_FAIL(p_img);
 		return OK;
 	}
+	auto p_import_info = p_report->get_import_info();
 
 	String ext = p_import_info->get_source_file().get_extension().to_lower();
 	Dictionary params;
@@ -388,7 +393,7 @@ Error TextureExporter::_convert_tex(const String &p_path, const String &dest_pat
 	image_format = Image::get_format_name(img->get_format());
 	auto info = ResourceInfo::get_info_from_resource(tex);
 	auto iinfo = report.is_valid() ? report->get_import_info() : nullptr;
-	err = decompress_and_set_tex_params(img, iinfo, info, info->get_ver_major(), TEXTURE_2D);
+	err = decompress_and_set_tex_params(img, report, info, info->get_ver_major(), TEXTURE_2D);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to decompress and set texture parameters " + p_path);
 	err = ImageSaver::save_image(dest_path, img, lossy, 1.0, false);
 	if (err == ERR_UNAVAILABLE) {
@@ -428,7 +433,8 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 	ERR_FAIL_COND_V_MSG(img->is_empty(), ERR_FILE_EOF, "Image data is empty for texture " + p_path + ", not saving");
 	image_format = Image::get_format_name(img->get_format());
 
-	if (img->is_compressed() && img->has_mipmaps()) {
+	bool is_compressed = img->is_compressed();
+	if (is_compressed && img->has_mipmaps()) {
 		img->clear_mipmaps();
 	}
 
@@ -451,6 +457,10 @@ Error TextureExporter::_convert_atex(const String &p_path, const String &dest_pa
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + dest_path + " from texture " + p_path);
 
 	// set the params
+	if (report.is_valid() && is_compressed) {
+		report->set_loss_type((ImportInfo::LossType)(report->get_loss_type() | ImportInfo::LossType::IMPORTED_LOSSY));
+	}
+
 	if (report.is_valid() && report->get_import_info().is_valid() && report->get_import_info()->get_ver_major() >= 4) {
 		Dictionary params;
 		params["atlas_file"] = tex_path;
@@ -511,7 +521,7 @@ Error preprocess_images(
 		}
 		if (new_format == Image::FORMAT_MAX) {
 			had_mipmaps = img->has_mipmaps();
-			Error err = decompress_and_set_tex_params(img, report.is_valid() ? report->get_import_info() : nullptr, info, info->get_ver_major(), p_type, img->has_mipmaps());
+			Error err = decompress_and_set_tex_params(img, report, info, info->get_ver_major(), p_type, img->has_mipmaps());
 			ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to decompress and set texture parameters " + p_path);
 			new_format = img->get_format();
 			is_hdr = new_format >= Image::FORMAT_RF && new_format <= Image::FORMAT_RGBE9995;
@@ -1042,8 +1052,8 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 				// if the engine <3.4, it can't handle lossless encoded WEBPs
 				if (ver_major < 4 && !(ver_major == 3 && ver_minor >= 4)) {
 					lossy = true;
+					report->set_loss_type(ImportInfo::STORED_LOSSY);
 				}
-				report->set_loss_type(ImportInfo::STORED_LOSSY);
 			} else if (!ImageSaver::is_supported_extension(source_ext)) {
 				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
 				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
