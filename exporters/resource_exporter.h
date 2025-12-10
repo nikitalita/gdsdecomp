@@ -2,7 +2,6 @@
 #include "core/error/error_list.h"
 #include "core/object/ref_counted.h"
 #include "exporters/export_report.h"
-#include "utility/import_exporter.h"
 #include "utility/import_info.h"
 
 class ResourceExporter : public RefCounted {

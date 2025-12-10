@@ -2,7 +2,6 @@
 #define IMPORT_EXPORTER_H
 
 #include "compat/resource_import_metadatav2.h"
-#include "exporters/export_report.h"
 #include "import_info.h"
 #include "utility/godotver.h"
 
@@ -10,7 +9,8 @@
 #include "core/object/ref_counted.h"
 
 class ImportExporter;
-
+class ExportReport;
+struct EditorProgressGDDC;
 class ImportExporterReport : public RefCounted {
 	GDCLASS(ImportExporterReport, RefCounted)
 	friend class ImportExporter;
