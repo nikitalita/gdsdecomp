@@ -736,6 +736,9 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 	// Load any embedded zips within the pck
 	if (GDREConfig::get_singleton()->get_setting("load_embedded_zips", true)) {
 		err = _load_embedded_zips();
+		if (err == ERR_UNAVAILABLE) {
+			err = OK;
+		}
 	}
 
 	// If we don't have a valid version, we need to detect it from the binary resources.
@@ -815,23 +818,34 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 Error GDRESettings::_load_embedded_zips() {
 	// Load any embedded zips within the pck
 	auto zip_files = get_file_list({ "*.zip" });
+	bool has_zips_to_load = false;
+	Error err = OK;
 	if (zip_files.size() > 0) {
 		Vector<String> pck_zip_files;
 		for (auto path : get_pack_paths()) {
-			if (path.get_extension().to_lower() == "zip") {
+			if (path.has_extension("zip")) {
 				pck_zip_files.push_back(path.get_file().to_lower());
 			}
 		}
 		for (auto zip_file : zip_files) {
 			if (is_zip_file_pack(zip_file) && !pck_zip_files.has(zip_file.get_file().to_lower())) {
-				Error err = load_pck(zip_file);
-				ERR_CONTINUE_MSG(err, "Can't load embedded zip file: " + zip_file);
+				Error load_err = load_pck(zip_file);
+				if (load_err == ERR_ALREADY_IN_USE) {
+					continue;
+				} else if (load_err) {
+					err = load_err;
+				}
+				has_zips_to_load = true;
+				ERR_CONTINUE_MSG(load_err, "Can't load embedded zip file: " + zip_file);
 				load_pack_uid_cache();
 				load_pack_gdscript_cache();
 			}
 		}
 	}
-	return OK;
+	if (!has_zips_to_load) {
+		return ERR_UNAVAILABLE;
+	}
+	return err;
 }
 
 Error GDRESettings::post_load_patch_translation() {
@@ -1996,6 +2010,7 @@ struct ScriptCacheTask {
 		String orig_path;
 		bool is_gdscript;
 		Dictionary d;
+		Ref<Script> script;
 	};
 
 	String get_description(int i, ScriptCacheTaskToken *tokens) const {
@@ -2003,8 +2018,9 @@ struct ScriptCacheTask {
 	}
 
 	void do_task(int i, ScriptCacheTaskToken *tokens) {
-		Ref<Script> script = ResourceCompatLoader::custom_load(tokens[i].orig_path, "", ResourceInfo::LoadType::NON_GLOBAL_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
+		Ref<Script> script = ResourceCompatLoader::custom_load(tokens[i].orig_path, "", ResourceInfo::LoadType::REAL_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_REPLACE);
 		if (script.is_valid()) {
+			tokens[i].script = script;
 			// {
 			// 	"base": &"Node",
 			// 	"class": &"AudioManager",
@@ -2014,6 +2030,11 @@ struct ScriptCacheTask {
 			// 	"language": &"GDScript",
 			// 	"path": "res://source/audio/audio_manager.gd"
 			// 	}
+			auto global_name = script->get_global_name();
+
+			if (global_name.is_empty()) {
+				return; // don't populate the cache for this script
+			}
 
 			Ref<FakeScript> fake_script = script;
 			String icon_path;
@@ -2040,26 +2061,27 @@ struct ScriptCacheTask {
 } //namespace
 
 void GDRESettings::_ensure_script_cache_complete() {
-	Vector<String> filters = { "*.gd", "*.gdc", "*.gde" };
+	Vector<String> filters;
 	// We don't need this for C# scripts since they already get their base class script paths via the decompiler, and it's a significant performance hit loading them.
-	// if (has_loaded_dotnet_assembly()) {
-	// 	filters.push_back("*.cs");
-	// }
+	if (has_loaded_dotnet_assembly()) {
+		filters.push_back("*.cs");
+	}
+	// Don't attempt to load compiled scripts if we don't have a valid version.
+	if (get_bytecode_revision() != 0) {
+		filters.append_array({ "*.gd", "*.gdc", "*.gde" });
+	}
+	if (filters.is_empty()) {
+		return;
+	}
+	cached_scripts.clear();
 	auto script_paths = get_file_list(filters);
-	int bytecode_revision = get_bytecode_revision();
 	Vector<ScriptCacheTask::ScriptCacheTaskToken> tokens;
 	for (auto &path : script_paths) {
 		auto ext = path.get_extension().to_lower();
 		bool bytecode_script = ext == "gdc" || ext == "gde";
 		bool is_gdscript = ext == "gd" || bytecode_script;
-		// Don't attempt to load compiled scripts if we don't have a valid version.
-		if (bytecode_script && bytecode_revision == 0) {
-			continue;
-		}
 		String orig_path = bytecode_script ? path.get_basename() + ".gd" : path;
-		if (!script_cache.has(orig_path)) {
-			tokens.push_back(ScriptCacheTask::ScriptCacheTaskToken{ orig_path, is_gdscript, {} });
-		}
+		tokens.push_back(ScriptCacheTask::ScriptCacheTaskToken{ orig_path, is_gdscript, {} });
 	}
 	if (tokens.size() == 0) {
 		return;
@@ -2084,17 +2106,40 @@ void GDRESettings::_ensure_script_cache_complete() {
 			task.do_task(i, tokens.ptrw());
 		}
 	}
+	cached_scripts.reserve(tokens.size());
+	GDRELogger::set_silent_errors(false);
 	for (int i = 0; i < tokens.size(); i++) {
+		if (tokens[i].script.is_valid()) {
+			cached_scripts.push_back(tokens[i].script);
+		}
 		if (!tokens[i].d.is_empty()) {
+#ifdef DEBUG_ENABLED
+			if (script_cache.has(tokens[i].orig_path)) {
+				String err_msg = "";
+				// older script cache entries did not have "is_abstract" or "is_tool" keys, so ours may be bigger
+				if (script_cache[tokens[i].orig_path].size() > tokens[i].d.size()) {
+					err_msg += vformat("\tSizes are different: %d vs. %d\n", script_cache[tokens[i].orig_path].size(), tokens[i].d.size());
+				}
+				for (auto &E : script_cache[tokens[i].orig_path]) {
+					if (!tokens[i].d.has(E.key)) {
+						err_msg += vformat("\tKey '%s' not found in new dictionary\n", E.key);
+					} else if (E.value != tokens[i].d[E.key]) {
+						err_msg += vformat("\tKey '%s' value differs: %s vs. %s\n", E.key, E.value, tokens[i].d[E.key]);
+					}
+				}
+				if (!err_msg.is_empty()) {
+					print_line(vformat("Script cache entry for %s is different in new dictionary:\n\t%s", tokens[i].orig_path, err_msg.strip_edges()));
+				}
+			}
+#endif
 			script_cache.insert(tokens[i].orig_path, tokens[i].d);
 		}
 	}
-
-	GDRELogger::set_silent_errors(false);
 }
 
 Error GDRESettings::reset_gdscript_cache() {
 	script_cache.clear();
+	cached_scripts.clear();
 	return OK;
 }
 
@@ -2727,19 +2772,20 @@ void GDRESettings::update_from_ephemeral_settings() {
 		return;
 	}
 	int old_revision = current_project->bytecode_revision;
+	bool needs_recache = false;
 	if (_init_bytecode_from_ephemeral_settings()) {
 		if (detect_bytecode_revision(!has_valid_version() || current_project->suspect_version) != OK) {
 			WARN_PRINT("Could not determine bytecode revision, not able to decompile scripts...");
 		} else {
 			// reload the cache if the revision changed after detection
 			if (old_revision != current_project->bytecode_revision) {
-				load_pack_gdscript_cache(true);
-				_ensure_script_cache_complete();
+				needs_recache = true;
 			}
 		}
 	}
 	if (current_project->decompiler.is_valid()) {
 		auto new_settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
+		needs_recache = needs_recache || new_settings != current_project->decompiler->get_settings();
 		if (current_project->decompiler->set_settings(new_settings) != OK) {
 			ERR_PRINT("Failed to update decompiler settings, decompiler will be reset");
 			current_project->decompiler = Ref<GodotMonoDecompWrapper>();
@@ -2747,7 +2793,12 @@ void GDRESettings::update_from_ephemeral_settings() {
 		}
 	}
 	if (GDREConfig::get_singleton()->get_setting("load_embedded_zips", true)) {
-		_load_embedded_zips();
+		Error err = _load_embedded_zips();
+		needs_recache = needs_recache || err == OK;
+	}
+	if (needs_recache) {
+		load_pack_gdscript_cache(true);
+		_ensure_script_cache_complete();
 	}
 }
 

@@ -66,7 +66,7 @@ void FakeCSharpScript::reload_from_file() {
 
 Ref<Script> FakeCSharpScript::get_base_script() const {
 	if (base.is_null()) {
-		return load_base_script();
+		base = load_base_script();
 	}
 	return base;
 }
@@ -327,7 +327,7 @@ bool parse_expression(const String &p_expression, Variant &r_value) {
 
 Ref<Script> FakeCSharpScript::load_base_script() const {
 	if (base_type_paths.size() > 0 && !base_type_paths[0].is_empty()) {
-		return ResourceCompatLoader::custom_load(base_type_paths[0], "", ResourceCompatLoader::get_default_load_type());
+		return ResourceCompatLoader::custom_load(base_type_paths[0], "", load_type);
 	}
 	return Ref<Script>();
 }
@@ -343,12 +343,12 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 	}
 
 	String ns = script_info.get("namespace", "");
-	global_name = script_info.get("class_name", script_path);
-	local_name = global_name;
+	local_name = script_info.get("class_name", "");
 	base_classes = script_info.get("base_classes", Vector<String>());
 	base_type_paths = script_info.get("base_type_paths", Vector<String>());
 	icon_path = script_info.get("icon_path", "");
 	globally_available = script_info.get("is_global_class", false);
+	global_name = globally_available ? local_name : "";
 	base_type = base_classes.size() > 0 ? base_classes[0] : "RefCounted";
 	TypedArray<Dictionary> script_properties = script_info.get("properties", TypedArray<Dictionary>());
 	TypedArray<Dictionary> signals = script_info.get("signals", TypedArray<Dictionary>());
@@ -432,7 +432,7 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 
 #ifdef TOOLS_ENABLED
 StringName FakeCSharpScript::get_doc_class_name() const {
-	return global_name;
+	return globally_available ? global_name : local_name;
 }
 
 Vector<DocData::ClassDoc> FakeCSharpScript::get_documentation() const {

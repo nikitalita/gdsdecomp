@@ -159,6 +159,7 @@ private:
 	HashMap<ResourceUID::ID, UID_Cache> unique_ids; //unique IDs and utf8 paths (less memory used)
 	ParallelFlatHashMap<String, ResourceUID::ID> path_to_uid;
 	HashMap<String, Dictionary> script_cache;
+	Vector<Ref<Script>> cached_scripts;
 
 	Vector<uint8_t> enc_key;
 

@@ -65,24 +65,24 @@ void FakeGDScript::reload_from_file() {
 
 Ref<Script> FakeGDScript::load_base_script() const {
 	Ref<Script> base_script;
-	size_t len = base_type.length();
-	auto data = base_type.get_data();
+	size_t len = local_base_type.length();
+	auto data = local_base_type.get_data();
 	String path;
 	if (len > 3 && data[len - 3] == '.' && data[len - 2] == 'g' && data[len - 1] == 'd') {
-		path = base_type;
+		path = local_base_type;
 	} else {
-		path = GDRESettings::get_singleton()->get_path_for_script_class(base_type);
+		path = GDRESettings::get_singleton()->get_path_for_script_class(local_base_type);
 	}
 	if (path.is_empty()) {
 		return {};
 	}
-	base_script = ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type());
+	base_script = ResourceCompatLoader::custom_load(path, "", load_type);
 	return base_script;
 }
 
 Ref<Script> FakeGDScript::get_base_script() const {
 	if (base.is_null()) {
-		return load_base_script();
+		base = load_base_script();
 	}
 	return base;
 }
@@ -164,12 +164,16 @@ Error FakeGDScript::reload(bool p_keep_state) {
 	ERR_FAIL_COND_V_MSG(err, err, decomp->get_error_message());
 
 	if (GDRESettings::get_singleton()->is_pack_loaded()) {
-		ensure_base_and_global_name();
-	}
-
-	bool is_real_load = get_load_type() == ResourceInfo::LoadType::REAL_LOAD || get_load_type() == ResourceInfo::LoadType::GLTF_LOAD;
-	if (base.is_null() && is_real_load) {
-		base = load_base_script();
+		ensure_base_and_local_name();
+	} else {
+		String base_type_str = local_base_type.get_data();
+		// GDScript 1.x allowed paths to be used with the "extends" keyword
+		if (base_type_str.has_extension("gd")) {
+			if (base_type_str.is_relative_path()) {
+				base_type_str = script_path.get_base_dir().path_join(base_type_str);
+				local_base_type = base_type_str;
+			}
+		}
 	}
 
 	valid = true;
@@ -311,32 +315,33 @@ const Variant FakeGDScript::get_rpc_config() const {
 	return {};
 }
 
-void FakeGDScript::ensure_base_and_global_name() {
-	String base_type_str = base_type.get_data();
+void FakeGDScript::ensure_base_and_local_name() {
+	String base_type_str = local_base_type.get_data();
 	// GDScript 1.x allowed paths to be used with the "extends" keyword
-	if (base_type_str.to_lower().ends_with(".gd")) {
+	if (base_type_str.has_extension("gd")) {
 		if (base_type_str.is_relative_path()) {
 			base_type_str = GDRESettings::get_singleton()->localize_path(script_path.get_base_dir().path_join(base_type_str));
+			local_base_type = base_type_str;
 		}
 		StringName found_class = GDRESettings::get_singleton()->get_cached_script_class(base_type_str);
 		if (!found_class.is_empty()) {
 			base_type = found_class;
 		} else if (GDRESettings::get_singleton()->is_pack_loaded()) { // During the initial cache; we'll just have to load it ourselves
-			Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
-			if (base.is_null()) {
-				base = base_script;
-			}
+			Ref<Script> base_script = ResourceCompatLoader::custom_load(base_type_str, "", load_type, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
 			if (base_script.is_valid()) {
 				base_type = base_script->get_global_name();
+				if (base_type.is_empty()) {
+					base_type = base_script->get_instance_base_type();
+				}
 			}
 		} else {
 			base_type = base_type_str;
 		}
 	}
 	// If it doesn't use class_name, it's a script without a global identifier; for our sake, we'll just use the path as the global name
-	if (global_name.is_empty() && !script_path.is_empty()) {
-		global_name = GDRESettings::get_singleton()->localize_path(script_path.get_basename() + ".gd");
-		local_name = global_name;
+	if (local_name.is_empty() && !script_path.is_empty()) {
+		local_name = GDRESettings::get_singleton()->localize_path(script_path.get_basename() + ".gd");
+		// local_name = global_name;
 	}
 }
 
@@ -656,6 +661,7 @@ Error FakeGDScript::parse_script() {
 	if (base_type.is_empty()) {
 		base_type = decomp->get_variant_ver_major() < 4 ? "Reference" : "RefCounted";
 	}
+	local_base_type = base_type;
 #if 0 // debug
 	print_line(vformat("number of export vars for script %s: %d", script_path, export_vars.size()));
 	for (const StringName &E : export_vars) {

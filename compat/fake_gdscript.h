@@ -18,7 +18,7 @@ class FakeGDScript : public FakeScript {
 
 	using GlobalToken = GDScriptDecomp::GlobalToken;
 	Ref<GDScriptNativeClass> native;
-	Ref<Script> base;
+	mutable Ref<Script> base;
 
 	// Members are just indices to the instantiated script.
 	// HashMap<StringName, MemberInfo> member_indices; // Includes member info of all base GDScript classes.
@@ -37,6 +37,7 @@ class FakeGDScript : public FakeScript {
 	bool path_valid = false; // False if using default path.
 	StringName local_name; // Inner class identifier or `class_name`.
 	StringName global_name; // `class_name`.
+	StringName local_base_type;
 	bool globally_available = false;
 
 	//	HashMap<StringName, Variant> constants;
@@ -51,7 +52,7 @@ class FakeGDScript : public FakeScript {
 	String icon_path;
 
 	Error parse_script();
-	void ensure_base_and_global_name();
+	void ensure_base_and_local_name();
 
 protected:
 	Variant callp(const StringName &p_method, const Variant **p_args, int p_argcount,
