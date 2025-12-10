@@ -3571,9 +3571,31 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	perf_print(vformat("Number of threads to use for scene export: %d\n", (int64_t)number_of_threads));
 
 	Vector<uint64_t> deltas;
+	Vector<uint64_t> abnormal_deltas;
+	Vector<uint64_t> resync_deltas;
+	constexpr size_t MAX_DELTA_COUNT = 1000000;
+	resync_deltas.reserve(MAX_DELTA_COUNT);
 
-	// auto last_print_time = OS::get_singleton()->get_ticks_usec();
-	// auto last_warn_time = OS::get_singleton()->get_ticks_usec();
+	auto average_out_delta = [&](Vector<uint64_t> &deltas) {
+		if (deltas.size() >= MAX_DELTA_COUNT) {
+			auto avg = get_average_delta(deltas);
+			deltas.clear();
+			deltas.resize(100);
+			deltas.fill(avg);
+			deltas.reserve(MAX_DELTA_COUNT);
+		}
+	};
+	auto resync_rendering_server = [&]() {
+		auto start_tick = OS::get_singleton()->get_ticks_usec();
+		RS::get_singleton()->sync();
+		auto current_tick = OS::get_singleton()->get_ticks_usec();
+		auto delta = current_tick - start_tick;
+		resync_deltas.push_back(delta);
+		if (delta > 1) {
+			abnormal_deltas.push_back(delta);
+		}
+		average_out_delta(resync_deltas);
+	};
 	auto _get_vram_usage = [&]() {
 #if 0 // RS::get_singleton()->texture_debug_usage() is causing segfaults if we have the export thread pool running, so disabling for now
 		auto start_tick = OS::get_singleton()->get_ticks_usec();
@@ -3590,18 +3612,24 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			perf_print("Took " + itos(delta / 1000) + "ms to get VRAM usage!!");
 			last_warn_time = current_tick;
 		}
-		if (deltas.size() > 10000) {
-			auto avg = get_average_delta(deltas);
-			deltas.clear();
-			deltas.resize(100);
-			deltas.fill(avg);
-		}
+		average_out_delta(deltas);
 #endif
 		return current_vram_usage;
 	};
 
 	Error err = OK;
 	auto export_start_time = OS::get_singleton()->get_ticks_msec();
+	auto last_update_time = export_start_time;
+
+	auto ensure_progress = [&]() {
+		auto current_time = OS::get_singleton()->get_ticks_usec();
+		if (current_time - last_update_time >= 10000) {
+			last_update_time = current_time;
+			return TaskManager::get_singleton()->update_progress_bg(true);
+		}
+		resync_rendering_server();
+		return false;
+	};
 	if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
 		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
 				this,
@@ -3625,6 +3653,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 				number_of_threads,
 				true);
 
+		int starve_count = 0;
 		for (int64_t i = 0; i < tokens.size(); i++) {
 			auto &token = tokens[i];
 			if (token->batch_preload()) {
@@ -3633,20 +3662,26 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			}
 			// Don't load more than the current number of tasks being processed
 			_get_vram_usage();
+			auto start_wait = OS::get_singleton()->get_ticks_msec();
+			auto last_warn_time = 0;
 			while (BatchExportToken::in_progress >= number_of_threads ||
 					(BatchExportToken::in_progress > 0 &&
-							((int64_t)OS::get_singleton()->get_static_memory_usage() > max_usage ||
+							(TaskManager::is_memory_usage_too_high() ||
 									current_vram_usage > MAX_VRAM))) {
-				auto start_tick = OS::get_singleton()->get_ticks_usec();
-				if (TaskManager::get_singleton()->update_progress_bg(true)) {
+				if (ensure_progress()) {
 					break;
 				}
 				_get_vram_usage();
-				auto cur_tick = OS::get_singleton()->get_ticks_usec();
-				auto delta = cur_tick - start_tick;
-				if (delta < 10000 && delta > 1000) {
-					OS::get_singleton()->delay_usec(10000 - delta);
+				if (start_wait + 10000 < OS::get_singleton()->get_ticks_msec()) {
+					if (last_warn_time == 0) {
+						perf_print(vformat("\n*** STALL WARNING %d ***", ++starve_count));
+					}
+					if (last_warn_time + 1000 < OS::get_singleton()->get_ticks_msec()) {
+						perf_print(vformat("Scene export stalled: %d/%d threads running, memory starved: %s", BatchExportToken::in_progress + 0, number_of_threads, TaskManager::is_memory_usage_too_high() ? "yes" : "no"));
+						last_warn_time = OS::get_singleton()->get_ticks_msec();
+					}
 				}
+				OS::get_singleton()->delay_usec(1000);
 			}
 			// calling update_progress_bg serves three purposes:
 			// 1) updating the progress bar
@@ -3658,21 +3693,18 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			}
 		}
 		while (!TaskManager::get_singleton()->is_current_task_completed(task_id)) {
-			auto start_tick = OS::get_singleton()->get_ticks_usec();
 			_get_vram_usage();
-			if (TaskManager::get_singleton()->update_progress_bg(true)) {
+			if (ensure_progress()) {
 				break;
 			}
-			auto cur_tick = OS::get_singleton()->get_ticks_usec();
-			auto delta = cur_tick - start_tick;
-			if (delta < 10000 && delta > 1000) {
-				OS::get_singleton()->delay_usec(delta);
-			}
+			OS::get_singleton()->delay_usec(1000);
 		}
 		err = TaskManager::get_singleton()->wait_for_task_completion(task_id);
 
 		// get the average delta
 		uint64_t average_delta = get_average_delta(deltas);
+		uint64_t average_resync_delta = get_average_delta(resync_deltas);
+		perf_print(vformat("Average time to resync rendering server: %.02fms", (double)average_resync_delta / 1000.0));
 		perf_print(vformat("Average time to get VRAM usage: %.02fms", (double)average_delta / 1000.0));
 		perf_print(vformat("Peak VRAM usage: %.02fMB", (double)peak_vram_usage / (double)ONE_MB));
 	}
