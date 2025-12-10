@@ -2696,7 +2696,7 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 			print_line("Testing cancelled by user!");
 			rimraf_tmp_dir();
 			return OK;
-		} else if (err == OK) {
+		} else if (task_err && err == OK) {
 			err = task_err;
 		}
 	}
@@ -2715,8 +2715,12 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 			passed_tests.push_back(success_report);
 		}
 	}
+	if (err == OK) {
+		err = export_failed_reports.size() > 0 || failed_tests.size() > 0 ? FAILED : OK;
+	}
 	if (!is_unit_testing && export_failed_reports.size() > 0) {
-		print_line("Number of failed exports: " + String::num_int64(export_failed_reports.size()));
+		print_line(vformat("==============================================================================="));
+		print_line("[RecoveryTest] Number of failed exports: " + String::num_int64(export_failed_reports.size()));
 		for (auto &export_report : export_failed_reports) {
 			print_line("Failed export: " + export_report->get_import_info()->get_path());
 		}
@@ -2745,8 +2749,8 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 	rimraf_tmp_dir();
 	if (GDREConfig::get_singleton()->get_setting("write_json_report", false)) {
 		String json_file = output_dir.path_join("gdre_export.json");
-		Ref<FileAccess> f = FileAccess::open(json_file, FileAccess::WRITE, &err);
-		ERR_FAIL_COND_V_MSG(err || f.is_null(), ERR_FILE_CANT_WRITE, "can't open report.json for writing");
+		Ref<FileAccess> f = FileAccess::open(json_file, FileAccess::WRITE);
+		ERR_FAIL_COND_V_MSG(f.is_null(), ERR_FILE_CANT_WRITE, "can't open report.json for writing");
 		f->store_string(JSON::stringify(report->to_json(), "\t", false, true));
 	}
 	return err;

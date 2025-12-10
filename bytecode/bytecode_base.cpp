@@ -1696,7 +1696,7 @@ Ref<GDScriptDecomp> GDScriptDecomp::create_decomp_for_version(String str_ver, bo
 template <typename T>
 static int64_t continuity_tester(const Vector<T> &p_vector, const Vector<T> &p_other, String name, int pos = 0) {
 	if (p_vector.is_empty() && p_other.is_empty()) {
-		// return -1;
+		return -1;
 	}
 	if (p_vector.is_empty() && !p_other.is_empty()) {
 		// WARN_PRINT(name + " first is empty");
