@@ -2693,7 +2693,14 @@ Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const Stri
 
 Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 	auto errors_before = _get_error_count();
+	// Instantiation of older scenes will spam warnings about deprecated features (this doesn't affect the error count or retrieving the logged error messages)
+	if (ver_major <= 3) {
+		_silence_errors(true);
+	}
 	Node *root = scene->instantiate();
+	if (ver_major <= 3) {
+		_silence_errors(false);
+	}
 	auto errors_after = _get_error_count();
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
 	if (errors_after > errors_before) {
@@ -2718,11 +2725,18 @@ Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
 
 Error GLBExporterInstance::_load_scene(Ref<PackedScene> &r_scene) {
 	auto mode_type = ResourceCompatLoader::get_default_load_type();
+	// loading older scenes will spam warnings about deprecated features
+	if (ver_major <= 3) {
+		_silence_errors(true);
+	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
 	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
 		r_scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
 	} else {
 		r_scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+	if (ver_major <= 3) {
+		_silence_errors(false);
 	}
 	if (err || !r_scene.is_valid()) {
 		r_scene = nullptr;
