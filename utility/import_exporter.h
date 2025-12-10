@@ -155,7 +155,7 @@ class ImportExporter : public RefCounted {
 	void report_unsupported_resource(const String &type, const String &format_name, const String &importer, const String &import_path);
 	Error remove_remap_and_autoconverted(const String &src, const String &dst);
 	void rewrite_metadata(ExportToken &token);
-	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path);
+	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, Vector<String> &output_dirs);
 	Error _reexport_translations(Vector<ExportToken> &non_multithreaded_tokens, size_t token_size, Ref<EditorProgressGDDC> pr);
 	void recreate_uid_file(const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
 	Error recreate_plugin_config(const String &plugin_cfg_path);

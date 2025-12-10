@@ -606,7 +606,7 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 	}
 }
 
-Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path) {
+Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, Vector<String> &output_dirs) {
 	//append a random string
 	String output = output_dir;
 	String parent_tmp_dir = output_dir.path_join(".tmp").path_join(String::num_uint64(OS::get_singleton()->get_unix_time() + rand()));
@@ -651,6 +651,13 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 		ERR_FAIL_COND_V_MSG(addons.size() == 0, ERR_FILE_NOT_FOUND, "Failed to find our addon file in " + zip_path);
 	}
 	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
+	auto first_level_dirs = DirAccess::get_directories_at(tmp_dir);
+	for (auto &dir : first_level_dirs) {
+		output_dirs.push_back(output.path_join(dir));
+	}
+	if (first_level_dirs.is_empty()) {
+		output_dirs.push_back(output);
+	}
 	auto plugin_files = gdre::get_recursive_dir_list(tmp_dir, {}, false);
 	auto existing_files = gdre::vector_to_hashset(gdre::get_recursive_dir_list(output, {}, false));
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
@@ -1385,7 +1392,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					report->failed.push_back(ret);
 					continue;
 				}
-				dl_err = unzip_and_copy_addon(iinfo, ret->get_saved_path());
+				Vector<String> output_dirs;
+				dl_err = unzip_and_copy_addon(iinfo, ret->get_saved_path(), output_dirs);
 				if (dl_err != OK) {
 					report->failed_gdnative_copy.push_back(ret->get_saved_path());
 					ret->set_message("Failed to unzip and copy GDExtension addon");
@@ -1393,6 +1401,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					report->failed.push_back(ret);
 					continue;
 				}
+				ret->get_extra_info()["unzipped_output_dirs"] = output_dirs;
 				report->downloaded_plugins.push_back(ret->get_extra_info());
 			}
 		}
@@ -2640,10 +2649,33 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 	Vector<Ref<ExportReport>> export_failed_reports = array_to_vector<Ref<ExportReport>>(report->get_failed());
 	bool had_failed_exports = export_failed_reports.size() > 0;
 	GDRE_CHECK(!had_failed_exports);
-	Vector<Ref<ExportReport>> to_test = array_to_vector<Ref<ExportReport>>(report->get_successes());
+	Vector<Ref<ExportReport>> successes = array_to_vector<Ref<ExportReport>>(report->get_successes());
 	Vector<Ref<ExportReport>> success_reports;
 	Vector<Ref<ExportReport>> failed_reports;
 	Vector<Ref<ExportReport>> not_run_reports;
+
+	Vector<String> unzipped_output_dirs;
+	for (auto &download : report->get_downloaded_plugins()) {
+		Vector<String> dirs = download.operator Dictionary().get("unzipped_output_dirs", "");
+		for (auto &unzipped_output_dir : dirs) {
+			unzipped_output_dirs.push_back(unzipped_output_dir.to_lower());
+		}
+	}
+	Vector<Ref<ExportReport>> to_test;
+	// filter out resources that were saved in the unzipped output dirs
+	for (auto &s : successes) {
+		String save_path = s->get_saved_path().to_lower();
+		bool keep = true;
+		for (auto &unzipped_output_dir : unzipped_output_dirs) {
+			if (save_path.begins_with(unzipped_output_dir)) {
+				keep = false;
+				break;
+			}
+		}
+		if (keep) {
+			to_test.push_back(s);
+		}
+	}
 	if (is_unit_testing) {
 		// Single-threaded testing for unit tests
 		for (int i = 0; i < to_test.size(); i++) {
@@ -2698,9 +2730,9 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 			print_line(vformat("==============================================================================="));
 			print_line(vformat("[RecoveryTest] %d failed tests:", failed_tests.size()));
 			for (auto &failed_test : failed_tests) {
-				print_line("❌ Failed test: " + failed_test->get_import_info()->get_path());
+				print_line("❌ Failed test: " + failed_test->get_import_info()->get_export_dest());
 				for (auto &error_message : failed_test->get_test_error_messages()) {
-					print_line("\t" + error_message);
+					print_line("\t" + error_message.strip_edges());
 				}
 			}
 		}
