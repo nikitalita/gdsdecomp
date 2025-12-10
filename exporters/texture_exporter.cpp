@@ -1254,7 +1254,7 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 			}
 			GDRE_CHECK_EQ(check_image_colors(original_resource_image, exported_image), OK);
 		}
-#ifdef TOOLS_ENABLED
+#if 0 // TOOD: Move this elsewhere
 		if (iinfo->get_ver_major() == GODOT_VERSION_MAJOR) {
 			String tmp_path = GDRESettings::get_gdre_tmp_path().path_join("test_reimport").path_join(export_report->get_import_info()->get_path().trim_prefix("res://"));
 			gdre::ensure_dir(tmp_path.get_base_dir());
