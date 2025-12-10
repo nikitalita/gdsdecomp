@@ -1465,24 +1465,37 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			List<StringName> anim_names;
 			anim_lib->get_animation_list(&anim_names);
 			if (ver_major <= 3 && anim_names.size() > 0) {
+				Ref<RegEx> mesh_surface_re = RegEx::create_from_string(":mesh:surface_(\\d+)");
 				// force re-compute animation tracks.
 				for (auto &anim_name : anim_names) {
 					Ref<Animation> anim = anim_lib->get_animation(anim_name);
+					auto info = ResourceInfo::get_info_from_resource(anim);
+					ERR_CONTINUE(!info.is_valid());
+					constexpr const char *converted_paths_from_3_x = "converted_paths_from_3.x";
+					if (info->extra.get(converted_paths_from_3_x, false)) {
+						continue;
+					}
 					size_t num_tracks = anim->get_track_count();
 					for (size_t i = 0; i < num_tracks; i++) {
 						String str_path = String(anim->track_get_path(i));
 						if (str_path.contains(":mesh:surface_")) {
 							// replace the number after surface_ with one lower (surface properties are 1-indexed in 3.x, but 0-indexed in 4.0)
-							Ref<RegEx> re = RegEx::create_from_string(":mesh:surface_(\\d+)");
-							Ref<RegExMatch> match = re->search(str_path);
+							Ref<RegExMatch> match = mesh_surface_re->search(str_path);
 							if (match.is_valid()) {
 								int surface_index = match->get_string(1).to_int();
 								surface_index--;
-								str_path = re->sub(str_path, ":mesh:surface_" + String::num_int64(surface_index));
+								str_path = mesh_surface_re->sub(str_path, ":mesh:surface_" + String::num_int64(surface_index));
 							}
-							anim->track_set_path(i, str_path);
 						}
+						if (str_path.contains(":material/")) {
+							str_path = str_path.replace(":material/", ":surface_material_override/");
+						}
+						if (str_path.contains(":shader_param/")) {
+							str_path = str_path.replace(":shader_param/", ":shader_parameter/");
+						}
+						anim->track_set_path(i, str_path);
 					}
+					info->extra.set(converted_paths_from_3_x, true);
 				}
 
 				player->set_current_animation(anim_names.front()->get());
