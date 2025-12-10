@@ -56,10 +56,10 @@ protected:
 	int major = 0;
 	int minor = 0;
 	int patch = 0;
-	String prerelease;
-	String build_metadata;
 	bool valid = false;
 	bool is_strict = true;
+	String prerelease;
+	String build_metadata;
 
 	enum _TYPE {
 		STRICT,
