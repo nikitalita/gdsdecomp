@@ -739,9 +739,9 @@ void FakeMesh::_set_surfaces(const Array &p_surfaces) {
 		if (d.has("material")) {
 			// material = d["material"];
 			material = get_material(d["material"], load_type);
-			if (material.is_valid()) {
-				surface.material = material->get_rid();
-			}
+			// if (material.is_valid()) {
+			// 	surface.material = material->get_rid();
+			// }
 		}
 
 		String surf_name;
