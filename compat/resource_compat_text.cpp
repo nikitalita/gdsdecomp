@@ -471,6 +471,39 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 	}
 }
 
+void ResourceLoaderCompatText::_count_resources() {
+	resources_total = 0;
+	resource_current = 0;
+
+	// Save current file position to restore after counting.
+	uint64_t original_pos = f->get_position();
+
+	// Seek to beginning to count all resources.
+	f->seek(0);
+
+	bool has_main_resource = false;
+	while (!f->eof_reached()) {
+		String line = f->get_line().strip_edges();
+
+		// Only count resources that contribute to progress
+		// (ext_resources are loaded asynchronously and don't count).
+		// Note: nodes are all parsed together as part of the main resource (PackedScene),
+		// so they only contribute 1 to the progress count, not one per node.
+		if (line.begins_with("[sub_resource ")) {
+			resources_total++;
+		} else if (line.begins_with("[resource]") || line.begins_with("[node ")) {
+			// Main resource or scene with nodes - only count once.
+			if (!has_main_resource) {
+				resources_total++;
+				has_main_resource = true;
+			}
+		}
+	}
+
+	// Restore original file position.
+	f->seek(original_pos);
+}
+
 Error ResourceLoaderCompatText::load() {
 	if (error != OK) {
 		return error;
@@ -575,7 +608,7 @@ Error ResourceLoaderCompatText::load() {
 #endif
 
 	//these are the ones that count
-	resources_total -= resource_current;
+	resources_total = MAX(0, resources_total - resource_current);
 	resource_current = 0;
 
 	while (true) {
@@ -1197,15 +1230,16 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 				if (res_uid != ResourceUID::INVALID_ID && format_version >= 3) {
 					uid_text = " uid=\"" + ResourceUID::get_singleton()->id_to_text(res_uid) + "\"";
 				}
+				String load_steps_str = resources_total > 1 && !(ver_major > 4 || (ver_major == 4 && ver_minor >= 6)) ? " load_steps=" + itos(resources_total) : "";
 
 				if (is_scene) {
-					fw->store_line("[gd_scene load_steps=" + itos(resources_total) + " format=" + itos(format_version) + uid_text + "]\n");
+					fw->store_line("[gd_scene" + load_steps_str + " format=" + itos(format_version) + uid_text + "]\n");
 				} else {
 					String script_res_text;
 					if (!script_class.is_empty()) {
-						script_res_text = "script_class=\"" + script_class + "\" ";
+						script_res_text = " script_class=\"" + script_class + "\"";
 					}
-					fw->store_line("[gd_resource type=\"" + res_type + "\" " + script_res_text + "load_steps=" + itos(resources_total) + " format=" + itos(format_version) + uid_text + "]\n");
+					fw->store_line("[gd_resource type=\"" + res_type + "\"" + script_res_text + load_steps_str + " format=" + itos(format_version) + uid_text + "]\n");
 				}
 			}
 
@@ -1397,6 +1431,30 @@ void ResourceLoaderCompatText::open(Ref<FileAccess> p_f, bool p_skip_first_tag) 
 		resources_total = tag.fields["load_steps"];
 	} else {
 		resources_total = 0;
+		// 4.6 check
+		bool has_load_steps_greater_than_1 = false;
+		uint64_t original_pos = f->get_position();
+		f->seek(0);
+		while (!f->eof_reached()) {
+			String line = f->get_line().strip_edges();
+			if (line.is_empty() || line[0] != '[') {
+				continue;
+			}
+			if (line.begins_with("[ext_resource ") || line.begins_with("[sub_resource ")) {
+				has_load_steps_greater_than_1 = true;
+				break;
+			} else if (line.begins_with("[resource]") || line.begins_with("[node ")) {
+				// no load steps
+				break;
+			}
+		}
+		f->seek(original_pos);
+		// COMPAT:
+		// 4.5 and below write the load_steps field if load_steps > 1
+		// 4.6 and above don't write "load_steps" to the file
+		if (has_load_steps_greater_than_1 && ver_major == 4) {
+			ver_minor = 6;
+		}
 	}
 
 	if (!p_skip_first_tag) {
@@ -2164,7 +2222,8 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 		int load_steps = saved_resources.size() + external_resources.size();
 
-		if (load_steps > 1) {
+		// COMPAT: 4.6 and above don't write "load_steps" to the file
+		if (load_steps > 1 && !(ver_major > 4 || (ver_major == 4 && ver_minor >= 6))) {
 			title += "load_steps=" + itos(load_steps) + " ";
 		}
 		title += "format=" + itos(format_version) + "";
@@ -2604,15 +2663,16 @@ Error ResourceLoaderCompatText::set_uid(Ref<FileAccess> p_f, ResourceUID::ID p_u
 	Ref<FileAccess> fw;
 
 	fw = FileAccess::open(local_path + ".uidren", FileAccess::WRITE);
+	String load_steps_str = resources_total > 1 && !(ver_major > 4 || (ver_major == 4 && ver_minor >= 6)) ? " load_steps=" + itos(resources_total) : "";
 	if (is_scene) {
-		fw->store_string("[gd_scene load_steps=" + itos(resources_total) + " format=" + itos(format_version) + " uid=\"" + ResourceUID::get_singleton()->id_to_text(p_uid) + "\"]");
+		fw->store_string("[gd_scene" + load_steps_str + " format=" + itos(format_version) + " uid=\"" + ResourceUID::get_singleton()->id_to_text(p_uid) + "\"]");
 	} else {
 		String script_res_text;
 		if (!script_class.is_empty()) {
-			script_res_text = "script_class=\"" + script_class + "\" ";
+			script_res_text = " script_class=\"" + script_class + "\"";
 		}
 
-		fw->store_string("[gd_resource type=\"" + res_type + "\" " + script_res_text + "load_steps=" + itos(resources_total) + " format=" + itos(format_version) + " uid=\"" + ResourceUID::get_singleton()->id_to_text(p_uid) + "\"]");
+		fw->store_string("[gd_resource type=\"" + res_type + "\"" + script_res_text + load_steps_str + " format=" + itos(format_version) + " uid=\"" + ResourceUID::get_singleton()->id_to_text(p_uid) + "\"]");
 	}
 
 	uint8_t c = f->get_8();
