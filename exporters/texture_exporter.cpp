@@ -1200,11 +1200,34 @@ String TextureExporter::get_name() const {
 String TextureExporter::get_default_export_extension(const String &res_path) const {
 	return "png";
 }
+namespace {
+Error check_image_colors(const Ref<Image> &original_image, const Ref<Image> &exported_image) {
+	Error err = OK;
+	for (int64_t x = 0; x < original_image->get_width(); x++) {
+		for (int64_t y = 0; y < original_image->get_height(); y++) {
+			Color original_image_color = original_image->get_pixel(x, y);
+			Color exported_image_color = exported_image->get_pixel(x, y);
+			if (original_image_color != exported_image_color) {
+				GDRE_CHECK_EQ(original_image_color.a, 0.0);
+				GDRE_CHECK_EQ(original_image_color.a, exported_image_color.a);
+			} else {
+				GDRE_CHECK_EQ(original_image_color, exported_image_color);
+			}
+		}
+	}
+	return err;
+}
+} //namespace
+
+#if TOOLS_ENABLED
+#include "editor/import/resource_importer_texture.h"
+#endif
 
 Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error err = OK;
 	{
-		auto importer = export_report->get_import_info()->get_importer();
+		auto iinfo = export_report->get_import_info();
+		auto importer = iinfo->get_importer();
 		if (importer != "texture" && importer != "texture_2d") {
 			return ERR_UNAVAILABLE;
 		}
@@ -1217,32 +1240,86 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 		Ref<Texture2D> original_texture = ResourceCompatLoader::non_global_load(pck_resource);
 		GDRE_CHECK(original_texture.is_valid());
 
-		Ref<Image> original_image = original_texture->get_image();
-		GDRE_CHECK(original_image.is_valid());
+		Ref<Image> original_resource_image = original_texture->get_image();
+		GDRE_CHECK(original_resource_image.is_valid());
 
 		Ref<Image> exported_image;
 		exported_image.instantiate();
 		exported_image->load(exported_resource);
-		GDRE_CHECK_EQ(original_image->get_width(), exported_image->get_width());
-		GDRE_CHECK_EQ(original_image->get_height(), exported_image->get_height());
-		if (export_report->get_loss_type() != ImportInfo::LossType::LOSSLESS) {
-			return err; // TODO: Some sort of test for lossy textures
+		GDRE_CHECK_EQ(original_resource_image->get_width(), exported_image->get_width());
+		GDRE_CHECK_EQ(original_resource_image->get_height(), exported_image->get_height());
+		if (export_report->get_loss_type() == ImportInfo::LossType::LOSSLESS || export_report->get_loss_type() == ImportInfo::LossType::IMPORTED_LOSSY) {
+			if (original_resource_image->is_compressed()) {
+				original_resource_image->decompress();
+			}
+			GDRE_CHECK_EQ(check_image_colors(original_resource_image, exported_image), OK);
 		}
-		if (original_image->is_compressed()) {
-			original_image->decompress();
-		}
-		for (int64_t x = 0; x < original_image->get_width(); x++) {
-			for (int64_t y = 0; y < original_image->get_height(); y++) {
-				Color original_image_color = original_image->get_pixel(x, y);
-				Color exported_image_color = exported_image->get_pixel(x, y);
-				if (original_image_color != exported_image_color) {
-					GDRE_CHECK_EQ(original_image_color.a, 0.0);
-					GDRE_CHECK_EQ(original_image_color.a, exported_image_color.a);
-				} else {
-					GDRE_CHECK_EQ(original_image_color, exported_image_color);
+#ifdef TOOLS_ENABLED
+		if (iinfo->get_ver_major() == GODOT_VERSION_MAJOR) {
+			String tmp_path = GDRESettings::get_gdre_tmp_path().path_join("test_reimport").path_join(export_report->get_import_info()->get_path().trim_prefix("res://"));
+			gdre::ensure_dir(tmp_path.get_base_dir());
+			ResourceImporterTexture importer_instance;
+			ResourceUID::ID source_id = ResourceUID::INVALID_ID;
+
+			List<ResourceImporter::ImportOption> default_options;
+			importer_instance.get_import_options(exported_resource, &default_options);
+			HashMap<StringName, Variant> options;
+			for (auto &E : iinfo->get_params()) {
+				options[E.key] = E.value;
+			}
+			for (auto &E : default_options) {
+				if (iinfo->get_ver_minor() == GODOT_VERSION_MINOR) {
+					GDRE_CHECK(options.has(E.option.name));
+				}
+				if (!options.has(E.option.name)) {
+					options[E.option.name] = E.default_value;
 				}
 			}
+			List<String> platform_variants;
+			List<String> gen_files;
+			Variant metadata;
+			//amount of chars in d9645066e53f8382133c3d6066489082
+			constexpr int MD5_LENGTH = 32;
+			String save_path = tmp_path.get_basename();
+			if (save_path.get_extension().length() < MD5_LENGTH) {
+				// platform variant, e.g. 's3tc'
+				save_path = save_path.get_basename();
+			}
+			Error import_err = importer_instance.import(source_id, exported_resource, save_path, options, &platform_variants, &gen_files, &metadata);
+			GDRE_CHECK_EQ(import_err, OK);
+
+			Ref<Texture2D> reimported_texture = ResourceCompatLoader::non_global_load(tmp_path);
+			gdre::rimraf(tmp_path);
+			GDRE_REQUIRE(reimported_texture.is_valid());
+			Ref<Image> reimported_image = reimported_texture->get_image();
+			GDRE_REQUIRE(reimported_image.is_valid());
+			GDRE_CHECK_EQ(reimported_image->get_width(), original_resource_image->get_width());
+			GDRE_CHECK_EQ(reimported_image->get_height(), original_resource_image->get_height());
+			if (export_report->get_loss_type() == ImportInfo::LossType::LOSSLESS) {
+				if (reimported_image->is_compressed()) {
+					reimported_image->decompress();
+				}
+				GDRE_CHECK_EQ(check_image_colors(reimported_image, original_resource_image), OK);
+			}
 		}
+#endif
+#if 0 // Not enabling this for now, there are too many import parameters that modify the image
+		if (!original_project_dir.is_empty()) {
+			String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+			Ref<Image> original_image;
+			original_image.instantiate();
+			original_image->load(original_import_path);
+			GDRE_CHECK(original_image.is_valid());
+			GDRE_CHECK_EQ(original_image->get_width(), exported_image->get_width());
+			GDRE_CHECK_EQ(original_image->get_height(), exported_image->get_height());
+			if (export_report->get_loss_type() == ImportInfo::LossType::LOSSLESS) {
+				if (original_image->is_compressed()) {
+					original_image->decompress();
+				}
+				GDRE_CHECK_EQ(check_image_colors(original_image, exported_image), OK);
+			}
+		}
+#endif
 	}
 	return err;
 }

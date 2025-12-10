@@ -1636,7 +1636,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 			set_setting = true
 		elif arg.begins_with("--test-recovery"):
 			test_recovery = true
-			test_output_dir = get_cli_abs_path(get_arg_value(arg))
+			if arg.contains("="):
+				test_output_dir = get_cli_abs_path(get_arg_value(arg))
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")

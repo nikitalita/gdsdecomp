@@ -105,32 +105,30 @@ Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, cons
 	{
 		String exported_resource = export_report->get_saved_path();
 		String original_compiled_resource = export_report->get_resources_used()[0];
-		String original_script_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
-
-		String original_script_text = FileAccess::get_file_as_string(original_script_path);
 		String exported_script_text = FileAccess::get_file_as_string(exported_resource);
 		auto original_bytecode = FileAccess::get_file_as_bytes(original_compiled_resource);
-		if (original_script_text.is_empty() && exported_script_text.is_empty()) {
-			return err;
-		}
-		GDRE_CHECK(!original_script_text.is_empty());
 		GDRE_CHECK(!exported_script_text.is_empty());
 		GDRE_CHECK(!original_bytecode.is_empty());
 
 		auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
 		GDRE_CHECK(decomp.is_valid());
 
-		auto compiled_original_bytecode = decomp->compile_code_string(original_script_text);
 		// Bytecode may not be exactly the same due to earlier Godot variant encoder failing to zero out the padding bytes,
-		// so we need to use the tester function to compare the bytecode.
-		Error err = decomp->test_bytecode_match(original_bytecode, compiled_original_bytecode, false, true);
-		GDRE_CHECK_EQ(decomp->get_error_message(), "");
-		GDRE_CHECK_EQ(err, OK);
-
+		// so we need to use the tester function to compare the bytecode
 		auto compiled_exported_bytecode = decomp->compile_code_string(exported_script_text);
 		err = decomp->test_bytecode_match(original_bytecode, compiled_exported_bytecode, false, true);
 		GDRE_CHECK_EQ(decomp->get_error_message(), "");
 		GDRE_CHECK_EQ(err, OK);
+
+		if (!original_project_dir.is_empty()) {
+			String original_script_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+			String original_script_text = FileAccess::get_file_as_string(original_script_path);
+			GDRE_CHECK(!original_script_text.is_empty());
+			auto compiled_original_bytecode = decomp->compile_code_string(original_script_text);
+			err = decomp->test_bytecode_match(compiled_exported_bytecode, compiled_original_bytecode, false, true);
+			GDRE_CHECK_EQ(decomp->get_error_message(), "");
+			GDRE_CHECK_EQ(err, OK);
+		}
 	}
 	return err;
 }

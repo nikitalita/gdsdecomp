@@ -13,7 +13,6 @@ Error test_json_export_report(const Ref<ExportReport> &export_report);
 String get_test_projects_path();
 Error test_export_project(const String &version, const String &sub_project, const String &original_parent_dir, const String &exported_parent_dir);
 
-// TODO: might need to add '[Audio]'
 // '[SceneTree]' is in the name so that the test runner instantiates the rendering server and various other things.
 TEST_CASE("[GDSDecomp][ProjectRecovery] ([SceneTree]) Recover projects ") {
 	// get a list of all version numbers in the test_projects/exported' directory

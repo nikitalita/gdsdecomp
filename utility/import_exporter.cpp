@@ -2620,6 +2620,10 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 		if (!tmp_dir.is_empty() && DirAccess::dir_exists_absolute(tmp_dir)) {
 			gdre::rimraf(tmp_dir);
 		}
+		String reimport_dir = GDRESettings::get_gdre_tmp_path().path_join("test_reimport");
+		if (DirAccess::dir_exists_absolute(reimport_dir)) {
+			gdre::rimraf(reimport_dir);
+		}
 	};
 
 	Vector<Ref<ExportReport>> export_failed_reports = array_to_vector<Ref<ExportReport>>(report->get_failed());
