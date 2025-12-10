@@ -7,10 +7,13 @@
 #include <utility/common.h>
 #include <utility/glob.h>
 
+#include "core/version_generated.gen.h"
 #include "test_common.h"
 #include "tests/test_macros.h"
 #include "utility/file_access_gdre.h"
 #include "utility/resource_info.h"
+
+#include "core/os/thread_safe.h"
 
 namespace TestResourceLoading {
 
@@ -166,6 +169,30 @@ TEST_CASE("[GDSDecomp][ResourceLoading] Resource loading modes") {
 	}
 }
 
+Ref<PackedScene> get_test_scene() {
+	bool old_thread_safe = is_current_thread_safe_for_nodes();
+	set_current_thread_safe_for_nodes(true);
+	Node *root = memnew(Node);
+	root->set_name("root");
+	Node *child = memnew(Node);
+	child->set_name("child");
+	root->add_child(child);
+	child->set_owner(root);
+	Node *grandchild1 = memnew(Node);
+	grandchild1->set_name("grandchild1");
+	child->add_child(grandchild1);
+	grandchild1->set_owner(root);
+	Node *grandchild2 = memnew(Node);
+	grandchild2->set_name("grandchild2");
+	child->add_child(grandchild2);
+	grandchild2->set_owner(root);
+	Ref<PackedScene> scene = memnew(PackedScene);
+	scene->pack(root);
+	memdelete(root);
+	set_current_thread_safe_for_nodes(old_thread_safe);
+	return scene;
+}
+
 void set_prop_dict_with_v4_variants(TypedDictionary<String, Variant> &dict) {
 	dict["rect2i_property"] = Rect2i(1, 2, 3, 4);
 	dict["vector2i_property"] = Vector2i(1, 2);
@@ -257,9 +284,13 @@ void check_resource_data(const Ref<Resource> &loaded_resource, bool v4) {
 	}
 }
 
-Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource, const String &resource_path) {
+Error save_with_real(const Ref<Resource> &resource, const String &resource_path) {
 	resource->set_path_cache(resource_path);
-	Error error = ResourceSaver::save(resource, resource_path);
+	return ResourceSaver::save(resource, resource_path);
+}
+
+Ref<Resource> save_with_real_and_load_with_compat(const Ref<Resource> &resource, const String &resource_path) {
+	Error error = save_with_real(resource, resource_path);
 	CHECK(error == OK);
 
 	Ref<Resource> loaded_resource = ResourceCompatLoader::real_load(resource_path, "", &error, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
@@ -281,6 +312,76 @@ Ref<Resource> save_with_compat_and_load_with_compat(const Ref<Resource> &resourc
 	CHECK(error == OK);
 	REQUIRE(loaded_resource.is_valid());
 	return loaded_resource;
+}
+
+void test_current_save(Ref<Resource> resource, bool is_binary) {
+	REQUIRE(resource.is_valid());
+	String tmp_dir = get_tmp_path().path_join("resource_saving_test");
+	gdre::rimraf(tmp_dir);
+	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
+	String ext = resource->get_save_class() == "PackedScene" ? (is_binary ? "scn" : "tscn") : (is_binary ? "res" : "tres");
+	REQUIRE(resource.is_valid());
+	const String resource_path = tmp_dir.path_join("current_saved_with_godot." + ext);
+	Error err = save_with_real(resource, resource_path);
+	CHECK(err == OK);
+
+	const String new_resource_path = tmp_dir.path_join("current_saved_with_compat." + ext);
+	err = save_with_compat(resource, new_resource_path, { GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR });
+	CHECK(err == OK);
+
+	if (is_binary) { // TODO: This currently fails because of the `script` property reordering
+		// const auto content = FileAccess::get_file_as_bytes(resource_path);
+		// CHECK(content.is_empty() == false);
+		// const auto new_content = FileAccess::get_file_as_bytes(new_resource_path);
+		// if (content != new_content) {
+		// 	for (int i = 0; i < content.size(); i++) {
+		// 		if (new_content.size() <= i) {
+		// 			ERR_PRINT(vformat("New content is shorter than original content at byte %d", i));
+		// 			break;
+		// 		}
+		// 		if (content[i] != new_content[i]) {
+		// 			ERR_PRINT(vformat("Byte %d differs: %d != %d", i, content[i], new_content[i]));
+		// 		}
+		// 	}
+		// }
+		// CHECK(content == new_content);
+	} else {
+		const auto content = FileAccess::get_file_as_string(resource_path);
+		CHECK(content.is_empty() == false);
+		const auto new_content = FileAccess::get_file_as_string(new_resource_path);
+		if (content != new_content) {
+			auto lines = content.split("\n");
+			auto new_lines = new_content.split("\n");
+			CHECK(lines.size() == new_lines.size());
+			for (int i = 0; i < lines.size(); i++) {
+				CHECK(lines[i] == new_lines[i]);
+			}
+		}
+		CHECK(content == new_content);
+	}
+}
+
+TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data Current version") {
+	String tmp_dir = get_tmp_path().path_join("resource_saving_test");
+	gdre::rimraf(tmp_dir);
+	REQUIRE(gdre::ensure_dir(tmp_dir) == OK);
+
+	SUBCASE("Save and load resource (text format)") {
+		Ref<Resource> resource = get_test_resource_with_data(true);
+		test_current_save(resource, false);
+	}
+	SUBCASE("Save and load resource (binary format)") {
+		Ref<Resource> resource = get_test_resource_with_data(true);
+		test_current_save(resource, true);
+	}
+	SUBCASE("Save and load scene (text format)") {
+		Ref<PackedScene> scene = get_test_scene();
+		test_current_save(scene, false);
+	}
+	SUBCASE("Save and load scene (binary format)") {
+		Ref<PackedScene> scene = get_test_scene();
+		test_current_save(scene, true);
+	}
 }
 
 TEST_CASE("[GDSDecomp][ResourceLoading] Resource with data") {
@@ -478,32 +579,6 @@ TEST_CASE("[GDSDecomp][ResourceSaving] Resource with data") {
 	}
 }
 
-#include "core/os/thread_safe.h"
-
-Ref<PackedScene> get_test_scene() {
-	bool old_thread_safe = is_current_thread_safe_for_nodes();
-	set_current_thread_safe_for_nodes(true);
-	Node *root = memnew(Node);
-	root->set_name("root");
-	Node *child = memnew(Node);
-	child->set_name("child");
-	root->add_child(child);
-	child->set_owner(root);
-	Node *grandchild1 = memnew(Node);
-	grandchild1->set_name("grandchild1");
-	child->add_child(grandchild1);
-	grandchild1->set_owner(root);
-	Node *grandchild2 = memnew(Node);
-	grandchild2->set_name("grandchild2");
-	child->add_child(grandchild2);
-	grandchild2->set_owner(root);
-	Ref<PackedScene> scene = memnew(PackedScene);
-	scene->pack(root);
-	memdelete(root);
-	set_current_thread_safe_for_nodes(old_thread_safe);
-	return scene;
-}
-
 void check_loaded_scene(const Ref<PackedScene> &loaded_scene) {
 	REQUIRE(loaded_scene.is_valid());
 
@@ -522,6 +597,9 @@ void check_loaded_scene(const Ref<PackedScene> &loaded_scene) {
 		CHECK(grandchild2->get_name() == "grandchild2");
 	}
 	memdelete(root);
+}
+
+TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene Current version") {
 }
 
 TEST_CASE("[GDSDecomp][ResourceSaving][Scene] Simple Scene") {
