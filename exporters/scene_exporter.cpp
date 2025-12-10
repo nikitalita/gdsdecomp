@@ -2695,6 +2695,7 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 }
 
 Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
+	MeshInstance3D::upgrading_skeleton_compat = true;
 	err = _load_deps();
 	if (err != OK) {
 		return err;
