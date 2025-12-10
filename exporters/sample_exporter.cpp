@@ -361,27 +361,12 @@ Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const 
 			GDRE_CHECK_EQ(original_data.size(), exported_data.size());
 			return err;
 		}
-#ifdef DEBUG_ENABLED
-		if (original_data != exported_data) {
-			int first_mismatch = -1;
-			int num_mismatches = 0;
-			GDRE_CHECK_EQ(original_data.size(), exported_data.size());
-			for (int i = 0; i < original_data.size(); i++) {
-				if (original_data[i] != exported_data[i]) {
-					if (first_mismatch == -1) {
-						first_mismatch = i;
-					}
-					num_mismatches++;
-				}
-			}
-			String message = vformat("%s (ver_major: %d): First mismatch at index %d/%d, num mismatches: %d", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), first_mismatch, original_data.size(), num_mismatches);
-			print_line(message);
-			ERR_PRINT("GDRE_CHECK failed: " + message); // data mismatch
+		String data_mismatch_error_message = gdre_test::get_error_message_for_vector_mismatch(original_data, exported_data);
+		if (!data_mismatch_error_message.is_empty()) {
+			data_mismatch_error_message = vformat("%s (ver_major: %d): %s", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), data_mismatch_error_message);
 			err = FAILED;
-			return err;
 		}
-#endif
-		GDRE_CHECK_EQ(original_data, exported_data);
+		GDRE_CHECK_EQ(data_mismatch_error_message, "");
 	}
 	return err;
 }

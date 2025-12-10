@@ -204,26 +204,48 @@ String OggStrExporter::get_default_export_extension(const String &res_path) cons
 	return "ogg";
 }
 
+namespace {
+auto packet_data_to_flat_vector(const TypedArray<Array> &packet_data) -> Vector<Vector<uint8_t>> {
+	Vector<Vector<uint8_t>> data;
+	for (const auto &page : packet_data) {
+		for (const auto &packet : page.operator Array()) {
+			data.append(packet);
+		}
+	}
+	return data;
+}
+} //namespace
+
 Error OggStrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error err = OK;
 	{
+		String real_src = export_report->get_import_info()->get_source_file();
 		auto dests = export_report->get_resources_used();
 		GDRE_REQUIRE_GE(dests.size(), 1);
 		String pck_resource = dests[0];
 		String exported_resource = export_report->get_saved_path();
 		Ref<AudioStreamOggVorbis> pck_audio = ResourceCompatLoader::non_global_load(pck_resource);
-		GDRE_CHECK(pck_audio.is_valid());
+		GDRE_REQUIRE(pck_audio.is_valid());
 		Ref<AudioStreamOggVorbis> exported_audio = AudioStreamOggVorbis::load_from_file(exported_resource);
-		GDRE_CHECK(exported_audio.is_valid());
-		auto pck_audio_data = pck_audio->get_packet_sequence()->get_packet_data();
-		auto exported_audio_data = exported_audio->get_packet_sequence()->get_packet_data();
-		GDRE_CHECK_EQ(pck_audio_data, exported_audio_data);
+		GDRE_REQUIRE(exported_audio.is_valid());
+		// Doing this because the loader may group packets into different pages, so we need to flatten the data to compare it.
+		auto exported_packet_data = packet_data_to_flat_vector(exported_audio->get_packet_sequence()->get_packet_data());
+		GDRE_CHECK(!exported_packet_data.is_empty());
+		{
+			auto pck_packet_data = packet_data_to_flat_vector(pck_audio->get_packet_sequence()->get_packet_data());
+			String test = gdre_test::get_error_message_for_vector_mismatch(pck_packet_data, exported_packet_data);
+			GDRE_CHECK_EQ(test, "");
+		}
+
 		if (!original_project_dir.is_empty()) {
 			String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
 			Ref<AudioStreamOggVorbis> original_audio = AudioStreamOggVorbis::load_from_file(original_import_path);
-			GDRE_CHECK(original_audio.is_valid());
-			auto original_audio_data = original_audio->get_packet_sequence()->get_packet_data();
-			GDRE_CHECK_EQ(original_audio_data, exported_audio_data);
+			GDRE_REQUIRE(original_audio.is_valid());
+			{
+				auto original_packet_data = packet_data_to_flat_vector(original_audio->get_packet_sequence()->get_packet_data());
+				String test = gdre_test::get_error_message_for_vector_mismatch(original_packet_data, exported_packet_data);
+				GDRE_CHECK_EQ(test, "");
+			}
 		}
 	}
 	return err;

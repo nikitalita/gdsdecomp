@@ -106,12 +106,18 @@ Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, cons
 		String exported_resource = export_report->get_saved_path();
 		String original_compiled_resource = export_report->get_resources_used()[0];
 		String exported_script_text = FileAccess::get_file_as_string(exported_resource);
-		auto original_bytecode = FileAccess::get_file_as_bytes(original_compiled_resource);
+		Vector<uint8_t> original_bytecode;
+		if (original_compiled_resource.get_extension().to_lower() == "gde") {
+			Error encrypted_err = GDScriptDecomp::get_buffer_encrypted(original_compiled_resource, 3, GDRESettings::get_singleton()->get_encryption_key(), original_bytecode);
+			GDRE_CHECK_EQ(encrypted_err, OK);
+		} else {
+			original_bytecode = FileAccess::get_file_as_bytes(original_compiled_resource);
+		}
 		GDRE_CHECK(!exported_script_text.is_empty());
 		GDRE_CHECK(!original_bytecode.is_empty());
 
 		auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
-		GDRE_CHECK(decomp.is_valid());
+		GDRE_REQUIRE(decomp.is_valid());
 
 		// Bytecode may not be exactly the same due to earlier Godot variant encoder failing to zero out the padding bytes,
 		// so we need to use the tester function to compare the bytecode
