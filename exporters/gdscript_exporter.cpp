@@ -113,24 +113,24 @@ Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, cons
 		if (original_script_text.is_empty() && exported_script_text.is_empty()) {
 			return err;
 		}
-		CHECK(!original_script_text.is_empty());
-		CHECK(!exported_script_text.is_empty());
-		CHECK(!original_bytecode.is_empty());
+		GDRE_CHECK(!original_script_text.is_empty());
+		GDRE_CHECK(!exported_script_text.is_empty());
+		GDRE_CHECK(!original_bytecode.is_empty());
 
 		auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
-		CHECK(decomp.is_valid());
+		GDRE_CHECK(decomp.is_valid());
 
 		auto compiled_original_bytecode = decomp->compile_code_string(original_script_text);
 		// Bytecode may not be exactly the same due to earlier Godot variant encoder failing to zero out the padding bytes,
 		// so we need to use the tester function to compare the bytecode.
 		Error err = decomp->test_bytecode_match(original_bytecode, compiled_original_bytecode, false, true);
-		CHECK_EQ(decomp->get_error_message(), "");
-		CHECK_EQ(err, OK);
+		GDRE_CHECK_EQ(decomp->get_error_message(), "");
+		GDRE_CHECK_EQ(err, OK);
 
 		auto compiled_exported_bytecode = decomp->compile_code_string(exported_script_text);
 		err = decomp->test_bytecode_match(original_bytecode, compiled_exported_bytecode, false, true);
-		CHECK_EQ(decomp->get_error_message(), "");
-		CHECK_EQ(err, OK);
+		GDRE_CHECK_EQ(decomp->get_error_message(), "");
+		GDRE_CHECK_EQ(err, OK);
 	}
 	return err;
 }

@@ -1195,22 +1195,22 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 	Error err = OK;
 	{
 		auto dests = export_report->get_resources_used();
-		REQUIRE_GE(dests.size(), 1);
+		GDRE_REQUIRE_GE(dests.size(), 1);
 		String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
 		String pck_resource = dests[0];
 		String exported_resource = export_report->get_saved_path();
 
 		Ref<Texture2D> original_texture = ResourceCompatLoader::non_global_load(pck_resource);
-		CHECK(original_texture.is_valid());
+		GDRE_CHECK(original_texture.is_valid());
 
 		Ref<Image> original_image = original_texture->get_image();
-		CHECK(original_image.is_valid());
+		GDRE_CHECK(original_image.is_valid());
 
 		Ref<Image> exported_image;
 		exported_image.instantiate();
 		exported_image->load(exported_resource);
-		CHECK_EQ(original_image->get_width(), exported_image->get_width());
-		CHECK_EQ(original_image->get_height(), exported_image->get_height());
+		GDRE_CHECK_EQ(original_image->get_width(), exported_image->get_width());
+		GDRE_CHECK_EQ(original_image->get_height(), exported_image->get_height());
 		if (export_report->get_loss_type() != ImportInfo::LossType::LOSSLESS) {
 			return err; // TODO: Some sort of test for lossy textures
 		}
@@ -1222,10 +1222,10 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 				Color c = original_image->get_pixel(x, y);
 				Color c2 = exported_image->get_pixel(x, y);
 				if (c != c2) {
-					CHECK_EQ(c.a, 0.0);
-					CHECK_EQ(c.a, c2.a);
+					GDRE_CHECK_EQ(c.a, 0.0);
+					GDRE_CHECK_EQ(c.a, c2.a);
 				} else {
-					CHECK_EQ(c, c2);
+					GDRE_CHECK_EQ(c, c2);
 				}
 			}
 		}

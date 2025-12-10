@@ -208,18 +208,18 @@ Error OggStrExporter::test_export(const Ref<ExportReport> &export_report, const 
 	Error err = OK;
 	{
 		auto dests = export_report->get_resources_used();
-		REQUIRE_GE(dests.size(), 1);
+		GDRE_REQUIRE_GE(dests.size(), 1);
 		String pck_resource = dests[0];
 		String exported_resource = export_report->get_saved_path();
 		String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
 		Ref<AudioStreamOggVorbis> original_audio = AudioStreamOggVorbis::load_from_file(original_import_path);
-		CHECK(original_audio.is_valid());
+		GDRE_CHECK(original_audio.is_valid());
 		Ref<AudioStreamOggVorbis> pck_audio = ResourceCompatLoader::non_global_load(pck_resource);
-		CHECK(pck_audio.is_valid());
+		GDRE_CHECK(pck_audio.is_valid());
 		Ref<AudioStreamOggVorbis> exported_audio = AudioStreamOggVorbis::load_from_file(exported_resource);
-		CHECK(exported_audio.is_valid());
-		CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), pck_audio->get_packet_sequence()->get_packet_data());
-		CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), exported_audio->get_packet_sequence()->get_packet_data());
+		GDRE_CHECK(exported_audio.is_valid());
+		GDRE_CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), pck_audio->get_packet_sequence()->get_packet_data());
+		GDRE_CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), exported_audio->get_packet_sequence()->get_packet_data());
 	}
 	return err;
 }

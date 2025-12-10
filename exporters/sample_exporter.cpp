@@ -290,11 +290,11 @@ Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const 
 	Error err = OK;
 	{
 		auto dests = export_report->get_resources_used();
-		REQUIRE_GE(dests.size(), 1);
+		GDRE_REQUIRE_GE(dests.size(), 1);
 		String original_resource = dests[0];
 		String exported_resource = export_report->get_saved_path();
 		Ref<AudioStreamWAV> original_audio = ResourceCompatLoader::non_global_load(original_resource);
-		CHECK(original_audio.is_valid());
+		GDRE_CHECK(original_audio.is_valid());
 
 		int compressed_mode = 0;
 		switch (original_audio->get_format()) {
@@ -352,20 +352,20 @@ Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const 
 		};
 
 		Ref<AudioStreamWAV> exported_audio = AudioStreamWAV::load_from_file(exported_resource, options);
-		CHECK(exported_audio.is_valid());
+		GDRE_CHECK(exported_audio.is_valid());
 		auto original_data = original_audio->get_data();
 		auto exported_data = exported_audio->get_data();
 		if (compressed_mode != 0) {
 			// both compression types are lossy, so we can't compare the data directly
 			// just check the size and return.
-			CHECK_EQ(original_data.size(), exported_data.size());
+			GDRE_CHECK_EQ(original_data.size(), exported_data.size());
 			return err;
 		}
 #ifdef DEBUG_ENABLED
 		if (original_data != exported_data) {
 			int first_mismatch = -1;
 			int num_mismatches = 0;
-			CHECK_EQ(original_data.size(), exported_data.size());
+			GDRE_CHECK_EQ(original_data.size(), exported_data.size());
 			for (int i = 0; i < original_data.size(); i++) {
 				if (original_data[i] != exported_data[i]) {
 					if (first_mismatch == -1) {
@@ -376,12 +376,12 @@ Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const 
 			}
 			String message = vformat("%s (ver_major: %d): First mismatch at index %d/%d, num mismatches: %d", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), first_mismatch, original_data.size(), num_mismatches);
 			print_line(message);
-			ERR_PRINT("CHECK failed: " + message); // data mismatch
+			ERR_PRINT("GDRE_CHECK failed: " + message); // data mismatch
 			err = FAILED;
 			return err;
 		}
 #endif
-		CHECK_EQ(original_data, exported_data);
+		GDRE_CHECK_EQ(original_data, exported_data);
 	}
 	return err;
 }
