@@ -116,7 +116,7 @@ GDScriptV2TokenizerCompat::Token GDScriptV2TokenizerBufferCompat::_binary_to_tok
 	}
 	// token.start_line = decode_uint32(b);
 	token.start_line = get_token_line(token_lines, p_token_index);
-	token.end_line = token.start_line;
+	token.end_line = decode_uint32(b);
 	token.start_column = get_token_line(token_columns, p_token_index);
 	token.end_column = token.start_column;
 
