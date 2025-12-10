@@ -2761,6 +2761,9 @@ bool GDRESettings::main_iteration() {
 	if (GDRESettings::testing) {
 		if (RenderingServer::get_singleton()) {
 			RenderingServer::get_singleton()->sync();
+			if (MessageQueue::get_singleton() && !MessageQueue::get_singleton()->is_flushing()) {
+				MessageQueue::get_singleton()->flush();
+			}
 		}
 		return false;
 	}
