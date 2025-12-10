@@ -36,7 +36,7 @@ namespace TestProjectExport {
 		// SUBCASE(vformat("%s: Test exported texture 2d %s -> %s", version, original_resource.get_file(), exported_resource.get_file()).utf8().get_data())
 		{
 			auto dests = export_report->get_resources_used();
-			REQUIRE(dests.size() >= 1);
+			REQUIRE_GE(dests.size(), 1);
 			String original_import_path = get_original_import_path(export_report, original_extract_dir);
 			String pck_resource = dests[0];
 			String exported_resource = export_report->get_saved_path();
@@ -50,8 +50,8 @@ namespace TestProjectExport {
 			Ref<Image> exported_image;
 			exported_image.instantiate();
 			exported_image->load(exported_resource);
-			CHECK(original_image->get_width() == exported_image->get_width());
-			CHECK(original_image->get_height() == exported_image->get_height());
+			CHECK_EQ(original_image->get_width(), exported_image->get_width());
+			CHECK_EQ(original_image->get_height(), exported_image->get_height());
 			if (export_report->get_loss_type() != ImportInfo::LossType::LOSSLESS) {
 				return OK; // TODO: Some sort of test for lossy textures
 			}
@@ -63,10 +63,10 @@ namespace TestProjectExport {
 					Color c = original_image->get_pixel(x, y);
 					Color c2 = exported_image->get_pixel(x, y);
 					if (c != c2) {
-						CHECK(c.a == 0.0);
-						CHECK(c.a == c2.a);
+						CHECK_EQ(c.a, 0.0);
+						CHECK_EQ(c.a, c2.a);
 					} else {
-						CHECK(c == c2);
+						CHECK_EQ(c, c2);
 					}
 				}
 			}
@@ -78,7 +78,7 @@ namespace TestProjectExport {
 		// SUBCASE(vformat("%s: Test exported texture 2d %s -> %s", version, original_resource.get_file(), exported_resource.get_file()).utf8().get_data())
 		{
 			auto dests = export_report->get_resources_used();
-			REQUIRE(dests.size() >= 1);
+			REQUIRE_GE(dests.size(), 1);
 			String original_resource = dests[0];
 			String exported_resource = export_report->get_saved_path();
 			Ref<AudioStreamWAV> original_audio = ResourceCompatLoader::non_global_load(original_resource);
@@ -159,14 +159,14 @@ namespace TestProjectExport {
 			if (compressed_mode != 0) {
 				// both compression types are lossy, so we can't compare the data directly
 				// just check the size and return.
-				CHECK(original_data.size() == exported_data.size());
+				CHECK_EQ(original_data.size(), exported_data.size());
 				return OK;
 			}
 	#ifdef DEBUG_ENABLED
 			if (original_data != exported_data) {
 				int first_mismatch = -1;
 				int num_mismatches = 0;
-				CHECK(original_data.size() == exported_data.size());
+				CHECK_EQ(original_data.size(), exported_data.size());
 				for (int i = 0; i < original_data.size(); i++) {
 					if (original_data[i] != exported_data[i]) {
 						if (first_mismatch == -1) {
@@ -181,7 +181,7 @@ namespace TestProjectExport {
 				return OK;
 			}
 	#endif
-			CHECK(original_data == exported_data);
+			CHECK_EQ(original_data, exported_data);
 		}
 		return OK;
 	}
@@ -190,7 +190,7 @@ namespace TestProjectExport {
 		// SUBCASE(vformat("%s: Test exported texture 2d %s -> %s", version, original_resource.get_file(), exported_resource.get_file()).utf8().get_data())
 		{
 			auto dests = export_report->get_resources_used();
-			REQUIRE(dests.size() >= 1);
+			REQUIRE_GE(dests.size(), 1);
 			String pck_resource = dests[0];
 			String exported_resource = export_report->get_saved_path();
 			String original_import_path = get_original_import_path(export_report, original_extract_dir);
@@ -200,8 +200,8 @@ namespace TestProjectExport {
 			CHECK(pck_audio.is_valid());
 			Ref<AudioStreamOggVorbis> exported_audio = AudioStreamOggVorbis::load_from_file(exported_resource);
 			CHECK(exported_audio.is_valid());
-			CHECK(original_audio->get_packet_sequence()->get_packet_data() == pck_audio->get_packet_sequence()->get_packet_data());
-			CHECK(original_audio->get_packet_sequence()->get_packet_data() == exported_audio->get_packet_sequence()->get_packet_data());
+			CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), pck_audio->get_packet_sequence()->get_packet_data());
+			CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), exported_audio->get_packet_sequence()->get_packet_data());
 		}
 		return OK;
 	}
@@ -209,7 +209,7 @@ namespace TestProjectExport {
 	Error test_exported_mp3_audio_stream(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version) {
 		{
 			auto dests = export_report->get_resources_used();
-			REQUIRE(dests.size() >= 1);
+			REQUIRE_GE(dests.size(), 1);
 			String pck_resource = dests[0];
 			String exported_resource = export_report->get_saved_path();
 			String original_import_path = get_original_import_path(export_report, original_extract_dir);
@@ -219,10 +219,10 @@ namespace TestProjectExport {
 			CHECK(pck_audio.is_valid());
 			Ref<AudioStreamMP3> exported_audio = AudioStreamMP3::load_from_file(exported_resource);
 			CHECK(exported_audio.is_valid());
-			CHECK(original_audio->get_length() == pck_audio->get_length());
-			CHECK(original_audio->get_length() == exported_audio->get_length());
-			CHECK(original_audio->get_data() == pck_audio->get_data());
-			CHECK(original_audio->get_data() == exported_audio->get_data());
+			CHECK_EQ(original_audio->get_length(), pck_audio->get_length());
+			CHECK_EQ(original_audio->get_length(), exported_audio->get_length());
+			CHECK_EQ(original_audio->get_data(), pck_audio->get_data());
+			CHECK_EQ(original_audio->get_data(), exported_audio->get_data());
 		}
 		return OK;
 	}
@@ -242,7 +242,7 @@ namespace TestProjectExport {
 			}
 			CHECK(!original_script_text.is_empty());
 			CHECK(!exported_script_text.is_empty());
-			CHECK(original_bytecode.size() > 0);
+			CHECK(!original_bytecode.is_empty());
 			auto decomp = GDScriptDecomp::create_decomp_for_version(version, true);
 			CHECK(decomp.is_valid());
 
@@ -250,13 +250,13 @@ namespace TestProjectExport {
 			// Bytecode may not be exactly the same due to earlier Godot variant encoder failing to zero out the padding bytes,
 			// so we need to use the tester function to compare the bytecode.
 			Error err = decomp->test_bytecode_match(original_bytecode, compiled_original_bytecode, false, true);
-			CHECK(decomp->get_error_message() == "");
-			CHECK(err == OK);
+			CHECK_EQ(decomp->get_error_message(), "");
+			CHECK_EQ(err, OK);
 
 			auto compiled_exported_bytecode = decomp->compile_code_string(exported_script_text);
 			err = decomp->test_bytecode_match(original_bytecode, compiled_exported_bytecode, false, true);
-			CHECK(decomp->get_error_message() == "");
-			CHECK(err == OK);
+			CHECK_EQ(decomp->get_error_message(), "");
+			CHECK_EQ(err, OK);
 		}
 		return OK;
 	}
@@ -277,9 +277,9 @@ namespace TestProjectExport {
 
 	Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version) {
 		REQUIRE(export_report.is_valid());
-		CHECK(export_report->get_error() == OK);
+		CHECK_EQ(export_report->get_error(), OK);
 		if (export_report->get_exporter() != TranslationExporter::EXPORTER_NAME) {
-			CHECK(export_report->get_message() == "");
+			CHECK_EQ(export_report->get_message(), "");
 		}
 		REQUIRE(export_report->get_import_info().is_valid());
 		CHECK(!export_report->get_import_info()->get_type().is_empty());
@@ -326,7 +326,7 @@ namespace TestProjectExport {
 
 		gdre::rimraf(original_extract_dir);
 		Error err = gdre::unzip_file_to_dir(original_project_zip, original_extract_dir);
-		CHECK(err == OK);
+		CHECK_EQ(err, OK);
 
 		gdre::rimraf(exported_recovery_dir);
 		// load the project
@@ -349,12 +349,12 @@ namespace TestProjectExport {
 
 		PckDumper dumper;
 		err = dumper.check_md5_all_files();
-		CHECK(err == OK);
+		CHECK_EQ(err, OK);
 		err = dumper.pck_dump_to_dir(exported_recovery_dir, {});
-		CHECK(err == OK);
+		CHECK_EQ(err, OK);
 		ImportExporter import_exporter;
 		err = import_exporter.export_imports(exported_recovery_dir, {});
-		CHECK(err == OK);
+		CHECK_EQ(err, OK);
 		auto import_report = import_exporter.get_report();
 		REQUIRE(import_report.is_valid());
 		Dictionary json_report = import_report->to_json();
@@ -371,7 +371,7 @@ namespace TestProjectExport {
 			fa->flush();
 		}
 #endif
-		CHECK(import_report->get_failed().size() == 0);
+		CHECK_EQ(import_report->get_failed().size(), 0);
 		auto successes = import_report->get_successes();
 		for (const auto &success : successes) {
 			test_recovered_resource(success, original_extract_dir, version);
