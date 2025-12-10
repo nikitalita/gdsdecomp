@@ -1656,7 +1656,7 @@ struct UniformInfo {
 	String hint;
 };
 
-Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
+Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
 	// we need to manually create a BaseMaterial3D from the shader material
 	// We do this by getting the shader uniforms and then mapping them to the BaseMaterial3D properties
 	// We also need to handle the texture parameters and features
@@ -1956,6 +1956,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		if (candidates.size() == 1) {
 			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
 			set_texture = true;
+			set_params[candidates[0].first] = candidates[0].second;
 			continue;
 		}
 		bool set_this_texture = false;
@@ -1965,6 +1966,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 					base_material->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, E.second);
 					set_texture = true;
 					set_this_texture = true;
+					set_params[E.first] = E.second;
 				} else if (E.first.contains("emissi") && set_this_texture) {
 					// push this back to the emission candidates
 					base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(E);
@@ -1976,6 +1978,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 					base_material->set_texture(BaseMaterial3D::TEXTURE_NORMAL, E.second);
 					set_texture = true;
 					set_this_texture = true;
+					set_params[E.first] = E.second;
 				}
 			}
 		}
@@ -1983,6 +1986,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 			// just use the first one
 			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
 			set_texture = true;
+			set_params[candidates[0].first] = candidates[0].second;
 		}
 	}
 	if (shader_uniforms.has("brightness") && p_shader_material->get_shader_parameter("brightness").get_type() == Variant::FLOAT) {
@@ -2007,7 +2011,14 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	// set the path to the shader material's path so that we can add it to the external deps found if necessary
 	base_material->set_path_cache(p_shader_material->get_path());
 
-	return { base_material, set_texture };
+	bool set_instance_uniforms = false;
+	for (auto &E : set_params) {
+		if (instance_uniforms.has(E.key)) {
+			set_instance_uniforms = true;
+			break;
+		}
+	}
+	return { base_material, { set_texture, set_instance_uniforms } };
 }
 
 // TODO: handle Godot version <= 4.2 image naming scheme?
@@ -2104,29 +2115,38 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					for (int surface_i = 0; surface_i < im->get_surface_count(); surface_i++) {
 						Ref<ShaderMaterial> shader_material;
 						Ref<BaseMaterial3D> base_material;
-						Pair<Ref<BaseMaterial3D>, bool> base_material_pair;
+						;
 						if (surface_i < instance_materials.size()) {
 							shader_material = instance_materials[surface_i];
 						} else {
 							shader_material = im->get_surface_material(surface_i);
 						}
 						if (shader_material.is_valid()) {
-							base_material_pair = convert_shader_material_to_base_material(shader_material, instance);
-							if (!base_material_pair.second) {
-								base_material = im->get_surface_material(surface_i);
-								if (!base_material.is_valid()) {
-									Ref<ShaderMaterial> surface_shader_material = im->get_surface_material(surface_i);
-									if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
-										auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
-										if (new_material_pair.second) {
-											shader_material = surface_shader_material;
-											base_material_pair = new_material_pair;
+							if (shader_material_to_base_material_map.has(shader_material)) {
+								base_material = shader_material_to_base_material_map[shader_material];
+							} else {
+								Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> base_material_pair = convert_shader_material_to_base_material(shader_material, instance);
+								if (!base_material_pair.second.first) {
+									base_material = im->get_surface_material(surface_i);
+									if (!base_material.is_valid()) {
+										Ref<ShaderMaterial> surface_shader_material = im->get_surface_material(surface_i);
+										if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
+											auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
+											if (new_material_pair.second.first) {
+												shader_material = surface_shader_material;
+												base_material_pair = new_material_pair;
+											}
 										}
 									}
 								}
-							}
-							if (!base_material.is_valid()) {
-								base_material = base_material_pair.first;
+								if (!base_material.is_valid()) {
+									base_material = base_material_pair.first;
+								}
+								// We don't want to cache it if it has instance uniforms that were actually used,
+								// since they will need to be created per-instance
+								if (base_material.is_valid() && !base_material_pair.second.second) {
+									shader_material_to_base_material_map[shader_material] = base_material;
+								}
 							}
 							if (base_material.is_valid()) {
 								if (surface_i < instance_materials.size()) {
@@ -2143,7 +2163,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 							Ref<ShaderMaterial> shader_material = instance_materials[i];
 							if (shader_material.is_valid()) {
 								auto new_material_pair = convert_shader_material_to_base_material(shader_material);
-								if (new_material_pair.second) {
+								if (new_material_pair.second.first) {
 									instance_materials[i] = new_material_pair.first;
 								}
 							}
