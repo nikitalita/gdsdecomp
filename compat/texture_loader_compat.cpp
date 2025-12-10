@@ -1431,7 +1431,7 @@ Ref<Resource> ResourceFormatLoaderImageTextureCompat::load(const String &p_path,
 }
 
 Ref<Resource> ResourceFormatLoaderImageTextureCompat::custom_load(const String &p_path, const String &p_original_path, ResourceInfo::LoadType p_type, Error *r_error, bool use_threads, ResourceFormatLoader::CacheMode p_cache_mode) {
-	Ref<Image> image = Image::load_from_file(p_path);
+	Ref<Image> image = gdre::load_image_from_file(p_path);
 	ERR_FAIL_COND_V_MSG(image.is_null(), Ref<Resource>(), "ResourceFormatLoaderImageTextureCompat: Failed to load image from file " + p_path);
 	Ref<ImageTexture> image_texture = TextureLoaderCompat::create_image_texture(p_path, p_type, image->get_width(), image->get_height(), 0, 0, image->has_mipmaps(), image);
 	return image_texture;

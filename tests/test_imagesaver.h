@@ -7,11 +7,11 @@
 #include "utility/image_saver.h"
 namespace TestImageSaver {
 void test_svg_saving(const String &file, const String &test_files_dir, const String &output_dir) {
-	Ref<Image> img = Image::load_from_file(test_files_dir.path_join(file));
+	Ref<Image> img = gdre::load_image_from_file(test_files_dir.path_join(file));
 	REQUIRE(img.is_valid());
 	CHECK(ImageSaver::save_image(output_dir.path_join(file), img, false) == OK);
 
-	Ref<Image> resaved_image = Image::load_from_file(output_dir.path_join(file));
+	Ref<Image> resaved_image = gdre::load_image_from_file(output_dir.path_join(file));
 	REQUIRE(resaved_image.is_valid());
 #ifdef DEBUG_ENABLED
 	if (resaved_image->get_data() != img->get_data()) {

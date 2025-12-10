@@ -12,6 +12,7 @@
 #include "core/io/http_client.h"
 #include "modules/regex/regex.h"
 #include "modules/zip/zip_reader.h"
+#include "utility/gdre_logger.h"
 #include "utility/task_manager.h"
 
 namespace {
@@ -1523,6 +1524,17 @@ bool gdre::is_zip_file(const String &p_path) {
 
 String gdre::get_safe_dir_name(const String &p_dir_name, bool p_allow_paths) {
 	return OS::get_singleton()->get_safe_dir_name(p_dir_name, p_allow_paths);
+}
+
+Ref<Image> gdre::load_image_from_file(const String &p_path) {
+#ifdef DEBUG_ENABLED
+	GDRELogger::set_thread_local_silent_errors(true);
+#endif
+	Ref<Image> image = Image::load_from_file(p_path);
+#ifdef DEBUG_ENABLED
+	GDRELogger::set_thread_local_silent_errors(false);
+#endif
+	return image;
 }
 
 void GDRECommon::_bind_methods() {
