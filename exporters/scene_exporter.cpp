@@ -10,6 +10,7 @@
 #include "modules/gltf/extensions/physics/gltf_document_extension_physics.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
+#include "modules/regex/regex.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/occluder_instance_3d.h"
 #include "scene/3d/physics/rigid_body_3d.h"
@@ -1465,6 +1466,25 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			anim_lib->get_animation_list(&anim_names);
 			if (ver_major <= 3 && anim_names.size() > 0) {
 				// force re-compute animation tracks.
+				for (auto &anim_name : anim_names) {
+					Ref<Animation> anim = anim_lib->get_animation(anim_name);
+					size_t num_tracks = anim->get_track_count();
+					for (size_t i = 0; i < num_tracks; i++) {
+						String str_path = String(anim->track_get_path(i));
+						if (str_path.contains(":mesh:surface_")) {
+							// replace the number after surface_ with one lower (surface properties are 1-indexed in 3.x, but 0-indexed in 4.0)
+							Ref<RegEx> re = RegEx::create_from_string(":mesh:surface_(\\d+)");
+							Ref<RegExMatch> match = re->search(str_path);
+							if (match.is_valid()) {
+								int surface_index = match->get_string(1).to_int();
+								surface_index--;
+								str_path = re->sub(str_path, ":mesh:surface_" + String::num_int64(surface_index));
+							}
+							anim->track_set_path(i, str_path);
+						}
+					}
+				}
+
 				player->set_current_animation(anim_names.front()->get());
 				player->advance(0);
 				player->set_current_animation(current_anmation);
