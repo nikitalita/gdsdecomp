@@ -1381,12 +1381,14 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			if (!ret->get_message().is_empty()) {
 				report->failed_gdnative_copy.push_back(ret->get_message());
 				ret->set_message("Failed to copy GDExtension addon for this platform");
-				report->failed.push_back(ret);
+				// We put it in "success" because it's part of a different message
+				report->success.push_back(ret);
 				continue;
 			} else if (!ret->get_saved_path().is_empty() && ret->get_download_task_id() != -1) {
+				Dictionary plugin_info = ret->get_extra_info();
 				Error dl_err = TaskManager::get_singleton()->wait_for_download_task_completion(ret->get_download_task_id());
 				if (dl_err != OK) {
-					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+					report->failed_gdnative_copy.push_back(plugin_info.get("plugin_name", ret->get_saved_path()));
 					ret->set_message("Download failed");
 					ret->set_error(dl_err);
 					report->failed.push_back(ret);
@@ -1395,14 +1397,14 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 				Vector<String> output_dirs;
 				dl_err = unzip_and_copy_addon(iinfo, ret->get_saved_path(), output_dirs);
 				if (dl_err != OK) {
-					report->failed_gdnative_copy.push_back(ret->get_saved_path());
+					report->failed_gdnative_copy.push_back(plugin_info.get("plugin_name", ret->get_saved_path()));
 					ret->set_message("Failed to unzip and copy GDExtension addon");
 					ret->set_error(dl_err);
 					report->failed.push_back(ret);
 					continue;
 				}
 				ret->get_extra_info()["unzipped_output_dirs"] = output_dirs;
-				report->downloaded_plugins.push_back(ret->get_extra_info());
+				report->downloaded_plugins.push_back(plugin_info);
 			}
 		}
 		report->success.push_back(ret);
