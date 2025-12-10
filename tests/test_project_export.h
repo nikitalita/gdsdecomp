@@ -29,7 +29,7 @@ TEST_CASE("[GDSDecomp][ProjectRecovery] ([SceneTree]) Recover projects ") {
 	String exported_path = test_projects_path.path_join("exported");
 	Vector<String> versions = gdre::get_dirs_at(exported_path, {}, false);
 	for (const String &version : versions) {
-		Vector<String> sub_projects = gdre::get_recursive_dir_list(exported_path.path_join(version), { "*.pck" }, false);
+		Vector<String> sub_projects = gdre::get_recursive_dir_list(exported_path.path_join(version), { "*.pck", "*.apk" }, false);
 		for (const String &sub_project : sub_projects) {
 			SUBCASE(vformat("%s: Test recover project %s", version, sub_project).utf8().get_data()) {
 				test_export_project(version, sub_project, original_path, exported_path);
