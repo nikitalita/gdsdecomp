@@ -1880,6 +1880,7 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 		unique_ids[id] = c;
 		path_to_uid[String::utf8(c.cs)] = id;
 	}
+	Vector<String> dupes;
 	for (auto E : path_to_uid) {
 		if (ResourceUID::get_singleton()->has_id(E.second)) {
 			String old_path = ResourceUID::get_singleton()->get_id_path(E.second);
@@ -1893,9 +1894,9 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 						continue; // skip
 					}
 					// has both
-					WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+					dupes.push_back(ResourceUID::get_singleton()->id_to_text(E.second) + " -> " + old_path + "\n    Replacing with: " + new_path);
 				} else if (!has_path_loaded(new_path)) { // has neither
-					WARN_PRINT("Duplicate ID found in cache: " + itos(E.second) + " -> " + old_path + "\nReplacing with: " + new_path);
+					dupes.push_back(ResourceUID::get_singleton()->id_to_text(E.second) + " -> " + old_path + "\n    Replacing with: " + new_path);
 				} // else we have the new_path but not the old path
 			}
 
@@ -1903,6 +1904,9 @@ Error GDRESettings::load_pack_uid_cache(bool p_reset) {
 		} else {
 			ResourceUID::get_singleton()->add_id(E.second, E.first);
 		}
+	}
+	if (dupes.size() > 0) {
+		WARN_PRINT("Duplicate IDs found in cache:\n  " + String("\n  ").join(dupes));
 	}
 #ifdef TOOLS_ENABLED
 	if (!EditorNode::get_singleton()) {
