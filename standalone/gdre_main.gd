@@ -732,6 +732,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
                                                 (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+--setting=<SETTING_NAME>=<VALUE>   Set a configuration value for this session (can be repeated)
 --gdre-help                        Print the help message and exit
 --gdre-version                     Print the version of GDRE tools and exit
 """
@@ -1589,7 +1590,15 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--dump-resource-strings"):
 			GDREConfig.set_setting("Exporter/Translation/dump_resource_strings", true, true)
 			set_setting = true
-
+		elif arg.begins_with("--setting"):
+			var setting_name = split_map_arg(arg)
+			if setting_name.is_empty():
+				print_usage()
+				print("ERROR: invalid --setting format: must be <setting_name>=<value>")
+				ret_code = 1
+				return true
+			GDREConfig.set_setting(setting_name[0], setting_name[1], true)
+			set_setting = true
 		elif arg.begins_with("--patch-translations"):
 			# We can use it in combination with --pck-patch, so we need to set the pck-patch flag, we handle this below
 			main_cmds["pck-patch"] = true
