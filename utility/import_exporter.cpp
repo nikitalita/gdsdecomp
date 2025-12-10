@@ -1751,6 +1751,7 @@ void ImportExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("export_imports", "p_out_dir", "files_to_export"), &ImportExporter::export_imports, DEFVAL(PackedStringArray()));
 	ClassDB::bind_method(D_METHOD("get_report"), &ImportExporter::get_report);
 	ClassDB::bind_method(D_METHOD("reset"), &ImportExporter::reset);
+	ClassDB::bind_method(D_METHOD("test_exported_project", "p_original_project_dir"), &ImportExporter::test_exported_project);
 }
 
 void ImportExporter::reset_log() {
@@ -2566,20 +2567,134 @@ Error test_recovered_resource(const Ref<ExportReport> &export_report, const Stri
 	return err;
 }
 
-Error ImportExporter::test_exported_project(const String &original_project_dir) {
+void ImportExporter::_do_test_recovered_resource(uint32_t i, Ref<ExportReport> *reports) {
+	auto report = reports[i];
+
+	report->set_test_error(test_recovered_resource(report, original_project_dir));
+	if (!Thread::is_main_thread()) {
+		report->append_test_error_messages(GDRELogger::get_thread_errors());
+	} else {
+		report->append_test_error_messages(GDRELogger::get_errors());
+	}
+}
+
+String ImportExporter::get_test_recovered_resource_description(uint32_t i, Ref<ExportReport> *reports) {
+	return reports[i]->get_import_info()->get_path();
+}
+
+Error ImportExporter::test_exported_project(const String &p_original_project_dir) {
+	if (p_original_project_dir.is_empty()) {
+		print_line("Original project directory is empty, running tests without import comparison...");
+	}
+	original_project_dir = p_original_project_dir;
 	Error err = OK;
+#if TESTS_ENABLED
+	const bool is_unit_testing = GDRESettings::is_testing();
+#else
+	const bool is_unit_testing = false;
+#endif
 	if (report.is_null() || output_dir.is_empty()) {
 		ERR_FAIL_V_MSG(ERR_BUG, "Export hasn't been run yet");
 	}
 	if (!GDRESettings::get_singleton()->is_pack_loaded()) {
 		ERR_FAIL_V_MSG(ERR_BUG, "Pack is not loaded, cannot test exported project");
 	}
+	String tmp_dir;
+	if (original_project_dir.has_extension("zip")) {
+		tmp_dir = get_settings()->get_gdre_tmp_path().path_join("test_recovery").path_join(original_project_dir.get_file().get_basename());
+		print_line(vformat("Extracting original project zip to temporary directory %s...", tmp_dir));
 
-	GDRE_CHECK_EQ(report->get_failed().size(), 0);
-	auto successes = report->get_successes();
-	for (const auto &success : successes) {
-		test_recovered_resource(success, original_project_dir);
+		if (DirAccess::dir_exists_absolute(tmp_dir)) {
+			gdre::rimraf(tmp_dir);
+		}
+		gdre::ensure_dir(tmp_dir);
+		Error err = gdre::unzip_file_to_dir(original_project_dir, tmp_dir);
+		if (err != OK) {
+			print_line("Error extracting original project zip: " + String::num_int64(err));
+			return err;
+		}
+		original_project_dir = tmp_dir;
 	}
 
+	auto rimraf_tmp_dir = [&]() {
+		if (!tmp_dir.is_empty() && DirAccess::dir_exists_absolute(tmp_dir)) {
+			gdre::rimraf(tmp_dir);
+		}
+	};
+
+	Vector<Ref<ExportReport>> export_failed_reports = array_to_vector<Ref<ExportReport>>(report->get_failed());
+	bool had_failed_exports = export_failed_reports.size() > 0;
+	GDRE_CHECK(!had_failed_exports);
+	Vector<Ref<ExportReport>> to_test = array_to_vector<Ref<ExportReport>>(report->get_successes());
+	Vector<Ref<ExportReport>> success_reports;
+	Vector<Ref<ExportReport>> failed_reports;
+	Vector<Ref<ExportReport>> not_run_reports;
+	if (is_unit_testing) {
+		// Single-threaded testing for unit tests
+		for (int i = 0; i < to_test.size(); i++) {
+			_do_test_recovered_resource(i, to_test.ptrw());
+		}
+	} else {
+		// Multi-threaded testing for CLI usage
+		Error task_err = TaskManager::get_singleton()->run_multithreaded_group_task(
+				this,
+				&ImportExporter::_do_test_recovered_resource,
+				to_test.ptrw(),
+				to_test.size(),
+				&ImportExporter::get_test_recovered_resource_description,
+				"ImportExporter::test_exported_project",
+				"Testing recovered resources...",
+				true);
+		if (task_err == ERR_SKIP) {
+			print_line("Testing cancelled by user!");
+			rimraf_tmp_dir();
+			return OK;
+		} else if (err == OK) {
+			err = task_err;
+		}
+	}
+
+	Vector<Ref<ExportReport>> passed_tests;
+	Vector<Ref<ExportReport>> unavailable_tests;
+	Vector<Ref<ExportReport>> failed_tests;
+
+	for (auto &success_report : to_test) {
+		if (success_report->get_test_error() == ERR_UNAVAILABLE) {
+			unavailable_tests.push_back(success_report);
+		} else if (success_report->get_test_error() != OK) {
+			err = FAILED;
+			failed_tests.push_back(success_report);
+		} else {
+			passed_tests.push_back(success_report);
+		}
+	}
+	if (!is_unit_testing && export_failed_reports.size() > 0) {
+		print_line("Number of failed exports: " + String::num_int64(export_failed_reports.size()));
+		for (auto &export_report : export_failed_reports) {
+			print_line("Failed export: " + export_report->get_import_info()->get_path());
+		}
+	}
+	if (!is_unit_testing) {
+		// 		===============================================================================
+		// [doctest] test cases:         2 |         2 passed | 0 failed | 1369 skipped
+		// [doctest] assertions: 209959662 | 209959662 passed | 0 failed |
+		// [doctest] Status: SUCCESS!
+		if (failed_tests.size() > 0) {
+			print_line(vformat("==============================================================================="));
+			print_line(vformat("[RecoveryTest] %d failed tests:", failed_tests.size()));
+			for (auto &failed_test : failed_tests) {
+				print_line("❌ Failed test: " + failed_test->get_import_info()->get_path());
+				for (auto &error_message : failed_test->get_test_error_messages()) {
+					print_line("\t" + error_message);
+				}
+			}
+		}
+		String status = err == OK ? "SUCCESS!" : "FAILURE!";
+		print_line(vformat("==============================================================================="));
+		print_line(vformat("[RecoveryTest] test cases: %5d | %5d passed | %4d failed | %4d skipped", to_test.size(), passed_tests.size(), failed_tests.size(), unavailable_tests.size()));
+		print_line(vformat("[RecoveryTest] Status: %s", status));
+		print_line(vformat("==============================================================================="));
+	}
+	rimraf_tmp_dir();
 	return err;
 }

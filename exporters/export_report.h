@@ -31,6 +31,8 @@ private:
 	Error error = OK;
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
 	MetadataStatus rewrote_metadata = NOT_DIRTY;
+	Error test_error = OK;
+	Vector<String> test_error_messages;
 
 protected:
 	static void _bind_methods();
@@ -82,14 +84,24 @@ public:
 
 	void append_error_messages(const Vector<String> &p_error_messages) { error_messages.append_array(p_error_messages); }
 	void clear_error_messages() { error_messages.clear(); }
+	void set_error_messages(const Vector<String> &p_error_messages) { error_messages = p_error_messages; }
 	Vector<String> get_error_messages() const { return error_messages; }
 
 	void append_message_detail(const Vector<String> &p_message_detail) { message_detail.append_array(p_message_detail); }
 	void clear_message_detail() { message_detail.clear(); }
+	void set_message_detail(const Vector<String> &p_message_detail) { message_detail = p_message_detail; }
 	Vector<String> get_message_detail() const { return message_detail; }
 
 	void set_extra_info(const Dictionary &p_extra_info) { extra_info = p_extra_info; }
 	Dictionary get_extra_info() const { return extra_info; }
+
+	void set_test_error(Error p_test_error) { test_error = p_test_error; }
+	Error get_test_error() const { return test_error; }
+
+	void append_test_error_messages(const Vector<String> &p_test_error_messages) { test_error_messages.append_array(p_test_error_messages); }
+	void clear_test_error_messages() { test_error_messages.clear(); }
+	void set_test_error_messages(const Vector<String> &p_test_error_messages) { test_error_messages = p_test_error_messages; }
+	Vector<String> get_test_error_messages() const { return test_error_messages; }
 
 	String get_path() const { return import_info.is_valid() ? import_info->get_path() : ""; }
 
