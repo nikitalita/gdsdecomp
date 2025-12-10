@@ -19,6 +19,8 @@ var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
 var deferred_calls = []
 var ret_code = 0
+# TODO: This is a hack to have the CLI mode work correctly; CLI parsing needs overhauling
+var had_main = false
 
 enum PckMenuID {
 	NEW_PCK,
@@ -614,6 +616,8 @@ func _ready():
 	# If CLI arguments were passed in, just quit
 	var args = get_sanitized_args()
 	if handle_cli(args):
+		if not had_main:
+			get_tree().quit(ret_code)
 		return
 
 	var new_args = []
@@ -1663,6 +1667,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 
 	if set_setting and main_cmds.size() == 0:
 		return false
+
+	had_main = true
 	deferred_calls.push_back(func():
 		if prepop.size() > 0:
 			var start_time = Time.get_ticks_msec()
