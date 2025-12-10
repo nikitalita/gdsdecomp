@@ -168,8 +168,8 @@ struct KeyWorker {
 		NUM_SUFFIXES,
 		NUM_SUFFIXES_KEYS_ONLY,
 		COMMON_PREFIX_SUFFIX,
-		COMMON_PREFIX_SUFFIX_COMBINED,
 		DETECTED_PREFIX_SUFFIX,
+		COMMON_PREFIX_SUFFIX_COMBINED,
 		DETECTED_PREFIX_SUFFIX_COMBINED,
 	};
 
@@ -178,9 +178,9 @@ struct KeyWorker {
 
 	HashMap<Stage, int64_t> step_to_max_filt_res_strings = {
 		{ Stage::COMMON_PREFIX_SUFFIX, 10000 },
-		{ Stage::COMMON_PREFIX_SUFFIX_COMBINED, 5000 },
 		{ Stage::DETECTED_PREFIX_SUFFIX, 7500 },
-		{ Stage::DETECTED_PREFIX_SUFFIX_COMBINED, 5000 },
+		{ Stage::COMMON_PREFIX_SUFFIX_COMBINED, 2500 },
+		{ Stage::DETECTED_PREFIX_SUFFIX_COMBINED, 2500 },
 	};
 
 	String output_dir;
@@ -205,6 +205,7 @@ struct KeyWorker {
 	int64_t dupe_keys = 0;
 	int64_t non_blank_keys = 0;
 	bool use_multithread = true;
+	bool force_no_dump = false;
 	std::atomic<bool> keys_have_whitespace = false;
 	std::atomic<bool> keys_are_all_upper = true;
 	std::atomic<bool> keys_are_all_lower = true;
@@ -1642,12 +1643,14 @@ struct KeyWorker {
 			iter.write[i] = trim_punctuation(iter[i]);
 		}
 	}
+	void prep_vector(Vector<String> &iter) {
+		trim_punctuation_vec(iter);
+		dedupe(iter);
+	}
 
 	void prep_common_prefix_suffix() {
-		trim_punctuation_vec(common_prefixes);
-		trim_punctuation_vec(common_suffixes);
-		dedupe(common_prefixes);
-		dedupe(common_suffixes);
+		prep_vector(common_prefixes);
+		prep_vector(common_suffixes);
 	}
 
 	void dedupe(Vector<String> &iter) {
@@ -1791,7 +1794,7 @@ struct KeyWorker {
 			return false;
 		}
 		auto found_key_ratio = (double)key_to_message.size() / (double)non_blank_keys;
-		double adjustment = MAX(found_key_ratio, 0.70); // don't adjust more than 30%
+		double adjustment = MAX(found_key_ratio, 0.50); // don't adjust more than 50%
 		auto adjusted_frs_size = filtered_resource_strings.size() * adjustment;
 		if (adjusted_frs_size > step_to_max_filt_res_strings[step]) {
 			return true;
@@ -1826,16 +1829,20 @@ struct KeyWorker {
 		if (!GDRESettings::get_singleton()->loaded_resource_strings()) {
 			GDRESettings::get_singleton()->load_all_resource_strings();
 			time_to_load_resource_strings = OS::get_singleton()->get_ticks_msec() - start_time;
-			if (GDREConfig::get_singleton()->get_setting("Exporter/Translation/dump_resource_strings", false)) {
-				GDRESettings::get_singleton()->get_resource_strings(resource_strings);
-				String dir = output_dir.path_join(".assets");
-				gdre::ensure_dir(dir);
-				Ref<FileAccess> f = FileAccess::open(dir.path_join("resource_strings.stringdump"), FileAccess::WRITE);
-				for (const auto &str : resource_strings) {
-					// put the bell character in there so that we have a separator between the resource strings
-					f->store_string(str + "\b\n");
+			if (!force_no_dump && GDREConfig::get_singleton()->get_setting("Exporter/Translation/dump_resource_strings", false)) {
+				if (!output_dir.is_empty()) {
+					GDRESettings::get_singleton()->get_resource_strings(resource_strings);
+					String dir = output_dir.path_join(".assets");
+					gdre::ensure_dir(dir);
+					Ref<FileAccess> f = FileAccess::open(dir.path_join("resource_strings.stringdump"), FileAccess::WRITE);
+					for (const auto &str : resource_strings) {
+						// put the bell character in there so that we have a separator between the resource strings
+						f->store_string(str + "\b\n");
+					}
+					f->close();
+				} else {
+					ERR_PRINT("Cannot dump resource strings without an output directory");
 				}
-				f->close();
 			}
 		}
 		GDRESettings::get_singleton()->get_resource_strings(resource_strings);
@@ -1973,6 +1980,10 @@ struct KeyWorker {
 		}
 
 		// Stage 4: commonly known suffixes
+		Vector<String> prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+		Vector<String> suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+		Vector<String> prefixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
+		Vector<String> suffixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
 		if (should_run_step(Stage::COMMON_PREFIX_SUFFIX)) {
 			auto sanitized_standard_suffixes = get_sanitized_strings(STANDARD_SUFFIXES);
 
@@ -2000,19 +2011,16 @@ struct KeyWorker {
 
 				RET_ON_ERROR(stage3_err);
 				// stage 5: test prefixes AND suffixes together
-				if (should_run_step(Stage::COMMON_PREFIX_SUFFIX_COMBINED)) {
-					common_prefixes = found_prefixes;
-					common_suffixes = found_suffixes;
-					for (const auto &prefix : successful_prefixes) {
-						common_prefixes.append(prefix);
-					}
-					for (const auto &suffix : successful_suffixes) {
-						common_suffixes.append(suffix);
-					}
-					prep_common_prefix_suffix();
-					stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Common prefix/suffix (combined)", true);
-					RET_ON_ERROR(stage3_err);
+				prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED = found_prefixes;
+				suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED = found_suffixes;
+				for (const auto &prefix : successful_prefixes) {
+					prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED.append(prefix);
 				}
+				for (const auto &suffix : successful_suffixes) {
+					suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED.append(suffix);
+				}
+				prep_vector(prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED);
+				prep_vector(suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED);
 			}
 		} else {
 			if (step_too_long(Stage::COMMON_PREFIX_SUFFIX)) {
@@ -2026,9 +2034,9 @@ struct KeyWorker {
 		if (!all_keys_present()) {
 			current_stage = "Detected prefix/suffix";
 			auto curr_keys = get_keys(key_to_message);
-			auto old_common_prefixes = common_prefixes;
-			auto old_common_suffixes = common_suffixes;
-			find_common_prefixes_and_suffixes(curr_keys);
+			auto old_common_prefixes = prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+			auto old_common_suffixes = suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+			find_common_prefixes_and_suffixes(curr_keys, 0.01f, true);
 
 			common_prefixes.append_array(old_common_prefixes);
 			common_suffixes.append_array(old_common_suffixes);
@@ -2055,6 +2063,8 @@ struct KeyWorker {
 					try_num_suffix(prefix.get_data(), suffix.get_data());
 				}
 			}
+			prefixes_for_DETECTED_PREFIX_SUFFIX_COMBINED = common_prefixes;
+			suffixes_for_DETECTED_PREFIX_SUFFIX_COMBINED = common_suffixes;
 
 			if (should_run_step(Stage::DETECTED_PREFIX_SUFFIX)) {
 				HashSet<String> working_set = get_prefix_suffix_working_set();
@@ -2063,47 +2073,63 @@ struct KeyWorker {
 
 				Error stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2<false>, working_set_t, "Detected prefix/suffix", true);
 				RET_ON_ERROR(stage4_err);
-				if (should_run_step(Stage::DETECTED_PREFIX_SUFFIX_COMBINED)) {
-					auto check_prefixes = common_prefixes;
-					auto check_suffixes = common_suffixes;
-					common_prefixes = found_prefixes;
-					common_suffixes = found_suffixes;
-					auto keys_found = stage_keys_found.get("Detected prefix/suffix");
-					if (stage_keys_found.has("Common prefix/suffix")) {
-						gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix"));
-					}
-					if (stage_keys_found.has("Common prefix/suffix (combined)")) {
-						gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix (combined)"));
-					}
-					for (const auto &prefix : check_prefixes) {
-						for (const auto &key : keys_found) {
-							if (key.begins_with(prefix)) {
-								common_prefixes.append(prefix);
-								break;
-							}
-						}
-					}
-					for (const auto &suffix : check_suffixes) {
-						for (const auto &key : keys_found) {
-							if (key.ends_with(suffix)) {
-								common_suffixes.append(suffix);
-								break;
-							}
-						}
-					}
-					trim_punctuation_vec(common_prefixes);
-					trim_punctuation_vec(common_suffixes);
-					pop_charstr_vectors();
-
-					stage4_err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Detected prefix/suffix (combined)", true);
-					RET_ON_ERROR(stage4_err);
-				}
 			} else {
 				bl_debug("Skipping stage 5 because there are too many resource strings");
 				skip_stage("Detected prefix/suffix");
 			}
 		} else {
 			skip_stage("Detected prefix/suffix");
+		}
+
+		if (should_run_step(Stage::COMMON_PREFIX_SUFFIX_COMBINED)) {
+			common_prefixes = prefixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+			common_suffixes = suffixes_for_COMMON_PREFIX_SUFFIX_COMBINED;
+			HashSet<String> working_set = get_prefix_suffix_working_set();
+			pop_charstr_vectors();
+			Vector<CharString> working_set_t = iter_string_to_charstring(working_set);
+			Error err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Common prefix/suffix (combined)", true);
+			RET_ON_ERROR(err);
+		} else {
+			skip_stage("Common prefix/suffix (combined)");
+		}
+
+		if (should_run_step(Stage::DETECTED_PREFIX_SUFFIX_COMBINED)) {
+			auto check_prefixes = prefixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
+			auto check_suffixes = suffixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
+			common_prefixes = found_prefixes;
+			common_suffixes = found_suffixes;
+			auto keys_found = stage_keys_found.get("Detected prefix/suffix");
+			if (stage_keys_found.has("Common prefix/suffix")) {
+				gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix"));
+			}
+			if (stage_keys_found.has("Common prefix/suffix (combined)")) {
+				gdre::hashset_insert_iterable(keys_found, stage_keys_found.get("Common prefix/suffix (combined)"));
+			}
+			for (const auto &prefix : check_prefixes) {
+				for (const auto &key : keys_found) {
+					if (key.begins_with(prefix)) {
+						common_prefixes.append(prefix);
+						break;
+					}
+				}
+			}
+			for (const auto &suffix : check_suffixes) {
+				for (const auto &key : keys_found) {
+					if (key.ends_with(suffix)) {
+						common_suffixes.append(suffix);
+						break;
+					}
+				}
+			}
+			prep_common_prefix_suffix();
+			HashSet<String> working_set = get_prefix_suffix_working_set();
+			pop_charstr_vectors();
+			Vector<CharString> working_set_t = iter_string_to_charstring(working_set);
+
+			Error err = run_stage(&KeyWorker::prefix_suffix_task_2<true>, working_set_t, "Detected prefix/suffix (combined)", true);
+			RET_ON_ERROR(err);
+		} else {
+			skip_stage("Detected prefix/suffix (combined)");
 		}
 
 		do_combine_all = do_combine_all && !skipped_last_stage() && key_to_message.size() != default_messages.size();
