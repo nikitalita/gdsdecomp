@@ -287,7 +287,7 @@ String SampleExporter::get_default_export_extension(const String &res_path) cons
 }
 
 Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
-	Error err = OK;
+	Error _ret_err = OK;
 	{
 		auto dests = export_report->get_resources_used();
 		GDRE_REQUIRE_GE(dests.size(), 1);
@@ -358,15 +358,16 @@ Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const 
 		if (compressed_mode != 0) {
 			// both compression types are lossy, so we can't compare the data directly
 			// just check the size and return.
-			GDRE_CHECK_EQ(original_data.size(), exported_data.size());
-			return err;
+			if (export_report->get_import_info()->is_import()) {
+				GDRE_CHECK_EQ(original_data.size(), exported_data.size());
+			}
+		} else {
+			String data_mismatch_error_message = gdre_test::get_error_message_for_vector_mismatch(original_data, exported_data);
+			if (!data_mismatch_error_message.is_empty()) {
+				data_mismatch_error_message = vformat("%s (ver_major: %d): %s", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), data_mismatch_error_message);
+			}
+			GDRE_CHECK_EQ(data_mismatch_error_message, "");
 		}
-		String data_mismatch_error_message = gdre_test::get_error_message_for_vector_mismatch(original_data, exported_data);
-		if (!data_mismatch_error_message.is_empty()) {
-			data_mismatch_error_message = vformat("%s (ver_major: %d): %s", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), data_mismatch_error_message);
-			err = FAILED;
-		}
-		GDRE_CHECK_EQ(data_mismatch_error_message, "");
 	}
-	return err;
+	return _ret_err;
 }

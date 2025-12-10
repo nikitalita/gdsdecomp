@@ -2,43 +2,43 @@
 // if it fails, print the expression
 #define _GDRE_CHECK(...)                                               \
 	if (!(__VA_ARGS__)) {                                              \
-		err = FAILED;                                                  \
+		_ret_err = FAILED;                                             \
 		ERR_PRINT(#__VA_ARGS__ ": " + String((Variant)(__VA_ARGS__))); \
 	}
 
 #define _GDRE_REQUIRE(...)                                             \
 	if (!(__VA_ARGS__)) {                                              \
-		err = FAILED;                                                  \
+		_ret_err = FAILED;                                             \
 		ERR_PRINT(#__VA_ARGS__ ": " + String((Variant)(__VA_ARGS__))); \
-		return err;                                                    \
+		return _ret_err;                                               \
 	}
 
 #define _GDRE_CHECK_GE(a, b)                                                                         \
 	if (!(a >= b)) {                                                                                 \
-		err = FAILED;                                                                                \
+		_ret_err = FAILED;                                                                           \
 		ERR_PRINT(#a " is less than" #b ": " + String((Variant)(a)) + " < " + String((Variant)(b))); \
-		return err;                                                                                  \
+		return _ret_err;                                                                             \
 	}
 
 #define _GDRE_CHECK_GT(a, b)                                                                                      \
 	if (!(a > b)) {                                                                                               \
-		err = FAILED;                                                                                             \
+		_ret_err = FAILED;                                                                                        \
 		ERR_PRINT(#a " is less than or equal to" #b ": " + String((Variant)(a)) + " <= " + String((Variant)(b))); \
-		return err;                                                                                               \
+		return _ret_err;                                                                                          \
 	}
 
 // TODO: define CHECK_EQ, REQUIRE, etc.
 #define _GDRE_CHECK_EQ(a, b)                                                                              \
 	if (!(a == b)) {                                                                                      \
-		err = FAILED;                                                                                     \
+		_ret_err = FAILED;                                                                                \
 		ERR_PRINT(#a " is not equal to " #b ": " + String((Variant)(a)) + " != " + String((Variant)(b))); \
 	}
 
 #define _GDRE_REQUIRE_GE(a, b)                                                                       \
 	if (!(a >= b)) {                                                                                 \
-		err = FAILED;                                                                                \
+		_ret_err = FAILED;                                                                           \
 		ERR_PRINT(#a " is less than" #b ": " + String((Variant)(a)) + " < " + String((Variant)(b))); \
-		return err;                                                                                  \
+		return _ret_err;                                                                             \
 	}
 
 #if TESTS_ENABLED

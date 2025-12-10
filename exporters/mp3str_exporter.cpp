@@ -74,7 +74,7 @@ String Mp3StrExporter::get_default_export_extension(const String &res_path) cons
 }
 
 Error Mp3StrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
-	Error err = OK;
+	Error _ret_err = OK;
 	{
 		auto dests = export_report->get_resources_used();
 		GDRE_REQUIRE_GE(dests.size(), 1);
@@ -95,5 +95,5 @@ Error Mp3StrExporter::test_export(const Ref<ExportReport> &export_report, const 
 			GDRE_CHECK_VECTOR_EQ(original_audio->get_data(), exported_audio->get_data());
 		}
 	}
-	return err;
+	return _ret_err;
 }

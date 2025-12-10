@@ -101,7 +101,7 @@ String GDScriptExporter::get_default_export_extension(const String &res_path) co
 }
 
 Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
-	Error err = OK;
+	Error _ret_err = OK;
 	{
 		String exported_resource = export_report->get_saved_path();
 		String original_compiled_resource = export_report->get_resources_used()[0];
@@ -136,5 +136,5 @@ Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, cons
 			GDRE_CHECK_EQ(bytecode_err2, OK);
 		}
 	}
-	return err;
+	return _ret_err;
 }

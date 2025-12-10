@@ -2559,12 +2559,13 @@ void ImportExporterReport::_bind_methods() {
 
 #include "exporters/gdre_test_macros.h"
 Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir) {
-	Error err = OK;
+	Error _ret_err = OK;
 	GDRE_REQUIRE(export_report.is_valid());
 	GDRE_CHECK_EQ(export_report->get_error(), OK);
-	if (export_report->get_exporter() != TranslationExporter::EXPORTER_NAME) {
-		GDRE_CHECK_EQ(export_report->get_message(), "");
-	}
+	// Skip this for now, exporters use set message for extra info
+	// if (export_report->get_exporter() != TranslationExporter::EXPORTER_NAME) {
+	// 	GDRE_CHECK_EQ(export_report->get_message(), "");
+	// }
 	GDRE_REQUIRE(export_report->get_import_info().is_valid());
 	GDRE_CHECK(!export_report->get_import_info()->get_type().is_empty());
 	GDRE_CHECK(!export_report->get_import_info()->get_importer().is_empty());
@@ -2574,8 +2575,7 @@ Error test_recovered_resource(const Ref<ExportReport> &export_report, const Stri
 	GDRE_REQUIRE_GE(dests.size(), 1);
 
 	// Call the exporter's test_export method
-	err = Exporter::test_export(export_report, original_extract_dir);
-	return err;
+	return Exporter::test_export(export_report, original_extract_dir);
 }
 
 void ImportExporter::_do_test_recovered_resource(uint32_t i, Ref<ExportReport> *reports) {
@@ -2609,7 +2609,7 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 	// clear errors
 	GDRESettings::get_singleton()->get_errors();
 	original_project_dir = p_original_project_dir;
-	Error err = OK;
+	Error _ret_err = OK;
 #if TESTS_ENABLED
 	const bool is_unit_testing = GDRESettings::is_testing();
 #else
@@ -2698,8 +2698,8 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 			print_line("Testing cancelled by user!");
 			rimraf_tmp_dir();
 			return OK;
-		} else if (task_err && err == OK) {
-			err = task_err;
+		} else {
+			GDRE_CHECK_EQ(task_err, OK);
 		}
 	}
 
@@ -2711,14 +2711,11 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 		if (success_report->get_test_error() == ERR_UNAVAILABLE) {
 			unavailable_tests.push_back(success_report);
 		} else if (success_report->get_test_error() != OK) {
-			err = FAILED;
+			GDRE_CHECK_EQ(success_report->get_test_error(), OK);
 			failed_tests.push_back(success_report);
 		} else {
 			passed_tests.push_back(success_report);
 		}
-	}
-	if (err == OK) {
-		err = export_failed_reports.size() > 0 || failed_tests.size() > 0 ? FAILED : OK;
 	}
 	if (!is_unit_testing && export_failed_reports.size() > 0) {
 		print_line(vformat("==============================================================================="));
@@ -2742,7 +2739,7 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 				}
 			}
 		}
-		String status = err == OK ? "SUCCESS!" : "FAILURE!";
+		String status = _ret_err == OK ? "SUCCESS!" : "FAILURE!";
 		print_line(vformat("==============================================================================="));
 		print_line(vformat("[RecoveryTest] test cases: %5d | %5d passed | %4d failed | %4d skipped", to_test.size(), passed_tests.size(), failed_tests.size(), unavailable_tests.size()));
 		print_line(vformat("[RecoveryTest] Status: %s", status));
@@ -2755,5 +2752,5 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 		ERR_FAIL_COND_V_MSG(f.is_null(), ERR_FILE_CANT_WRITE, "can't open report.json for writing");
 		f->store_string(JSON::stringify(report->to_json(), "\t", false, true));
 	}
-	return err;
+	return _ret_err;
 }

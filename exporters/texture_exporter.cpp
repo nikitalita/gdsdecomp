@@ -1202,7 +1202,7 @@ String TextureExporter::get_default_export_extension(const String &res_path) con
 }
 namespace {
 Error check_image_colors(const Ref<Image> &original_image, const Ref<Image> &exported_image) {
-	Error err = OK;
+	Error _ret_err = OK;
 	for (int64_t x = 0; x < original_image->get_width(); x++) {
 		for (int64_t y = 0; y < original_image->get_height(); y++) {
 			Color original_image_color = original_image->get_pixel(x, y);
@@ -1215,7 +1215,7 @@ Error check_image_colors(const Ref<Image> &original_image, const Ref<Image> &exp
 			}
 		}
 	}
-	return err;
+	return _ret_err;
 }
 } //namespace
 
@@ -1224,7 +1224,7 @@ Error check_image_colors(const Ref<Image> &original_image, const Ref<Image> &exp
 #endif
 
 Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
-	Error err = OK;
+	Error _ret_err = OK;
 	{
 		auto iinfo = export_report->get_import_info();
 		auto importer = iinfo->get_importer();
@@ -1321,5 +1321,5 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 		}
 #endif
 	}
-	return err;
+	return _ret_err;
 }
