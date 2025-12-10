@@ -338,7 +338,7 @@ void ConfigFileCompat::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("load", "path"), &ConfigFileCompat::load);
 	ClassDB::bind_method(D_METHOD("parse", "data"), &ConfigFileCompat::parse);
-	ClassDB::bind_method(D_METHOD("save", "path", "ver_major", "ver_minor"), &ConfigFileCompat::save, DEFVAL(0), DEFVAL(0), DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("save", "path", "ver_major", "ver_minor"), &ConfigFileCompat::save, DEFVAL(0), DEFVAL(0));
 
 	ClassDB::bind_method(D_METHOD("encode_to_text"), &ConfigFileCompat::encode_to_text);
 
