@@ -82,7 +82,10 @@ Ref<Script> FakeGDScript::load_base_script() const {
 
 Ref<Script> FakeGDScript::get_base_script() const {
 	if (base.is_null()) {
-		base = load_base_script();
+		auto base_script = load_base_script();
+		if (base.is_null() && base_script.is_valid()) {
+			base = base_script;
+		}
 	}
 	return base;
 }
