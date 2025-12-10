@@ -223,7 +223,7 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 		packed_scene.instantiate();
 	}
 #if ENABLE_3_X_SCENE_LOADING
-	packed_scene->_start_load("text", format_version);
+	packed_scene->_start_load(SNAME("text"), format_version);
 #endif
 
 	while (true) {
@@ -742,7 +742,7 @@ Error ResourceLoaderCompatText::load() {
 		}
 
 #if ENABLE_3_X_SCENE_LOADING
-		res->_start_load("text", format_version);
+		res->_start_load(SNAME("text"), format_version);
 #endif
 
 		Dictionary missing_resource_properties;
@@ -934,6 +934,10 @@ Error ResourceLoaderCompatText::load() {
 				resource = Ref<Resource>(r);
 			}
 		}
+
+#if ENABLE_3_X_SCENE_LOADING
+		resource->_start_load(SNAME("text"), format_version);
+#endif
 
 		Dictionary missing_resource_properties;
 
