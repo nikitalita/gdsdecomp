@@ -1,6 +1,7 @@
 #include "mp3str_exporter.h"
 #include "compat/resource_loader_compat.h"
 #include "exporters/export_report.h"
+#include "gdre_test_macros.h"
 #include "modules/minimp3/audio_stream_mp3.h"
 #include "utility/common.h"
 
@@ -70,4 +71,26 @@ String Mp3StrExporter::get_name() const {
 
 String Mp3StrExporter::get_default_export_extension(const String &res_path) const {
 	return "mp3";
+}
+
+Error Mp3StrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	Error err = OK;
+	{
+		auto dests = export_report->get_resources_used();
+		REQUIRE_GE(dests.size(), 1);
+		String pck_resource = dests[0];
+		String exported_resource = export_report->get_saved_path();
+		String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+		Ref<AudioStreamMP3> original_audio = AudioStreamMP3::load_from_file(original_import_path);
+		CHECK(original_audio.is_valid());
+		Ref<AudioStreamMP3> pck_audio = ResourceCompatLoader::non_global_load(pck_resource);
+		CHECK(pck_audio.is_valid());
+		Ref<AudioStreamMP3> exported_audio = AudioStreamMP3::load_from_file(exported_resource);
+		CHECK(exported_audio.is_valid());
+		CHECK_EQ(original_audio->get_length(), pck_audio->get_length());
+		CHECK_EQ(original_audio->get_length(), exported_audio->get_length());
+		CHECK_EQ(original_audio->get_data(), pck_audio->get_data());
+		CHECK_EQ(original_audio->get_data(), exported_audio->get_data());
+	}
+	return err;
 }

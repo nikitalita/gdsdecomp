@@ -8,12 +8,6 @@ class ImportInfo;
 namespace TestProjectExport {
 
 // change them all to declarations
-String get_original_import_path(const Ref<ExportReport> &export_report, const String &original_extract_dir);
-Error test_exported_texture_2d(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
-Error test_exported_wav(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
-Error test_exported_audio_stream_ogg_vorbis(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
-Error test_exported_mp3_audio_stream(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
-Error test_exported_gdscript(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
 Error test_json_import_info(const Ref<ImportInfo> &import_info);
 Error test_json_export_report(const Ref<ExportReport> &export_report);
 Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);

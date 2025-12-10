@@ -83,6 +83,10 @@ String ResourceExporter::get_default_export_extension(const String &res_path) co
 	ERR_FAIL_V_MSG(String(), "Not implemented");
 }
 
+Error ResourceExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	return ERR_UNAVAILABLE;
+}
+
 void ResourceExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_name"), &ResourceExporter::get_name);
 	ClassDB::bind_method(D_METHOD("supports_nonpack_export"), &ResourceExporter::supports_nonpack_export);
@@ -206,6 +210,19 @@ bool Exporter::is_exportable_resource(const String &res_path) {
 String Exporter::get_default_export_extension(const String &res_path) {
 	auto exporter = get_exporter_from_path(res_path, false);
 	return exporter.is_null() ? "" : exporter->get_default_export_extension(res_path);
+}
+
+Error Exporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) {
+	ERR_FAIL_NULL_V(export_report, ERR_BUG);
+	ERR_FAIL_NULL_V(export_report->get_import_info(), ERR_BUG);
+	String exporter_name = export_report->get_exporter();
+	ERR_FAIL_COND_V_MSG(exporter_name.is_empty(), ERR_BUG, "Exporter name is empty");
+	for (int i = 0; i < exporter_count; ++i) {
+		if (exporters[i]->get_name() == exporter_name) {
+			return exporters[i]->test_export(export_report, original_project_dir);
+		}
+	}
+	ERR_FAIL_V_MSG(ERR_BUG, "Exporter not found: " + exporter_name);
 }
 
 void Exporter::_bind_methods() {

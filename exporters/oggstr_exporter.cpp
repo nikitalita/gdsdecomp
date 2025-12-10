@@ -1,9 +1,12 @@
 #include "oggstr_exporter.h"
+#include "compat/oggstr_loader_compat.h"
 #include "compat/resource_loader_compat.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "core/io/file_access.h"
 #include "core/variant/variant.h"
+#include "exporters/export_report.h"
+#include "gdre_test_macros.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
 #include "utility/common.h"
 #include "utility/gdre_logger.h"
@@ -199,4 +202,24 @@ String OggStrExporter::get_name() const {
 
 String OggStrExporter::get_default_export_extension(const String &res_path) const {
 	return "ogg";
+}
+
+Error OggStrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	Error err = OK;
+	{
+		auto dests = export_report->get_resources_used();
+		REQUIRE_GE(dests.size(), 1);
+		String pck_resource = dests[0];
+		String exported_resource = export_report->get_saved_path();
+		String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+		Ref<AudioStreamOggVorbis> original_audio = AudioStreamOggVorbis::load_from_file(original_import_path);
+		CHECK(original_audio.is_valid());
+		Ref<AudioStreamOggVorbis> pck_audio = ResourceCompatLoader::non_global_load(pck_resource);
+		CHECK(pck_audio.is_valid());
+		Ref<AudioStreamOggVorbis> exported_audio = AudioStreamOggVorbis::load_from_file(exported_resource);
+		CHECK(exported_audio.is_valid());
+		CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), pck_audio->get_packet_sequence()->get_packet_data());
+		CHECK_EQ(original_audio->get_packet_sequence()->get_packet_data(), exported_audio->get_packet_sequence()->get_packet_data());
+	}
+	return err;
 }

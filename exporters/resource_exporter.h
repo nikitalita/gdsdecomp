@@ -22,6 +22,7 @@ public:
 	virtual bool supports_multithread() const;
 	virtual bool supports_nonpack_export() const;
 	virtual String get_default_export_extension(const String &res_path) const;
+	virtual Error test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const;
 
 	static Ref<ExportReport> _check_for_existing_resources(const Ref<ImportInfo> &iinfo);
 };
@@ -48,4 +49,5 @@ public:
 	static Ref<ResourceExporter> get_exporter_from_path(const String &res_path, bool p_nonpack_export = false);
 	static bool is_exportable_resource(const String &res_path);
 	static String get_default_export_extension(const String &res_path);
+	static Error test_export(const Ref<ExportReport> &export_report, const String &original_project_dir);
 };

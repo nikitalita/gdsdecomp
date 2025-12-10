@@ -1,9 +1,13 @@
 #include "gdscript_exporter.h"
 
+#include "bytecode/bytecode_base.h"
 #include "compat/fake_gdscript.h"
 #include "compat/fake_script.h"
 #include "core/error/error_list.h"
 #include "core/io/file_access.h"
+#include "core/variant/variant.h"
+#include "exporters/export_report.h"
+#include "gdre_test_macros.h"
 #include "utility/common.h" // For gdre namespace
 #include "utility/gdre_settings.h"
 void GDScriptExporter::_bind_methods() {
@@ -94,4 +98,39 @@ String GDScriptExporter::get_name() const {
 
 String GDScriptExporter::get_default_export_extension(const String &res_path) const {
 	return "gd";
+}
+
+Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	Error err = OK;
+	{
+		String exported_resource = export_report->get_saved_path();
+		String original_compiled_resource = export_report->get_resources_used()[0];
+		String original_script_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+
+		String original_script_text = FileAccess::get_file_as_string(original_script_path);
+		String exported_script_text = FileAccess::get_file_as_string(exported_resource);
+		auto original_bytecode = FileAccess::get_file_as_bytes(original_compiled_resource);
+		if (original_script_text.is_empty() && exported_script_text.is_empty()) {
+			return err;
+		}
+		CHECK(!original_script_text.is_empty());
+		CHECK(!exported_script_text.is_empty());
+		CHECK(!original_bytecode.is_empty());
+
+		auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
+		CHECK(decomp.is_valid());
+
+		auto compiled_original_bytecode = decomp->compile_code_string(original_script_text);
+		// Bytecode may not be exactly the same due to earlier Godot variant encoder failing to zero out the padding bytes,
+		// so we need to use the tester function to compare the bytecode.
+		Error err = decomp->test_bytecode_match(original_bytecode, compiled_original_bytecode, false, true);
+		CHECK_EQ(decomp->get_error_message(), "");
+		CHECK_EQ(err, OK);
+
+		auto compiled_exported_bytecode = decomp->compile_code_string(exported_script_text);
+		err = decomp->test_bytecode_match(original_bytecode, compiled_exported_bytecode, false, true);
+		CHECK_EQ(decomp->get_error_message(), "");
+		CHECK_EQ(err, OK);
+	}
+	return err;
 }
