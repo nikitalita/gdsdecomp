@@ -84,10 +84,12 @@ public:
 
 	void test_case_end(const doctest::CurrentTestCaseStats &) override {
 		GDRESettings::set_is_testing(false);
+#ifndef XR_DISABLED
 		if (XRServer::get_singleton() && XRServer::get_singleton() == xr_server) {
 			memdelete(xr_server);
 		}
 		xr_server = nullptr;
+#endif // XR_DISABLED
 
 		if (OS::get_singleton()->get_main_loop() == main_loop) {
 			set_main_loop(nullptr);
