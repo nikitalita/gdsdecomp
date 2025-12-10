@@ -2571,11 +2571,20 @@ void ImportExporter::_do_test_recovered_resource(uint32_t i, Ref<ExportReport> *
 	auto report = reports[i];
 
 	report->set_test_error(test_recovered_resource(report, original_project_dir));
+	Vector<String> error_messages;
 	if (!Thread::is_main_thread()) {
-		report->append_test_error_messages(GDRELogger::get_thread_errors());
+		error_messages = (GDRELogger::get_thread_errors());
 	} else {
-		report->append_test_error_messages(GDRELogger::get_errors());
+		error_messages = (GDRELogger::get_errors());
 	}
+	Vector<String> ret;
+	for (auto &err : error_messages) {
+		String lstripped = err.strip_edges(true, false);
+		if (!lstripped.begins_with("GDScript backtrace")) {
+			ret.push_back(err.strip_edges(false, true));
+		}
+	}
+	report->set_test_error_messages(ret);
 }
 
 String ImportExporter::get_test_recovered_resource_description(uint32_t i, Ref<ExportReport> *reports) {
@@ -2586,6 +2595,8 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 	if (p_original_project_dir.is_empty()) {
 		print_line("Original project directory is empty, running tests without import comparison...");
 	}
+	// clear errors
+	GDRESettings::get_singleton()->get_errors();
 	original_project_dir = p_original_project_dir;
 	Error err = OK;
 #if TESTS_ENABLED

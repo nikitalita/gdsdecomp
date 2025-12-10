@@ -1025,7 +1025,7 @@ func recovery(  input_files:PackedStringArray,
 		print("\nTesting recovery...\n")
 		err = importer.test_exported_project(test_output_dir)
 		if err != OK:
-			print("Error: failed to test recovery: " + GDRESettings.get_recent_error_string())
+			print("Recovery test failed!!")
 			return 1
 		print("Recovery test complete")
 		return 0
