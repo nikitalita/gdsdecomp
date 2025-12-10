@@ -350,6 +350,8 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 	globally_available = script_info.get("is_global_class", false);
 	global_name = globally_available ? local_name : "";
 	base_type = base_classes.size() > 0 ? base_classes[0] : "RefCounted";
+	tool = script_info.get("is_tool", false);
+	abstract = script_info.get("is_abstract", false);
 	TypedArray<Dictionary> script_properties = script_info.get("properties", TypedArray<Dictionary>());
 	TypedArray<Dictionary> signals = script_info.get("signals", TypedArray<Dictionary>());
 	TypedArray<Dictionary> methods = script_info.get("methods", TypedArray<Dictionary>());
