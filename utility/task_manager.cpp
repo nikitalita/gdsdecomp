@@ -1,4 +1,5 @@
 #include "task_manager.h"
+#include "gui/gdre_progress.h"
 #include "main/main.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
@@ -262,13 +263,17 @@ bool TaskManager::update_progress_bg(bool p_force_refresh, bool called_from_proc
 	}
 	updating_bg = true;
 	bool main_loop_iterating = false;
+	bool has_non_waiting_tasks = false;
 	bool canceled = false;
 	Vector<TaskManagerID> task_ids_to_erase;
+	bool is_headless = GDRESettings::get_singleton() && GDRESettings::get_singleton()->is_headless();
+	bool force_headless_progress = p_force_refresh && is_headless;
 	group_id_to_description.for_each_m([&](auto &v) {
 		if (v.second->is_progress_enabled() && v.second->is_started()) {
 			main_loop_iterating = true;
 			if (!v.second->is_waiting) {
-				v.second->update_progress(p_force_refresh);
+				has_non_waiting_tasks = true;
+				v.second->update_progress(force_headless_progress);
 			} else if (v.second->_is_aborted() && v.second->is_done()) {
 				task_ids_to_erase.push_back(v.first);
 			}
@@ -279,6 +284,9 @@ bool TaskManager::update_progress_bg(bool p_force_refresh, bool called_from_proc
 	});
 	for (auto &task_id : task_ids_to_erase) {
 		group_id_to_description.erase(task_id);
+	}
+	if (p_force_refresh && !is_headless && has_non_waiting_tasks && GDREProgressDialog::is_safe_to_redraw() && GDREProgressDialog::get_singleton()) {
+		GDREProgressDialog::get_singleton()->main_thread_update();
 	}
 	// this should only be called if this wasn't called from `GodotREEditorStandalone::process()` and there are tasks in the queue and none of them have progress enabled
 	if (!called_from_process && !main_loop_iterating && Thread::is_main_thread() && !MessageQueue::get_singleton()->is_flushing() && group_id_to_description.size() > 0) {
