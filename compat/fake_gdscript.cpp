@@ -460,8 +460,8 @@ Error FakeGDScript::parse_script() {
 					if (decomp->check_next_token(i, tokens, GT::G_TK_PARENTHESIS_OPEN) &&
 							decomp->check_next_token(i + 1, tokens, GT::G_TK_CONSTANT)) {
 						uint32_t string_id = tokens[i + 2] >> GDScriptDecomp::TOKEN_BITS;
-						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(string_id >= (uint32_t)identifiers.size(), "Invalid string index");
-						icon_path = identifiers[string_id];
+						FAKEGDSCRIPT_PARSE_FAIL_COND_V_MSG(string_id >= (uint32_t)constants.size(), "Invalid string index");
+						icon_path = constants[string_id];
 						if (icon_path.is_relative_path()) {
 							icon_path = script_path.get_base_dir().path_join(icon_path);
 						}
