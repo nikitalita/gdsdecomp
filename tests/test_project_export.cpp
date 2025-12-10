@@ -30,28 +30,6 @@ namespace TestProjectExport {
 		return err;
 	}
 
-	Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version) {
-		Error err = OK;
-		REQUIRE(export_report.is_valid());
-		CHECK_EQ(export_report->get_error(), OK);
-		if (export_report->get_exporter() != TranslationExporter::EXPORTER_NAME) {
-			CHECK_EQ(export_report->get_message(), "");
-		}
-		REQUIRE(export_report->get_import_info().is_valid());
-		CHECK(!export_report->get_import_info()->get_type().is_empty());
-		CHECK(!export_report->get_import_info()->get_importer().is_empty());
-		Ref<ImportInfo> import_info = export_report->get_import_info();
-
-		test_json_import_info(import_info);
-		test_json_export_report(export_report);
-		auto dests = export_report->get_resources_used();
-		REQUIRE(dests.size() >= 1);
-
-		// Call the exporter's test_export method
-		err = Exporter::test_export(export_report, original_extract_dir);
-		return err;
-	}
-
 	String get_test_projects_path() {
 		return get_gdsdecomp_path().path_join("tests/test_projects");
 	}
@@ -116,8 +94,15 @@ namespace TestProjectExport {
 		CHECK_EQ(import_report->get_failed().size(), 0);
 		auto successes = import_report->get_successes();
 		for (const auto &success : successes) {
-			test_recovered_resource(success, original_extract_dir, version);
+			Ref<ExportReport> export_report = success;
+			REQUIRE(export_report.is_valid());
+			Ref<ImportInfo> import_info = export_report->get_import_info();
+			REQUIRE(import_info.is_valid());
+			test_json_import_info(import_info);
+			test_json_export_report(export_report);
 		}
+		err = import_exporter.test_exported_project(original_extract_dir);
+		CHECK_EQ(err, OK);
 
 		GDRESettings::get_singleton()->close_log_file();
 		GDRESettings::get_singleton()->unload_project();

@@ -165,6 +165,7 @@ protected:
 
 public:
 	Error export_imports(const String &output_dir, const Vector<String> &files_to_export = {});
+	Error test_exported_project(const String &original_project_dir);
 	Ref<ImportExporterReport> get_report();
 	void reset_log();
 	void reset();

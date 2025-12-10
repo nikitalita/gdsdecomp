@@ -1194,9 +1194,13 @@ String TextureExporter::get_default_export_extension(const String &res_path) con
 Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error err = OK;
 	{
+		auto importer = export_report->get_import_info()->get_importer();
+		if (importer != "texture" && importer != "texture_2d") {
+			return ERR_UNAVAILABLE;
+		}
 		auto dests = export_report->get_resources_used();
 		GDRE_REQUIRE_GE(dests.size(), 1);
-		String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+		// String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
 		String pck_resource = dests[0];
 		String exported_resource = export_report->get_saved_path();
 
@@ -1219,13 +1223,13 @@ Error TextureExporter::test_export(const Ref<ExportReport> &export_report, const
 		}
 		for (int64_t x = 0; x < original_image->get_width(); x++) {
 			for (int64_t y = 0; y < original_image->get_height(); y++) {
-				Color c = original_image->get_pixel(x, y);
-				Color c2 = exported_image->get_pixel(x, y);
-				if (c != c2) {
-					GDRE_CHECK_EQ(c.a, 0.0);
-					GDRE_CHECK_EQ(c.a, c2.a);
+				Color original_image_color = original_image->get_pixel(x, y);
+				Color exported_image_color = exported_image->get_pixel(x, y);
+				if (original_image_color != exported_image_color) {
+					GDRE_CHECK_EQ(original_image_color.a, 0.0);
+					GDRE_CHECK_EQ(original_image_color.a, exported_image_color.a);
 				} else {
-					GDRE_CHECK_EQ(c, c2);
+					GDRE_CHECK_EQ(original_image_color, exported_image_color);
 				}
 			}
 		}

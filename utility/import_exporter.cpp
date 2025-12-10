@@ -2544,3 +2544,42 @@ void ImportExporterReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_steam_detected"), &ImportExporterReport::is_steam_detected);
 	ClassDB::bind_method(D_METHOD("is_mono_detected"), &ImportExporterReport::is_mono_detected);
 }
+
+#include "exporters/gdre_test_macros.h"
+Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir) {
+	Error err = OK;
+	GDRE_REQUIRE(export_report.is_valid());
+	GDRE_CHECK_EQ(export_report->get_error(), OK);
+	if (export_report->get_exporter() != TranslationExporter::EXPORTER_NAME) {
+		GDRE_CHECK_EQ(export_report->get_message(), "");
+	}
+	GDRE_REQUIRE(export_report->get_import_info().is_valid());
+	GDRE_CHECK(!export_report->get_import_info()->get_type().is_empty());
+	GDRE_CHECK(!export_report->get_import_info()->get_importer().is_empty());
+	Ref<ImportInfo> import_info = export_report->get_import_info();
+
+	auto dests = export_report->get_resources_used();
+	GDRE_REQUIRE_GE(dests.size(), 1);
+
+	// Call the exporter's test_export method
+	err = Exporter::test_export(export_report, original_extract_dir);
+	return err;
+}
+
+Error ImportExporter::test_exported_project(const String &original_project_dir) {
+	Error err = OK;
+	if (report.is_null() || output_dir.is_empty()) {
+		ERR_FAIL_V_MSG(ERR_BUG, "Export hasn't been run yet");
+	}
+	if (!GDRESettings::get_singleton()->is_pack_loaded()) {
+		ERR_FAIL_V_MSG(ERR_BUG, "Pack is not loaded, cannot test exported project");
+	}
+
+	GDRE_CHECK_EQ(report->get_failed().size(), 0);
+	auto successes = report->get_successes();
+	for (const auto &success : successes) {
+		test_recovered_resource(success, original_project_dir);
+	}
+
+	return err;
+}

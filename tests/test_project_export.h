@@ -10,7 +10,6 @@ namespace TestProjectExport {
 // change them all to declarations
 Error test_json_import_info(const Ref<ImportInfo> &import_info);
 Error test_json_export_report(const Ref<ExportReport> &export_report);
-Error test_recovered_resource(const Ref<ExportReport> &export_report, const String &original_extract_dir, const String &version);
 String get_test_projects_path();
 Error test_export_project(const String &version, const String &sub_project, const String &original_parent_dir, const String &exported_parent_dir);
 
