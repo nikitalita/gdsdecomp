@@ -589,9 +589,11 @@ Error FakeGDScript::parse_script() {
 				}
 			} break;
 			case GT::G_TK_PR_EXPORT: {
-				Error err = get_export_var(i);
-				if (err) {
-					return err;
+				if (!is_not_actually_reserved_word(i)) {
+					Error err = get_export_var(i);
+					if (err) {
+						return err;
+					}
 				}
 			} break;
 			case GT::G_TK_PR_TOOL: {
