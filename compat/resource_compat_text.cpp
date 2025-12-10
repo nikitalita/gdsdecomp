@@ -34,6 +34,7 @@
 #include "core/error/error_macros.h"
 #include "core/io/dir_access.h"
 #include "core/io/missing_resource.h"
+#include "scene/property_utils.h"
 
 #include "compat/variant_writer_compat.h"
 #include "core/version_generated.gen.h"
@@ -2454,15 +2455,14 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 					}
 				}
 
-#if 0
+				bool should_lookup_default_value = !is_missing_resource && ver_major == GODOT_VERSION_MAJOR && ver_minor == GODOT_VERSION_MINOR;
 				bool is_script = name == CoreStringName(script);
-				Variant default_value = is_script ? Variant() : PropertyUtils::get_property_default_value(res.ptr(), name);
-#endif
-				Variant default_value = Variant(); // save all properties, even default ones
+				Variant default_value = !should_lookup_default_value || is_script ? Variant() : PropertyUtils::get_property_default_value(res.ptr(), name);
+
 				// Except for the default "Resource" properties
-				if (pi.name == "resource_name") {
+				if (!should_lookup_default_value && pi.name == "resource_name") {
 					default_value = "";
-				} else if (pi.name == "resource_local_to_scene") {
+				} else if (!should_lookup_default_value && pi.name == "resource_local_to_scene") {
 					default_value = false;
 				}
 

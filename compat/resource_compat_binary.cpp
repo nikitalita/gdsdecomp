@@ -39,6 +39,7 @@
 #include "core/io/resource.h"
 #include "core/version.h"
 #include "core/version_generated.gen.h"
+#include "scene/property_utils.h"
 #include "scene/resources/packed_scene.h"
 
 #include "core/io/resource_format_binary.h"
@@ -2594,15 +2595,14 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 						}
 					}
 
-#if 0
-					Variant default_value = ClassDB::class_get_default_property_value(E->get_class(), F.name);
-#endif
 					// save everything by default
-					Variant default_value = Variant();
+					bool should_lookup_default_value = !is_missing_resource && ver_major == GODOT_VERSION_MAJOR && ver_minor == GODOT_VERSION_MINOR;
+					bool is_script = F.name == CoreStringName(script);
+					Variant default_value = !should_lookup_default_value || is_script ? Variant() : PropertyUtils::get_property_default_value(E.ptr(), F.name);
 					// Except for the default "Resource" properties
-					if (F.name == "resource_name") {
+					if (!should_lookup_default_value && F.name == "resource_name") {
 						default_value = "";
-					} else if (F.name == "resource_local_to_scene") {
+					} else if (!should_lookup_default_value && F.name == "resource_local_to_scene") {
 						default_value = false;
 					}
 
@@ -2622,7 +2622,9 @@ Error ResourceFormatSaverCompatBinaryInstance::save(const String &p_path, const 
 	}
 
 	// ensure an empty string is in the string map
-	get_string_index({});
+	if (ver_format < FORMAT_VERSION_NO_NODEPATH_PROPERTY) {
+		get_string_index({});
+	}
 
 	f->store_32(strings.size()); //string table size
 	for (int i = 0; i < strings.size(); i++) {
