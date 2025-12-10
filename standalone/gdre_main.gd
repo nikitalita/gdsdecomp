@@ -614,9 +614,6 @@ func _ready():
 	# If CLI arguments were passed in, just quit
 	var args = get_sanitized_args()
 	if handle_cli(args):
-		deferred_calls.push_back(func():
-			get_tree().quit(ret_code)
-		)
 		return
 
 	var new_args = []
@@ -1713,6 +1710,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			print_usage()
 			print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
 			ret_code = 1
+		get_tree().quit(ret_code)
 	)
 	return true
 
