@@ -159,7 +159,17 @@ String GDScriptDecomp::get_error_message() {
 String GDScriptDecomp::get_constant_string(const Vector<Variant> &constants, uint32_t constId) {
 	String constString;
 	GDSDECOMP_FAIL_COND_V_MSG(constId >= constants.size(), "", "Invalid constant ID.");
-	Error err = VariantWriterCompat::write_to_string_script(constants[constId], constString, get_variant_ver_major());
+	const Variant &var = constants[constId];
+	// negative decimal constants are encoded as `op_sub, num` instead of `-num` in GDScript 1.0, this is a hex number
+	if (get_bytecode_version() < GDSCRIPT_2_0_VERSION && var.get_type() == Variant::INT && var.operator int64_t() < 0) {
+		if (var.operator int64_t() < INT_MIN) {
+			constString = "0x" + String::num_uint64(var.operator uint64_t(), 16, true);
+		} else {
+			constString = "0x" + String::num_uint64(var.operator uint32_t(), 16, true);
+		}
+		return constString;
+	}
+	Error err = VariantWriterCompat::write_to_string_script(var, constString, get_variant_ver_major());
 	GDSDECOMP_FAIL_COND_V_MSG(err, "", "Error when trying to encode Variant.");
 	return constString;
 }
