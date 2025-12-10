@@ -10,8 +10,8 @@
 	if (!(__VA_ARGS__)) {                                             \
 		err = FAILED;                                                 \
 		ERR_PRINT(#__VA_ARGS__ ":" + String((Variant)(__VA_ARGS__))); \
-	}                                                                 \
-	return err;
+		return err;                                                   \
+	}
 
 // TODO: define CHECK_EQ, REQUIRE, etc.
 #define _GDRE_CHECK_EQ(a, b)                                                                           \
@@ -24,8 +24,8 @@
 	if (!(a >= b)) {                                                                               \
 		err = FAILED;                                                                              \
 		ERR_PRINT(#a "is less than" #b ":" + String((Variant)(a)) + " < " + String((Variant)(b))); \
-	}                                                                                              \
-	return err;
+		return err;                                                                                \
+	}
 
 #if TESTS_ENABLED
 #include "tests/test_macros.h"
