@@ -2122,14 +2122,17 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		bool was_silenced = _is_logger_silencing_errors();
 		_silence_errors(true);
 		other_error_messages = _get_logged_error_messages();
-		auto errors_before = _get_error_count();
+		auto errors_before_append = _get_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		_silence_errors(was_silenced);
+		auto errors_after_append = _get_error_count();
 		if (err) {
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
+
+		Vector<String> errors_before_replace_shader_materials = _get_logged_error_messages();
 
 		// remove shader materials from meshes in the state before serializing
 		if (replace_shader_materials) {
@@ -2205,15 +2208,19 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					mesh->set_instance_materials(instance_materials);
 				}
 			}
+			// clear material conversion error messages
+			other_error_messages.append_array(_get_logged_error_messages());
 		}
 
 		_silence_errors(true);
+		auto errors_before_serialize = _get_error_count();
 		err = doc->_serialize(state);
+		auto errors_after_serialize = _get_error_count();
 		_silence_errors(was_silenced);
 		GDRE_SCN_EXP_CHECK_CANCEL();
 
-		auto errors_after = _get_error_count();
-		if (errors_after > errors_before) {
+		if (errors_after_serialize > errors_before_serialize || errors_after_append > errors_before_append) {
+			gltf_serialization_error_messages.append_array(errors_before_replace_shader_materials);
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 		}
 		if (err) {
