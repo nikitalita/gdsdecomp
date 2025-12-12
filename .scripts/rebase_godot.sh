@@ -22,7 +22,7 @@ BRANCHES_TO_MERGE=(
 	fix-pack-error
 	convert-3.x-escn
 	fix-svg
-	fix-translation
+	fix-compat-array-shapes
 )
 
 for branch in "${BRANCHES_TO_MERGE[@]}"; do
