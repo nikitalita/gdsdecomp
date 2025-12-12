@@ -1744,7 +1744,7 @@ Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_mate
 		} else if (info.scope == "instance") {
 			instance_uniforms.insert(param_name);
 		}
-		if (info.scope == "sampler2D") {
+		if (info.type == "sampler2D") {
 			if (is_orm(param_name)) {
 				has_orm = true;
 			}
