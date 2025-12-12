@@ -1669,7 +1669,19 @@ bool set_param_not_in_property_list(Ref<BaseMaterial3D> p_base_material, const S
 	// if the param is not in the property list, but it does have a setter, we can set it
 	if (p_base_material->has_method(vformat("set_%s", p_param_name))) {
 		if (p_base_material->has_method(vformat("get_%s", p_param_name))) {
-			Variant base_material_val = p_base_material->call(vformat("get_%s", p_param_name));
+			String method_name = vformat("get_%s", p_param_name);
+			// check the method signature
+			List<MethodInfo> method_list;
+			p_base_material->get_method_list(&method_list);
+			for (auto &E : method_list) {
+				if (E.name == method_name) {
+					if (E.arguments.size() != 0) {
+						return false;
+					}
+					break;
+				}
+			}
+			Variant base_material_val = p_base_material->call(method_name);
 			if (base_material_val.get_type() != p_value.get_type()) {
 				return false;
 			}
