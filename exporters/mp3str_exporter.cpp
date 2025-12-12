@@ -2,7 +2,7 @@
 #include "compat/resource_loader_compat.h"
 #include "exporters/export_report.h"
 #include "gdre_test_macros.h"
-#include "modules/minimp3/audio_stream_mp3.h"
+#include "modules/mp3/audio_stream_mp3.h"
 #include "utility/common.h"
 
 Error Mp3StrExporter::export_file(const String &p_dest_path, const String &p_src_path) {
