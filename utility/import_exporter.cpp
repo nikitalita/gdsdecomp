@@ -28,7 +28,6 @@
 #include "core/io/file_access.h"
 #include "core/io/json.h"
 #include "core/os/os.h"
-#include "thirdparty/minimp3/minimp3_ex.h"
 #include "utility/import_info.h"
 
 #include <compat/script_loader.h>
