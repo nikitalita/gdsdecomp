@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=174 format=3 uid="uid://crq1fwn0ajw7b"]
+[gd_resource type="Theme" format=3 uid="uid://crq1fwn0ajw7b"]
 
 [ext_resource type="Texture2D" uid="uid://bw33q7hum6mux" path="res://gdre_icons/gdre_MaterialPreviewLight1.svg" id="1_l0g3i"]
 [ext_resource type="Texture2D" uid="uid://ducxthcvnkalf" path="res://gdre_icons/gdre_MaterialPreviewLight2.svg" id="2_b4rug"]
