@@ -86,7 +86,6 @@ class GLBExporterInstance {
 	bool remove_physics_bodies = false;
 	String output_dir;
 
-	bool exporting_in_thread = false;
 	bool canceled = false;
 
 	// set during _initial_set
@@ -122,6 +121,7 @@ class GLBExporterInstance {
 	Dictionary image_path_to_data_hash;
 	Vector<ObjExporter::MeshInfo> id_to_mesh_info;
 	Vector<Pair<String, String>> id_to_material_path;
+	HashMap<Ref<ShaderMaterial>, Ref<BaseMaterial3D>> shader_material_to_base_material_map;
 
 	// set during _set_stuff_from_instanced_scene
 	HashMap<String, Dictionary> node_options;
@@ -131,7 +131,6 @@ class GLBExporterInstance {
 	bool has_non_skeleton_transforms = false;
 	bool has_physics_nodes = false;
 	HashMap<String, MeshInstance3D *> mesh_path_to_instance_map;
-	HashMap<Ref<ShaderMaterial>, Ref<BaseMaterial3D>> shader_material_to_base_material_map;
 	String root_type;
 	String root_name;
 	bool has_lossy_images = false;
@@ -162,9 +161,6 @@ class GLBExporterInstance {
 	String add_errors_to_report(Error p_err, const String &err_msg = "");
 	void set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace);
 
-	void insert_image_map(String &name, int i);
-	void get_default_mesh_opt(bool global_opt, bool local_opt);
-
 	void _set_stuff_from_instanced_scene(Node *root);
 	Error _export_instanced_scene(Node *root, const String &p_dest_path);
 	void _update_import_params(const String &p_dest_path);
@@ -190,8 +186,6 @@ class GLBExporterInstance {
 	String demangle_name(const String &obj_name);
 
 public:
-	void _do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path);
-
 	GLBExporterInstance(String p_output_dir, Dictionary curr_options = {}, bool p_project_recovery = false);
 
 	bool had_script() const { return has_script; }
@@ -200,7 +194,6 @@ public:
 
 	bool using_threaded_load() const;
 	bool supports_multithread() const;
-	Error export_file(const String &out_path, const String &res_path, Ref<ExportReport> p_report);
 
 	Error _batch_export_instanced_scene(Node *root, const String &p_dest_path);
 

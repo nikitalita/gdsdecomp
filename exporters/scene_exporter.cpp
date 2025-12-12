@@ -2769,70 +2769,8 @@ bool GLBExporterInstance::supports_multithread() const {
 	return !Thread::is_main_thread();
 }
 
-void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path) {
-	auto pair = (Pair<Node *, String> *)p_pair_of_root_node_and_dest_path;
-	Node *root = pair->first;
-	String dest_path = pair->second;
-	err = _export_instanced_scene(root, dest_path);
-}
-
 void GLBExporterInstance::cancel() {
 	canceled = true;
-}
-
-Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
-	_initial_set(p_src_path, p_report);
-
-	if (ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
-		return ERR_UNAVAILABLE;
-	}
-
-	String dest_ext = p_dest_path.get_extension().to_lower();
-	if (dest_ext != "glb" && dest_ext != "gltf") {
-		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
-	}
-
-	err = gdre::ensure_dir(p_dest_path.get_base_dir());
-	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
-
-	{
-		Ref<PackedScene> scene;
-		err = _load_scene_and_deps(scene);
-		if (err != OK) {
-			return err;
-		}
-
-		Node *root = _instantiate_scene(scene);
-		if (!root) {
-			scene = nullptr;
-			_unload_deps();
-			return err;
-		}
-
-		_set_stuff_from_instanced_scene(root);
-		err = _export_instanced_scene(root, p_dest_path);
-		if (err != OK) {
-			return err;
-		}
-
-		memdelete(root);
-	}
-	_unload_deps();
-
-	// _export_instanced_scene should have already set the error report
-	if (err != OK) {
-		return err;
-	}
-
-	// Check if the model can be loaded; minimum validation to ensure the model is valid
-	err = _check_model_can_load(p_dest_path);
-	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "");
-
-	if (updating_import_info) {
-		_update_import_params(p_dest_path);
-	}
-
-	return _get_return_error();
 }
 
 Error GLBExporterInstance::_get_return_error() {
