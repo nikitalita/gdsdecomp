@@ -21,6 +21,8 @@ git reset --hard $HEAD
 BRANCHES_TO_MERGE=(
 	fix-pack-error
 	convert-3.x-escn
+	fix-svg
+	fix-translation
 )
 
 for branch in "${BRANCHES_TO_MERGE[@]}"; do

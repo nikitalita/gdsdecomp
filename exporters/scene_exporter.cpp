@@ -459,9 +459,9 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 	return resources;
 }
 
-inline bool _all_buffers_empty(const TypedArray<Vector<uint8_t>> &p_buffers, int start_idx = 0) {
+inline bool _all_buffers_empty(const Vector<Vector<uint8_t>> &p_buffers, int start_idx = 0) {
 	for (int i = start_idx; i < p_buffers.size(); i++) {
-		if (!p_buffers[i].operator PackedByteArray().is_empty()) {
+		if (!p_buffers[i].is_empty()) {
 			return false;
 		}
 	}
@@ -479,7 +479,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path, Vector<St
 	Array buffers;
 	Dictionary gltf_buffer;
 
-	gltf_buffer["byteLength"] = state_buffers[0].operator PackedByteArray().size();
+	gltf_buffer["byteLength"] = state_buffers[0].size();
 	buffers.push_back(gltf_buffer);
 
 	for (GLTFBufferIndex i = 1; i < state_buffers.size() - 1; i++) {
@@ -2257,7 +2257,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		{
 			auto json = state->get_json();
 			auto materials = state->get_materials();
-			Array images = state->get_images();
+			auto images = state->get_images();
 			Array json_images = json.has("images") ? (Array)json["images"] : Array();
 			HashMap<String, Vector<int>> image_map;
 			auto insert_image_map = [&](String &name, int i) {
