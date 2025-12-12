@@ -3697,7 +3697,9 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 		resync_rendering_server();
 		return false;
 	};
-	if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+	// if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+	if (true) { // TODO: On current master, multi-threaded export is causing crashes, so disabling for now
+		print_line("Forcing single-threaded scene export...");
 		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
 				this,
 				&SceneExporter::do_single_threaded_batch_export_instanced_scene,
