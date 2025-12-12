@@ -473,6 +473,7 @@ Error FakeGDScript::parse_script() {
 						if (icon_path.is_relative_path()) {
 							icon_path = script_path.get_base_dir().path_join(icon_path);
 						}
+						icon_path = icon_path.simplify_path();
 					}
 				} else if (annostr.contains("@export") && !annostr.ends_with("group") && !annostr.ends_with("category")) {
 					Error err = get_export_var(i);
