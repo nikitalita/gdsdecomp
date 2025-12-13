@@ -6,6 +6,8 @@
 #include "utility/gd_parallel_queue.h"
 #include "utility/gdre_config.h"
 
+#include <memory>
+
 struct TaskRunnerStruct {
 	virtual int get_current_task_step_value() = 0;
 	virtual String get_current_task_step_description() = 0;

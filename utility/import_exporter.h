@@ -8,6 +8,8 @@
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
 
+#include <memory>
+
 class ImportExporter;
 class ExportReport;
 struct EditorProgressGDDC;
