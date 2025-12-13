@@ -17,7 +17,7 @@ class FakeCSharpScript : public FakeScript {
 	bool is_binary = false;
 
 	Ref<GDScriptNativeClass> native;
-	Ref<Script> base;
+	mutable Ref<Script> base;
 
 	// Members are just indices to the instantiated script.
 	// HashMap<StringName, MemberInfo> member_indices; // Includes member info of all base GDScript classes.

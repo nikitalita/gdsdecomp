@@ -1,9 +1,12 @@
 #include "sample_exporter.h"
 
 #include "compat/resource_loader_compat.h"
+#include "gdre_test_macros.h"
 #include "utility/common.h"
 #include "utility/import_info.h"
 
+#include "core/string/ustring.h"
+#include "exporters/export_report.h"
 #include "scene/resources/audio_stream_wav.h"
 
 struct IMA_ADPCM_State {
@@ -281,4 +284,90 @@ String SampleExporter::get_name() const {
 
 String SampleExporter::get_default_export_extension(const String &res_path) const {
 	return "wav";
+}
+
+Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	Error _ret_err = OK;
+	{
+		auto dests = export_report->get_resources_used();
+		GDRE_REQUIRE_GE(dests.size(), 1);
+		String original_resource = dests[0];
+		String exported_resource = export_report->get_saved_path();
+		Ref<AudioStreamWAV> original_audio = ResourceCompatLoader::non_global_load(original_resource);
+		GDRE_CHECK(original_audio.is_valid());
+
+		int compressed_mode = 0;
+		switch (original_audio->get_format()) {
+			case AudioStreamWAV::FORMAT_8_BITS:
+			case AudioStreamWAV::FORMAT_16_BITS:
+				compressed_mode = 0;
+				break;
+			case AudioStreamWAV::FORMAT_IMA_ADPCM:
+				compressed_mode = 1;
+				break;
+			case AudioStreamWAV::FORMAT_QOA:
+				compressed_mode = 2;
+				break;
+			default:
+				break;
+		}
+		Dictionary options{
+			{
+					"force/8_bit",
+					false,
+			},
+			{
+					"force/mono",
+					false,
+			},
+			{
+					"force/max_rate",
+					false,
+			},
+			{
+					"force/max_rate_hz",
+					original_audio->get_mix_rate(),
+			},
+			{
+					"edit/trim",
+					false,
+			},
+			{
+					"edit/normalize",
+					false,
+			},
+			{
+					"edit/loop_mode",
+					original_audio->get_loop_mode(),
+			},
+			{
+					"edit/loop_begin",
+					original_audio->get_loop_begin(),
+			},
+			{
+					"edit/loop_end",
+					original_audio->get_loop_end(),
+			},
+			{ "compress/mode", compressed_mode },
+		};
+
+		Ref<AudioStreamWAV> exported_audio = AudioStreamWAV::load_from_file(exported_resource, options);
+		GDRE_CHECK(exported_audio.is_valid());
+		auto original_data = original_audio->get_data();
+		auto exported_data = exported_audio->get_data();
+		if (compressed_mode != 0) {
+			// both compression types are lossy, so we can't compare the data directly
+			// just check the size and return.
+			if (export_report->get_import_info()->is_import()) {
+				GDRE_CHECK_EQ(original_data.size(), exported_data.size());
+			}
+		} else {
+			String data_mismatch_error_message = gdre_test::get_error_message_for_vector_mismatch(original_data, exported_data);
+			if (!data_mismatch_error_message.is_empty()) {
+				data_mismatch_error_message = vformat("%s (ver_major: %d): %s", original_resource.get_file(), export_report->get_import_info()->get_ver_major(), data_mismatch_error_message);
+			}
+			GDRE_CHECK_EQ(data_mismatch_error_message, "");
+		}
+	}
+	return _ret_err;
 }

@@ -51,6 +51,8 @@ static const HashMap<String, String> plugin_map = {
 	{ "spine-godot-extension", "https://github.com/GDRETools/spine-runtimes" }, // this isn't distributed as an addon, so there are multiple potential names for the plugin
 	{ "sentry", "https://github.com/getsentry/sentry-godot" },
 	{ "sentrysdk", "https://github.com/getsentry/sentry-godot" },
+	{ "wwise", "https://github.com/alessandrofama/wwise-godot-integration" },
+	{ "Wwise", "https://github.com/alessandrofama/wwise-godot-integration" }
 };
 } // namespace
 GitHubSource::GitHubSource() {

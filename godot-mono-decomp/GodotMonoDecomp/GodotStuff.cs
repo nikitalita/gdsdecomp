@@ -329,10 +329,15 @@ public static class GodotStuff
 		if (scriptMetadata != null)
 		{
 			// create a map of metadata FQN to file path
-			metadataFQNToFileMap = scriptMetadata.ToDictionary(
-				pair => pair.Value.Class.GetFullClassName(),
-				pair => pair.Key,
-				StringComparer.OrdinalIgnoreCase);
+			metadataFQNToFileMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+			foreach (var pair in scriptMetadata)
+			{
+				var fqn = pair.Value.Class.GetFullClassName();
+				if (!metadataFQNToFileMap.ContainsKey(fqn))
+				{
+					metadataFQNToFileMap[fqn] = pair.Key;
+				}
+			}
 		}
 
 		excludedSubdirectories = excludedSubdirectories?.Select(e => {
@@ -1018,13 +1023,17 @@ public static class GodotStuff
 			case "String":
 			case "Vector2":
 			case "Vector2i":
+			case "Vector2I":
 			case "Rect2":
 			case "Rect2i":
+			case "Rect2I":
 			case "Vector3":
 			case "Vector3i":
+			case "Vector3I":
 			case "Transform2D":
 			case "Vector4":
 			case "Vector4i":
+			case "Vector4I":
 			case "Plane":
 			case "Quaternion":
 			case "AABB":
@@ -1140,6 +1149,18 @@ public static class GodotStuff
 				break;
 			case "godot_string_name":
 				subType = "StringName";
+				break;
+			case "Vector2I":
+				subType = "Vector2i";
+				break;
+			case "Rect2I":
+				subType = "Rect2i";
+				break;
+			case "Vector3I":
+				subType = "Vector3i";
+				break;
+			case "Vector4I":
+				subType = "Vector4i";
 				break;
 			// 3.x types
 			case "Quat":

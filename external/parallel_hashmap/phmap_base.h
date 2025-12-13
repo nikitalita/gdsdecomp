@@ -47,6 +47,7 @@
 #include <utility>
 #include <memory>
 #include <mutex> // for std::lock
+#include <cstdlib>
 
 #include "phmap_config.h"
 
@@ -423,18 +424,30 @@ namespace priv {
 template <class Policy, class = void>
 struct hash_policy_traits 
 {
+   // The type of the keys stored in the hashtable.
+   using key_type = typename Policy::key_type;
 private:
-    struct ReturnKey 
-    {
-        // We return `Key` here.
-        // When Key=T&, we forward the lvalue reference.
-        // When Key=T, we return by value to avoid a dangling reference.
-        // eg, for string_hash_map.
-        template <class Key, class... Args>
-        Key operator()(Key&& k, const Args&...) const {
-            return std::forward<Key>(k);
-        }
-    };
+   struct ReturnKey {
+      template <class Key,
+                phmap::enable_if_t<std::is_lvalue_reference<Key>::value, int> = 0>
+      static key_type& Impl(Key&& k, int) {
+         return *const_cast<key_type*>(std::addressof(std::forward<Key>(k)));
+      }
+
+      template <class Key>
+      static Key Impl(Key&& k, char) {
+         return std::forward<Key>(k);
+      }
+
+      // When Key=T&, we forward the lvalue reference.
+      // When Key=T, we return by value to avoid a dangling reference.
+      // eg, for string_hash_map.
+      template <class Key, class... Args>
+      auto operator()(Key&& k, const Args&...) const
+         -> decltype(Impl(std::forward<Key>(k), 0)) {
+         return Impl(std::forward<Key>(k), 0);
+      }
+   };
 
     template <class P = Policy, class = void>
     struct ConstantIteratorsImpl : std::false_type {};
@@ -446,9 +459,6 @@ private:
 public:
     // The actual object stored in the hash table.
     using slot_type  = typename Policy::slot_type;
-
-    // The type of the keys stored in the hashtable.
-    using key_type   = typename Policy::key_type;
 
     // The argument type for insertions into the hashtable. This is different
     // from value_type for increased performance. See initializer_list constructor
@@ -1233,22 +1243,22 @@ using ExtractOrT = typename ExtractOr<Extract, Obj, Default, void>::type;
 
 // Extractors for the features of allocators.
 template <typename T>
-using GetPointer = typename T::pointer;
+using GetPointer = typename std::allocator_traits<T>::pointer;
 
 template <typename T>
-using GetConstPointer = typename T::const_pointer;
+using GetConstPointer = typename std::allocator_traits<T>::const_pointer;
 
 template <typename T>
-using GetVoidPointer = typename T::void_pointer;
+using GetVoidPointer = typename std::allocator_traits<T>::void_pointer;
 
 template <typename T>
-using GetConstVoidPointer = typename T::const_void_pointer;
+using GetConstVoidPointer = typename std::allocator_traits<T>::const_void_pointer;
 
 template <typename T>
-using GetDifferenceType = typename T::difference_type;
+using GetDifferenceType = typename std::allocator_traits<T>::difference_type;
 
 template <typename T>
-using GetSizeType = typename T::size_type;
+using GetSizeType = typename std::allocator_traits<T>::size_type;
 
 template <typename T>
 using GetPropagateOnContainerCopyAssignment =
@@ -5007,10 +5017,10 @@ public:
     {
         void lock()            ABSL_EXCLUSIVE_LOCK_FUNCTION()        { this->Lock(); }
         void unlock()          ABSL_UNLOCK_FUNCTION()                { this->Unlock(); }
-        void try_lock()        ABSL_EXCLUSIVE_TRYLOCK_FUNCTION(true) { this->TryLock(); }
+        bool try_lock()        ABSL_EXCLUSIVE_TRYLOCK_FUNCTION(true) { return this->TryLock(); }
         void lock_shared()     ABSL_SHARED_LOCK_FUNCTION()           { this->ReaderLock(); }
         void unlock_shared()   ABSL_UNLOCK_FUNCTION()                { this->ReaderUnlock(); }
-        void try_lock_shared() ABSL_SHARED_TRYLOCK_FUNCTION(true)    { this->ReaderTryLock(); }
+        bool try_lock_shared() ABSL_SHARED_TRYLOCK_FUNCTION(true)    { return this->ReaderTryLock(); }
     };
     
     template <>

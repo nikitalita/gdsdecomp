@@ -8,6 +8,10 @@
 
 config_version=5
 
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
 [application]
 
 config/name="Godot RE Tools"
@@ -53,7 +57,6 @@ ui_find_previous={
 
 [rendering]
 
-renderer/rendering_method="forward_plus"
 textures/vram_compression/import_s3tc_bptc=true
 textures/vram_compression/import_etc2_astc=true
 environment/default_clear_color=Color(0.0784314, 0.0901961, 0.121569, 1)

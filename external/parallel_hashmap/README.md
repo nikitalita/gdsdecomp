@@ -1,2 +1,2 @@
-Taken from https://github.com/greg7mdp/parallel-hashmap/tree/master @ 2d062fc53967b978cab766c76829e2fcd8817ccc
-Jan 1, 2025
+Taken from https://github.com/greg7mdp/parallel-hashmap/tree/master @ bed008138248004245f1d9faf2661c910432d931
+Nov 26 2025

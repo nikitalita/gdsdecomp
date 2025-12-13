@@ -21,8 +21,6 @@ private:
 	Ref<ImportInfo> import_info;
 	String exporter;
 	String message;
-	String source_path;
-	String new_source_path;
 	String saved_path;
 	Vector<String> resources_used;
 	String unsupported_format_type;
@@ -33,6 +31,8 @@ private:
 	Error error = OK;
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
 	MetadataStatus rewrote_metadata = NOT_DIRTY;
+	Error test_error = OK;
+	Vector<String> test_error_messages;
 
 protected:
 	static void _bind_methods();
@@ -60,11 +60,9 @@ public:
 	}
 	Vector<String> get_resources_used() const { return resources_used; }
 
-	void set_source_path(const String &p_source_path) { source_path = p_source_path; }
-	String get_source_path() const { return source_path; }
+	String get_source_path() const { return import_info.is_valid() ? import_info->get_source_file() : ""; }
 
-	void set_new_source_path(const String &p_saved_path) { new_source_path = p_saved_path; }
-	String get_new_source_path() const { return (new_source_path.is_empty() ? source_path : new_source_path); }
+	String get_new_source_path() const { return import_info.is_valid() ? import_info->get_export_dest() : ""; }
 
 	void set_saved_path(const String &p_saved_path) { saved_path = p_saved_path; }
 	String get_saved_path() const { return saved_path; }
@@ -86,20 +84,35 @@ public:
 
 	void append_error_messages(const Vector<String> &p_error_messages) { error_messages.append_array(p_error_messages); }
 	void clear_error_messages() { error_messages.clear(); }
+	void set_error_messages(const Vector<String> &p_error_messages) { error_messages = p_error_messages; }
 	Vector<String> get_error_messages() const { return error_messages; }
 
 	void append_message_detail(const Vector<String> &p_message_detail) { message_detail.append_array(p_message_detail); }
 	void clear_message_detail() { message_detail.clear(); }
+	void set_message_detail(const Vector<String> &p_message_detail) { message_detail = p_message_detail; }
 	Vector<String> get_message_detail() const { return message_detail; }
 
 	void set_extra_info(const Dictionary &p_extra_info) { extra_info = p_extra_info; }
 	Dictionary get_extra_info() const { return extra_info; }
 
+	void set_test_error(Error p_test_error) { test_error = p_test_error; }
+	Error get_test_error() const { return test_error; }
+
+	void append_test_error_messages(const Vector<String> &p_test_error_messages) { test_error_messages.append_array(p_test_error_messages); }
+	void clear_test_error_messages() { test_error_messages.clear(); }
+	void set_test_error_messages(const Vector<String> &p_test_error_messages) { test_error_messages = p_test_error_messages; }
+	Vector<String> get_test_error_messages() const { return test_error_messages; }
+
 	String get_path() const { return import_info.is_valid() ? import_info->get_path() : ""; }
+
+	Dictionary to_json() const;
+	static Ref<ExportReport> from_json(const Dictionary &p_json);
+
+	bool is_equal_to(const Ref<ExportReport> &p_export_report) const;
 
 	ExportReport() {}
 	ExportReport(Ref<ImportInfo> p_import_info, const String &p_exporter = "") :
-			import_info(p_import_info), exporter(p_exporter), source_path(import_info.is_valid() ? p_import_info->get_source_file() : ""), new_source_path(import_info.is_valid() ? p_import_info->get_export_dest() : "") {}
+			import_info(p_import_info), exporter(p_exporter) {}
 };
 
 VARIANT_ENUM_CAST(ExportReport::MetadataStatus);

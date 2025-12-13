@@ -12,6 +12,7 @@
 #include "core/io/http_client.h"
 #include "modules/regex/regex.h"
 #include "modules/zip/zip_reader.h"
+#include "utility/gdre_logger.h"
 #include "utility/task_manager.h"
 
 namespace {
@@ -1521,6 +1522,21 @@ bool gdre::is_zip_file(const String &p_path) {
 	return header[0] == 0x50 && header[1] == 0x4b && header[2] == 0x03 && header[3] == 0x04;
 }
 
+String gdre::get_safe_dir_name(const String &p_dir_name, bool p_allow_paths) {
+	return OS::get_singleton()->get_safe_dir_name(p_dir_name, p_allow_paths);
+}
+
+Ref<Image> gdre::load_image_from_file(const String &p_path) {
+#ifdef DEBUG_ENABLED
+	GDRELogger::set_thread_local_silent_errors(true);
+#endif
+	Ref<Image> image = Image::load_from_file(p_path);
+#ifdef DEBUG_ENABLED
+	GDRELogger::set_thread_local_silent_errors(false);
+#endif
+	return image;
+}
+
 void GDRECommon::_bind_methods() {
 	//	ClassDB::bind_static_method("GLTFCamera", D_METHOD("from_node", "camera_node"), &GLTFCamera::from_node);
 
@@ -1548,4 +1564,5 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_files_at", "dir", "wildcards", "absolute"), &gdre::get_files_at);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_dirs_at", "dir", "wildcards", "absolute"), &gdre::get_dirs_at);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_recursive_dir_list_multithread", "dir", "wildcards", "absolute", "include_hidden", "exclude_filters", "files_first", "exclude_dot_prefix_and_gdignore", "show_progress"), &gdre::get_recursive_dir_list_multithread, DEFVAL(PackedStringArray()), DEFVAL(true), DEFVAL(true), DEFVAL(PackedStringArray()), DEFVAL(false), DEFVAL(false), DEFVAL(false));
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_safe_dir_name", "dir_name", "allow_paths"), &gdre::get_safe_dir_name, DEFVAL(false));
 }

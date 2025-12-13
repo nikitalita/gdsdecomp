@@ -19,6 +19,8 @@ var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
 var deferred_calls = []
 var ret_code = 0
+# TODO: This is a hack to have the CLI mode work correctly; CLI parsing needs overhauling
+var had_main = false
 
 enum PckMenuID {
 	NEW_PCK,
@@ -614,9 +616,8 @@ func _ready():
 	# If CLI arguments were passed in, just quit
 	var args = get_sanitized_args()
 	if handle_cli(args):
-		deferred_calls.push_back(func():
+		if not had_main:
 			get_tree().quit(ret_code)
-		)
 		return
 
 	var new_args = []
@@ -735,6 +736,7 @@ var MAIN_CMD_NOTES = """Main commands:
 --bin-to-txt=<FILE>                Convert binary scene or resource files to text-based format (can be repeated)
 --patch-translations=<CSV_FILE>=<SRC_PATH>    Patch translations with the specified CSV file and source path
                                                 (e.g. "/path/to/translation.csv=res://translations/translation.csv") (can be repeated)
+--setting=<SETTING_NAME>=<VALUE>   Set a configuration value for this session (can be repeated)
 --gdre-help                        Print the help message and exit
 --gdre-version                     Print the version of GDRE tools and exit
 """
@@ -865,7 +867,9 @@ func recovery(  input_files:PackedStringArray,
 				excludes: PackedStringArray = [],
 				includes: PackedStringArray = [],
 				skip_md5: bool = false,
-				csharp_assembly: String = ""):
+				csharp_assembly: String = "",
+				test_recovery: bool = false,
+				test_output_dir: String = ""):
 	var _new_files = []
 	for file in input_files:
 		file = get_cli_abs_path(file)
@@ -1011,7 +1015,9 @@ func recovery(  input_files:PackedStringArray,
 		secs_taken = (end_time - start_time) / 1000
 		print("Extraction operation complete in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
 		return 0
-	err = export_imports(output_dir, files)
+	var importer:ImportExporter = ImportExporter.new()
+	err = importer.export_imports(output_dir, files)
+
 	if err != OK and err != ERR_SKIP:
 		print("Error: failed to export imports: " + GDRESettings.get_recent_error_string())
 		return 1
@@ -1020,6 +1026,14 @@ func recovery(  input_files:PackedStringArray,
 	end_time = Time.get_ticks_msec()
 	secs_taken = (end_time - start_time) / 1000
 	print("Recovery finished in %02dm%02ds" % [(secs_taken) / 60, (secs_taken) % 60])
+	if test_recovery:
+		print("\nTesting recovery...\n")
+		err = importer.test_exported_project(test_output_dir)
+		if err != OK:
+			print("Recovery test failed!!")
+			return 1
+		print("Recovery test complete")
+		return 0
 	return 0
 
 func load_pck(input_files: PackedStringArray, extract_only: bool, includes, excludes, enc_key: String = ""):
@@ -1460,6 +1474,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 	var set_setting: bool = false
 	var patch_translations: Dictionary[String, String] = {}
 	var locales_to_patch: PackedStringArray = []
+	var test_recovery: bool = false
+	var test_output_dir: String = ""
 	if (args.size() == 0):
 		return false
 	var any_commands = false
@@ -1578,7 +1594,15 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--dump-resource-strings"):
 			GDREConfig.set_setting("Exporter/Translation/dump_resource_strings", true, true)
 			set_setting = true
-
+		elif arg.begins_with("--setting"):
+			var setting_name = split_map_arg(arg)
+			if setting_name.is_empty():
+				print_usage()
+				print("ERROR: invalid --setting format: must be <setting_name>=<value>")
+				ret_code = 1
+				return true
+			GDREConfig.set_setting(setting_name[0], setting_name[1], true)
+			set_setting = true
 		elif arg.begins_with("--patch-translations"):
 			# We can use it in combination with --pck-patch, so we need to set the pck-patch flag, we handle this below
 			main_cmds["pck-patch"] = true
@@ -1620,6 +1644,10 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif arg.begins_with("--skip-loading-resource-strings"):
 			GDREConfig.set_setting("Exporter/Translation/skip_loading_resource_strings", true, true)
 			set_setting = true
+		elif arg.begins_with("--test-recovery"):
+			test_recovery = true
+			if arg.contains("="):
+				test_output_dir = get_cli_abs_path(get_arg_value(arg))
 		else:
 			print_usage()
 			print("ERROR: invalid option '" + arg + "'")
@@ -1639,6 +1667,8 @@ func handle_cli(args: PackedStringArray) -> bool:
 
 	if set_setting and main_cmds.size() == 0:
 		return false
+
+	had_main = true
 	deferred_calls.push_back(func():
 		if prepop.size() > 0:
 			var start_time = Time.get_ticks_msec()
@@ -1678,7 +1708,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 		elif not input_file.is_empty():
 			print("Recovery started")
 			print("input_file: ", input_file)
-			ret_code = recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, skip_md5, csharp_assembly)
+			ret_code = recovery(input_file, output_dir, enc_key, false, ignore_md5, excludes, includes, skip_md5, csharp_assembly, test_recovery, test_output_dir)
 			GDRESettings.unload_project()
 			close_log()
 		elif not input_extract_file.is_empty():
@@ -1695,6 +1725,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			print_usage()
 			print("ERROR: invalid option! Must specify one of " + ", ".join(MAIN_COMMANDS))
 			ret_code = 1
+		get_tree().quit(ret_code)
 	)
 	return true
 

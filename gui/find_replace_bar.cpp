@@ -507,10 +507,10 @@ void GDREFindReplaceBar::_show_search(bool p_with_replace, bool p_show_only) {
 
 	if (focus_replace) {
 		search_text->deselect();
-		callable_mp((Control *)replace_text, &Control::grab_focus).call_deferred();
+		callable_mp((Control *)replace_text, &Control::grab_focus).call_deferred(false);
 	} else {
 		replace_text->deselect();
-		callable_mp((Control *)search_text, &Control::grab_focus).call_deferred();
+		callable_mp((Control *)search_text, &Control::grab_focus).call_deferred(false);
 	}
 
 	if (on_one_line) {

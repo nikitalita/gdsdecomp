@@ -6,6 +6,8 @@
 #include "utility/gd_parallel_queue.h"
 #include "utility/gdre_config.h"
 
+#include <memory>
+
 struct TaskRunnerStruct {
 	virtual int get_current_task_step_value() = 0;
 	virtual String get_current_task_step_description() = 0;
@@ -23,6 +25,9 @@ public:
 
 	static int64_t maximum_memory_usage;
 
+	static inline bool is_memory_usage_too_high() {
+		return (int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage;
+	}
 	class BaseTemplateTaskData {
 	protected:
 		bool dont_update_progress_bg = false;
@@ -146,10 +151,10 @@ public:
 				return true;
 			}
 			// if we're using too much memory, wait until it goes down
-			if (unlikely((int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage)) {
+			if (unlikely(is_memory_usage_too_high())) {
 				tasks_busy_waiting++;
-				while ((int64_t)OS::get_singleton()->get_static_memory_usage() > TaskManager::maximum_memory_usage) {
-					if (tasks_busy_waiting == tasks) {
+				while (is_memory_usage_too_high()) {
+					if (tasks_busy_waiting == tasks || elements - last_completed == tasks_busy_waiting) {
 						// all tasks are busy waiting, so we should break to prevent a deadlock and just deal with the potential thrashing.
 						break;
 					}

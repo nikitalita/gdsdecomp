@@ -2,15 +2,17 @@
 #define IMPORT_EXPORTER_H
 
 #include "compat/resource_import_metadatav2.h"
-#include "exporters/export_report.h"
 #include "import_info.h"
 #include "utility/godotver.h"
 
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
 
-class ImportExporter;
+#include <memory>
 
+class ImportExporter;
+class ExportReport;
+struct EditorProgressGDDC;
 class ImportExporterReport : public RefCounted {
 	GDCLASS(ImportExporterReport, RefCounted)
 	friend class ImportExporter;
@@ -20,14 +22,13 @@ class ImportExporterReport : public RefCounted {
 	bool exported_scenes = false;
 	bool show_headless_warning = false;
 	int session_files_total = 0;
+	String gdre_version;
+	String game_name;
 	String log_file_location;
+	String output_dir;
 	Vector<String> decompiled_scripts;
 	Vector<String> failed_scripts;
 	String translation_export_message;
-	Vector<Ref<ExportReport>> lossy_imports;
-	Vector<Ref<ExportReport>> rewrote_metadata;
-	Vector<Ref<ExportReport>> failed_rewrite_md;
-	Vector<Ref<ExportReport>> failed_rewrite_md5;
 	Vector<Ref<ExportReport>> failed;
 	Vector<Ref<ExportReport>> success;
 	Vector<Ref<ExportReport>> not_converted;
@@ -40,6 +41,7 @@ class ImportExporterReport : public RefCounted {
 	bool opt_lossy = true;
 
 public:
+	constexpr static const int REPORT_VERSION = 1;
 	void set_ver(String p_ver);
 	String get_ver();
 	void set_lossy_opt(bool lossy) {
@@ -63,6 +65,10 @@ public:
 	Vector<String> get_decompiled_scripts();
 	Vector<String> get_failed_scripts();
 	String get_translation_export_message();
+	Vector<Ref<ExportReport>> _get_lossy_imports() const;
+	Vector<Ref<ExportReport>> _get_rewrote_metadata() const;
+	Vector<Ref<ExportReport>> _get_failed_rewrite_md() const;
+	Vector<Ref<ExportReport>> _get_failed_rewrite_md5() const;
 	TypedArray<ExportReport> get_lossy_imports() const;
 	TypedArray<ExportReport> get_rewrote_metadata() const;
 	TypedArray<ExportReport> get_failed_rewrite_md() const;
@@ -78,12 +84,15 @@ public:
 	bool is_mono_detected() const;
 
 	void print_report();
-	ImportExporterReport() {
-		set_ver("0.0.0");
-	}
-	ImportExporterReport(String p_ver) {
-		set_ver(p_ver);
-	}
+	String get_gdre_version() const;
+	ImportExporterReport();
+	ImportExporterReport(const String &p_ver, const String &p_game_name);
+
+	Dictionary to_json() const;
+	String _to_string() override;
+	static Ref<ImportExporterReport> from_json(const Dictionary &p_json);
+
+	bool is_equal_to(const Ref<ImportExporterReport> &p_import_exporter_report) const;
 
 protected:
 	static void _bind_methods();
@@ -93,6 +102,7 @@ struct FileInfoComparator;
 class ImportExporter : public RefCounted {
 	GDCLASS(ImportExporter, RefCounted)
 	String output_dir;
+	String original_project_dir;
 
 	friend FileInfoComparator;
 
@@ -147,17 +157,21 @@ class ImportExporter : public RefCounted {
 	void report_unsupported_resource(const String &type, const String &format_name, const String &importer, const String &import_path);
 	Error remove_remap_and_autoconverted(const String &src, const String &dst);
 	void rewrite_metadata(ExportToken &token);
-	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path);
+	Error unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, const String &zip_path, Vector<String> &output_dirs);
 	Error _reexport_translations(Vector<ExportToken> &non_multithreaded_tokens, size_t token_size, Ref<EditorProgressGDDC> pr);
 	void recreate_uid_file(const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
 	Error recreate_plugin_config(const String &plugin_cfg_path);
 	Error recreate_plugin_configs();
+
+	void _do_test_recovered_resource(uint32_t i, Ref<ExportReport> *reports);
+	String get_test_recovered_resource_description(uint32_t i, Ref<ExportReport> *reports);
 
 protected:
 	static void _bind_methods();
 
 public:
 	Error export_imports(const String &output_dir, const Vector<String> &files_to_export = {});
+	Error test_exported_project(const String &original_project_dir);
 	Ref<ImportExporterReport> get_report();
 	void reset_log();
 	void reset();

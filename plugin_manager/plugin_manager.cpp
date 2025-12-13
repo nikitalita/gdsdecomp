@@ -205,6 +205,7 @@ Dictionary PluginManager::get_plugin_info(const String &plugin_name, const Vecto
 			return plugin_version.to_json();
 		}
 	}
+	print_line(vformat("No plugin download url found for plugin %s, hashes: %s", plugin_name, String(", ").join(hashes)));
 
 	return Dictionary();
 }

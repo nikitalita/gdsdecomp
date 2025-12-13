@@ -10,6 +10,7 @@
 #include "modules/gltf/extensions/physics/gltf_document_extension_physics.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
+#include "modules/regex/regex.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/occluder_instance_3d.h"
 #include "scene/3d/physics/rigid_body_3d.h"
@@ -458,9 +459,9 @@ HashSet<Ref<Resource>> _find_resources(const Variant &p_variant, bool p_main, in
 	return resources;
 }
 
-inline bool _all_buffers_empty(const TypedArray<Vector<uint8_t>> &p_buffers, int start_idx = 0) {
+inline bool _all_buffers_empty(const Vector<Vector<uint8_t>> &p_buffers, int start_idx = 0) {
 	for (int i = start_idx; i < p_buffers.size(); i++) {
-		if (!p_buffers[i].operator PackedByteArray().is_empty()) {
+		if (!p_buffers[i].is_empty()) {
 			return false;
 		}
 	}
@@ -478,7 +479,7 @@ Error _encode_buffer_glb(Ref<GLTFState> p_state, const String &p_path, Vector<St
 	Array buffers;
 	Dictionary gltf_buffer;
 
-	gltf_buffer["byteLength"] = state_buffers[0].operator PackedByteArray().size();
+	gltf_buffer["byteLength"] = state_buffers[0].size();
 	buffers.push_back(gltf_buffer);
 
 	for (GLTFBufferIndex i = 1; i < state_buffers.size() - 1; i++) {
@@ -1464,7 +1465,39 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			List<StringName> anim_names;
 			anim_lib->get_animation_list(&anim_names);
 			if (ver_major <= 3 && anim_names.size() > 0) {
+				Ref<RegEx> mesh_surface_re = RegEx::create_from_string(":mesh:surface_(\\d+)");
 				// force re-compute animation tracks.
+				for (auto &anim_name : anim_names) {
+					Ref<Animation> anim = anim_lib->get_animation(anim_name);
+					auto info = ResourceInfo::get_info_from_resource(anim);
+					ERR_CONTINUE(!info.is_valid());
+					constexpr const char *converted_paths_from_3_x = "converted_paths_from_3.x";
+					if (info->extra.get(converted_paths_from_3_x, false)) {
+						continue;
+					}
+					size_t num_tracks = anim->get_track_count();
+					for (size_t i = 0; i < num_tracks; i++) {
+						String str_path = String(anim->track_get_path(i));
+						if (str_path.contains(":mesh:surface_")) {
+							// replace the number after surface_ with one lower (surface properties are 1-indexed in 3.x, but 0-indexed in 4.0)
+							Ref<RegExMatch> match = mesh_surface_re->search(str_path);
+							if (match.is_valid()) {
+								int surface_index = match->get_string(1).to_int();
+								surface_index--;
+								str_path = mesh_surface_re->sub(str_path, ":mesh:surface_" + String::num_int64(surface_index));
+							}
+						}
+						if (str_path.contains(":material/")) {
+							str_path = str_path.replace(":material/", ":surface_material_override/");
+						}
+						if (str_path.contains(":shader_param/")) {
+							str_path = str_path.replace(":shader_param/", ":shader_parameter/");
+						}
+						anim->track_set_path(i, str_path);
+					}
+					info->extra.set(converted_paths_from_3_x, true);
+				}
+
 				player->set_current_animation(anim_names.front()->get());
 				player->advance(0);
 				player->set_current_animation(current_anmation);
@@ -1636,7 +1669,19 @@ bool set_param_not_in_property_list(Ref<BaseMaterial3D> p_base_material, const S
 	// if the param is not in the property list, but it does have a setter, we can set it
 	if (p_base_material->has_method(vformat("set_%s", p_param_name))) {
 		if (p_base_material->has_method(vformat("get_%s", p_param_name))) {
-			Variant base_material_val = p_base_material->call(vformat("get_%s", p_param_name));
+			String method_name = vformat("get_%s", p_param_name);
+			// check the method signature
+			List<MethodInfo> method_list;
+			p_base_material->get_method_list(&method_list);
+			for (auto &E : method_list) {
+				if (E.name == method_name) {
+					if (E.arguments.size() != 0) {
+						return false;
+					}
+					break;
+				}
+			}
+			Variant base_material_val = p_base_material->call(method_name);
 			if (base_material_val.get_type() != p_value.get_type()) {
 				return false;
 			}
@@ -1656,7 +1701,7 @@ struct UniformInfo {
 	String hint;
 };
 
-Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
+Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
 	// we need to manually create a BaseMaterial3D from the shader material
 	// We do this by getting the shader uniforms and then mapping them to the BaseMaterial3D properties
 	// We also need to handle the texture parameters and features
@@ -1699,7 +1744,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		} else if (info.scope == "instance") {
 			instance_uniforms.insert(param_name);
 		}
-		if (info.scope == "sampler2D") {
+		if (info.type == "sampler2D") {
 			if (is_orm(param_name)) {
 				has_orm = true;
 			}
@@ -1956,6 +2001,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 		if (candidates.size() == 1) {
 			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
 			set_texture = true;
+			set_params[candidates[0].first] = candidates[0].second;
 			continue;
 		}
 		bool set_this_texture = false;
@@ -1965,6 +2011,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 					base_material->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, E.second);
 					set_texture = true;
 					set_this_texture = true;
+					set_params[E.first] = E.second;
 				} else if (E.first.contains("emissi") && set_this_texture) {
 					// push this back to the emission candidates
 					base_material_texture_candidates[BaseMaterial3D::TEXTURE_EMISSION].push_back(E);
@@ -1976,6 +2023,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 					base_material->set_texture(BaseMaterial3D::TEXTURE_NORMAL, E.second);
 					set_texture = true;
 					set_this_texture = true;
+					set_params[E.first] = E.second;
 				}
 			}
 		}
@@ -1983,6 +2031,7 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 			// just use the first one
 			base_material->set_texture(BaseMaterial3D::TextureParam(i), candidates[0].second);
 			set_texture = true;
+			set_params[candidates[0].first] = candidates[0].second;
 		}
 	}
 	if (shader_uniforms.has("brightness") && p_shader_material->get_shader_parameter("brightness").get_type() == Variant::FLOAT) {
@@ -2007,7 +2056,14 @@ Pair<Ref<BaseMaterial3D>, bool> convert_shader_material_to_base_material(Ref<Sha
 	// set the path to the shader material's path so that we can add it to the external deps found if necessary
 	base_material->set_path_cache(p_shader_material->get_path());
 
-	return { base_material, set_texture };
+	bool set_instance_uniforms = false;
+	for (auto &E : set_params) {
+		if (instance_uniforms.has(E.key)) {
+			set_instance_uniforms = true;
+			break;
+		}
+	}
+	return { base_material, { set_texture, set_instance_uniforms } };
 }
 
 // TODO: handle Godot version <= 4.2 image naming scheme?
@@ -2078,14 +2134,17 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		bool was_silenced = _is_logger_silencing_errors();
 		_silence_errors(true);
 		other_error_messages = _get_logged_error_messages();
-		auto errors_before = _get_error_count();
+		auto errors_before_append = _get_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		_silence_errors(was_silenced);
+		auto errors_after_append = _get_error_count();
 		if (err) {
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 			GDRE_SCN_EXP_FAIL_V_MSG(ERR_COMPILATION_FAILED, "Failed to append scene " + source_path + " to glTF document");
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
+
+		Vector<String> errors_before_replace_shader_materials = _get_logged_error_messages();
 
 		// remove shader materials from meshes in the state before serializing
 		if (replace_shader_materials) {
@@ -2104,29 +2163,38 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					for (int surface_i = 0; surface_i < im->get_surface_count(); surface_i++) {
 						Ref<ShaderMaterial> shader_material;
 						Ref<BaseMaterial3D> base_material;
-						Pair<Ref<BaseMaterial3D>, bool> base_material_pair;
+						;
 						if (surface_i < instance_materials.size()) {
 							shader_material = instance_materials[surface_i];
 						} else {
 							shader_material = im->get_surface_material(surface_i);
 						}
 						if (shader_material.is_valid()) {
-							base_material_pair = convert_shader_material_to_base_material(shader_material, instance);
-							if (!base_material_pair.second) {
-								base_material = im->get_surface_material(surface_i);
-								if (!base_material.is_valid()) {
-									Ref<ShaderMaterial> surface_shader_material = im->get_surface_material(surface_i);
-									if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
-										auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
-										if (new_material_pair.second) {
-											shader_material = surface_shader_material;
-											base_material_pair = new_material_pair;
+							if (shader_material_to_base_material_map.has(shader_material)) {
+								base_material = shader_material_to_base_material_map[shader_material];
+							} else {
+								Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> base_material_pair = convert_shader_material_to_base_material(shader_material, instance);
+								if (!base_material_pair.second.first) {
+									base_material = im->get_surface_material(surface_i);
+									if (!base_material.is_valid()) {
+										Ref<ShaderMaterial> surface_shader_material = im->get_surface_material(surface_i);
+										if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
+											auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
+											if (new_material_pair.second.first) {
+												shader_material = surface_shader_material;
+												base_material_pair = new_material_pair;
+											}
 										}
 									}
 								}
-							}
-							if (!base_material.is_valid()) {
-								base_material = base_material_pair.first;
+								if (!base_material.is_valid()) {
+									base_material = base_material_pair.first;
+								}
+								// We don't want to cache it if it has instance uniforms that were actually used,
+								// since they will need to be created per-instance
+								if (base_material.is_valid() && !base_material_pair.second.second) {
+									shader_material_to_base_material_map[shader_material] = base_material;
+								}
 							}
 							if (base_material.is_valid()) {
 								if (surface_i < instance_materials.size()) {
@@ -2143,7 +2211,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 							Ref<ShaderMaterial> shader_material = instance_materials[i];
 							if (shader_material.is_valid()) {
 								auto new_material_pair = convert_shader_material_to_base_material(shader_material);
-								if (new_material_pair.second) {
+								if (new_material_pair.second.first) {
 									instance_materials[i] = new_material_pair.first;
 								}
 							}
@@ -2152,15 +2220,19 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					mesh->set_instance_materials(instance_materials);
 				}
 			}
+			// clear material conversion error messages
+			other_error_messages.append_array(_get_logged_error_messages());
 		}
 
 		_silence_errors(true);
+		auto errors_before_serialize = _get_error_count();
 		err = doc->_serialize(state);
+		auto errors_after_serialize = _get_error_count();
 		_silence_errors(was_silenced);
 		GDRE_SCN_EXP_CHECK_CANCEL();
 
-		auto errors_after = _get_error_count();
-		if (errors_after > errors_before) {
+		if (errors_after_serialize > errors_before_serialize || errors_after_append > errors_before_append) {
+			gltf_serialization_error_messages.append_array(errors_before_replace_shader_materials);
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 		}
 		if (err) {
@@ -2185,7 +2257,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		{
 			auto json = state->get_json();
 			auto materials = state->get_materials();
-			Array images = state->get_images();
+			auto images = state->get_images();
 			Array json_images = json.has("images") ? (Array)json["images"] : Array();
 			HashMap<String, Vector<int>> image_map;
 			auto insert_image_map = [&](String &name, int i) {
@@ -2640,7 +2712,14 @@ Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const Stri
 
 Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 	auto errors_before = _get_error_count();
+	// Instantiation of older scenes will spam warnings about deprecated features (this doesn't affect the error count or retrieving the logged error messages)
+	if (ver_major <= 3) {
+		_silence_errors(true);
+	}
 	Node *root = scene->instantiate();
+	if (ver_major <= 3) {
+		_silence_errors(false);
+	}
 	auto errors_after = _get_error_count();
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
 	if (errors_after > errors_before) {
@@ -2655,6 +2734,7 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 }
 
 Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
+	MeshInstance3D::upgrading_skeleton_compat = true;
 	err = _load_deps();
 	if (err != OK) {
 		return err;
@@ -2664,11 +2744,18 @@ Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
 
 Error GLBExporterInstance::_load_scene(Ref<PackedScene> &r_scene) {
 	auto mode_type = ResourceCompatLoader::get_default_load_type();
+	// loading older scenes will spam warnings about deprecated features
+	if (ver_major <= 3) {
+		_silence_errors(true);
+	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
 	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
 		r_scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
 	} else {
 		r_scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+	if (ver_major <= 3) {
+		_silence_errors(false);
 	}
 	if (err || !r_scene.is_valid()) {
 		r_scene = nullptr;
@@ -2682,70 +2769,8 @@ bool GLBExporterInstance::supports_multithread() const {
 	return !Thread::is_main_thread();
 }
 
-void GLBExporterInstance::_do_export_instanced_scene(void *p_pair_of_root_node_and_dest_path) {
-	auto pair = (Pair<Node *, String> *)p_pair_of_root_node_and_dest_path;
-	Node *root = pair->first;
-	String dest_path = pair->second;
-	err = _export_instanced_scene(root, dest_path);
-}
-
 void GLBExporterInstance::cancel() {
 	canceled = true;
-}
-
-Error GLBExporterInstance::export_file(const String &p_dest_path, const String &p_src_path, Ref<ExportReport> p_report) {
-	_initial_set(p_src_path, p_report);
-
-	if (ver_major < SceneExporter::MINIMUM_GODOT_VER_SUPPORTED) {
-		return ERR_UNAVAILABLE;
-	}
-
-	String dest_ext = p_dest_path.get_extension().to_lower();
-	if (dest_ext != "glb" && dest_ext != "gltf") {
-		ERR_FAIL_V_MSG(ERR_UNAVAILABLE, "Only .glb, and .gltf formats are supported for export.");
-	}
-
-	err = gdre::ensure_dir(p_dest_path.get_base_dir());
-	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "Failed to ensure directory " + p_dest_path.get_base_dir());
-
-	{
-		Ref<PackedScene> scene;
-		err = _load_scene_and_deps(scene);
-		if (err != OK) {
-			return err;
-		}
-
-		Node *root = _instantiate_scene(scene);
-		if (!root) {
-			scene = nullptr;
-			_unload_deps();
-			return err;
-		}
-
-		_set_stuff_from_instanced_scene(root);
-		err = _export_instanced_scene(root, p_dest_path);
-		if (err != OK) {
-			return err;
-		}
-
-		memdelete(root);
-	}
-	_unload_deps();
-
-	// _export_instanced_scene should have already set the error report
-	if (err != OK) {
-		return err;
-	}
-
-	// Check if the model can be loaded; minimum validation to ensure the model is valid
-	err = _check_model_can_load(p_dest_path);
-	GDRE_SCN_EXP_FAIL_COND_V_MSG(err, ERR_FILE_CORRUPT, "");
-
-	if (updating_import_info) {
-		_update_import_params(p_dest_path);
-	}
-
-	return _get_return_error();
 }
 
 Error GLBExporterInstance::_get_return_error() {
@@ -3003,7 +3028,6 @@ struct BatchExportToken : public TaskRunnerStruct {
 		// Non-original path, save it under .assets, which won't be picked up for import by the godot editor
 		if (!to_text && !to_obj && non_gltf) {
 			new_path = new_path.replace("res://", "res://.assets/").get_basename() + ".glb";
-			report->set_new_source_path(new_path);
 		}
 		ver_major = p_iinfo->get_ver_major();
 		scene_size = FileAccess::get_size(p_iinfo->get_path());
@@ -3063,7 +3087,6 @@ struct BatchExportToken : public TaskRunnerStruct {
 		auto da = DirAccess::create_for_path(new_dest_base_dir);
 		if (da.is_valid() && da->rename(p_dest_path, new_dest) == OK) {
 			report->get_import_info()->set_export_dest(new_export_dest);
-			report->set_new_source_path(new_export_dest);
 			report->set_saved_path(new_dest);
 			Dictionary extra_info = report->get_extra_info();
 			if (extra_info.has("external_buffer_paths")) {
@@ -3281,7 +3304,6 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 		}
 		if (!iinfo.is_valid()) {
 			Ref<ExportReport> report = memnew(ExportReport(nullptr, EXPORTER_NAME));
-			report->set_source_path(res_path);
 			if (!is_resource) {
 				report->set_message(res_path + " is not a valid resource.");
 				report->set_error(ERR_INVALID_PARAMETER);
@@ -3321,6 +3343,7 @@ Ref<ExportReport> SceneExporter::export_file_with_options(const String &out_path
 		unregister_physics_extension();
 	}
 	auto token = std::make_shared<BatchExportToken>(out_path.get_base_dir(), iinfo, options);
+	token->set_export_dest(token->get_export_dest().get_basename() + "." + opath.get_extension());
 	token->p_dest_path = opath;
 	if (non_gltf) {
 		token->report->append_message_detail({ "Attempting to export to non-GLTF format, saving to " + opath });
@@ -3553,9 +3576,31 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	perf_print(vformat("Number of threads to use for scene export: %d\n", (int64_t)number_of_threads));
 
 	Vector<uint64_t> deltas;
+	Vector<uint64_t> abnormal_deltas;
+	Vector<uint64_t> resync_deltas;
+	constexpr size_t MAX_DELTA_COUNT = 1000000;
+	resync_deltas.reserve(MAX_DELTA_COUNT);
 
-	// auto last_print_time = OS::get_singleton()->get_ticks_usec();
-	// auto last_warn_time = OS::get_singleton()->get_ticks_usec();
+	auto average_out_delta = [&](Vector<uint64_t> &deltas) {
+		if (deltas.size() >= MAX_DELTA_COUNT) {
+			auto avg = get_average_delta(deltas);
+			deltas.clear();
+			deltas.resize(100);
+			deltas.fill(avg);
+			deltas.reserve(MAX_DELTA_COUNT);
+		}
+	};
+	auto resync_rendering_server = [&]() {
+		auto start_tick = OS::get_singleton()->get_ticks_usec();
+		RS::get_singleton()->sync();
+		auto current_tick = OS::get_singleton()->get_ticks_usec();
+		auto delta = current_tick - start_tick;
+		resync_deltas.push_back(delta);
+		if (delta > 1) {
+			abnormal_deltas.push_back(delta);
+		}
+		average_out_delta(resync_deltas);
+	};
 	auto _get_vram_usage = [&]() {
 #if 0 // RS::get_singleton()->texture_debug_usage() is causing segfaults if we have the export thread pool running, so disabling for now
 		auto start_tick = OS::get_singleton()->get_ticks_usec();
@@ -3572,19 +3617,27 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			perf_print("Took " + itos(delta / 1000) + "ms to get VRAM usage!!");
 			last_warn_time = current_tick;
 		}
-		if (deltas.size() > 10000) {
-			auto avg = get_average_delta(deltas);
-			deltas.clear();
-			deltas.resize(100);
-			deltas.fill(avg);
-		}
+		average_out_delta(deltas);
 #endif
 		return current_vram_usage;
 	};
 
 	Error err = OK;
 	auto export_start_time = OS::get_singleton()->get_ticks_msec();
-	if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+	auto last_update_time = export_start_time;
+
+	auto ensure_progress = [&]() {
+		auto current_time = OS::get_singleton()->get_ticks_usec();
+		if (current_time - last_update_time >= 10000) {
+			last_update_time = current_time;
+			return TaskManager::get_singleton()->update_progress_bg(true);
+		}
+		resync_rendering_server();
+		return false;
+	};
+	// if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
+	if (true) { // TODO: On current master, multi-threaded export is causing crashes, so disabling for now
+		print_line("Forcing single-threaded scene export...");
 		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
 				this,
 				&SceneExporter::do_single_threaded_batch_export_instanced_scene,
@@ -3607,6 +3660,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 				number_of_threads,
 				true);
 
+		int starve_count = 0;
 		for (int64_t i = 0; i < tokens.size(); i++) {
 			auto &token = tokens[i];
 			if (token->batch_preload()) {
@@ -3615,20 +3669,26 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			}
 			// Don't load more than the current number of tasks being processed
 			_get_vram_usage();
+			auto start_wait = OS::get_singleton()->get_ticks_msec();
+			auto last_warn_time = 0;
 			while (BatchExportToken::in_progress >= number_of_threads ||
 					(BatchExportToken::in_progress > 0 &&
-							((int64_t)OS::get_singleton()->get_static_memory_usage() > max_usage ||
+							(TaskManager::is_memory_usage_too_high() ||
 									current_vram_usage > MAX_VRAM))) {
-				auto start_tick = OS::get_singleton()->get_ticks_usec();
-				if (TaskManager::get_singleton()->update_progress_bg(true)) {
+				if (ensure_progress()) {
 					break;
 				}
 				_get_vram_usage();
-				auto cur_tick = OS::get_singleton()->get_ticks_usec();
-				auto delta = cur_tick - start_tick;
-				if (delta < 10000 && delta > 1000) {
-					OS::get_singleton()->delay_usec(10000 - delta);
+				if (start_wait + 10000 < OS::get_singleton()->get_ticks_msec()) {
+					if (last_warn_time == 0) {
+						perf_print(vformat("\n*** STALL WARNING %d ***", ++starve_count));
+					}
+					if (last_warn_time + 1000 < OS::get_singleton()->get_ticks_msec()) {
+						perf_print(vformat("Scene export stalled: %d/%d threads running, memory starved: %s", BatchExportToken::in_progress + 0, number_of_threads, TaskManager::is_memory_usage_too_high() ? "yes" : "no"));
+						last_warn_time = OS::get_singleton()->get_ticks_msec();
+					}
 				}
+				OS::get_singleton()->delay_usec(1000);
 			}
 			// calling update_progress_bg serves three purposes:
 			// 1) updating the progress bar
@@ -3640,21 +3700,18 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 			}
 		}
 		while (!TaskManager::get_singleton()->is_current_task_completed(task_id)) {
-			auto start_tick = OS::get_singleton()->get_ticks_usec();
 			_get_vram_usage();
-			if (TaskManager::get_singleton()->update_progress_bg(true)) {
+			if (ensure_progress()) {
 				break;
 			}
-			auto cur_tick = OS::get_singleton()->get_ticks_usec();
-			auto delta = cur_tick - start_tick;
-			if (delta < 10000 && delta > 1000) {
-				OS::get_singleton()->delay_usec(delta);
-			}
+			OS::get_singleton()->delay_usec(1000);
 		}
 		err = TaskManager::get_singleton()->wait_for_task_completion(task_id);
 
 		// get the average delta
 		uint64_t average_delta = get_average_delta(deltas);
+		uint64_t average_resync_delta = get_average_delta(resync_deltas);
+		perf_print(vformat("Average time to resync rendering server: %.02fms", (double)average_resync_delta / 1000.0));
 		perf_print(vformat("Average time to get VRAM usage: %.02fms", (double)average_delta / 1000.0));
 		perf_print(vformat("Peak VRAM usage: %.02fMB", (double)peak_vram_usage / (double)ONE_MB));
 	}

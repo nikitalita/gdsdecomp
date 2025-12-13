@@ -1,7 +1,8 @@
 #include "mp3str_exporter.h"
 #include "compat/resource_loader_compat.h"
 #include "exporters/export_report.h"
-#include "modules/minimp3/audio_stream_mp3.h"
+#include "gdre_test_macros.h"
+#include "modules/mp3/audio_stream_mp3.h"
 #include "utility/common.h"
 
 Error Mp3StrExporter::export_file(const String &p_dest_path, const String &p_src_path) {
@@ -70,4 +71,29 @@ String Mp3StrExporter::get_name() const {
 
 String Mp3StrExporter::get_default_export_extension(const String &res_path) const {
 	return "mp3";
+}
+
+Error Mp3StrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
+	Error _ret_err = OK;
+	{
+		auto dests = export_report->get_resources_used();
+		GDRE_REQUIRE_GE(dests.size(), 1);
+		String pck_resource = dests[0];
+		String exported_resource = export_report->get_saved_path();
+		Ref<AudioStreamMP3> pck_audio = ResourceCompatLoader::non_global_load(pck_resource);
+		GDRE_CHECK(pck_audio.is_valid());
+		Ref<AudioStreamMP3> exported_audio = AudioStreamMP3::load_from_file(exported_resource);
+		GDRE_CHECK(exported_audio.is_valid());
+		GDRE_CHECK_EQ(pck_audio->get_length(), exported_audio->get_length());
+		GDRE_CHECK_VECTOR_EQ(pck_audio->get_data(), exported_audio->get_data());
+
+		if (!original_project_dir.is_empty()) {
+			String original_import_path = original_project_dir.path_join(export_report->get_import_info()->get_source_file().trim_prefix("res://"));
+			Ref<AudioStreamMP3> original_audio = AudioStreamMP3::load_from_file(original_import_path);
+			GDRE_CHECK(original_audio.is_valid());
+			GDRE_CHECK_EQ(original_audio->get_length(), exported_audio->get_length());
+			GDRE_CHECK_VECTOR_EQ(original_audio->get_data(), exported_audio->get_data());
+		}
+	}
+	return _ret_err;
 }
