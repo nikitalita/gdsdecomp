@@ -43,11 +43,14 @@ void GDRELogger::logv(const char *p_format, va_list p_list, bool p_err) {
 	va_list list_copy;
 	va_copy(list_copy, p_list);
 	int len = vsnprintf(buf, static_buf_size, p_format, list_copy);
-	if (len >= static_buf_size) {
-		buf = (char *)Memory::alloc_static(len + 1);
-		vsnprintf(buf, len + 1, p_format, list_copy);
-	}
 	va_end(list_copy);
+	if (len >= static_buf_size) {
+		va_list list_copy2;
+		va_copy(list_copy2, p_list);
+		buf = (char *)Memory::alloc_static(len + 1);
+		vsnprintf(buf, len + 1, p_format, list_copy2);
+		va_end(list_copy2);
+	}
 
 	bool is_gdscript_backtrace = false;
 	bool is_stacktrace = false;
