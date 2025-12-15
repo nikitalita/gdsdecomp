@@ -34,7 +34,7 @@
 #include "utility/task_manager.h"
 
 #ifndef MAKE_GLTF_COPY
-#define MAKE_GLTF_COPY 1
+#define MAKE_GLTF_COPY 0
 #endif
 #ifndef PRINT_PERF_CSV
 #define PRINT_PERF_CSV 0
