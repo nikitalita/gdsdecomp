@@ -1705,8 +1705,10 @@ Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_mate
 	// we need to manually create a BaseMaterial3D from the shader material
 	// We do this by getting the shader uniforms and then mapping them to the BaseMaterial3D properties
 	// We also need to handle the texture parameters and features
+	ERR_FAIL_COND_V_MSG(p_shader_material.is_null(), {}, "ShaderMaterial is NULL");
 	List<StringName> list;
 	Ref<Shader> shader = p_shader_material->get_shader();
+	ERR_FAIL_COND_V_MSG(shader.is_null(), {}, "Shader on ShaderMaterial is NULL: " + p_shader_material->get_path());
 	List<PropertyInfo> prop_list;
 	List<PropertyInfo> uniform_list;
 	HashSet<String> shader_uniforms;
