@@ -963,9 +963,7 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 				line += "const ";
 			} break;
 			case G_TK_PR_VAR: {
-				if (line != String() && prev_token != G_TK_PR_ONREADY) {
-					line += " ";
-				}
+				ensure_space_func();
 				line += "var ";
 			} break;
 			case G_TK_PR_AS: {
