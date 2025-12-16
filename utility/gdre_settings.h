@@ -114,6 +114,7 @@ public:
 		String pack_file;
 		int bytecode_revision = 0;
 		bool suspect_version = false;
+		bool detected_csharp = false;
 		String assembly_path;
 		Ref<GodotMonoDecompWrapper> decompiler;
 		String assembly_temp_dir;
@@ -246,6 +247,8 @@ private:
 
 	// Initializes the bytecode revision from the ephemeral settings if `force_bytecode_revision` is set
 	bool _init_bytecode_from_ephemeral_settings();
+
+	void _detect_csharp();
 
 protected:
 	static void _bind_methods();
