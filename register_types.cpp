@@ -51,6 +51,7 @@
 #include "exporters/translation_exporter.h"
 #include "gui/find_replace_bar.h"
 #include "gui/gdre_window.h"
+#include "gui/gui_icons.h"
 #include "gui/mesh_previewer.h"
 #include "gui/scene_previewer.h"
 #include "plugin_manager/asset_library_source.h"
@@ -85,6 +86,7 @@ static GDRESettings *gdre_singleton = nullptr;
 static GDREAudioStreamPreviewGenerator *audio_stream_preview_generator = nullptr;
 static TaskManager *task_manager = nullptr;
 static GDREConfig *gdre_config = nullptr;
+static GDREGuiIcons *gui_icons = nullptr;
 // TODO: move this to its own thing
 static Ref<ResourceFormatLoaderCompatText> text_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatBinary> binary_loader = nullptr;
@@ -503,6 +505,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 
 	ClassDB::register_class<ConfigFileCompat>();
 
+	gui_icons = memnew(GDREGuiIcons);
+
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
@@ -545,4 +549,8 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	}
 	deinit_plugin_manager_sources();
 	free_ver_regex();
+	if (gui_icons) {
+		memdelete(gui_icons);
+		gui_icons = nullptr;
+	}
 }

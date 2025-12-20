@@ -1,41 +1,14 @@
 #include "find_replace_bar.h"
-#include "core/variant/array.h"
-#include "editor/gdre_icons.gen.h"
-#include "utility/gdre_settings.h"
-#ifdef MODULE_SVG_ENABLED
-#include "modules/svg/image_loader_svg.h"
-#endif
+
 #include "core/input/input_map.h"
 #include "core/input/shortcut.h"
 #include "core/os/keyboard.h"
+#include "core/variant/array.h"
+#include "gui/gui_icons.h"
 #include "scene/resources/image_texture.h"
+#include "utility/gdre_settings.h"
 
-namespace {
-// TODO: move this elsewhere
-static Ref<ImageTexture> generate_icon(int p_index, float scale = 1.0) {
-	Ref<Image> img = memnew(Image);
-
-#ifdef MODULE_SVG_ENABLED
-	// Upsample icon generation only if the scale isn't an integer multiplier.
-	// Generating upsampled icons is slower, and the benefit is hardly visible
-	// with integer scales.
-	ImageLoaderSVG img_loader;
-	img_loader.create_image_from_string(img, gdre_icons_sources[p_index], scale, false, false);
-#endif
-
-	return ImageTexture::create_from_image(img);
-}
-
-Ref<ImageTexture> get_gdre_icon(const StringName &p_name, float scale = 1.0) {
-	for (int i = 0; i < gdre_icons_count; i++) {
-		if (gdre_icons_names[i] == p_name) {
-			return generate_icon(i, scale);
-		}
-	}
-	return nullptr;
-}
-
-} //namespace
+#include "gui/gdre_icons.gen.h"
 
 void GDREFindReplaceBar::_notification(int p_what) {
 	switch (p_what) {
@@ -46,9 +19,9 @@ void GDREFindReplaceBar::_notification(int p_what) {
 		// 	[[fallthrough]];
 		// }
 		case NOTIFICATION_READY: {
-			find_prev->set_button_icon(get_gdre_icon(SNAME("MoveUp")));
-			find_next->set_button_icon(get_gdre_icon(SNAME("MoveDown")));
-			hide_button->set_button_icon(get_gdre_icon(SNAME("Close")));
+			find_prev->set_button_icon(GDREGuiIcons::get_icon(SNAME("MoveUp"), get_theme_default_base_scale()));
+			find_next->set_button_icon(GDREGuiIcons::get_icon(SNAME("MoveDown"), get_theme_default_base_scale()));
+			hide_button->set_button_icon(GDREGuiIcons::get_icon(SNAME("Close"), get_theme_default_base_scale()));
 			_update_toggle_replace_button(replace_text->is_visible_in_tree());
 		} break;
 
@@ -493,7 +466,7 @@ void GDREFindReplaceBar::_update_toggle_replace_button(bool p_replace_visible) {
 		return;
 	}
 	StringName rtl_compliant_arrow = is_layout_rtl() ? SNAME("GuiTreeArrowLeft") : SNAME("GuiTreeArrowRight");
-	toggle_replace_button->set_button_icon(get_gdre_icon(p_replace_visible ? SNAME("GuiTreeArrowDown") : rtl_compliant_arrow));
+	toggle_replace_button->set_button_icon(GDREGuiIcons::get_icon(p_replace_visible ? SNAME("GuiTreeArrowDown") : rtl_compliant_arrow, get_theme_default_base_scale()));
 }
 
 void GDREFindReplaceBar::_show_search(bool p_with_replace, bool p_show_only) {
@@ -903,7 +876,7 @@ GDREFindReplaceBar::GDREFindReplaceBar() {
 
 	case_sensitive = memnew(Button);
 	hbc_option_search->add_child(case_sensitive);
-	case_sensitive->set_button_icon(get_gdre_icon(SNAME("CaseSensitive"), 2.0));
+	case_sensitive->set_button_icon(GDREGuiIcons::get_icon(SNAME("CaseSensitive"), get_theme_default_base_scale() * 2.0));
 	case_sensitive->set_tooltip_text(TTRC("Match Case"));
 	case_sensitive->set_flat(true);
 	case_sensitive->set_theme_type_variation("FlatMenuButton");
@@ -914,7 +887,7 @@ GDREFindReplaceBar::GDREFindReplaceBar() {
 	whole_words = memnew(Button);
 	hbc_option_search->add_child(whole_words);
 	whole_words->set_tooltip_text(TTRC("Whole Words"));
-	whole_words->set_button_icon(get_gdre_icon(SNAME("WholeWord"), 2.0));
+	whole_words->set_button_icon(GDREGuiIcons::get_icon(SNAME("WholeWord"), get_theme_default_base_scale() * 2.0));
 	whole_words->set_flat(true);
 	whole_words->set_theme_type_variation("FlatMenuButton");
 	whole_words->set_toggle_mode(true);
