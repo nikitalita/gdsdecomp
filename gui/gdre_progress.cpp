@@ -348,9 +348,9 @@ bool GDREProgressDialog::is_safe_to_redraw() {
 }
 
 void GDREProgressDialog::add_task(const String &p_task, const String &p_label, int p_steps, bool p_can_cancel) {
-	ERR_FAIL_COND_MSG(tasks.contains(p_task), "Task '" + p_task + "' already exists.");
-	Task t = { p_task, p_label, p_steps, p_can_cancel, p_steps == -1 };
-	tasks.try_emplace_l(p_task, [=](TaskMap::value_type &v) {}, t);
+	bool exists = tasks.try_emplace_l(p_task, [](auto &v) {}, Task{ p_task, p_label, p_steps, p_can_cancel, p_steps == -1 });
+	ERR_FAIL_COND_MSG(!exists, "Task '" + p_task + "' already exists.");
+
 	canceled = false;
 	if (!is_safe_to_redraw()) {
 		return;
@@ -360,15 +360,15 @@ void GDREProgressDialog::add_task(const String &p_task, const String &p_label, i
 }
 
 bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, int p_step, bool p_force_redraw) {
-	ERR_FAIL_COND_V(!tasks.contains(p_task), canceled);
 	bool is_main_thread = is_safe_to_redraw();
 	bool do_update = p_force_redraw;
-	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
+	bool exists = tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
 		t.second.set_step(p_state, p_step, p_force_redraw);
 		if (is_main_thread) {
 			do_update = do_update || t.second.should_redraw(OS::get_singleton()->get_ticks_usec());
 		}
 	});
+	ERR_FAIL_COND_V_MSG(!exists, canceled, "Task '" + p_task + "' does not exist.");
 	if (do_update && is_main_thread) {
 		main_thread_update();
 	}
@@ -377,13 +377,13 @@ bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, 
 }
 
 void GDREProgressDialog::task_set_length(const String &p_task, bool p_indeterminate, int p_new_amount) {
-	ERR_FAIL_COND(!tasks.contains(p_task));
-	tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
+	bool exists = tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
 		t.second.set_indeterminate(p_indeterminate);
 		if (p_new_amount != -1) {
 			t.second.set_length(p_new_amount);
 		}
 	});
+	ERR_FAIL_COND_MSG(!exists, "Task '" + p_task + "' does not exist.");
 	if (is_safe_to_redraw()) {
 		main_thread_update();
 	}
