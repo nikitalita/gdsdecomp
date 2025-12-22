@@ -34,6 +34,7 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 {
 
 	TextWriter tw;
+	private bool isDict = false;
 
 	public GodotExpressionOutputVisitor(TextWriter w, CSharpFormattingOptions formattingOptions)
 		: base(new GodotExpressionTokenWriter(w), formattingOptions)
@@ -283,11 +284,15 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 	{
 		StartNode(objectCreateExpression);
 		WriteKeyword(ObjectCreateExpression.NewKeywordRole);
-		objectCreateExpression.Type.AcceptVisitor(this);
+		var typename = GodotStuff.CSharpTypeToGodotType(objectCreateExpression.Type.ToString());
 
 		bool useParenthesis = objectCreateExpression.Arguments.Any() || objectCreateExpression.Initializer.IsNull;
-		var typename = GodotStuff.CSharpTypeToGodotType(objectCreateExpression.Type.ToString());
 		bool isPackedArray = typename.StartsWith("Packed");
+		isDict = typename.StartsWith("Dictionary");
+		if (!(isDict && !useParenthesis))
+		{
+			objectCreateExpression.Type.AcceptVisitor(this);
+		}
 
 		// also use parenthesis if there is an '(' token
 		if (!objectCreateExpression.LParToken.IsNull)
@@ -304,6 +309,7 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 			LPar();
 		}
 		objectCreateExpression.Initializer.AcceptVisitor(this);
+		isDict = false;
 		if (!useParenthesis && isPackedArray)
 		{
 			RPar();
@@ -354,7 +360,13 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 			writer.WriteToken(Roles.Identifier, typename);
 			LPar();
 		}
+		else if (typename.StartsWith("Dictionary"))
+		{
+			// Dictionary expressions are written like this: { key: value, key2: value2 }
+			isDict = true;
+		}
 		arrayCreateExpression.Initializer.AcceptVisitor(this);
+		isDict = false;
 		if (typename.StartsWith("Packed"))
 		{
 			RPar();
@@ -378,19 +390,53 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 		// 	arrayInitializerExpression.Elements.Single().AcceptVisitor(this);
 		// }
 		// else
+		if (!isDict)
 		{
 			PrintArrayInitializerElements(arrayInitializerExpression.Elements);
+		} else {
+			PrintDictionaryInitializerElements(arrayInitializerExpression.Elements);
 		}
 		EndNode(arrayInitializerExpression);
+	}
+
+	protected void PrintDictionaryInitializerElements(AstNodeCollection<Expression> elements)
+	{
+		WriteToken(Roles.LBrace);
+		foreach (var (idx, node) in elements.WithIndex())
+		{
+			// it's an array initalizer expression
+			if (node is ArrayInitializerExpression arrayInitializer && arrayInitializer.Elements.Count == 2)
+			{
+				foreach (var (eidx, expr) in arrayInitializer.Elements.WithIndex())
+				{
+					if (eidx == 1)
+					{
+						writer.WriteToken(Roles.Colon, ":");
+						Space();
+					}
+					expr.AcceptVisitor(this);
+				}
+			}
+			else
+			{
+				node.AcceptVisitor(this);
+			}
+			if (idx < elements.Count - 1)
+			{
+				Comma(node, noSpaceAfterComma: false);
+				Space();
+			}
+		}
+		WriteToken(Roles.RBrace);
 	}
 
 	protected void PrintArrayInitializerElements(AstNodeCollection<Expression> elements)
 	{
 		bool wrapAlways = policy.ArrayInitializerWrapping == Wrapping.WrapAlways
-		                  || (elements.Count > 1 && elements.Any(e => !IsSimpleExpression(e)))
-		                  || elements.Any(IsComplexExpression);
+						  || (elements.Count > 1 && elements.Any(e => !IsSimpleExpression(e)))
+						  || elements.Any(IsComplexExpression);
 		bool wrap = wrapAlways
-		            || elements.Count > 10;
+					|| elements.Count > 10;
 		// OpenBrace(wrap ? policy.ArrayInitializerBraceStyle : BraceStyle.EndOfLine, newLine: wrap);
 		WriteToken(Roles.LBracket);
 		if (!wrap)
@@ -426,7 +472,8 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 				case ThisReferenceExpression _:
 				case PrimitiveExpression _:
 				case IdentifierExpression _:
-				case MemberReferenceExpression {
+				case MemberReferenceExpression
+				{
 					Target: ThisReferenceExpression
 					or IdentifierExpression
 					or BaseReferenceExpression
