@@ -28,7 +28,7 @@ static inline Ref<ImageTexture> generate_icon(int p_index, float scale) {
 
 	return ImageTexture::create_from_image(img);
 }
-}
+} //namespace
 
 int get_icon_index(const StringName &p_name) {
 	for (int i = 0; i < gdre_icons_count; i++) {
@@ -67,7 +67,7 @@ void GDREGuiIcons::init() {
 		return;
 	}
 	// We have to initialize the svg renderer first because the `svg` module is initialized after the `gdsdecomp` module (alphabetical order).
-	Vector<float> scales = {1.0 };
+	Vector<float> scales = { 1.0 };
 	auto fallback_scale = ThemeDB::get_singleton()->get_fallback_base_scale();
 	if (!scales.has(fallback_scale)) {
 		scales.push_back(fallback_scale);
@@ -97,7 +97,6 @@ void GDREGuiIcons::init_for_scale(float scale) {
 		icons[scale][gdre_icons_names[i]] = generate_icon(i, scale);
 	}
 }
-
 
 void GDREGuiIcons::add_icons_to_theme(Control *p_theme) {
 	auto scale = p_theme->get_theme_default_base_scale();

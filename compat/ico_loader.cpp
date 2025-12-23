@@ -244,7 +244,6 @@ Error ImageLoaderICO::load_embedded_image(const IconEntry &p_icon_entry, Ref<Ima
 	bmp_header.bmp_file_header.bmp_file_padding = 0;
 	bmp_header.bmp_file_header.bmp_file_offset = BITMAP_FILE_HEADER_SIZE + info_header_size + color_table_size;
 
-
 	// 	The height of the BMP image must be twice the height declared in the image directory. This is because the actual image data will contain two parts: the actual image immediately followed by a 1 bit mask of the same size as the image used to determine which pixels will be drawn.
 	// The mask has to align to a DWORD (32 bits) and should be packed with 0s. A 0 pixel means 'the corresponding pixel in the image will be drawn' and a 1 means 'ignore this pixel'. The pixel colour is either explicit for 24 and 32 bit versions (which do not have colour tables), indexed for the other depths (1,2,4,8,16) in table of a four byte (BGRA) colours that follows the BITMAPINFOHEADER.
 	// For 1 bit, typically the two colours are #00000000 and #00FFFFFF and the A channel is ignored.
@@ -258,13 +257,11 @@ Error ImageLoaderICO::load_embedded_image(const IconEntry &p_icon_entry, Ref<Ima
 	int64_t data_offset = info_header_size + color_table_size;
 	int64_t data_size = p_data.size() - data_offset;
 	int64_t actual_image_size = bmp_header.bmp_info_header.bmp_size_image;
-	if (data_size < actual_image_size){
+	if (data_size < actual_image_size) {
 		// TODO: handle masks? Just ignore it for now.
 	}
 
-
 	// BMP height is actually twice the actual height, so we need to divide by 2
-
 
 	Ref<FileAccessBuffer> file_access = FileAccessBuffer::create();
 	file_access->reserve(bmp_header.bmp_file_header.bmp_file_size);
