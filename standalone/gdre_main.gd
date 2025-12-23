@@ -11,9 +11,9 @@ var isHiDPI = false
 var gdre_recover = preload("res://gdre_recover.tscn")
 var gdre_new_pck = preload("res://gdre_new_pck.tscn")
 var gdre_patch_pck = preload("res://gdre_patch_pck.tscn")
-var RECOVERY_DIALOG: GDRERecoverDialog = null
-var NEW_PCK_DIALOG: GDRENewPck = null
-var PATCH_PCK_DIALOG: GDREPatchPCK = null
+@onready var RECOVERY_DIALOG: GDRERecoverDialog = %GdreRecover
+@onready var NEW_PCK_DIALOG: GDRENewPck = %GdreNewPck
+@onready var PATCH_PCK_DIALOG: GDREPatchPCK = %GdrePatchPck
 var _file_dialog: Window = null
 var last_dir: String = ""
 var REAL_ROOT_WINDOW = null
@@ -71,10 +71,7 @@ func _on_re_editor_standalone_dropped_files(files: PackedStringArray):
 const ERR_SKIP = 45
 
 func _on_recovery_done():
-	if RECOVERY_DIALOG:
-		RECOVERY_DIALOG.hide_win()
-		#get_tree().get_root().remove_child(RECOVERY_DIALOG)
-		#RECOVERY_DIALOG = null
+	RECOVERY_DIALOG.hide_win()
 
 
 
@@ -188,11 +185,6 @@ func close_recover_file_dialog():
 
 
 func launch_recovery_window(paths: PackedStringArray):
-	setup_new_pck_window()
-	#RECOVERY_DIALOG = gdre_recover.instantiate()
-	#RECOVERY_DIALOG.set_root_window(REAL_ROOT_WINDOW)
-	#REAL_ROOT_WINDOW.add_child(RECOVERY_DIALOG)
-	#REAL_ROOT_WINDOW.move_child(RECOVERY_DIALOG, self.get_index() -1)
 	var err = RECOVERY_DIALOG.add_project(paths)
 	if err != OK:
 		var error_msg = GDRESettings.get_recent_error_string()
@@ -203,24 +195,10 @@ func launch_recovery_window(paths: PackedStringArray):
 
 	RECOVERY_DIALOG.show_win()
 
-func setup_new_pck_window():
-	pass
-
-	if not RECOVERY_DIALOG:
-		RECOVERY_DIALOG = $GdreRecover
-	if not NEW_PCK_DIALOG:
-		NEW_PCK_DIALOG = $GdreNewPck
-	if not PATCH_PCK_DIALOG:
-		PATCH_PCK_DIALOG = $GdrePatchPck
-
-
-
 func launch_new_pck_window():
-	setup_new_pck_window()
 	NEW_PCK_DIALOG.show_win()
 
 func launch_patch_pck_window():
-	setup_new_pck_window()
 	PATCH_PCK_DIALOG.show_win()
 
 func _on_recover_project_files_selected(paths: PackedStringArray):
@@ -257,7 +235,6 @@ func open_setenc_window():
 
 
 func setup_file_dialog():
-	setup_new_pck_window()
 	# pop open a file dialog
 	_file_dialog = FileDialog.new()
 	_file_dialog.set_use_native_dialog(true)
