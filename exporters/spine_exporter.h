@@ -17,6 +17,8 @@ public:
 
 class SpineSkeletonExporter : public ResourceExporter {
 	GDCLASS(SpineSkeletonExporter, ResourceExporter);
+
+public:
 	static constexpr const char *const EXPORTER_NAME = "SpineSkeleton";
 
 	virtual String get_name() const override;
