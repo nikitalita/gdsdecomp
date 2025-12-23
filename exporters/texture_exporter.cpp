@@ -4,6 +4,7 @@
 #include "compat/resource_loader_compat.h"
 #include "core/version_generated.gen.h"
 #include "gdre_test_macros.h"
+#include "scene/resources/dpi_texture.h"
 #include "utility/common.h"
 
 #include "core/error/error_list.h"
@@ -984,6 +985,31 @@ Error TextureExporter::_convert_layered_2d(const String &p_path, const String &d
 	return OK;
 }
 
+Error TextureExporter::_convert_svg(const String &p_path, const String &dest_path, Ref<ExportReport> report) {
+	Error err;
+	Ref<DPITexture> tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
+	if (err == ERR_UNAVAILABLE) {
+		print_line("Did not convert deprecated SVG resource " + p_path);
+		return err;
+	}
+	String source = tex->get_source();
+	ERR_FAIL_COND_V_MSG(source.is_empty(), ERR_FILE_CORRUPT, "SVG source is empty: " + p_path);
+	auto fa = FileAccess::open(dest_path, FileAccess::WRITE);
+	ERR_FAIL_COND_V_MSG(fa.is_null(), ERR_FILE_CANT_WRITE, "Cannot write to file: " + dest_path);
+	fa->store_string(source);
+	fa->close();
+	if (report.is_valid() && report->get_import_info().is_valid() && report->get_import_info()->get_ver_major() >= 4) {
+		Dictionary params;
+		Ref<ResourceInfo> res_info = ResourceInfo::get_info_from_resource(tex);
+		params["base_scale"] = tex->get_base_scale();
+		params["saturation"] = tex->get_saturation();
+		params["color_map"] = tex->get_color_map();
+		params["compress"] = res_info.is_valid() ? res_info->is_compressed : true;
+		report->get_import_info()->set_params(params);
+	}
+	return OK;
+}
+
 Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
 	String path = iinfo->get_path();
 	String source = iinfo->get_source_file();
@@ -1040,6 +1066,8 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 			return report;
 		}
 	}
+	String importer = iinfo->get_importer();
+
 	// for Godot 2.x resources, we can easily rewrite the metadata to point to a renamed file with a different extension,
 	// but this isn't the case for 3.x and greater, so we have to save in the original (lossy) format.
 	String source_ext = source.get_extension().to_lower();
@@ -1085,7 +1113,6 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 
 	Error err = OK;
 	String img_format = "bitmap";
-	String importer = iinfo->get_importer();
 	String dest_path = output_dir.path_join(iinfo->get_export_dest().replace("res://", ""));
 	if (importer == "image") {
 		ResourceFormatLoaderImage rli;
@@ -1119,6 +1146,8 @@ Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref
 		err = _convert_3d(path, dest_path, lossy, img_format, report);
 	} else if (importer == "texture" || importer == "texture_2d") {
 		err = _convert_tex(path, dest_path, lossy, img_format, report);
+	} else if (importer == "svg") {
+		err = _convert_svg(path, dest_path, report);
 	} else {
 		report->set_error(ERR_UNAVAILABLE);
 		report->set_message("Unsupported texture importer: " + importer);
@@ -1176,6 +1205,7 @@ void TextureExporter::get_handled_types(List<String> *out) const {
 	out->push_back("CompressedCubemap");
 	out->push_back("CompressedCubemapArray");
 	out->push_back("TextureArray");
+	out->push_back("DPITexture");
 }
 
 void TextureExporter::get_handled_importers(List<String> *out) const {
@@ -1191,6 +1221,7 @@ void TextureExporter::get_handled_importers(List<String> *out) const {
 	out->push_back("cubemap_array_texture");
 	out->push_back("texture_3d");
 	out->push_back("3d_texture");
+	out->push_back("svg");
 }
 
 String TextureExporter::get_name() const {

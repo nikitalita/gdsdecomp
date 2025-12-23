@@ -8,6 +8,7 @@ class TextureExporter : public ResourceExporter {
 	Error _convert_tex(const String &p_path, const String &p_dst, bool lossy, String &image_format, Ref<ExportReport> report = nullptr);
 	Error _convert_atex(const String &p_path, const String &p_dst, bool lossy, String &image_format, Ref<ExportReport> report = nullptr);
 	Error _convert_bitmap(const String &p_path, const String &p_dst, bool lossy, Ref<ExportReport> report = nullptr);
+	Error _convert_svg(const String &p_path, const String &p_dst, Ref<ExportReport> report = nullptr);
 
 	static Ref<Image> load_image_from_bitmap(const String p_path, Error *r_err);
 	Error _convert_3d(const String &p_path, const String &p_dst, bool lossy, String &image_format, Ref<ExportReport> report = nullptr);
