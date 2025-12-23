@@ -1356,21 +1356,26 @@ Vector<String> GDRESettings::get_pack_paths() const {
 
 String GDRESettings::localize_path(const String &p_path, const String &resource_dir) const {
 	String res_path = resource_dir != "" ? resource_dir : project_path;
+#ifdef TOOLS_ENABLED
+	if (res_path.is_empty() && Engine::get_singleton()->is_editor_hint()) {
+		res_path = ProjectSettings::get_singleton()->get_resource_path();
+	}
+#endif
 
 	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
 		return p_path.simplify_path();
 	}
 	if (!res_path.is_empty() && p_path.simplify_path().begins_with(res_path)) {
-		return p_path.replace(res_path, "res://");
+		return p_path.replace(res_path, "res://").simplify_path();
 	}
 	if ((p_path.is_absolute_path())) {
 		if (!res_path.is_empty()) {
 			if (p_path.begins_with(res_path)) {
-				return p_path.replace(res_path, "res://");
+				return p_path.replace(res_path, "res://").simplify_path();
 			}
 			String path = p_path.simplify_path();
 			if (path.begins_with(res_path)) {
-				return path.replace(res_path, "res://");
+				return path.replace(res_path, "res://").simplify_path();
 			}
 		}
 		if (is_pack_loaded() && (res_path == "" || !p_path.begins_with(res_path))) {
@@ -1399,7 +1404,7 @@ String GDRESettings::localize_path(const String &p_path, const String &resource_
 			//just tack on a "res://" here
 			return "res://" + p_path;
 		}
-		return p_path;
+		return p_path.simplify_path();
 	}
 
 	Ref<DirAccess> dir = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
@@ -1443,6 +1448,11 @@ String GDRESettings::localize_path(const String &p_path, const String &resource_
 
 String GDRESettings::globalize_path(const String &p_path, const String &resource_dir) const {
 	String res_path = resource_dir != "" ? resource_dir : project_path;
+#ifdef TOOLS_ENABLED
+	if (res_path.is_empty() && Engine::get_singleton()->is_editor_hint()) {
+		res_path = ProjectSettings::get_singleton()->get_resource_path();
+	}
+#endif
 
 	if (p_path.begins_with("res://")) {
 		if (res_path != "") {
@@ -1951,6 +1961,11 @@ ResourceUID::ID GDRESettings::get_uid_for_path(const String &p_path) const {
 	path_to_uid.if_contains(p_path, [&](const ParallelFlatHashMap<String, ResourceUID::ID>::value_type &e) {
 		id = e.second;
 	});
+#ifdef TOOLS_ENABLED
+	if (id == ResourceUID::INVALID_ID && Engine::get_singleton()->is_editor_hint()) {
+		id = ResourceUID::get_singleton()->get_path_id(p_path);
+	}
+#endif
 	//
 	// if (id == ResourceUID::INVALID_ID) {
 	// 	auto src_iinfo = get_import_info_by_dest(p_path);
