@@ -12,6 +12,7 @@
 #include "modules/gltf/structures/gltf_node.h"
 #include "modules/regex/regex.h"
 #include "scene/3d/mesh_instance_3d.h"
+#include "scene/3d/navigation/navigation_region_3d.h"
 #include "scene/3d/occluder_instance_3d.h"
 #include "scene/3d/physics/rigid_body_3d.h"
 #include "scene/3d/physics/static_body_3d.h"
@@ -1159,20 +1160,17 @@ Dictionary get_default_node_options() {
 	return dict;
 }
 
-Dictionary get_node_options(Node *p_node) {
+Dictionary get_node_options(Node *p_node, HashSet<Node *> *r_generated_nodes = nullptr) {
 	Dictionary node_options_dict = Dictionary();
 
 	MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(p_node);
 	AnimationPlayer *animation_player = Object::cast_to<AnimationPlayer>(p_node);
+	Skeleton3D *skeleton = Object::cast_to<Skeleton3D>(p_node);
 	Ref<Script> script = p_node->get_script();
-	if (!mesh_instance && !animation_player) {
+	if (!mesh_instance && !animation_player && !skeleton) {
 		String type_name;
 		if (script.is_valid()) {
 			type_name = script->get_global_name();
-			// TODO: fix FakeScript to not put the path in the global name if it doesn't have a class_name
-			if (type_name.begins_with("res://")) {
-				type_name = "";
-			}
 		}
 		if (type_name.is_empty()) {
 			type_name = p_node->get_class();
@@ -1212,19 +1210,24 @@ Dictionary get_node_options(Node *p_node) {
 			body_type = SceneExporterEnums::BODY_TYPE_DYNAMIC;
 		}
 		for (auto &child : p_node->get_children()) {
-			if (Object::cast_to<StaticBody3D>(child)) {
-				auto static_body = Object::cast_to<StaticBody3D>(child);
+			if (auto static_body = Object::cast_to<StaticBody3D>(child); static_body) {
 				physics_body_node = static_body;
 				physics_material_override = static_body->get_physics_material_override();
 				body_type = SceneExporterEnums::BODY_TYPE_STATIC;
 				mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_MESH_AND_STATIC_COLLIDER;
 			}
 			// navmesh
-			if (Object::cast_to<NavigationMesh>(child)) {
+			if (auto navmesh = Object::cast_to<NavigationRegion3D>(child); navmesh) {
+				if (r_generated_nodes) {
+					r_generated_nodes->insert(navmesh);
+				}
 				navmesh_mode = SceneExporterEnums::NAVMESH_MESH_AND_NAVMESH;
 			}
 			// occluder
 			if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(child); occluder_instance) {
+				if (r_generated_nodes) {
+					r_generated_nodes->insert(occluder_instance);
+				}
 				occlusion_simplification_distance = occluder_instance->get_bake_simplification_distance();
 				occluder_mode = SceneExporterEnums::OCCLUDER_MESH_AND_OCCLUDER;
 			}
@@ -1238,6 +1241,12 @@ Dictionary get_node_options(Node *p_node) {
 			physics_layer_bits = physics_body_node->get_collision_layer();
 			physics_mask_bits = physics_body_node->get_collision_mask();
 			TypedArray<Node> physics_nodes = p_node->find_children("*", "CollisionObject3D");
+			if (r_generated_nodes) {
+				r_generated_nodes->insert(physics_body_node);
+				for (auto &E : physics_nodes) {
+					r_generated_nodes->insert(Object::cast_to<Node>(E.operator Object *()));
+				}
+			}
 			if (physics_nodes.size() > 1) {
 				// easy, it's decomposing convex
 				shape_type = SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX;
@@ -1306,6 +1315,10 @@ Dictionary get_node_options(Node *p_node) {
 			node_options_dict["occluder/simplification_distance"] = occlusion_simplification_distance;
 		}
 	}
+	// AnimationPlayer options modify the imported animations, they all have to do with optimizing and culling tracks,
+	// so we want the default options.
+	// Skeleton3D options modify the imported skeleton and it will be exported according to those modifications
+	// e.g. a retargeted skeleton will be exported with the retargeted bones, so we want the default options so as to leave it as is.
 
 	return node_options_dict;
 }
@@ -1352,20 +1365,27 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		if (updating_import_info) {
 			auto node_path = get_node_path(mesh_instance);
 			if (!node_path.is_empty()) {
+				Node *physics_node = nullptr;
 				node_options[node_path.operator String()] = get_node_options(mesh_instance);
 			}
 		}
 	}
-	TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
-	TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
-	has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
+	// Needed for warning about scene with physics nodes being exported as multi-root
+	{
+		TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
+		TypedArray<Node> physics_shapes = root->find_children("*", "CollisionShape3D");
+		has_physics_nodes = physics_nodes.size() > 0 || physics_shapes.size() > 0;
+	}
 
-	if (has_script) {
-		TypedArray<Node> nodes = { root };
-		nodes.append_array(root->get_children());
-		for (int i = 0; i < nodes.size(); i++) {
-			auto &E = nodes[i];
-			Node *node = static_cast<Node *>(E.operator Object *());
+	TypedArray<Node> nodes = { root };
+	nodes.append_array(root->get_children());
+	for (int i = 0; i < nodes.size(); i++) {
+		auto &E = nodes[i];
+		Node *node = static_cast<Node *>(E.operator Object *());
+		if (updating_import_info) {
+			node_options[get_node_path(node).operator String()] = get_node_options(node);
+		}
+		if (has_script) {
 			ScriptInstance *si = node->get_script_instance();
 			List<PropertyInfo> properties;
 			if (si) {
