@@ -9,8 +9,6 @@ class FakeCSharpScript;
 class CSharpExporter : public ResourceExporter {
 	GDCLASS(CSharpExporter, ResourceExporter);
 
-	virtual Error _export_file(const String &out_path, Ref<FakeCSharpScript> res);
-
 protected:
 	static void _bind_methods();
 

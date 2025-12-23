@@ -13,7 +13,6 @@
 #include "core/string/translation.h"
 #include "core/string/ustring.h"
 #include "modules/regex/regex.h"
-#include "utility/glob.h"
 #include "utility/pcfg_loader.h"
 #include <cstdio>
 

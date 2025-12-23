@@ -29,7 +29,8 @@
 
 #include "core/version_generated.gen.h"
 
-#include "gdre_icons.gen.h"
+#include "gui/gdre_icons.gen.h"
+#include "gui/gui_icons.h"
 
 #if GODOT_VERSION_MAJOR < 4
 #error Unsupported Godot version
@@ -130,20 +131,6 @@ void OverwriteDialog::set_message(const String &p_text) {
 
 /*************************************************************************/
 
-static Ref<ImageTexture> generate_icon(int p_index) {
-	Ref<Image> img = memnew(Image);
-
-#ifdef MODULE_SVG_ENABLED
-	// Upsample icon generation only if the scale isn't an integer multiplier.
-	// Generating upsampled icons is slower, and the benefit is hardly visible
-	// with integer scales.
-	ImageLoaderSVG img_loader;
-	img_loader.create_image_from_string(img, gdre_icons_sources[p_index], 1.0, false, false);
-#endif
-
-	return ImageTexture::create_from_image(img);
-}
-
 #ifdef TOOLS_ENABLED
 GodotREEditor::GodotREEditor(EditorNode *p_editor) {
 	singleton = this;
@@ -169,12 +156,7 @@ void init_icons() {
 void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_long_menu) {
 	//Init dialogs
 
-	// Convert the generated icon sources to a dictionary for easier access.
-	// Unlike the editor icons, there is no central repository of icons in the Theme resource itself to keep it tidy.
-	for (int i = 0; i < gdre_icons_count; i++) {
-		icons[gdre_icons_names[i]] = generate_icon(i);
-		ne_parent->add_theme_icon_override(gdre_icons_names[i], icons[gdre_icons_names[i]]);
-	}
+	GDREGuiIcons::add_icons_to_theme(ne_parent);
 
 	ovd = memnew(OverwriteDialog);
 	p_control->add_child(ovd);
@@ -291,7 +273,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		TextureRect *about_icon = memnew(TextureRect);
 		about_hbc->add_child(about_icon);
 		about_icon->set_stretch_mode(TextureRect::STRETCH_KEEP_ASPECT_CENTERED);
-		about_icon->set_texture(icons["RELogoBig"]);
+		about_icon->set_texture(GDREGuiIcons::get_icon("RELogoBig"));
 
 		Label *about_label = memnew(Label);
 		about_hbc->add_child(about_label);
@@ -313,84 +295,85 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		about_dialog_checkbox->connect("toggled", callable_mp(this, &GodotREEditor::_toggle_about_dialog_on_start));
 	}
 
+	float scale = get_parent_scale();
 	//Init menu
 	if (p_long_menu) {
 		p_menu->set_anchor(Side::SIDE_TOP, 0);
 		menu_button = memnew(MenuButton);
 		menu_button->set_text(RTR("RE Tools"));
-		menu_button->set_button_icon(icons["RELogo"]);
+		menu_button->set_button_icon(GDREGuiIcons::get_icon("RELogo", scale));
 		menu_popup = menu_button->get_popup();
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Recover project..."), MENU_EXT_PCK);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Recover project..."), MENU_EXT_PCK);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Set encryption key..."), MENU_KEY);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Set encryption key..."), MENU_KEY);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["RELogo"], RTR("About Godot RE Tools"), MENU_ABOUT_RE);
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Report a bug..."), MENU_REPORT_ISSUE);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("About Godot RE Tools"), MENU_ABOUT_RE);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Report a bug..."), MENU_REPORT_ISSUE);
 
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Quit"), MENU_EXIT_RE);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Quit"), MENU_EXIT_RE);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
 		menu_button->set_text(RTR("PCK"));
-		menu_button->set_button_icon(icons["REPack"]);
+		menu_button->set_button_icon(GDREGuiIcons::get_icon("REPack", scale));
 		menu_popup = menu_button->get_popup();
-		menu_popup->add_icon_item(icons["REPack"], RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REPack", scale), RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
 		menu_button->set_text(RTR("GDScript"));
-		menu_button->set_button_icon(icons["REScript"]);
+		menu_button->set_button_icon(GDREGuiIcons::get_icon("REScript", scale));
 		menu_popup = menu_button->get_popup();
-		menu_popup->add_icon_item(icons["REScript"], RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
-		menu_popup->add_icon_item(icons["REScript"], RTR("Compile .GD script files..."), MENU_COMP_GDS);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REScript", scale), RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REScript", scale), RTR("Compile .GD script files..."), MENU_COMP_GDS);
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		p_menu->add_child(menu_button);
 
 		menu_button = memnew(MenuButton);
 		menu_button->set_text(RTR("Resources"));
-		menu_button->set_button_icon(icons["REResBT"]);
+		menu_button->set_button_icon(GDREGuiIcons::get_icon("REResBT", scale));
 		menu_popup = menu_button->get_popup();
-		menu_popup->add_icon_item(icons["REResBT"], RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
-		menu_popup->add_icon_item(icons["REResTB"], RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResBT", scale), RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResTB", scale), RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		p_menu->add_child(menu_button);
 	} else {
 		menu_button = memnew(MenuButton);
 		menu_button->set_text(RTR("RE Tools"));
-		menu_button->set_button_icon(icons["RELogo"]);
+		menu_button->set_button_icon(GDREGuiIcons::get_icon("RELogo", scale));
 		menu_popup = menu_button->get_popup();
 
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Recover project..."), MENU_EXT_PCK);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Recover project..."), MENU_EXT_PCK);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Set encryption key..."), MENU_KEY);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Set encryption key..."), MENU_KEY);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["RELogo"], RTR("About Godot RE Tools"), MENU_ABOUT_RE);
-		menu_popup->add_icon_item(icons["RELogo"], RTR("Report a bug..."), MENU_REPORT_ISSUE);
-		menu_popup->add_separator();
-
-		menu_popup->add_icon_item(icons["REPack"], RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("About Godot RE Tools"), MENU_ABOUT_RE);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("RELogo", scale), RTR("Report a bug..."), MENU_REPORT_ISSUE);
 		menu_popup->add_separator();
 
-		menu_popup->add_icon_item(icons["REScript"], RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
-		menu_popup->add_icon_item(icons["REScript"], RTR("Compile .GD script files..."), MENU_COMP_GDS);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REPack", scale), RTR("Create PCK archive from folder..."), MENU_CREATE_PCK);
+		menu_popup->add_separator();
+
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REScript", scale), RTR("Decompile .GDC/.GDE script files..."), MENU_DECOMP_GDS);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REScript", scale), RTR("Compile .GD script files..."), MENU_COMP_GDS);
 		menu_popup->set_item_disabled(menu_popup->get_item_index(MENU_COMP_GDS), true); //TEMP RE-ENABLE WHEN IMPLEMENTED
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["REResBT"], RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
-		menu_popup->add_icon_item(icons["REResTB"], RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResBT", scale), RTR("Convert binary resources to text..."), MENU_CONV_TO_TXT);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResTB", scale), RTR("Convert text resources to binary..."), MENU_CONV_TO_BIN);
 		menu_popup->add_separator();
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
-		menu_popup->add_icon_item(icons["REResOther"], RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		p_menu->add_child(menu_button);
@@ -758,6 +741,7 @@ void GodotREEditor::_pck_select_request(const Vector<String> &p_paths) {
 	}
 	auto files = GDRESettings::get_singleton()->get_file_info_list();
 	pck_dialog->start_initial_load();
+	float scale = get_parent_scale();
 	for (int i = 0; i < files.size(); i++) {
 		const auto &file = files[i];
 		Ref<Texture2D> icon;
@@ -765,15 +749,15 @@ void GodotREEditor::_pck_select_request(const Vector<String> &p_paths) {
 		bool md5_error = !file->is_checksum_validated();
 		bool is_malformed = file->is_malformed();
 		if (p_check_md5 && md5_error) {
-			icon = icons["REFileBroken"];
+			icon = GDREGuiIcons::get_icon("REFileBroken", scale);
 			error_string += "MD5 mismatch";
 		} else if (is_malformed) {
-			icon = icons["REFileBroken"];
+			icon = GDREGuiIcons::get_icon("REFileBroken", scale);
 			error_string += String(error_string.length() > 0 ? ", " : "") + "Malformed_path";
 		} else if (!p_check_md5) {
-			icon = icons["REFile"];
+			icon = GDREGuiIcons::get_icon("REFile", scale);
 		} else {
-			icon = icons["REFileOk"];
+			icon = GDREGuiIcons::get_icon("REFileOk", scale);
 		}
 		if (files.size() > 50000 && i % 10000 == 0) {
 			print_line("Loading file " + itos(i) + " of " + itos(files.size()));
@@ -1218,6 +1202,10 @@ void GodotREEditor::_pck_save_request(const String &p_path) {
 	if (err) {
 		show_warning(RTR(pck_creator.get_error_message()) + ":" + pck_file, RTR("New PCK"));
 	}
+}
+
+float GodotREEditor::get_parent_scale() const {
+	return ne_parent->get_theme_default_base_scale();
 }
 
 /*************************************************************************/

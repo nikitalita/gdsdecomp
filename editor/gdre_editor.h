@@ -72,7 +72,6 @@ private:
 	GDREProgressDialog *pdialog_singleton = nullptr;
 
 	Control *ne_parent = nullptr;
-	Dictionary icons;
 
 	OverwriteDialog *ovd = nullptr;
 	ResultDialog *rdl = nullptr;
@@ -173,6 +172,8 @@ public:
 	void show_about_dialog();
 	void menu_option_pressed(int p_id);
 	void print_log(const String &p_text);
+	float get_parent_scale() const;
+
 	GodotREEditor(Control *p_control, HBoxContainer *p_menu);
 #ifdef TOOLS_ENABLED
 	GodotREEditor(EditorNode *p_editor);

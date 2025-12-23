@@ -4,6 +4,7 @@
 
 #include "register_types.h"
 #include "compat/fake_script.h"
+#include "core/io/image_loader.h"
 #include "core/object/class_db.h"
 #include "gui/gdre_audio_stream_preview.h"
 #include "gui/gdre_progress.h"
@@ -23,6 +24,7 @@
 #include "compat/fake_csharp_script.h"
 #include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
+#include "compat/ico_loader.h"
 #include "compat/input_event_parser_v2.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/optimized_translation_extractor.h"
@@ -51,6 +53,7 @@
 #include "exporters/translation_exporter.h"
 #include "gui/find_replace_bar.h"
 #include "gui/gdre_window.h"
+#include "gui/gui_icons.h"
 #include "gui/mesh_previewer.h"
 #include "gui/scene_previewer.h"
 #include "plugin_manager/asset_library_source.h"
@@ -85,6 +88,7 @@ static GDRESettings *gdre_singleton = nullptr;
 static GDREAudioStreamPreviewGenerator *audio_stream_preview_generator = nullptr;
 static TaskManager *task_manager = nullptr;
 static GDREConfig *gdre_config = nullptr;
+static GDREGuiIcons *gui_icons = nullptr;
 // TODO: move this to its own thing
 static Ref<ResourceFormatLoaderCompatText> text_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatBinary> binary_loader = nullptr;
@@ -95,6 +99,7 @@ static Ref<ResourceFormatLoaderImageTextureCompat> image_texture_loader = nullpt
 static Ref<ResourceFormatGDScriptLoader> script_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatImage> image_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatVideo> video_loader = nullptr;
+static Ref<ImageLoaderICO> ico_loader = nullptr;
 
 //converters
 static Ref<SampleConverterCompat> sample_converter = nullptr;
@@ -503,6 +508,8 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 
 	ClassDB::register_class<ConfigFileCompat>();
 
+	gui_icons = memnew(GDREGuiIcons);
+
 	init_plugin_manager_sources();
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
@@ -518,6 +525,10 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	init_loaders();
 	init_exporters();
 	initialize_etcpak_decompress_module(p_level);
+
+	// Register ICO image loader
+	ico_loader.instantiate();
+	ImageLoader::add_image_format_loader(ico_loader);
 }
 
 void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
@@ -525,6 +536,10 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 	uninitialize_etcpak_decompress_module(p_level);
+	if (ico_loader.is_valid()) {
+		ImageLoader::remove_image_format_loader(ico_loader);
+		ico_loader.unref();
+	}
 	deinit_exporters();
 	deinit_loaders();
 	if (gdre_config) {
@@ -545,4 +560,8 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	}
 	deinit_plugin_manager_sources();
 	free_ver_regex();
+	if (gui_icons) {
+		memdelete(gui_icons);
+		gui_icons = nullptr;
+	}
 }

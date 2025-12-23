@@ -783,6 +783,7 @@ Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_a
 
 	print_line(vformat("Loaded %d imported files", import_files.size()));
 
+	_detect_csharp();
 	// Load the C# assembly if it exists
 	if (project_requires_dotnet_assembly()) {
 #if !GODOT_MONO_DECOMP_DISABLED
@@ -2737,14 +2738,41 @@ bool GDRESettings::project_requires_dotnet_assembly() const {
 	if (!is_pack_loaded()) {
 		return false;
 	}
-	bool has_assembly_setting = true;
+
+	return current_project->detected_csharp;
+}
+
+void GDRESettings::_detect_csharp() {
+	if (!is_pack_loaded()) {
+		return;
+	}
+	bool has_assembly_setting = false;
+	auto cs_files = get_file_info_list({ "*.cs" });
+	if (cs_files.is_empty()) {
+		current_project->detected_csharp = false;
+		return;
+	}
 	if (is_project_config_loaded()) {
 		has_assembly_setting = !get_project_setting(DOTNET_ASSEMBLY_NAME_SETTING_4x, String()).operator String().is_empty() ||
 				!get_project_setting(DOTNET_ASSEMBLY_NAME_SETTING_3x, String()).operator String().is_empty() ||
 				get_project_setting("_custom_features", String()).operator String().contains("dotnet") ||
 				get_project_setting("application/config/features", Vector<String>()).operator Vector<String>().has("C#");
 	}
-	return (get_ver_major() <= 3 || has_assembly_setting) && gdre::dir_has_any_matching_wildcards("res://", { "*.cs" });
+	if (has_assembly_setting) {
+		current_project->detected_csharp = true;
+		return;
+	}
+	if (get_ver_major() <= 3 || !is_project_config_loaded()) {
+		for (auto &file : cs_files) {
+			// at least one file should be empty
+			if (file->get_size() <= 1) {
+				current_project->detected_csharp = true;
+				return;
+			}
+		}
+	}
+
+	current_project->detected_csharp = false;
 }
 
 String GDRESettings::get_temp_dotnet_assembly_dir() const {

@@ -947,7 +947,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 
 	// check if the pack has .cs files
 	auto cs_files = GDRESettings::get_singleton()->get_file_list({ "*.cs" });
-	if (cs_files.size() > 0) {
+	if (get_settings()->project_requires_dotnet_assembly() && cs_files.size() > 0) {
 		report->mono_detected = true;
 		Vector<String> exclude_files;
 		for (int i = 0; i < cs_files.size(); i++) {

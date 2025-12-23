@@ -98,7 +98,7 @@ icon_sources = Glob("icons/*.svg")
 
 env_gdsdecomp.Alias(
     "gdre_icons",
-    [env_gdsdecomp.MakeGDREIconsBuilder("editor/gdre_icons.gen.h", icon_sources)],
+    [env_gdsdecomp.MakeGDREIconsBuilder("gui/gdre_icons.gen.h", icon_sources)],
 )
 
 
