@@ -114,6 +114,7 @@ class GLBExporterInstance {
 	Vector<String> image_extensions;
 	Vector<Ref<Resource>> loaded_deps;
 	Vector<uint64_t> loaded_dep_uids;
+	Vector<String> missing_dependencies;
 
 	// set during _export_instanced_scene
 	bool had_images = false;

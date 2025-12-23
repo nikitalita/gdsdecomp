@@ -949,6 +949,7 @@ Error GLBExporterInstance::_load_deps() {
 		}
 		if (!FileAccess::exists(info.remap) && !FileAccess::exists(info.dep)) {
 			if (ignore_missing_dependencies) {
+				missing_dependencies.push_back(info.dep);
 				WARN_PRINT(vformat("%s: Dependency %s -> %s does not exist.", source_path, info.dep, info.remap));
 				continue;
 			}
@@ -983,6 +984,7 @@ Error GLBExporterInstance::_load_deps() {
 							ResourceFormatLoader::CACHE_MODE_IGNORE); // not ignore deep, we want to reuse dependencies if they exist
 					if (err || texture.is_null()) {
 						if (ignore_missing_dependencies) {
+							missing_dependencies.push_back(info.dep);
 							WARN_PRINT(vformat("%s: Dependency %s:%s failed to load.", source_path, info.dep, info.remap));
 							continue;
 						}
@@ -2850,7 +2852,7 @@ Error GLBExporterInstance::_get_return_error() {
 
 	if (had_gltf_serialization_errors) {
 		String _ = add_errors_to_report(ERR_BUG, "");
-	} else if (!set_all_externals && err == OK) {
+	} else if ((!set_all_externals || missing_dependencies.size() > 0) && err == OK) {
 		String _ = add_errors_to_report(ERR_PRINTER_ON_FIRE, "Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
 	} else {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
