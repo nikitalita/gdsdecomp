@@ -1573,20 +1573,22 @@ String GDRESettings::get_mapped_path(const String &p_src) const {
 		String dep_path;
 		if (FileAccess::exists(iinfo_path)) {
 			iinfo = ImportInfo::load_from_file(iinfo_path, 0, 0);
-			if (FileAccess::exists(iinfo->get_path())) {
-				return iinfo->get_path();
-			}
-			auto dests = iinfo->get_dest_files();
-			for (int i = 0; i < dests.size(); i++) {
-				if (FileAccess::exists(dests[i])) {
-					return dests[i];
+			if (iinfo.is_valid()) {
+				if (FileAccess::exists(iinfo->get_path())) {
+					return iinfo->get_path();
+				}
+				auto dests = iinfo->get_dest_files();
+				for (int i = 0; i < dests.size(); i++) {
+					if (FileAccess::exists(dests[i])) {
+						return dests[i];
+					}
 				}
 			}
 		}
 		iinfo_path = src + ".remap";
 		if (FileAccess::exists(iinfo_path)) {
 			iinfo = ImportInfo::load_from_file(iinfo_path, 0, 0);
-			if (FileAccess::exists(iinfo->get_path())) {
+			if (iinfo.is_valid() && FileAccess::exists(iinfo->get_path())) {
 				return iinfo->get_path();
 			}
 		}
