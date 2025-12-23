@@ -258,6 +258,22 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 	smpl_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(smpl_file_selection);
 
+	export_resource_file_selection = memnew(FileDialog);
+	export_resource_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
+	export_resource_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILES);
+	export_resource_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_export_resource_request));
+	export_resource_file_selection->set_show_hidden_files(true);
+	export_resource_file_selection->set_current_dir(desktop_dir);
+	p_control->add_child(export_resource_file_selection);
+
+	export_resource_output_selection = memnew(FileDialog);
+	export_resource_output_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
+	export_resource_output_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
+	export_resource_output_selection->connect("dir_selected", callable_mp(this, &GodotREEditor::_export_resource_output_directory_request));
+	export_resource_output_selection->set_show_hidden_files(true);
+	export_resource_output_selection->set_current_dir(desktop_dir);
+	p_control->add_child(export_resource_output_selection);
+
 	//Init about/warning dialog
 	{
 		about_dialog = memnew(AcceptDialog);
@@ -344,6 +360,8 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Export Resource..."), MENU_EXPORT_RESOURCE);
+
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		p_menu->add_child(menu_button);
@@ -374,6 +392,7 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert stream textures to PNG..."), MENU_STEX_TO_PNG);
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert OGG Samples to OGG..."), MENU_OSTR_TO_OGG);
 		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Convert WAV Samples to WAV..."), MENU_SMPL_TO_WAV);
+		menu_popup->add_icon_item(GDREGuiIcons::get_icon("REResOther", scale), RTR("Export Resource..."), MENU_EXPORT_RESOURCE);
 		menu_popup->connect("id_pressed", callable_mp(this, &GodotREEditor::menu_option_pressed));
 		menu_button->set_anchor(Side::SIDE_TOP, 0);
 		p_menu->add_child(menu_button);
@@ -453,6 +472,9 @@ void GodotREEditor::menu_option_pressed(int p_id) {
 		} break;
 		case MENU_SMPL_TO_WAV: {
 			smpl_file_selection->popup_centered(Size2(600, 400));
+		} break;
+		case MENU_EXPORT_RESOURCE: {
+			export_resource_file_selection->popup_centered(Size2(600, 400));
 		} break;
 		case MENU_ABOUT_RE: {
 			show_about_dialog();
@@ -1074,6 +1096,45 @@ void GodotREEditor::_res_bin_2_txt_process() {
 		show_warning(failed_files, RTR("Convert resources"), RTR("At least one error was detected!"));
 	} else {
 		show_warning(RTR("No errors detected."), RTR("Convert resources"), RTR("The operation completed successfully!"));
+	}
+}
+
+void GodotREEditor::_export_resource_request(const Vector<String> &p_files) {
+	res_files = p_files;
+	export_resource_output_selection->popup_centered(Size2(600, 400));
+}
+
+void GodotREEditor::_export_resource_output_directory_request(const String &p_path) {
+	_export_resource_process(p_path);
+}
+
+void GodotREEditor::_export_resource_process(const String &p_output_dir) {
+	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_export_res", RTR("Exporting resources..."), res_files.size(), true));
+
+	String failed_files;
+	for (int i = 0; i < res_files.size(); i++) {
+		GDRESettings::get_singleton()->get_errors();
+		// print_warning("exporting " + res_files[i], RTR("Export resources"));
+		bool cancel = pr->step(res_files[i], i, true);
+		if (cancel) {
+			break;
+		}
+		String ext = Exporter::get_default_export_extension(res_files[i]);
+		String dst = p_output_dir.path_join(res_files[i].get_file().get_basename() + "." + ext);
+
+		Error err = Exporter::export_file(dst, res_files[i]);
+		if (err != OK) {
+			failed_files += res_files[i] + " failed:\n" + GDRESettings::get_singleton()->get_recent_error_string() + "\n";
+		}
+	}
+
+	memdelete(pr);
+	res_files = Vector<String>();
+
+	if (failed_files.length() > 0) {
+		show_warning(failed_files, RTR("Export resources"), RTR("At least one error was detected!"));
+	} else {
+		show_warning(RTR("No errors detected."), RTR("Export resources"), RTR("The operation completed successfully!"));
 	}
 }
 
