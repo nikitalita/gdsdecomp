@@ -4,6 +4,7 @@
 
 #include "register_types.h"
 #include "compat/fake_script.h"
+#include "core/io/image_loader.h"
 #include "core/object/class_db.h"
 #include "gui/gdre_audio_stream_preview.h"
 #include "gui/gdre_progress.h"
@@ -23,6 +24,7 @@
 #include "compat/fake_csharp_script.h"
 #include "compat/fake_gdscript.h"
 #include "compat/fake_mesh.h"
+#include "compat/ico_loader.h"
 #include "compat/input_event_parser_v2.h"
 #include "compat/oggstr_loader_compat.h"
 #include "compat/optimized_translation_extractor.h"
@@ -97,6 +99,7 @@ static Ref<ResourceFormatLoaderImageTextureCompat> image_texture_loader = nullpt
 static Ref<ResourceFormatGDScriptLoader> script_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatImage> image_loader = nullptr;
 static Ref<ResourceFormatLoaderCompatVideo> video_loader = nullptr;
+static Ref<ImageLoaderICO> ico_loader = nullptr;
 
 //converters
 static Ref<SampleConverterCompat> sample_converter = nullptr;
@@ -522,6 +525,10 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	init_loaders();
 	init_exporters();
 	initialize_etcpak_decompress_module(p_level);
+
+	// Register ICO image loader
+	ico_loader.instantiate();
+	ImageLoader::add_image_format_loader(ico_loader);
 }
 
 void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
@@ -529,6 +536,10 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		return;
 	}
 	uninitialize_etcpak_decompress_module(p_level);
+	if (ico_loader.is_valid()) {
+		ImageLoader::remove_image_format_loader(ico_loader);
+		ico_loader.unref();
+	}
 	deinit_exporters();
 	deinit_loaders();
 	if (gdre_config) {
