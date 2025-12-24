@@ -260,16 +260,16 @@ void GodotREEditor::init_gui(Control *p_control, HBoxContainer *p_menu, bool p_l
 
 	export_resource_file_selection = memnew(FileDialog);
 	export_resource_file_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
-	export_resource_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILES);
-	export_resource_file_selection->connect("files_selected", callable_mp(this, &GodotREEditor::_export_resource_request));
+	export_resource_file_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_FILE);
+	export_resource_file_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_export_resource_request));
 	export_resource_file_selection->set_show_hidden_files(true);
 	export_resource_file_selection->set_current_dir(desktop_dir);
 	p_control->add_child(export_resource_file_selection);
 
 	export_resource_output_selection = memnew(FileDialog);
 	export_resource_output_selection->set_access(FileDialog::ACCESS_FILESYSTEM);
-	export_resource_output_selection->set_file_mode(FileDialog::FILE_MODE_OPEN_DIR);
-	export_resource_output_selection->connect("dir_selected", callable_mp(this, &GodotREEditor::_export_resource_output_directory_request));
+	export_resource_output_selection->set_file_mode(FileDialog::FILE_MODE_SAVE_FILE);
+	export_resource_output_selection->connect("file_selected", callable_mp(this, &GodotREEditor::_export_resource_output_request));
 	export_resource_output_selection->set_show_hidden_files(true);
 	export_resource_output_selection->set_current_dir(desktop_dir);
 	p_control->add_child(export_resource_output_selection);
@@ -474,7 +474,7 @@ void GodotREEditor::menu_option_pressed(int p_id) {
 			smpl_file_selection->popup_centered(Size2(600, 400));
 		} break;
 		case MENU_EXPORT_RESOURCE: {
-			export_resource_file_selection->popup_centered(Size2(600, 400));
+			export_resource_file_selection->popup_centered();
 		} break;
 		case MENU_ABOUT_RE: {
 			show_about_dialog();
@@ -1099,16 +1099,28 @@ void GodotREEditor::_res_bin_2_txt_process() {
 	}
 }
 
-void GodotREEditor::_export_resource_request(const Vector<String> &p_files) {
-	res_files = p_files;
+void GodotREEditor::_export_resource_request(const String &p_file) {
+	res_files = { p_file };
+	Vector<String> extensions = Exporter::get_export_extensions(p_file);
+	if (extensions.size() == 0) {
+		show_warning(RTR("No exporters found for resource " + p_file), RTR("Export resource"), RTR("No exporters found for resource " + p_file));
+		return;
+	}
+	String default_extension = extensions.size() > 0 ? extensions[0] : "";
+	String default_filename = p_file.get_file().get_basename() + "." + default_extension;
+	export_resource_output_selection->clear_filters();
+	for (const String &extension : extensions) {
+		export_resource_output_selection->add_filter("*." + extension);
+	}
+	export_resource_output_selection->set_current_file(default_filename);
 	export_resource_output_selection->popup_centered(Size2(600, 400));
 }
 
-void GodotREEditor::_export_resource_output_directory_request(const String &p_path) {
+void GodotREEditor::_export_resource_output_request(const String &p_path) {
 	_export_resource_process(p_path);
 }
 
-void GodotREEditor::_export_resource_process(const String &p_output_dir) {
+void GodotREEditor::_export_resource_process(const String &p_output_path) {
 	EditorProgressGDDC *pr = memnew(EditorProgressGDDC(ne_parent, "re_export_res", RTR("Exporting resources..."), res_files.size(), true));
 
 	String failed_files;
@@ -1119,10 +1131,8 @@ void GodotREEditor::_export_resource_process(const String &p_output_dir) {
 		if (cancel) {
 			break;
 		}
-		String ext = Exporter::get_default_export_extension(res_files[i]);
-		String dst = p_output_dir.path_join(res_files[i].get_file().get_basename() + "." + ext);
 
-		Error err = Exporter::export_file(dst, res_files[i]);
+		Error err = Exporter::export_file(p_output_path, res_files[i]);
 		if (err != OK) {
 			failed_files += res_files[i] + " failed:\n" + GDRESettings::get_singleton()->get_recent_error_string() + "\n";
 		}

@@ -137,8 +137,8 @@ private:
 	void _res_smpl_2_wav_request(const Vector<String> &p_files);
 	void _res_smpl_2_wav_process();
 
-	void _export_resource_request(const Vector<String> &p_files);
-	void _export_resource_output_directory_request(const String &p_path);
+	void _export_resource_request(const String &p_file);
+	void _export_resource_output_request(const String &p_path);
 	void _export_resource_process(const String &p_output_dir);
 
 	Error convert_file_to_binary(const String &p_src_path, const String &p_dst_path);
