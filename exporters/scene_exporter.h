@@ -42,6 +42,13 @@ public:
 #endif
 	static constexpr const char *const EXPORTER_NAME = "PackedScene";
 
+	enum class KeepRootMode {
+		KEEP_ROOT_MODE_AUTO,
+		KEEP_ROOT_MODE_SINGLE_ROOT,
+		KEEP_ROOT_MODE_KEEP_ROOT,
+		KEEP_ROOT_MODE_MULTI_ROOT,
+	};
+
 	static Error export_file_to_non_glb(const String &p_src_path, const String &p_dest_path, Ref<ImportInfo> iinfo);
 	static constexpr bool can_multithread = false;
 
@@ -165,9 +172,10 @@ class GLBExporterInstance {
 	String add_errors_to_report(Error p_err, const String &err_msg = "");
 	void set_cache_res(const dep_info &info, const Ref<Resource> &texture, bool force_replace);
 
-	void _set_stuff_from_instanced_scene(Node *root);
+	[[nodiscard]] Node *_set_stuff_from_instanced_scene(Node *root);
 	Error _export_instanced_scene(Node *root, const String &p_dest_path);
 	void _update_import_params(const String &p_dest_path);
+	Dictionary _get_default_subresource_options();
 	Error _check_model_can_load(const String &p_dest_path);
 	Error _load_deps();
 	Error _load_scene_and_deps(Ref<PackedScene> &r_scene);

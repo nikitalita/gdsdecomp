@@ -1175,10 +1175,16 @@ bool is_auto_generated_node(Node *p_node) {
 		}
 	}
 	Node *parent = p_node->get_parent();
-	if (parent && Object::cast_to<MeshInstance3D>(parent)) {
-		if (Object::cast_to<StaticBody3D>(p_node)) {
-			return true;
-		}
+	Node *parent_parent = parent ? parent->get_parent() : nullptr;
+	if (parent && p_node->get_owner() != parent->get_owner()) {
+		parent_parent = nullptr;
+	}
+	bool parent_is_mesh_instance = parent ? !!Object::cast_to<MeshInstance3D>(parent) : false;
+	bool parent_is_root_and_node3d = parent && parent_parent == nullptr && parent->get_class() == "Node3D";
+	if (Object::cast_to<StaticBody3D>(p_node) && (!parent || parent_is_root_and_node3d || parent_is_mesh_instance || Object::cast_to<Area3D>(parent))) {
+		return true;
+	}
+	if (!parent || parent_is_mesh_instance || parent_is_root_and_node3d) {
 		if (Object::cast_to<NavigationRegion3D>(p_node)) {
 			return true;
 		}
@@ -1187,6 +1193,9 @@ bool is_auto_generated_node(Node *p_node) {
 		}
 	}
 	if (parent && Object::cast_to<CollisionShape3D>(p_node)) {
+		if (Object::cast_to<Area3D>(parent)) {
+			return true;
+		}
 		return is_auto_generated_node(parent);
 	}
 	return false;
@@ -1370,11 +1379,14 @@ NodePath get_node_path(Node *p_node) {
 	}
 
 	path.reverse();
+	if (path.is_empty()) {
+		return NodePath(".");
+	}
 
 	return NodePath(path, true);
 }
 
-void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
+Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	root_type = root->get_class();
 	root_name = root->get_name();
 
@@ -1550,14 +1562,44 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			auto mesh_instance = generate_mesh_instance(node, mesh, node);
 			mesh_instance->set_name(node->get_name());
 			process_mesh_instance(mesh_instance);
+			replaced_node_names.push_back(get_node_path(node).operator String() + ":" + node->get_class());
+			auto node3d = Object::cast_to<Node3D>(node);
+			auto transform = node3d ? node3d->get_transform() : Transform3D();
 			node->replace_by(mesh_instance);
+			mesh_instance->set_transform(transform);
+
 			original_node = node;
 			node = mesh_instance;
-			replaced_node_names.push_back(get_node_path(original_node).operator String() + ":" + original_node->get_class());
+			if (original_node == root) {
+				root = node;
+				root_type = node->get_class();
+				root_name = node->get_name();
+			}
+			auto parent = original_node->get_parent();
+			Vector<CollisionShape3D *> shapes;
+			if (!parent || !Object::cast_to<RigidBody3D>(parent)) {
+				for (auto &E : mesh_instance->get_children()) {
+					auto shape = Object::cast_to<CollisionShape3D>(E.operator Object *());
+					if (shape) {
+						shapes.push_back(shape);
+					}
+				}
+			}
+			if (!shapes.is_empty()) {
+				StaticBody3D *static_body = memnew(StaticBody3D());
+				static_body->set_name(mesh_instance->get_name().operator String() + "_StaticBody3D");
+				for (auto &shape : shapes) {
+					static_body->add_child(shape, true);
+				}
+				mesh_instance->add_child(static_body);
+				for (auto &shape : shapes) {
+					shape->reparent(static_body);
+				}
+			}
 		};
 		// replace NavMesh/Occluder/Area3D-only nodes with mesh instances
 		// e.g. the original mesh will have been replaced by a NavMesh/Occluder/Area3D node by the importer, so we have to put it back.
-		if (!is_auto_generated_node(node)) {
+		if (!is_auto_generated_node(node) && node != root) {
 			if (auto navigation_region = Object::cast_to<NavigationRegion3D>(node); navigation_region) {
 				if (Ref<NavigationMesh> navmesh = navigation_region->get_navigation_mesh(); navmesh.is_valid()) {
 					bool enabled_edge_lines = NavigationServer3D::get_singleton()->get_debug_navigation_enable_edge_lines();
@@ -1598,8 +1640,16 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				}
 			}
 		}
-		if (updating_import_info) {
+		if (updating_import_info && node != root) {
 			node_options[get_node_path(node).operator String()] = get_node_options(node, original_node);
+		}
+
+		if (original_node) {
+			if (SceneTree::get_singleton()) {
+				original_node->queue_free();
+			} else {
+				memdelete(original_node);
+			}
 		}
 
 		for (auto &E : node->get_children()) {
@@ -1767,6 +1817,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			baked_fps = MIN(max_fps, 120);
 		}
 	}
+	return root;
 }
 
 bool GLBExporterInstance::_is_logger_silencing_errors() const {
@@ -2614,6 +2665,76 @@ Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
 	return OK;
 }
 
+Dictionary GLBExporterInstance::_get_default_subresource_options() {
+	Dictionary dict = {
+		{ "save_to_file/enabled", false },
+		{ "save_to_file/path", "" },
+		{ "save_to_file/fallback_path", "" },
+		{ "generate/shadow_meshes", 0 },
+		{ "generate/lightmap_uv", 0 },
+		{ "generate/lods", 0 },
+		{ "lods/normal_merge_angle", 20.0f },
+		{ "use_external/enabled", false },
+		{ "use_external/path", "" },
+		{ "use_external/fallback_path", "" },
+		{ "settings/loop_mode", 0 },
+		{ "save_to_file/keep_custom_tracks", false },
+		{ "slices/amount", 0 },
+	};
+	if (!after_4_3) {
+		dict["lods/normal_split_angle"] = 25.0f;
+	}
+	if (!after_4_4) {
+		dict["lods/normal_merge_angle"] = 60.0f;
+	}
+	for (int i = 0; i < 256; i++) {
+		dict["slice_" + itos(i + 1) + "/name"] = "";
+		dict["slice_" + itos(i + 1) + "/start_frame"] = 0;
+		dict["slice_" + itos(i + 1) + "/end_frame"] = 0;
+		dict["slice_" + itos(i + 1) + "/loop_mode"] = 0;
+		dict["slice_" + itos(i + 1) + "/save_to_file/enabled"] = false;
+		dict["slice_" + itos(i + 1) + "/save_to_file/path"] = "";
+		dict["slice_" + itos(i + 1) + "/save_to_file/fallback_path"] = "";
+		dict["slice_" + itos(i + 1) + "/save_to_file/keep_custom_tracks"] = false;
+	}
+	return dict;
+	// switch (p_category) {
+	// 	case SceneExporterEnums::INTERNAL_IMPORT_CATEGORY_MESH: {
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "save_to_file/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), false));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "save_to_file/path", PROPERTY_HINT_SAVE_FILE, "*.res,*.tres"), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "save_to_file/fallback_path", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "generate/shadow_meshes", PROPERTY_HINT_ENUM, "Default,Enable,Disable"), 0));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "generate/lightmap_uv", PROPERTY_HINT_ENUM, "Default,Enable,Disable"), 0));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "generate/lods", PROPERTY_HINT_ENUM, "Default,Enable,Disable"), 0));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::FLOAT, "lods/normal_merge_angle", PROPERTY_HINT_RANGE, "0,180,1,degrees"), 20.0f));
+	// 	} break;
+	// 	case SceneExporterEnums::INTERNAL_IMPORT_CATEGORY_MATERIAL: {
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "use_external/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), false));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "use_external/path", PROPERTY_HINT_FILE, "*.material,*.res,*.tres"), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "use_external/fallback_path", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), ""));
+	// 	} break;
+	// 	case SceneExporterEnums::INTERNAL_IMPORT_CATEGORY_ANIMATION: {
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "settings/loop_mode", PROPERTY_HINT_ENUM, "None,Linear,Pingpong"), 0));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "save_to_file/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), false));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "save_to_file/path", PROPERTY_HINT_SAVE_FILE, "*.res,*.anim,*.tres"), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "save_to_file/fallback_path", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "save_to_file/keep_custom_tracks"), ""));
+	// 		r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "slices/amount", PROPERTY_HINT_RANGE, "0,256,1", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), 0));
+
+	// 		for (int i = 0; i < 256; i++) {
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "slice_" + itos(i + 1) + "/name"), ""));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "slice_" + itos(i + 1) + "/start_frame"), 0));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "slice_" + itos(i + 1) + "/end_frame"), 0));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::INT, "slice_" + itos(i + 1) + "/loop_mode", PROPERTY_HINT_ENUM, "None,Linear,Pingpong"), 0));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "slice_" + itos(i + 1) + "/save_to_file/enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_DEFAULT | PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED), false));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "slice_" + itos(i + 1) + "/save_to_file/path", PROPERTY_HINT_SAVE_FILE, "*.res,*.anim,*.tres"), ""));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::STRING, "slice_" + itos(i + 1) + "/save_to_file/fallback_path", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), ""));
+	// 			r_options->push_back(ImportOption(PropertyInfo(Variant::BOOL, "slice_" + itos(i + 1) + "/save_to_file/keep_custom_tracks"), false));
+	// 		}
+	// 	} break;
+	// }
+}
+
 void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 	ObjExporter::MeshInfo global_mesh_info = _get_mesh_options_for_import_params();
 
@@ -2674,18 +2795,35 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 
 	iinfo->set_param("gltf/embedded_image_handling", image_handling_val);
 
-	if (animation_options.size() > 0) {
-		if (!_subresources_dict.has("animations")) {
-			_subresources_dict["animations"] = Dictionary();
+	Dictionary default_subresource_options = _get_default_subresource_options();
+	auto check_subresource_dict = [&](Dictionary &p_dict) {
+		bool differs = false;
+		for (auto &E : p_dict) {
+			if (!default_subresource_options.has(E.key)) {
+				ERR_CONTINUE(!default_subresource_options.has(E.key));
+			}
+			if (E.value != default_subresource_options.get(E.key, Variant())) {
+				differs = true;
+				break;
+			}
 		}
-		Dictionary animations_dict = _subresources_dict["animations"];
+		// the importer puts all the default options in if one of them differs; if none do, we don't have to include it
+		return differs;
+	};
+	if (animation_options.size() > 0) {
+		Dictionary animations_dict = _subresources_dict.get("animations", Dictionary());
 		for (auto &E : animation_options) {
-			animations_dict[E.key] = E.value;
+			if (check_subresource_dict(E.value)) {
+				animations_dict[E.key] = E.value;
+			}
 			String path = get_path_options(E.value);
 			if (!(path.is_empty() || path.get_file().contains("::"))) {
 				external_deps_updated.insert(path);
 				animation_deps_updated.insert(path);
 			}
+		}
+		if (!animations_dict.is_empty()) {
+			_subresources_dict["animations"] = animations_dict;
 		}
 	}
 	auto get_default_mesh_opt = [](bool global_opt, bool local_opt) {
@@ -2698,21 +2836,19 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 		return 2;
 	};
 	if (id_to_mesh_info.size() > 0) {
-		if (!_subresources_dict.has("meshes")) {
-			_subresources_dict["meshes"] = Dictionary();
-		}
-
-		Dictionary mesh_Dict = _subresources_dict["meshes"];
+		Dictionary mesh_Dict = _subresources_dict.get("meshes", Dictionary());
 		for (auto &E : id_to_mesh_info) {
 			auto name = E.name;
 			auto path = E.path;
 			if (name.is_empty() || mesh_Dict.has(name)) {
 				continue;
 			}
+			if (name == "LI-tree_foliage_branch_large_001_bark_foilage_atlas_01_02030") {
+				bool foo = false;
+			}
 			// "save_to_file/enabled": true,
 			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
-			mesh_Dict[name] = Dictionary();
-			Dictionary subres = mesh_Dict[name];
+			Dictionary subres;
 			if (path.is_empty() || path.get_file().contains("::")) {
 				subres["save_to_file/enabled"] = false;
 				set_path_options(subres, "");
@@ -2726,29 +2862,30 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 			subres["generate/lods"] = get_default_mesh_opt(global_mesh_info.has_lods, E.has_lods);
 			// TODO: get these somehow??
 			if (!after_4_3) {
-				subres["lods/normal_split_angle"] = 25.0f;
+				subres["lods/normal_split_angle"] = default_subresource_options.get("lods/normal_split_angle", 25.0f);
 			}
-			subres["lods/normal_merge_angle"] = 60.0f;
+			subres["lods/normal_merge_angle"] = default_subresource_options.get("lods/normal_merge_angle", 60.0f);
 			// Doesn't look like this ever made it in?
 			// if (!after_4_3) {
 			// 	subres["lods/raycast_normals"] = false;
 			// }
+			if (check_subresource_dict(subres)) {
+				mesh_Dict[name] = subres;
+			}
+		}
+		if (!mesh_Dict.is_empty()) {
+			_subresources_dict["meshes"] = mesh_Dict;
 		}
 	}
 	if (id_to_material_path.size() > 0) {
-		if (!_subresources_dict.has("materials")) {
-			_subresources_dict["materials"] = Dictionary();
-		}
-
-		Dictionary mat_Dict = _subresources_dict["materials"];
+		Dictionary mat_Dict = _subresources_dict.get("materials", Dictionary());
 		for (auto &E : id_to_material_path) {
 			auto name = E.first;
 			auto path = E.second;
 			if (name.is_empty() || mat_Dict.has(name)) {
 				continue;
 			}
-			mat_Dict[name] = Dictionary();
-			Dictionary subres = mat_Dict[name];
+			Dictionary subres;
 			if (path.is_empty() || path.get_file().contains("::")) {
 				subres["use_external/enabled"] = false;
 				set_path_options(subres, "", "use_external");
@@ -2757,6 +2894,12 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 				set_path_options(subres, path, "use_external");
 				external_deps_updated.insert(path);
 			}
+			if (check_subresource_dict(subres)) {
+				mat_Dict[name] = subres;
+			}
+		}
+		if (!mat_Dict.is_empty()) {
+			_subresources_dict["materials"] = mat_Dict;
 		}
 	}
 	if (node_options.size() > 0) {
@@ -3255,7 +3398,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 					preload_done = true;
 					return false;
 				}
-				instance._set_stuff_from_instanced_scene(root);
+				root = instance._set_stuff_from_instanced_scene(root);
 			}
 		}
 
