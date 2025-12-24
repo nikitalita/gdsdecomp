@@ -4,6 +4,7 @@
 #include "core/io/file_access.h"
 #include "core/io/resource_loader.h"
 #include "core/variant/variant.h"
+#include "core/version_generated.gen.h"
 #include "exporters/export_report.h"
 #include "exporters/obj_exporter.h"
 #include "external/tinygltf/tiny_gltf.h"
@@ -1164,6 +1165,7 @@ Dictionary get_default_node_options() {
 }
 
 bool is_auto_generated_node(Node *p_node) {
+	ERR_FAIL_NULL_V(p_node, false);
 	RigidBody3D *parent_rigid_body = Object::cast_to<RigidBody3D>(p_node);
 	if (parent_rigid_body) {
 		for (auto &child : p_node->get_children()) {
@@ -1191,6 +1193,7 @@ bool is_auto_generated_node(Node *p_node) {
 }
 
 Dictionary get_node_options(Node *p_node, Node *original_node = nullptr) {
+	ERR_FAIL_NULL_V(p_node, Dictionary());
 	Dictionary node_options_dict = Dictionary();
 
 	MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(p_node);
@@ -1397,7 +1400,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				mesh_path_to_instance_map[path] = mesh_instance;
 			}
 		}
-		if (replace_shader_materials) {
+		if (replace_shader_materials && mesh.is_valid()) {
 			for (int surface_i = 0; surface_i < mesh->get_surface_count(); surface_i++) {
 				Ref<ShaderMaterial> shader_material;
 				Ref<Material> active_surface_material = mesh_instance->get_active_material(surface_i);
@@ -1550,6 +1553,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			node->replace_by(mesh_instance);
 			original_node = node;
 			node = mesh_instance;
+			replaced_node_names.push_back(get_node_path(original_node).operator String() + ":" + original_node->get_class());
 		};
 		// replace NavMesh/Occluder/Area3D-only nodes with mesh instances
 		// e.g. the original mesh will have been replaced by a NavMesh/Occluder/Area3D node by the importer, so we have to put it back.
@@ -1576,16 +1580,14 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				}
 				if (meshes.size() > 1) {
 					SurfaceTool surface_tool;
-					int total_surface_count = 0;
 					for (size_t i = 0; i < meshes.size(); i++) {
 						for (size_t j = 0; j < meshes[i]->get_surface_count(); j++) {
 							if (i == 0 && j == 0) {
-								surface_tool.create_from(meshes[i], j + total_surface_count);
+								surface_tool.create_from(meshes[i], j);
 							} else {
-								surface_tool.append_from(meshes[i], j + total_surface_count, Transform3D());
+								surface_tool.append_from(meshes[i], j, Transform3D());
 							}
 						}
-						total_surface_count += meshes[i]->get_surface_count();
 					}
 					mesh = surface_tool.commit();
 				} else if (meshes.size() == 1) {
@@ -1608,6 +1610,19 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		}
 	};
 	process_node(root);
+	if (replaced_node_names.size() > 0) {
+		auto thingy = String(", ").join(replaced_node_names);
+		print_line(vformat("%s: replaced nodes with mesh instances: %s", scene_name, thingy));
+#ifdef DEBUG_ENABLED
+		if (true) {
+			auto new_dest = "res://.tscn_manip/" + report->get_import_info()->get_export_dest().trim_prefix("res://.assets/").trim_prefix("res://").get_basename() + ".tscn";
+			auto new_dest_path = output_dir.path_join(new_dest.replace_first("res://", ""));
+			Ref<PackedScene> scene = memnew(PackedScene);
+			scene->pack(root);
+			ResourceCompatLoader::save_custom(scene, new_dest_path, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR);
+		}
+#endif
+	}
 
 	Vector<int64_t> fps_values;
 	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
@@ -3302,6 +3317,13 @@ struct BatchExportToken : public TaskRunnerStruct {
 			if (err == OK) {
 				report->set_saved_path(p_dest_path);
 			}
+#ifdef DEBUG_ENABLED // export a text copy so we can see what went wrong
+			if (true) {
+				auto new_dest = "res://.tscn_copy/" + report->get_import_info()->get_export_dest().trim_prefix("res://.assets/").trim_prefix("res://").get_basename() + ".tscn";
+				auto new_dest_path = output_dir.path_join(new_dest.replace_first("res://", ""));
+				ResourceCompatLoader::to_text(p_src_path, new_dest_path);
+			}
+#endif
 		}
 		_scene = nullptr;
 		// print_line("Finished exporting scene " + p_src_path);
@@ -3333,13 +3355,6 @@ struct BatchExportToken : public TaskRunnerStruct {
 				report->set_saved_path(p_dest_path);
 			}
 		} else {
-#ifdef DEBUG_ENABLED // export a text copy so we can see what went wrong
-			if (err != OK) {
-				auto new_dest = "res://.tscn_copy/" + report->get_import_info()->get_export_dest().trim_prefix("res://").get_basename() + ".tscn";
-				auto new_dest_path = output_dir.path_join(new_dest.replace_first("res://", ""));
-				ResourceCompatLoader::to_text(p_src_path, new_dest_path);
-			}
-#endif
 			instance._unload_deps();
 			if (instance.had_script() && err == OK) {
 				report->set_message("Script has scripts, not saving to original path.");
@@ -3518,13 +3533,13 @@ Error GLBExporterInstance::_batch_export_instanced_scene(Node *root, const Strin
 		return err;
 	}
 
+	if (updating_import_info) {
+		_update_import_params(p_dest_path);
+	}
 	// Check if the model can be loaded; minimum validation to ensure the model is valid
 	err = _check_model_can_load(p_dest_path);
 	if (err) {
 		GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CORRUPT, "");
-	}
-	if (updating_import_info) {
-		_update_import_params(p_dest_path);
 	}
 	err = _get_return_error();
 
