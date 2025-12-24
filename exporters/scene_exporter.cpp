@@ -14,12 +14,14 @@
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/navigation/navigation_region_3d.h"
 #include "scene/3d/occluder_instance_3d.h"
+#include "scene/3d/physics/area_3d.h"
 #include "scene/3d/physics/rigid_body_3d.h"
 #include "scene/3d/physics/static_body_3d.h"
 #include "scene/resources/3d/box_shape_3d.h"
 #include "scene/resources/3d/capsule_shape_3d.h"
 #include "scene/resources/3d/cylinder_shape_3d.h"
 #include "scene/resources/3d/sphere_shape_3d.h"
+#include "scene/resources/surface_tool.h"
 #include "scene/resources/texture.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
@@ -32,6 +34,7 @@
 #include "main/main.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/packed_scene.h"
+#include "servers/navigation_3d/navigation_server_3d.h"
 #include "utility/task_manager.h"
 
 #ifndef MAKE_GLTF_COPY
@@ -1096,9 +1099,9 @@ Dictionary get_default_node_options() {
 
 	// INTERNAL_IMPORT_CATEGORY_MESH_3D_NODE
 	dict["generate/physics"] = false;
-	dict["generate/navmesh"] = 0;
-	dict["physics/body_type"] = 0;
-	dict["physics/shape_type"] = 7;
+	dict["generate/navmesh"] = SceneExporterEnums::NAVMESH_DISABLED;
+	dict["physics/body_type"] = SceneExporterEnums::BODY_TYPE_STATIC;
+	dict["physics/shape_type"] = SceneExporterEnums::SHAPE_TYPE_AUTOMATIC;
 	dict["physics/physics_material_override"] = Variant();
 	dict["physics/layer"] = 1;
 	dict["physics/mask"] = 1;
@@ -1137,7 +1140,7 @@ Dictionary get_default_node_options() {
 	dict["primitive/position"] = Vector3();
 	dict["primitive/rotation"] = Vector3();
 
-	dict["generate/occluder"] = 0;
+	dict["generate/occluder"] = SceneExporterEnums::OCCLUDER_DISABLED;
 	dict["occluder/simplification_distance"] = 0.1f;
 
 	// animation node
@@ -1160,14 +1163,41 @@ Dictionary get_default_node_options() {
 	return dict;
 }
 
-Dictionary get_node_options(Node *p_node, HashSet<Node *> *r_generated_nodes = nullptr) {
+bool is_auto_generated_node(Node *p_node) {
+	RigidBody3D *parent_rigid_body = Object::cast_to<RigidBody3D>(p_node);
+	if (parent_rigid_body) {
+		for (auto &child : p_node->get_children()) {
+			if (Object::cast_to<MeshInstance3D>(child)) {
+				return true;
+			}
+		}
+	}
+	Node *parent = p_node->get_parent();
+	if (parent && Object::cast_to<MeshInstance3D>(parent)) {
+		if (Object::cast_to<StaticBody3D>(p_node)) {
+			return true;
+		}
+		if (Object::cast_to<NavigationRegion3D>(p_node)) {
+			return true;
+		}
+		if (Object::cast_to<OccluderInstance3D>(p_node)) {
+			return true;
+		}
+	}
+	if (parent && Object::cast_to<CollisionShape3D>(p_node)) {
+		return is_auto_generated_node(parent);
+	}
+	return false;
+}
+
+Dictionary get_node_options(Node *p_node, Node *original_node = nullptr) {
 	Dictionary node_options_dict = Dictionary();
 
 	MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(p_node);
 	AnimationPlayer *animation_player = Object::cast_to<AnimationPlayer>(p_node);
 	Skeleton3D *skeleton = Object::cast_to<Skeleton3D>(p_node);
 	Ref<Script> script = p_node->get_script();
-	if (!mesh_instance && !animation_player && !skeleton) {
+	if (!mesh_instance && !animation_player && !skeleton && !is_auto_generated_node(p_node)) {
 		String type_name;
 		if (script.is_valid()) {
 			type_name = script->get_global_name();
@@ -1218,18 +1248,27 @@ Dictionary get_node_options(Node *p_node, HashSet<Node *> *r_generated_nodes = n
 			}
 			// navmesh
 			if (auto navmesh = Object::cast_to<NavigationRegion3D>(child); navmesh) {
-				if (r_generated_nodes) {
-					r_generated_nodes->insert(navmesh);
-				}
 				navmesh_mode = SceneExporterEnums::NAVMESH_MESH_AND_NAVMESH;
 			}
 			// occluder
 			if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(child); occluder_instance) {
-				if (r_generated_nodes) {
-					r_generated_nodes->insert(occluder_instance);
-				}
 				occlusion_simplification_distance = occluder_instance->get_bake_simplification_distance();
 				occluder_mode = SceneExporterEnums::OCCLUDER_MESH_AND_OCCLUDER;
+			}
+		}
+
+		if (original_node) {
+			if (auto area_3d = Object::cast_to<Area3D>(original_node); area_3d) {
+				mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_AREA_ONLY;
+			} else {
+				if (auto navigation_region = Object::cast_to<NavigationRegion3D>(original_node); navigation_region) {
+					navmesh_mode = SceneExporterEnums::NAVMESH_NAVMESH_ONLY;
+				} else if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(original_node); occluder_instance) {
+					occluder_mode = SceneExporterEnums::OCCLUDER_OCCLUDER_ONLY;
+				}
+				if (mesh_physics_mode == SceneExporterEnums::MESH_PHYSICS_MESH_AND_STATIC_COLLIDER) {
+					mesh_physics_mode = SceneExporterEnums::MESH_PHYSICS_STATIC_COLLIDER_ONLY;
+				}
 			}
 		}
 
@@ -1240,41 +1279,35 @@ Dictionary get_node_options(Node *p_node, HashSet<Node *> *r_generated_nodes = n
 		if (physics_body_node) {
 			physics_layer_bits = physics_body_node->get_collision_layer();
 			physics_mask_bits = physics_body_node->get_collision_mask();
-			TypedArray<Node> physics_nodes = p_node->find_children("*", "CollisionObject3D");
-			if (r_generated_nodes) {
-				r_generated_nodes->insert(physics_body_node);
-				for (auto &E : physics_nodes) {
-					r_generated_nodes->insert(Object::cast_to<Node>(E.operator Object *()));
-				}
-			}
+			TypedArray<Node> physics_nodes = physics_body_node->find_children("*", "CollisionShape3D", true);
 			if (physics_nodes.size() > 1) {
 				// easy, it's decomposing convex
 				shape_type = SceneExporterEnums::SHAPE_TYPE_DECOMPOSE_CONVEX;
 			} else if (physics_nodes.size() == 1) {
-				CollisionObject3D *physics_node = Object::cast_to<CollisionObject3D>(physics_nodes[0]);
+				CollisionShape3D *physics_node = Object::cast_to<CollisionShape3D>(physics_nodes[0]);
 				if (physics_node) {
-					auto shape = physics_node->get("shape");
-					if (auto convex_shape = Object::cast_to<ConvexPolygonShape3D>(shape); convex_shape) {
+					auto shape = physics_node->get_shape();
+					if (Ref<ConvexPolygonShape3D> convex_shape = shape; convex_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_SIMPLE_CONVEX;
-					} else if (auto concave_shape = Object::cast_to<ConcavePolygonShape3D>(shape); concave_shape) {
+					} else if (Ref<ConcavePolygonShape3D> concave_shape = shape; concave_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_TRIMESH;
-					} else if (auto box_shape = Object::cast_to<BoxShape3D>(shape); box_shape) {
+					} else if (Ref<BoxShape3D> box_shape = shape; box_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_BOX;
 						primtive_options_dict["primitive/size"] = box_shape->get_size();
 						primtive_options_dict["primitive/position"] = physics_node->get_position();
 						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
-					} else if (auto sphere_shape = Object::cast_to<SphereShape3D>(shape); sphere_shape) {
+					} else if (Ref<SphereShape3D> sphere_shape = shape; sphere_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_SPHERE;
 						primtive_options_dict["primitive/radius"] = sphere_shape->get_radius();
 						primtive_options_dict["primitive/position"] = physics_node->get_position();
 						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
-					} else if (auto cylinder_shape = Object::cast_to<CylinderShape3D>(shape); cylinder_shape) {
+					} else if (Ref<CylinderShape3D> cylinder_shape = shape; cylinder_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_CYLINDER;
 						primtive_options_dict["primitive/height"] = cylinder_shape->get_height();
 						primtive_options_dict["primitive/radius"] = cylinder_shape->get_radius();
 						primtive_options_dict["primitive/position"] = physics_node->get_position();
 						primtive_options_dict["primitive/rotation"] = physics_node->get_rotation();
-					} else if (auto capsule_shape = Object::cast_to<CapsuleShape3D>(shape); capsule_shape) {
+					} else if (Ref<CapsuleShape3D> capsule_shape = shape; capsule_shape.is_valid()) {
 						shape_type = SceneExporterEnums::SHAPE_TYPE_CAPSULE;
 						primtive_options_dict["primitive/height"] = capsule_shape->get_height();
 						primtive_options_dict["primitive/radius"] = capsule_shape->get_radius();
@@ -1345,10 +1378,11 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	TypedArray<Node> animation_player_nodes = root->find_children("*", "AnimationPlayer");
 	TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
 	HashSet<Node *> skinned_mesh_instances;
+	HashSet<Node *> generated_mesh_instance_parents;
+
 	HashSet<Ref<Mesh>> meshes_in_mesh_instances;
-	for (auto &E : mesh_instances) {
-		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
-		ERR_CONTINUE(!mesh_instance);
+
+	auto process_mesh_instance = [&](MeshInstance3D *mesh_instance) {
 		auto skin = mesh_instance->get_skin();
 		if (skin.is_valid()) {
 			has_skinned_meshes = true;
@@ -1362,13 +1396,11 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				mesh_path_to_instance_map[path] = mesh_instance;
 			}
 		}
-		if (updating_import_info) {
-			auto node_path = get_node_path(mesh_instance);
-			if (!node_path.is_empty()) {
-				Node *physics_node = nullptr;
-				node_options[node_path.operator String()] = get_node_options(mesh_instance);
-			}
-		}
+	};
+	for (auto &E : mesh_instances) {
+		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
+		ERR_CONTINUE(!mesh_instance);
+		process_mesh_instance(mesh_instance);
 	}
 	// Needed for warning about scene with physics nodes being exported as multi-root
 	{
@@ -1379,92 +1411,161 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 
 	TypedArray<Node> nodes = { root };
 	nodes.append_array(root->get_children());
-	for (int i = 0; i < nodes.size(); i++) {
-		auto &E = nodes[i];
-		Node *node = static_cast<Node *>(E.operator Object *());
-		if (updating_import_info) {
-			node_options[get_node_path(node).operator String()] = get_node_options(node);
-		}
-		if (has_script) {
-			ScriptInstance *si = node->get_script_instance();
-			List<PropertyInfo> properties;
-			if (si) {
-				if (updating_import_info) {
-					node_options[get_node_path(node).operator String()] = get_node_options(node);
-				}
-				si->get_property_list(&properties);
-				HashSet<Variant> other_values;
-				Vector<MeshInstance3D *> mesh_instances;
-				HashSet<Ref<Skin>> skins;
-				HashSet<NodePath> skeleton_paths;
-				for (auto &prop : properties) {
-					Variant value;
-					if (si->get(prop.name, value)) {
-						// check if it's a mesh instance
-						Ref<Mesh> mesh = value;
-						if (mesh.is_valid() && !meshes_in_mesh_instances.has(mesh)) {
-							// create a new mesh instance
-							auto mesh_instance = memnew(MeshInstance3D());
-							mesh_instance->set_mesh(mesh);
-							String name = mesh->get_name();
-							String path = mesh->get_path();
+	int i = 0;
+	auto generate_mesh_instance = [&](Node *node, const Ref<Mesh> &mesh, Node *original_node = nullptr) {
+		auto mesh_instance = memnew(MeshInstance3D());
+		mesh_instance->set_mesh(mesh);
+		String name = mesh->get_name();
+		String path = mesh->get_path();
 
-							if (name.is_empty()) {
-								name = demangle_name(path.get_file().get_basename());
-								if (name.is_empty() || path.contains("::")) {
-									name = ("Mesh_" + String::num_int64(i));
-								}
-								mesh->set_name(name);
-							}
-							if (!path.is_empty()) {
-								mesh_path_to_instance_map[path] = mesh_instance;
-							}
-							mesh_instance->set_name(name);
-							node->add_child(mesh_instance);
-							mesh_instances.push_back(mesh_instance);
-							// meshes_in_mesh_instances.insert(mesh);
-						}
-					}
+		if (name.is_empty()) {
+			name = demangle_name(path.get_file().get_basename());
+			if (name.is_empty() || path.contains("::")) {
+				if (original_node) {
+					name = original_node->get_name();
+				} else {
+					name = ("Mesh_" + String::num_int64(++i));
 				}
-				for (auto &mesh_instance : mesh_instances) {
-					bool set_skin = false;
-					bool set_skeleton = false;
-					for (auto &prop : properties) {
-						Variant value;
-						if (si->get(prop.name, value) && !skins.has(value) && !skeleton_paths.has(value)) {
-							Ref<Skin> skin = value;
-							if (skin.is_valid() && !set_skin) {
-								has_skinned_meshes = true;
-								skinned_mesh_instances.insert(mesh_instance);
-								mesh_instance->set_skin(skin);
-								set_skin = true;
-								skins.insert(skin);
-							} else if (!set_skeleton) {
-								NodePath skeleton_path = value;
-								if (!skeleton_path.is_empty()) {
-									// we need to check to see if this is actually a skeleton
-									Node *skeleton = node->get_node(skeleton_path);
-									Skeleton3D *skeleton3d = skeleton ? Object::cast_to<Skeleton3D>(skeleton) : nullptr;
-									if (skeleton3d) {
-										NodePath actual_path = skeleton_path;
-										if (!skeleton_path.is_absolute()) {
-											actual_path = node->get_path_to(skeleton3d);
-										}
-										mesh_instance->set_skeleton_path(actual_path);
-										set_skeleton = true;
-										skeleton_paths.insert(skeleton_path);
-									}
-								}
-							}
-						}
-						if (set_skin && set_skeleton) {
-							break;
-						}
+			}
+			mesh->set_name(name);
+		}
+		if (!path.is_empty()) {
+			mesh_path_to_instance_map[path] = mesh_instance;
+		}
+		mesh_instance->set_name(name);
+		generated_mesh_instance_parents.insert(node);
+		meshes_in_mesh_instances.insert(mesh);
+		return mesh_instance;
+	};
+	std::function<void(Node *)> process_node = [&](Node *node) {
+		ScriptInstance *si = node->get_script_instance();
+		List<PropertyInfo> properties;
+		HashSet<MeshInstance3D *> mis_generated_from_scripts;
+		// generate mesh instances from script properties
+		if (si) {
+			si->get_property_list(&properties);
+			HashSet<Variant> other_values;
+			HashSet<Ref<Skin>> skins;
+			HashSet<NodePath> skeleton_paths;
+			for (auto &prop : properties) {
+				Variant value;
+				if (si->get(prop.name, value)) {
+					// check if it's a mesh instance
+					Ref<Mesh> mesh = value;
+					if (mesh.is_valid() && !meshes_in_mesh_instances.has(mesh)) {
+						// create a new mesh instance
+						auto mesh_instance = generate_mesh_instance(node, mesh);
+						mis_generated_from_scripts.insert(mesh_instance);
+						node->add_child(mesh_instance);
 					}
 				}
 			}
+			for (auto &mesh_instance : mis_generated_from_scripts) {
+				bool set_skin = false;
+				bool set_skeleton = false;
+				for (auto &prop : properties) {
+					Variant value;
+					if (si->get(prop.name, value) && !skins.has(value) && !skeleton_paths.has(value)) {
+						Ref<Skin> skin = value;
+						if (skin.is_valid() && !set_skin) {
+							mesh_instance->set_skin(skin);
+							set_skin = true;
+							skins.insert(skin);
+						} else if (!set_skeleton) {
+							NodePath skeleton_path = value;
+							if (!skeleton_path.is_empty()) {
+								// we need to check to see if this is actually a skeleton
+								Node *skeleton = node->get_node(skeleton_path);
+								Skeleton3D *skeleton3d = skeleton ? Object::cast_to<Skeleton3D>(skeleton) : nullptr;
+								if (skeleton3d) {
+									NodePath actual_path = skeleton_path;
+									if (!skeleton_path.is_absolute()) {
+										actual_path = mesh_instance->get_path_to(skeleton3d);
+									}
+									mesh_instance->set_skeleton_path(actual_path);
+									set_skeleton = true;
+									skeleton_paths.insert(skeleton_path);
+								}
+							}
+						}
+					}
+					if (set_skin && set_skeleton) {
+						break;
+					}
+				}
+				process_mesh_instance(mesh_instance);
+				if (updating_import_info) {
+					node_options[get_node_path(mesh_instance).operator String()] = { { "import/skip_import", true } };
+				}
+			}
 		}
-	}
+		Node *original_node = nullptr;
+		auto replace_with_mi = [&](Ref<ArrayMesh> mesh) {
+			auto mesh_instance = generate_mesh_instance(node, mesh, node);
+			mesh_instance->set_name(node->get_name());
+			process_mesh_instance(mesh_instance);
+			node->replace_by(mesh_instance);
+			original_node = node;
+			node = mesh_instance;
+		};
+		// replace NavMesh/Occluder/Area3D-only nodes with mesh instances
+		// e.g. the original mesh will have been replaced by a NavMesh/Occluder/Area3D node by the importer, so we have to put it back.
+		if (!is_auto_generated_node(node)) {
+			if (auto navigation_region = Object::cast_to<NavigationRegion3D>(node); navigation_region) {
+				if (Ref<NavigationMesh> navmesh = navigation_region->get_navigation_mesh(); navmesh.is_valid()) {
+					bool enabled_edge_lines = NavigationServer3D::get_singleton()->get_debug_navigation_enable_edge_lines();
+					NavigationServer3D::get_singleton()->set_debug_navigation_enable_edge_lines(false);
+					auto debug_mesh = navmesh->get_debug_mesh();
+					NavigationServer3D::get_singleton()->set_debug_navigation_enable_edge_lines(enabled_edge_lines);
+					replace_with_mi(debug_mesh);
+				}
+			} else if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(node); occluder_instance) {
+				if (Ref<Occluder3D> occluder = occluder_instance->get_occluder(); occluder.is_valid()) {
+					replace_with_mi(occluder->get_debug_mesh());
+				}
+			} else if (auto area_3d = Object::cast_to<Area3D>(node); area_3d) {
+				Vector<Ref<ArrayMesh>> meshes;
+				Ref<ArrayMesh> mesh;
+				for (auto &E : area_3d->get_children()) {
+					if (auto collision_shape = Object::cast_to<CollisionShape3D>(E.operator Object *()); collision_shape && collision_shape->get_shape().is_valid()) {
+						meshes.push_back(collision_shape->get_shape()->get_debug_mesh());
+					}
+				}
+				if (meshes.size() > 1) {
+					SurfaceTool surface_tool;
+					int total_surface_count = 0;
+					for (size_t i = 0; i < meshes.size(); i++) {
+						for (size_t j = 0; j < meshes[i]->get_surface_count(); j++) {
+							if (i == 0 && j == 0) {
+								surface_tool.create_from(meshes[i], j + total_surface_count);
+							} else {
+								surface_tool.append_from(meshes[i], j + total_surface_count, Transform3D());
+							}
+						}
+						total_surface_count += meshes[i]->get_surface_count();
+					}
+					mesh = surface_tool.commit();
+				} else if (meshes.size() == 1) {
+					mesh = meshes[0];
+				}
+				if (mesh.is_valid()) {
+					replace_with_mi(mesh);
+				}
+			}
+		}
+		if (updating_import_info) {
+			node_options[get_node_path(node).operator String()] = get_node_options(node, original_node);
+		}
+
+		for (auto &E : node->get_children()) {
+			auto child = Object::cast_to<Node>(E.operator Object *());
+			if (!mis_generated_from_scripts.has(Object::cast_to<MeshInstance3D>(child))) {
+				process_node(child);
+			}
+		}
+	};
+	process_node(root);
+
 	Vector<int64_t> fps_values;
 	for (int32_t node_i = 0; node_i < animation_player_nodes.size(); node_i++) {
 		bool any_compressed = false;
