@@ -57,6 +57,7 @@ public:
 	virtual String get_name() const override;
 	virtual bool supports_nonpack_export() const override { return false; }
 	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 
 	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
 	static size_t get_vram_usage();

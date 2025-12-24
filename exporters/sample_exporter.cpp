@@ -286,6 +286,10 @@ String SampleExporter::get_default_export_extension(const String &res_path) cons
 	return "wav";
 }
 
+Vector<String> SampleExporter::get_export_extensions(const String &res_path) const {
+	return { "wav" };
+}
+
 Error SampleExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error _ret_err = OK;
 	{

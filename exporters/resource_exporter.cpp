@@ -83,6 +83,10 @@ String ResourceExporter::get_default_export_extension(const String &res_path) co
 	ERR_FAIL_V_MSG(String(), "Not implemented");
 }
 
+Vector<String> ResourceExporter::get_export_extensions(const String &res_path) const {
+	ERR_FAIL_V_MSG(Vector<String>(), "Not implemented");
+}
+
 Error ResourceExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	return ERR_UNAVAILABLE;
 }
@@ -94,6 +98,7 @@ void ResourceExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("export_resource", "output_dir", "import_infos"), &ResourceExporter::export_resource);
 	ClassDB::bind_method(D_METHOD("handles_import", "importer", "resource_type"), &ResourceExporter::handles_import);
 	ClassDB::bind_method(D_METHOD("get_default_export_extension", "res_path"), &ResourceExporter::get_default_export_extension);
+	ClassDB::bind_method(D_METHOD("get_export_extensions", "res_path"), &ResourceExporter::get_export_extensions);
 }
 
 Ref<ExportReport> ResourceExporter::_check_for_existing_resources(const Ref<ImportInfo> &iinfo) {
@@ -212,6 +217,11 @@ String Exporter::get_default_export_extension(const String &res_path) {
 	return exporter.is_null() ? "" : exporter->get_default_export_extension(res_path);
 }
 
+Vector<String> Exporter::get_export_extensions(const String &res_path) {
+	auto exporter = get_exporter_from_path(res_path, false);
+	return exporter.is_null() ? Vector<String>() : exporter->get_export_extensions(res_path);
+}
+
 Error Exporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) {
 	ERR_FAIL_NULL_V(export_report, ERR_BUG);
 	ERR_FAIL_NULL_V(export_report->get_import_info(), ERR_BUG);
@@ -233,4 +243,5 @@ void Exporter::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_exporter_from_path", "res_path", "nonpack_export"), &Exporter::get_exporter_from_path, DEFVAL(true));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_exportable_resource", "res_path"), &Exporter::is_exportable_resource);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_default_export_extension", "res_path"), &Exporter::get_default_export_extension);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_export_extensions", "res_path"), &Exporter::get_export_extensions);
 }

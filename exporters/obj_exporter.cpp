@@ -620,3 +620,7 @@ String ObjExporter::get_name() const {
 String ObjExporter::get_default_export_extension(const String &res_path) const {
 	return "obj";
 }
+
+Vector<String> ObjExporter::get_export_extensions(const String &res_path) const {
+	return { "obj" };
+}

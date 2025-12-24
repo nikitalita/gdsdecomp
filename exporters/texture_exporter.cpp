@@ -1231,6 +1231,11 @@ String TextureExporter::get_name() const {
 String TextureExporter::get_default_export_extension(const String &res_path) const {
 	return "png";
 }
+
+Vector<String> TextureExporter::get_export_extensions(const String &res_path) const {
+	return ImageSaver::get_supported_extensions();
+}
+
 namespace {
 Error check_image_colors(const Ref<Image> &original_image, const Ref<Image> &exported_image) {
 	Error _ret_err = OK;

@@ -73,6 +73,10 @@ String Mp3StrExporter::get_default_export_extension(const String &res_path) cons
 	return "mp3";
 }
 
+Vector<String> Mp3StrExporter::get_export_extensions(const String &res_path) const {
+	return { "mp3" };
+}
+
 Error Mp3StrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error _ret_err = OK;
 	{

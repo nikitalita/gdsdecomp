@@ -100,6 +100,12 @@ String GDScriptExporter::get_default_export_extension(const String &res_path) co
 	return "gd";
 }
 
+Vector<String> GDScriptExporter::get_export_extensions(const String &res_path) const {
+	Vector<String> extensions;
+	extensions.push_back("gd");
+	return extensions;
+}
+
 Error GDScriptExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error _ret_err = OK;
 	{

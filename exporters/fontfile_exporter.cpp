@@ -387,3 +387,9 @@ String FontFileExporter::get_name() const {
 String FontFileExporter::get_default_export_extension(const String &res_path) const {
 	return "ttf";
 }
+
+Vector<String> FontFileExporter::get_export_extensions(const String &res_path) const {
+	Vector<String> extensions = { "ttf", "otf" };
+	extensions.append_array(ImageSaver::get_supported_extensions());
+	return extensions;
+}

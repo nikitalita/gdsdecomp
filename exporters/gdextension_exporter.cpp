@@ -374,3 +374,9 @@ String GDExtensionExporter::get_name() const {
 String GDExtensionExporter::get_default_export_extension(const String &res_path) const {
 	return "gdext";
 }
+
+Vector<String> GDExtensionExporter::get_export_extensions(const String &res_path) const {
+	Vector<String> extensions;
+	extensions.push_back("gdext");
+	return extensions;
+}

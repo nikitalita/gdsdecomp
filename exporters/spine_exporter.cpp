@@ -70,6 +70,10 @@ String SpineAtlasExporter::get_default_export_extension(const String &res_path) 
 	return "atlas";
 }
 
+Vector<String> SpineAtlasExporter::get_export_extensions(const String &res_path) const {
+	return { "atlas" };
+}
+
 // Literally all we have to do is copy the file
 Error SpineSkeletonExporter::export_file(const String &out_path, const String &res_path) {
 	gdre::ensure_dir(out_path.get_base_dir());
@@ -102,4 +106,8 @@ String SpineSkeletonExporter::get_name() const {
 
 String SpineSkeletonExporter::get_default_export_extension(const String &res_path) const {
 	return "spine-json";
+}
+
+Vector<String> SpineSkeletonExporter::get_export_extensions(const String &res_path) const {
+	return { "spine-json" };
 }

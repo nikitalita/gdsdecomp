@@ -13,6 +13,7 @@ public:
 	virtual void get_handled_types(List<String> *out) const override;
 	virtual void get_handled_importers(List<String> *out) const override;
 	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 };
 
 class SpineSkeletonExporter : public ResourceExporter {
@@ -27,4 +28,5 @@ public:
 	virtual void get_handled_types(List<String> *out) const override;
 	virtual void get_handled_importers(List<String> *out) const override;
 	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 };

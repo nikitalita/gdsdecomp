@@ -22,6 +22,7 @@ public:
 	virtual String get_name() const override;
 	virtual bool supports_nonpack_export() const override { return false; }
 	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 	CSharpExporter() = default;
 	~CSharpExporter() = default;
 };

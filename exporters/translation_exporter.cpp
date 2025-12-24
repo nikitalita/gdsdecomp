@@ -2475,6 +2475,10 @@ String TranslationExporter::get_default_export_extension(const String &res_path)
 	return "csv";
 }
 
+Vector<String> TranslationExporter::get_export_extensions(const String &res_path) const {
+	return { "csv" };
+}
+
 Error TranslationExporter::parse_csv(const String &csv_path, HashMap<String, Vector<String>> &new_messages, int64_t &missing_keys, bool &has_non_empty_lines_without_key, int64_t &non_empty_line_count) {
 	Ref<FileAccess> f = FileAccess::open(csv_path, FileAccess::READ);
 	ERR_FAIL_COND_V_MSG(f.is_null(), ERR_CANT_ACQUIRE_RESOURCE, "Could not open file " + csv_path);

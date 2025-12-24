@@ -19,7 +19,7 @@ bool ImageSaver::dest_format_supports_mipmaps(const String &ext) {
 	return ext == "dds" || ext == "exr";
 }
 
-const Vector<String> ImageSaver::supported_extensions = { "tga", "svg", "bmp", "gif", "hdr", "exr", "dds", "png", "jpg", "jpeg", "webp" };
+const Vector<String> ImageSaver::supported_extensions = { "png", "jpg", "jpeg", "webp", "tga", "svg", "bmp", "hdr", "exr", "dds", "gif" };
 
 Vector<String> ImageSaver::get_supported_extensions() {
 	return supported_extensions;

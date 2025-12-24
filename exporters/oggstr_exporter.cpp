@@ -204,6 +204,10 @@ String OggStrExporter::get_default_export_extension(const String &res_path) cons
 	return "ogg";
 }
 
+Vector<String> OggStrExporter::get_export_extensions(const String &res_path) const {
+	return { "ogg" };
+}
+
 namespace {
 auto packet_data_to_flat_vector(const TypedArray<Array> &packet_data) -> Vector<Vector<uint8_t>> {
 	Vector<Vector<uint8_t>> data;

@@ -72,3 +72,9 @@ void DialogueExporter::get_handled_importers(List<String> *out) const {
 String DialogueExporter::get_default_export_extension(const String &res_path) const {
 	return "dialogue";
 }
+
+Vector<String> DialogueExporter::get_export_extensions(const String &res_path) const {
+	Vector<String> extensions;
+	extensions.push_back("dialogue");
+	return extensions;
+}

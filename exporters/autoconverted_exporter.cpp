@@ -37,3 +37,10 @@ String AutoConvertedExporter::get_default_export_extension(const String &res_pat
 	}
 	return "tres";
 }
+
+Vector<String> AutoConvertedExporter::get_export_extensions(const String &res_path) const {
+	if (res_path.get_extension().to_lower() == "scn") {
+		return { "tscn", "tres" };
+	}
+	return { "tres" };
+}

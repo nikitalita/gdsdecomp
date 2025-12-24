@@ -55,3 +55,9 @@ String CSharpExporter::get_name() const {
 String CSharpExporter::get_default_export_extension(const String &res_path) const {
 	return "cs";
 }
+
+Vector<String> CSharpExporter::get_export_extensions(const String &res_path) const {
+	Vector<String> extensions;
+	extensions.push_back("cs");
+	return extensions;
+}
