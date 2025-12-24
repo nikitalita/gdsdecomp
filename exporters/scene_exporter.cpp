@@ -1379,6 +1379,7 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	TypedArray<Node> mesh_instances = root->find_children("*", "MeshInstance3D");
 	HashSet<Node *> skinned_mesh_instances;
 	HashSet<Node *> generated_mesh_instance_parents;
+	HashMap<Ref<ShaderMaterial>, Ref<BaseMaterial3D>> shader_material_to_base_material_map;
 
 	HashSet<Ref<Mesh>> meshes_in_mesh_instances;
 
@@ -1396,12 +1397,54 @@ void GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 				mesh_path_to_instance_map[path] = mesh_instance;
 			}
 		}
+		if (replace_shader_materials) {
+			for (int surface_i = 0; surface_i < mesh->get_surface_count(); surface_i++) {
+				Ref<ShaderMaterial> shader_material;
+				Ref<Material> active_surface_material = mesh_instance->get_active_material(surface_i);
+				Ref<Material> surface_material = mesh->surface_get_material(surface_i);
+				Ref<BaseMaterial3D> base_material;
+				shader_material = active_surface_material;
+				if (shader_material.is_valid()) {
+					if (shader_material_to_base_material_map.has(shader_material)) {
+						base_material = shader_material_to_base_material_map[shader_material];
+					} else {
+						Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> base_material_pair = convert_shader_material_to_base_material(shader_material, mesh_instance);
+						if (!base_material_pair.second.first) {
+							base_material = surface_material;
+							if (!base_material.is_valid()) {
+								Ref<ShaderMaterial> surface_shader_material = surface_material;
+								if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
+									auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
+									if (new_material_pair.second.first) {
+										shader_material = surface_shader_material;
+										base_material_pair = new_material_pair;
+									}
+								}
+							}
+						}
+						if (!base_material.is_valid()) {
+							base_material = base_material_pair.first;
+						}
+						// We don't want to cache it if it has instance uniforms that were actually used,
+						// since they will need to be created per-instance
+						if (base_material.is_valid() && !base_material_pair.second.second) {
+							shader_material_to_base_material_map[shader_material] = base_material;
+						}
+					}
+					if (base_material.is_valid()) {
+						mesh_instance->set_surface_override_material(surface_i, base_material);
+					}
+				}
+			}
+		}
 	};
+	other_error_messages.append_array(_get_logged_error_messages());
 	for (auto &E : mesh_instances) {
 		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(E);
 		ERR_CONTINUE(!mesh_instance);
 		process_mesh_instance(mesh_instance);
 	}
+	other_error_messages.append_array(_get_logged_error_messages());
 	// Needed for warning about scene with physics nodes being exported as multi-root
 	{
 		TypedArray<Node> physics_nodes = root->find_children("*", "CollisionObject3D");
@@ -1824,7 +1867,7 @@ struct UniformInfo {
 	String hint;
 };
 
-Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr) {
+Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> GLBExporterInstance::convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent) {
 	// we need to manually create a BaseMaterial3D from the shader material
 	// We do this by getting the shader uniforms and then mapping them to the BaseMaterial3D properties
 	// We also need to handle the texture parameters and features
@@ -2180,6 +2223,7 @@ Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_mate
 	base_material->set_name(p_shader_material->get_name());
 	// set the path to the shader material's path so that we can add it to the external deps found if necessary
 	base_material->set_path_cache(p_shader_material->get_path());
+	base_material->merge_meta_from(p_shader_material.ptr());
 
 	bool set_instance_uniforms = false;
 	for (auto &E : set_params) {
@@ -2258,7 +2302,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 		bool was_silenced = _is_logger_silencing_errors();
 		_silence_errors(true);
-		other_error_messages = _get_logged_error_messages();
+		other_error_messages.append_array(_get_logged_error_messages());
 		auto errors_before_append = _get_error_count();
 		err = doc->append_from_scene(root, state, flags);
 		_silence_errors(was_silenced);
@@ -2269,86 +2313,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
 
-		Vector<String> errors_before_replace_shader_materials = _get_logged_error_messages();
-
-		// remove shader materials from meshes in the state before serializing
-		if (replace_shader_materials) {
-			for (auto &E : state->get_meshes()) {
-				Ref<GLTFMesh> mesh = E;
-				if (mesh.is_valid()) {
-					Ref<ImporterMesh> im = mesh->get_mesh();
-					ERR_CONTINUE_MSG(im.is_null(), "ImporterMesh is null");
-					auto instance_materials = mesh->get_instance_materials();
-
-					String path = get_path_res(im);
-					MeshInstance3D *instance = nullptr;
-					if (!path.is_empty() && mesh_path_to_instance_map.has(path)) {
-						instance = mesh_path_to_instance_map[path];
-					}
-					for (int surface_i = 0; surface_i < im->get_surface_count(); surface_i++) {
-						Ref<ShaderMaterial> shader_material;
-						Ref<BaseMaterial3D> base_material;
-						;
-						if (surface_i < instance_materials.size()) {
-							shader_material = instance_materials[surface_i];
-						} else {
-							shader_material = im->get_surface_material(surface_i);
-						}
-						if (shader_material.is_valid()) {
-							if (shader_material_to_base_material_map.has(shader_material)) {
-								base_material = shader_material_to_base_material_map[shader_material];
-							} else {
-								Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> base_material_pair = convert_shader_material_to_base_material(shader_material, instance);
-								if (!base_material_pair.second.first) {
-									base_material = im->get_surface_material(surface_i);
-									if (!base_material.is_valid()) {
-										Ref<ShaderMaterial> surface_shader_material = im->get_surface_material(surface_i);
-										if (surface_shader_material.is_valid() && surface_shader_material != shader_material) {
-											auto new_material_pair = convert_shader_material_to_base_material(surface_shader_material);
-											if (new_material_pair.second.first) {
-												shader_material = surface_shader_material;
-												base_material_pair = new_material_pair;
-											}
-										}
-									}
-								}
-								if (!base_material.is_valid()) {
-									base_material = base_material_pair.first;
-								}
-								// We don't want to cache it if it has instance uniforms that were actually used,
-								// since they will need to be created per-instance
-								if (base_material.is_valid() && !base_material_pair.second.second) {
-									shader_material_to_base_material_map[shader_material] = base_material;
-								}
-							}
-							if (base_material.is_valid()) {
-								if (surface_i < instance_materials.size()) {
-									instance_materials[surface_i] = base_material;
-								}
-								im->set_surface_material(surface_i, base_material);
-							}
-						}
-					}
-					// This shouldn't happen??
-					if (instance_materials.size() > im->get_surface_count()) {
-						WARN_PRINT("Instance materials size is greater than the mesh's surface count????");
-						for (int i = im->get_surface_count(); i < instance_materials.size(); i++) {
-							Ref<ShaderMaterial> shader_material = instance_materials[i];
-							if (shader_material.is_valid()) {
-								auto new_material_pair = convert_shader_material_to_base_material(shader_material);
-								if (new_material_pair.second.first) {
-									instance_materials[i] = new_material_pair.first;
-								}
-							}
-						}
-					}
-					mesh->set_instance_materials(instance_materials);
-				}
-			}
-			// clear material conversion error messages
-			other_error_messages.append_array(_get_logged_error_messages());
-		}
-
 		_silence_errors(true);
 		auto errors_before_serialize = _get_error_count();
 		err = doc->_serialize(state);
@@ -2357,7 +2321,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		GDRE_SCN_EXP_CHECK_CANCEL();
 
 		if (errors_after_serialize > errors_before_serialize || errors_after_append > errors_before_append) {
-			gltf_serialization_error_messages.append_array(errors_before_replace_shader_materials);
 			gltf_serialization_error_messages.append_array(_get_logged_error_messages());
 		}
 		if (err) {
@@ -2836,7 +2799,7 @@ Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const Stri
 }
 
 Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
-	auto errors_before = _get_error_count();
+	other_error_messages.append_array(_get_logged_error_messages());
 	// Instantiation of older scenes will spam warnings about deprecated features (this doesn't affect the error count or retrieving the logged error messages)
 	if (ver_major <= 3) {
 		_silence_errors(true);
@@ -2845,11 +2808,8 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 	if (ver_major <= 3) {
 		_silence_errors(false);
 	}
-	auto errors_after = _get_error_count();
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
-	if (errors_after > errors_before) {
-		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
-	}
+	scene_instantiation_error_messages.append_array(_get_logged_error_messages());
 	if (root == nullptr) {
 		err = ERR_CANT_ACQUIRE_RESOURCE;
 		ERR_PRINT(add_errors_to_report(ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path));

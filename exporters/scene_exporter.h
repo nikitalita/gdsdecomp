@@ -123,7 +123,6 @@ class GLBExporterInstance {
 	Dictionary image_path_to_data_hash;
 	Vector<ObjExporter::MeshInfo> id_to_mesh_info;
 	Vector<Pair<String, String>> id_to_material_path;
-	HashMap<Ref<ShaderMaterial>, Ref<BaseMaterial3D>> shader_material_to_base_material_map;
 
 	// set during _set_stuff_from_instanced_scene
 	HashMap<String, Dictionary> node_options;
@@ -152,6 +151,8 @@ class GLBExporterInstance {
 	Vector<String> other_error_messages;
 
 	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
+
+	Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent = nullptr);
 
 	ObjExporter::MeshInfo _get_mesh_options_for_import_params();
 
