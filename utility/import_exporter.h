@@ -162,6 +162,7 @@ class ImportExporter : public RefCounted {
 	void recreate_uid_file(const String &src_path, bool is_import, const HashSet<String> &files_to_export_set);
 	Error recreate_plugin_config(const String &plugin_cfg_path);
 	Error recreate_plugin_configs();
+	void make_git_repo();
 
 	void _do_test_recovered_resource(uint32_t i, Ref<ExportReport> *reports);
 	String get_test_recovered_resource_description(uint32_t i, Ref<ExportReport> *reports);

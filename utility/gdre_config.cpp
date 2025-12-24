@@ -249,6 +249,16 @@ Vector<Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 				"Use scene view by default",
 				"Use scene view by default instead of the text preview.\nWARNING: Scene view is still experimental and certain scenes may cause the program to become unresponsive.",
 				false)),
+		memnew(GDREConfigSetting(
+				"Recovery/git/create_git_repo",
+				"Create git repo in recovered project",
+				"Create a git repo in the output directory after exporting.\nRequires git to be installed on the system.",
+				false)),
+		memnew(GDREConfigSetting(
+				"Recovery/git/add_imports_to_git_repo",
+				"Add imports to git repo",
+				"Add .godot/imported/ (or .import/ for Godot 3) to the git repo.",
+				false)),
 		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
 		memnew(GDREConfigSetting_LoadCustomBytecode()),
 #if !GODOT_MONO_DECOMP_DISABLED
