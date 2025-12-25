@@ -1565,8 +1565,10 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			replaced_node_names.push_back(get_node_path(node).operator String() + ":" + node->get_class());
 			auto node3d = Object::cast_to<Node3D>(node);
 			auto transform = node3d ? node3d->get_transform() : Transform3D();
+			auto script = node->get_script();
 			node->replace_by(mesh_instance);
 			mesh_instance->set_transform(transform);
+			mesh_instance->set_script(script);
 
 			original_node = node;
 			node = mesh_instance;
@@ -1588,12 +1590,10 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			if (!shapes.is_empty()) {
 				StaticBody3D *static_body = memnew(StaticBody3D());
 				static_body->set_name(mesh_instance->get_name().operator String() + "_StaticBody3D");
-				for (auto &shape : shapes) {
-					static_body->add_child(shape, true);
-				}
 				mesh_instance->add_child(static_body);
 				for (auto &shape : shapes) {
-					shape->reparent(static_body);
+					shape->set_owner(nullptr);
+					shape->reparent(static_body, false);
 				}
 			}
 		};
@@ -2842,9 +2842,6 @@ void GLBExporterInstance::_update_import_params(const String &p_dest_path) {
 			auto path = E.path;
 			if (name.is_empty() || mesh_Dict.has(name)) {
 				continue;
-			}
-			if (name == "LI-tree_foliage_branch_large_001_bark_foilage_atlas_01_02030") {
-				bool foo = false;
 			}
 			// "save_to_file/enabled": true,
 			// "save_to_file/path": "res://models/Enemies/cultist-shoot-anim.res",
