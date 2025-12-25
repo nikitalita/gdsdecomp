@@ -152,6 +152,7 @@ class GLBExporterInstance {
 
 	// error tracking
 	String error_statement;
+	Vector<String> scene_loading_error_messages;
 	Vector<String> scene_instantiation_error_messages;
 	Vector<String> gltf_serialization_error_messages;
 	Vector<String> import_param_error_messages;

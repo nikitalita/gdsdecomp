@@ -681,6 +681,8 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 		err_message = "Export was cancelled";
 	} else if (p_err == ERR_TIMEOUT) {
 		err_message = "Export timed out";
+	} else if (p_err == OK) {
+		err_message = "";
 	}
 	if (!err_msg.is_empty()) {
 		err_message += ":\n  " + err_msg;
@@ -690,6 +692,10 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 	}
 	error_statement = err_message;
 	Vector<String> errors;
+	if (scene_loading_error_messages.size() > 0) {
+		errors.append("** Errors during scene loading:");
+		errors.append_array(scene_loading_error_messages);
+	}
 	if (scene_instantiation_error_messages.size() > 0) {
 		errors.append("** Errors during scene instantiation:");
 		errors.append_array(scene_instantiation_error_messages);
@@ -723,8 +729,9 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 			}
 		}
 		report->set_message(error_statement + "\n");
-		report->append_message_detail({ "Dependencies:" });
-		report->append_message_detail(dependency_resolution_list);
+		Dictionary extra_info = report->get_extra_info();
+		extra_info["dependencies"] = dependency_resolution_list;
+		report->set_extra_info(extra_info);
 		report->set_error(p_err);
 		report->append_error_messages(errors);
 	}
@@ -885,6 +892,7 @@ void GLBExporterInstance::_initial_set(const String &p_src_path, Ref<ExportRepor
 }
 
 Error GLBExporterInstance::_load_deps() {
+	other_error_messages.append_array(_get_logged_error_messages());
 	get_deps_recursive(source_path, get_deps_map);
 
 	for (auto &E : get_deps_map) {
@@ -1036,6 +1044,7 @@ Error GLBExporterInstance::_load_deps() {
 		report->set_loss_type(ImportInfo::STORED_LOSSY);
 	}
 
+	scene_loading_error_messages.append_array(_get_logged_error_messages());
 	return OK;
 }
 
@@ -2956,13 +2965,17 @@ Error SceneExporter::export_file_to_non_glb(const String &p_src_path, const Stri
 Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 	other_error_messages.append_array(_get_logged_error_messages());
 	// Instantiation of older scenes will spam warnings about deprecated features (this doesn't affect the error count or retrieving the logged error messages)
+#ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(true);
 	}
+#endif
 	Node *root = scene->instantiate();
+#ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(false);
 	}
+#endif
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
 	scene_instantiation_error_messages.append_array(_get_logged_error_messages());
 	if (root == nullptr) {
@@ -2985,18 +2998,23 @@ Error GLBExporterInstance::_load_scene_and_deps(Ref<PackedScene> &r_scene) {
 Error GLBExporterInstance::_load_scene(Ref<PackedScene> &r_scene) {
 	auto mode_type = ResourceCompatLoader::get_default_load_type();
 	// loading older scenes will spam warnings about deprecated features
+#ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(true);
 	}
+#endif
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
 	if (ResourceCompatLoader::is_globally_available() && using_threaded_load()) {
 		r_scene = ResourceLoader::load(source_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
 	} else {
 		r_scene = ResourceCompatLoader::custom_load(source_path, "PackedScene", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
 	}
+#ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(false);
 	}
+#endif
+	scene_loading_error_messages.append_array(_get_logged_error_messages());
 	if (err || !r_scene.is_valid()) {
 		r_scene = nullptr;
 		_unload_deps();
@@ -3090,6 +3108,8 @@ Error GLBExporterInstance::_get_return_error() {
 		String _ = add_errors_to_report(ERR_BUG, "");
 	} else if ((!set_all_externals || missing_dependencies.size() > 0) && err == OK) {
 		String _ = add_errors_to_report(ERR_PRINTER_ON_FIRE, "Failed to set all external dependencies in GLTF export and/or import info. This scene may not be imported correctly upon re-import.");
+	} else if (err == OK) {
+		String _ = add_errors_to_report(OK, "");
 	} else {
 		GDRE_SCN_EXP_FAIL_COND_V_MSG(err, err, "");
 	}
@@ -3352,6 +3372,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 
 	// scene loading and scene instancing has to be done on the main thread to avoid deadlocks and crashes
 	bool batch_preload() {
+		GDRELogger::clear_error_queues();
 		if (check_unsupported()) {
 			err = ERR_UNAVAILABLE;
 			_set_unsupported(report, ver_major, is_obj_output());
@@ -3644,7 +3665,15 @@ uint64_t GLBExporterInstance::_get_error_count() {
 }
 
 Vector<String> GLBExporterInstance::_get_logged_error_messages() {
-	return supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors();
+	auto errors = supports_multithread() ? GDRELogger::get_thread_errors() : GDRELogger::get_errors();
+	Vector<String> ret;
+	for (auto &err : errors) {
+		String lstripped = err.strip_edges(true, false);
+		if (!lstripped.begins_with("GDScript backtrace")) {
+			ret.push_back(err.strip_edges(false, true));
+		}
+	}
+	return ret;
 }
 
 SceneExporter *SceneExporter::singleton = nullptr;
