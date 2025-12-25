@@ -803,7 +803,16 @@ Error ResourceLoaderCompatText::load() {
 						if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
 							assign = "resource_name";
 						}
-						res->set(assign, value);
+						bool valid = false;
+						res->set(assign, value, &valid);
+						if (!valid) {
+							missing_resource_properties[assign] = value;
+#ifdef DEBUG_ENABLED
+							if (ver_major < GODOT_VERSION_MAJOR) {
+								WARN_PRINT(vformat("Failed to set deprecated %d.%d property '%s' (type: %s) on res class '%s' (class remap: %s)", ver_major, ver_minor, assign, Variant::get_type_name(value.get_type()), type, res->get_class()));
+							}
+#endif
+						}
 					}
 				}
 				//it's assignment
@@ -1010,7 +1019,16 @@ Error ResourceLoaderCompatText::load() {
 					if (!missing_resource && ver_major <= 2 && assign == "resource/name") {
 						assign = "resource_name";
 					}
-					resource->set(assign, value);
+					bool valid = false;
+					resource->set(assign, value, &valid);
+					if (!valid) {
+						missing_resource_properties[assign] = value;
+#ifdef DEBUG_ENABLED
+						if (ver_major < GODOT_VERSION_MAJOR) {
+							WARN_PRINT(vformat("Failed to set deprecated %d.%d property '%s' (type: %s) on res class '%s' (class remap: %s)", ver_major, ver_minor, assign, Variant::get_type_name(value.get_type()), res_type, resource->get_class()));
+						}
+#endif
+					}
 				}
 				//it's assignment
 			} else if (!next_tag.name.is_empty()) {

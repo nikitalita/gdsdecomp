@@ -972,7 +972,16 @@ Error ResourceLoaderCompatBinary::load() {
 				if (!missing_resource && ver_major <= 2 && name == "resource/name") {
 					name = "resource_name";
 				}
-				res->set(name, value);
+				bool valid = false;
+				res->set(name, value, &valid);
+				if (!valid) {
+					missing_resource_properties[name] = value;
+#ifdef DEBUG_ENABLED
+					if (ver_major < GODOT_VERSION_MAJOR) {
+						WARN_PRINT(vformat("Failed to set deprecated %d.%d property '%s' (type: %s) on res class '%s' (remap: %s)", ver_major, ver_minor, name, Variant::get_type_name(value.get_type()), t, res->get_class()));
+					}
+#endif
+				}
 			}
 		}
 
