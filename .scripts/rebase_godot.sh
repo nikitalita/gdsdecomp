@@ -19,6 +19,9 @@ git checkout working-branch
 git reset --hard $HEAD
 
 BRANCHES_TO_MERGE=(
+	gltf-dupe-images
+	material-fix-deprecated-param
+	fix-dummy-mesh-blend-shape
 	fix-pack-error
 	convert-3.x-escn
 	fix-svg
