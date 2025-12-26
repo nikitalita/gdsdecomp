@@ -3854,6 +3854,7 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 	Vector<uint64_t> abnormal_deltas;
 	Vector<uint64_t> resync_deltas;
 	constexpr size_t MAX_DELTA_COUNT = 1000000;
+	constexpr uint64_t DRAW_DELTA_THRESHOLD = 50000;
 	resync_deltas.reserve(MAX_DELTA_COUNT);
 
 	auto average_out_delta = [&](Vector<uint64_t> &deltas) {
@@ -3903,15 +3904,14 @@ Vector<Ref<ExportReport>> SceneExporter::batch_export_files(const String &output
 
 	auto ensure_progress = [&]() {
 		auto current_time = OS::get_singleton()->get_ticks_usec();
-		if (current_time - last_update_time >= 10000) {
+		if (current_time - last_update_time >= DRAW_DELTA_THRESHOLD) {
 			last_update_time = current_time;
 			return TaskManager::get_singleton()->update_progress_bg(true);
 		}
 		resync_rendering_server();
 		return false;
 	};
-	// if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
-	if (true) { // TODO: On current master, multi-threaded export is causing crashes, so disabling for now
+	if (number_of_threads <= 1 || GDREConfig::get_singleton()->get_setting("force_single_threaded", false)) {
 		print_line("Forcing single-threaded scene export...");
 		err = TaskManager::get_singleton()->run_group_task_on_current_thread(
 				this,
