@@ -775,13 +775,13 @@ void GLBExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource
 }
 
 String GLBExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
-	String name = dict.get("name", String());
+	String name = res->get_name();
 	if (name.is_empty()) {
-		name = res->get_name();
-		if (name.is_empty()) {
-			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
-			if (info.is_valid() && !info->resource_name.is_empty()) {
-				name = info->resource_name;
+		Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+		if (info.is_valid() && !info->resource_name.is_empty()) {
+			name = info->resource_name;
+			if (name.is_empty()) {
+				name = dict.get("name", String());
 			} else {
 				// name = res->get_class() + "_" + String::num_int64(idx);
 			}
@@ -2439,16 +2439,23 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				{ "orm", { BaseMaterial3D::TEXTURE_AMBIENT_OCCLUSION, BaseMaterial3D::TEXTURE_ROUGHNESS, BaseMaterial3D::TEXTURE_METALLIC } },
 				{ "albedo", { BaseMaterial3D::TEXTURE_ALBEDO } }
 			};
+			HashMap<String, String> image_name_to_path;
+			for (auto E : image_deps_needed) {
+				image_name_to_path[E.get_file().get_basename()] = E;
+			}
+
 			for (int i = 0; i < json_images.size(); i++) {
 				Dictionary image_dict = json_images[i];
 				Ref<Texture2D> image = images[i];
 				auto path = get_path_res(image);
 				String name = image_dict.get("name", String());
 				if (path.is_empty() && !name.is_empty()) {
-					for (auto E : image_deps_needed) {
-						if (E.get_file().get_basename() == name) {
-							path = E;
-							break;
+					if (image_name_to_path.has(name)) {
+						path = image_name_to_path[name];
+					} else if (name[name.length() - 1] <= '9' && name[name.length() - 1] >= '0') {
+						name = name.substr(0, name.length() - 1);
+						if (image_name_to_path.has(name)) {
+							path = image_name_to_path[name];
 						}
 					}
 				}
@@ -2494,12 +2501,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					name = path.get_file().get_basename();
 					external_deps_updated.insert(path);
 					insert_image_map(name, i);
-					unsigned char md5_hash[16];
-					Ref<Image> img = image->get_image();
-					auto img_data = img->get_data();
-					CryptoCore::md5(img_data.ptr(), img_data.size(), md5_hash);
-					String new_md5 = String::hex_encode_buffer(md5_hash, 16);
-					image_path_to_data_hash[path] = new_md5;
+					image_path_to_data_hash[path] = FileAccess::get_md5(path);
 				}
 				if (!name.is_empty()) {
 					image_dict["name"] = demangle_name(name);
