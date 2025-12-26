@@ -9,6 +9,7 @@
 #include <memory>
 
 struct TaskRunnerStruct {
+	virtual bool pre_run() { return true; }
 	virtual int get_current_task_step_value() = 0;
 	virtual String get_current_task_step_description() = 0;
 	virtual void cancel() = 0;
@@ -260,6 +261,7 @@ public:
 	protected:
 		virtual void wait_for_task_completion_internal() override {
 			if (!runs_current_thread) {
+				ERR_FAIL_COND_MSG(task_id == -1, "Task not started");
 				WorkerThreadPool::get_singleton()->wait_for_task_completion(task_id);
 			} else {
 				run_on_current_thread();
@@ -291,13 +293,13 @@ public:
 		}
 
 		void run_internal(void *p_data) {
+			if (canceled || done) {
+				return;
+			}
 			cb_struct->run(p_data);
 			done = true;
 		}
 		virtual void run_on_current_thread() override {
-			if (canceled) {
-				return;
-			}
 			run_internal(userdata);
 		}
 		virtual int get_current_task_step_value() override {
@@ -310,8 +312,12 @@ public:
 			return done;
 		}
 		void start_internal() override {
-			if (task_id != -1) {
+			if (task_id != -1 || done || canceled) {
 				return;
+			}
+			if (!cb_struct->pre_run()) {
+				done = true;
+				ERR_FAIL_MSG("Failed to pre-run task: " + description);
 			}
 			if (runs_current_thread) {
 				// random group id

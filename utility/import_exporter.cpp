@@ -821,7 +821,7 @@ struct ProcessRunnerStruct : public TaskRunnerStruct {
 	}
 
 	// We have to start the process on the main thread because of inscrutable WINPROC stuff.
-	bool pre_run() {
+	virtual bool pre_run() override {
 		List<String> args;
 		for (const String &arg : arguments) {
 			args.push_back(arg);
@@ -976,12 +976,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 					if (get_ver_major() >= 4 && OS::get_singleton()->execute("dotnet", { "--version" }, nullptr, &ret_code) == OK && ret_code == 0) {
 						String solution_path = csproj_path.get_basename() + ".sln";
 						process_runner = std::make_shared<ProcessRunnerStruct>("dotnet", Vector<String>({ "build", solution_path, "--property", "WarningLevel=0" }));
-						if (process_runner->pre_run()) {
-							process_runner_task_id = TaskManager::get_singleton()->add_task(process_runner, nullptr, "Compiling C# project...", -1, true, true);
-						} else {
-							// process failed to start
-							process_runner = nullptr;
-						}
+						process_runner_task_id = TaskManager::get_singleton()->add_task(process_runner, nullptr, "Compiling C# project...", -1, true, true);
 					} else {
 						print_line("Unable to compile C# project; ensure that the project is built in the editor before making any changes.");
 					}
@@ -1799,7 +1794,6 @@ void ImportExporter::make_git_repo() {
 		add_args.push_back(files_to_add[i]);
 	}
 	auto add_runner = std::make_shared<ProcessRunnerStruct>("git", add_args);
-	ERR_FAIL_COND_MSG(!add_runner->pre_run(), "Failed to pre-run process for adding files to git repo");
 	Error err = TaskManager::get_singleton()->run_task(add_runner, nullptr, "Adding files to git repo...", -1, true, true);
 	if (err == ERR_SKIP) {
 		return;
@@ -1809,7 +1803,6 @@ void ImportExporter::make_git_repo() {
 	}
 	// commit the files
 	auto commit_runner = std::make_shared<ProcessRunnerStruct>("git", Vector<String>{ "-C", output_dir, "commit", "-m", "Initial commit" });
-	ERR_FAIL_COND_MSG(!commit_runner->pre_run(), "Failed to pre-run process for committing files to git repo");
 	err = TaskManager::get_singleton()->run_task(commit_runner, nullptr, "Committing files to git repo...", -1, true, true);
 	if (err == ERR_SKIP) {
 		return;
