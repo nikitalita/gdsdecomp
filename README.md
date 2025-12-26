@@ -149,7 +149,7 @@ Note: Make sure to build the editor build first, and to launch the editor to edi
 
 ### Requirements
 
-[Our fork of godot](https://github.com/nikitalita/godot/tree/working-branch) @ `gdre-wb-e2a10cd4`
+[Our fork of godot](https://github.com/nikitalita/godot/tree/working-branch) @ `gdre-wb-63227bb`
 
 - Support for building on 3.x has been dropped and no new features are being pushed
   - Godot RE Tools still retains the ability to decompile 3.x and 2.x projects, however.
