@@ -584,6 +584,8 @@ namespace GodotMonoDecomp
 		static void WriteReferences(XmlTextWriter xml, MetadataFile module, IProjectInfoProvider project,
 			ProjectType projectType, DotNetCoreDepInfo? deps, GodotMonoDecompSettings settings)
 		{
+			string copyToDir = Path.Combine(project.TargetDirectory, "_mono_referenced_assemblies");
+			// hashset of copied assemblies
 			bool isNetCoreApp = TargetServices.DetectTargetFramework(module).Identifier == ".NETCoreApp";
 			var targetPacks = new HashSet<string>();
 			if (isNetCoreApp)
@@ -686,21 +688,7 @@ namespace GodotMonoDecomp
 
 			string GetNewRefOutputPath(string path)
 			{
-				string monoPart;
-				if (path.Contains("/.mono"))
-				{
-					// get the part of the path that begins with ".mono"
-					monoPart = path.Substring(path.IndexOf("/.mono") + 1);
-					// copy the file to the output directory
-				}
-				else if (path.Contains("\\.mono")) {
-					monoPart = path.Substring(path.IndexOf("\\.mono") + 1);
-				}
-				else
-				{
-					monoPart = Path.Combine(".mono", "referenced_assemblies", Path.GetFileName(path));
-				}
-				return Path.Combine(project.TargetDirectory, monoPart);
+				return Path.Combine(copyToDir, Path.GetFileName(path));
 			}
 
 			void CopyRef(MetadataFile asembly, string outputPath)
@@ -711,31 +699,35 @@ namespace GodotMonoDecomp
 					return;
 				}
 
-				// if it already exists, we don't need to copy it
-				if (!File.Exists(outputPath)) {
-					try
-					{
-						_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "");
-					}
-					catch (Exception e)
-					{
-						Console.Error.WriteLine($"Error creating directory {Path.GetDirectoryName(outputPath)}: {e.Message}");
-					}
-					// copy the file to the output directory
-					try
-					{
-						File.Copy(asembly.FileName, outputPath, true);
-					}
-					catch (Exception e)
-					{
-						Console.Error.WriteLine($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
-					}
-					// use the relative path to the output directory
+				// create an empty file named ".gdignore" in the mono directory
+				if (!File.Exists(Path.Combine(copyToDir, ".gdignore")))
+				{
+					File.Create(Path.Combine(copyToDir, ".gdignore")).Close();
 				}
+
+				try
+				{
+					_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "");
+				}
+				catch (Exception e)
+				{
+					Console.Error.WriteLine($"Error creating directory {Path.GetDirectoryName(outputPath)}: {e.Message}");
+				}
+				// copy the file to the output directory
+				try
+				{
+					File.Copy(asembly.FileName, outputPath, true);
+				}
+				catch (Exception e)
+				{
+					Console.Error.WriteLine($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
+				}
+
+				// use the relative path to the output directory
 				// check if a pdb exists at the original path
 				var pdbPath = Path.ChangeExtension(asembly.FileName, ".pdb");
 				var pdbOutputPath = Path.ChangeExtension(outputPath, ".pdb");
-				if (File.Exists(pdbPath) && !File.Exists(pdbOutputPath))
+				if (File.Exists(pdbPath))
 				{
 					// copy the pdb file to the output directory
 					try
