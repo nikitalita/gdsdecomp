@@ -258,8 +258,15 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 }
 
 bool TaskManager::update_progress_bg(bool p_force_refresh, bool called_from_process) {
-	if (updating_bg || group_id_to_description.empty()) {
+	if (updating_bg || (group_id_to_description.empty() && !Thread::is_main_thread())) {
 		return false;
+	}
+	if (Thread::is_main_thread()) {
+		std::shared_ptr<BaseMainThreadDispatchData> data;
+		// only once per loop
+		if (main_thread_dispatch_queue.try_pop(data)) {
+			data->callback();
+		}
 	}
 	updating_bg = true;
 	bool main_loop_iterating = false;
