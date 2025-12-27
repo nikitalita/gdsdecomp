@@ -2480,22 +2480,24 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
 #endif
+		auto check_unique = [&](String &name, HashSet<String> &image_map) {
+			if (name.is_empty()) {
+				return;
+			}
+			if (!image_map.has(name)) {
+				image_map.insert(name);
+			} else {
+				name = String(name) + vformat("_%03d", image_map.size() - 1);
+			}
+		};
+
 		// rename objects in the state so that they will be imported correctly, and gather import params info
 		{
 			auto json = state->get_json();
 			auto materials = state->get_materials();
 			auto images = state->get_images();
 			Array json_images = json.has("images") ? (Array)json["images"] : Array();
-			HashMap<String, Vector<int>> image_map;
-			auto insert_image_map = [&](String &name, int i) {
-				if (!image_map.has(name)) {
-					image_map[name] = Vector<int>();
-					image_map[name].push_back(i);
-				} else {
-					image_map[name].push_back(i);
-					name = String(name) + vformat("_%03d", image_map[name].size() - 1);
-				}
-			};
+			HashSet<String> image_map;
 			static const HashMap<String, Vector<BaseMaterial3D::TextureParam>> generated_tex_suffixes = {
 				{ "emission", { BaseMaterial3D::TEXTURE_EMISSION } },
 				{ "normal", { BaseMaterial3D::TEXTURE_NORMAL } },
@@ -2559,13 +2561,13 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				bool is_internal = path.is_empty() || path.get_file().contains("::");
 				if (is_internal) {
 					name = get_name_res(image_dict, image, i);
-					insert_image_map(name, i);
 				} else {
 					name = path.get_file().get_basename();
 					external_deps_updated.insert(path);
-					insert_image_map(name, i);
 					image_path_to_data_hash[path] = FileAccess::get_md5(path);
 				}
+				check_unique(name, image_map);
+
 				if (!name.is_empty()) {
 					image_dict["name"] = demangle_name(name);
 				}
@@ -2582,7 +2584,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 
 			if (json.has("meshes")) {
 				auto default_light_map_size = Vector2i(0, 0);
-				Vector<String> mesh_names;
+				HashSet<String> mesh_names;
 				Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
 				Vector<bool> mesh_is_shadow;
 				auto gltf_meshes = state->get_meshes();
@@ -2617,6 +2619,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 							name = path.get_file().get_basename();
 						}
 					}
+					check_unique(name, mesh_names);
 					if (!name.is_empty()) {
 						mesh_dict["name"] = demangle_name(name);
 						if (original_name.is_empty()) {
@@ -2667,6 +2670,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			}
 
 			if (json.has("materials")) {
+				HashSet<String> material_names;
 				Array json_materials = json["materials"];
 				for (int i = 0; i < materials.size(); i++) {
 					Dictionary material_dict = json_materials[i];
@@ -2681,6 +2685,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 							name = path.get_file().get_basename();
 						}
 					}
+					check_unique(name, material_names);
 					// the name in the options import is the name in the gltf file, unlike for meshes
 					if (!name.is_empty()) {
 						material_dict["name"] = name;
