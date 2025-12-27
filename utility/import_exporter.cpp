@@ -1735,8 +1735,19 @@ void ImportExporter::make_git_repo() {
 	if (exit_code != 0) {
 		ERR_FAIL_MSG("Failed to create git repo: " + output);
 	}
+
+	// set core.autocrlf to input
+	OS::get_singleton()->execute("git", { "-C", output_dir, "config", "set", "--local", "core.autocrlf", "input" }, &output, &exit_code, true);
+	if (exit_code != 0) {
+		ERR_FAIL_MSG("Failed to set core.autocrlf to input: " + output);
+	}
 	String gitignore_path = output_dir.path_join(".gitignore");
 	HashSet<String> gitignore_lines = {
+		"# System files",
+		"**/.DS_Store",
+		"Thumbs.db",
+		"**/Thumbs.db",
+		"# GDRE specific ignores",
 		".gltf_copy/",
 		".untouched_gltf_copy/",
 		".tscn_copy/",
@@ -1744,7 +1755,8 @@ void ImportExporter::make_git_repo() {
 		".autoconverted/",
 		"gdre_export.json",
 		"gdre_export.log",
-		"# Godot 4+ specific ignores",
+		"# Mono build directory",
+		".mono/",
 		".godot/*",
 	};
 	auto da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
