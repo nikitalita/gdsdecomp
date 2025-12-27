@@ -699,12 +699,6 @@ namespace GodotMonoDecomp
 					return;
 				}
 
-				// create an empty file named ".gdignore" in the mono directory
-				if (!File.Exists(Path.Combine(copyToDir, ".gdignore")))
-				{
-					File.Create(Path.Combine(copyToDir, ".gdignore")).Close();
-				}
-
 				try
 				{
 					_ = Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? "");
@@ -721,6 +715,16 @@ namespace GodotMonoDecomp
 				catch (Exception e)
 				{
 					Console.Error.WriteLine($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
+				}
+
+				// create an empty file named ".gdignore" in the mono directory
+				if (!File.Exists(Path.Combine(copyToDir, ".gdignore")))
+				{
+					if (!Directory.Exists(copyToDir))
+					{
+						Directory.CreateDirectory(copyToDir);
+					}
+					File.Create(Path.Combine(copyToDir, ".gdignore")).Close();
 				}
 
 				// use the relative path to the output directory
