@@ -2610,16 +2610,18 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					String path = get_path_res(imesh);
 					String name = original_name;
 					if (name.is_empty()) {
-						name = get_name_res(mesh_dict, imesh, i);
+						bool is_internal = path.is_empty() || path.get_file().contains("::");
+						if (is_internal) {
+							name = get_name_res(mesh_dict, imesh, i);
+						} else {
+							name = path.get_file().get_basename();
+						}
 					}
 					if (!name.is_empty()) {
 						mesh_dict["name"] = demangle_name(name);
 						if (original_name.is_empty()) {
 							gltf_mesh->set_original_name(name);
 						}
-					} else if (!original_name.is_empty()) {
-						mesh_dict["name"] = original_name;
-						name = original_name;
 					}
 					if (!updating_import_info || shadow_meshes.has(imesh) || (path.is_empty() && name.is_empty())) {
 						// mesh that won't be imported, skip
@@ -2670,12 +2672,14 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 					Dictionary material_dict = json_materials[i];
 					Ref<Material> material = materials[i];
 					auto path = get_path_res(material);
-					String name;
+					String name = material->get_name();
 					bool is_internal = path.is_empty() || path.get_file().contains("::");
-					if (is_internal) {
-						name = get_name_res(material_dict, material, i);
-					} else {
-						name = path.get_file().get_basename();
+					if (name.is_empty()) {
+						if (is_internal) {
+							name = get_name_res(material_dict, material, i);
+						} else {
+							name = path.get_file().get_basename();
+						}
 					}
 					// the name in the options import is the name in the gltf file, unlike for meshes
 					if (!name.is_empty()) {
