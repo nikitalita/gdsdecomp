@@ -775,15 +775,14 @@ void GLBExporterInstance::set_cache_res(const dep_info &info, const Ref<Resource
 }
 
 String GLBExporterInstance::get_name_res(const Dictionary &dict, const Ref<Resource> &res, int64_t idx) {
-	String name = res->get_name();
+	String name;
+	name = dict.get("name", String());
 	if (name.is_empty()) {
-		Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
-		if (info.is_valid() && !info->resource_name.is_empty()) {
-			name = info->resource_name;
-			if (name.is_empty()) {
-				name = dict.get("name", String());
-			} else {
-				// name = res->get_class() + "_" + String::num_int64(idx);
+		name = res->get_name();
+		if (name.is_empty()) {
+			Ref<ResourceInfo> info = ResourceInfo::get_info_from_resource(res);
+			if (info.is_valid() && !info->resource_name.is_empty()) {
+				name = info->resource_name;
 			}
 		}
 	}
@@ -2448,19 +2447,18 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				Dictionary image_dict = json_images[i];
 				Ref<Texture2D> image = images[i];
 				auto path = get_path_res(image);
-				String name = image_dict.get("name", String());
+				String name = image->get_name();
 				if (path.is_empty() && !name.is_empty()) {
 					if (image_name_to_path.has(name)) {
 						path = image_name_to_path[name];
 					} else if (name[name.length() - 1] <= '9' && name[name.length() - 1] >= '0') {
 						name = name.substr(0, name.length() - 1);
-						if (image_name_to_path.has(name)) {
+						if (image_name_to_path.has(name) && !image_map.has(name)) {
 							path = image_name_to_path[name];
 						}
 					}
 				}
-				if (path.is_empty() && !get_name_res(image_dict, image, i).is_empty()) {
-					name = get_name_res(image_dict, image, i);
+				if (path.is_empty() && !name.is_empty()) {
 					auto parts = name.rsplit("_", false, 1);
 					String material_name = parts.size() > 0 ? parts[0] : String();
 					String suffix;
@@ -2545,12 +2543,9 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 						continue;
 					}
 					String path = get_path_res(imesh);
-					String name;
-					bool is_internal = path.is_empty() || path.get_file().contains("::");
-					if (is_internal) {
+					String name = original_name;
+					if (name.is_empty()) {
 						name = get_name_res(mesh_dict, imesh, i);
-					} else {
-						name = path.get_file().get_basename();
 					}
 					if (!name.is_empty()) {
 						mesh_dict["name"] = demangle_name(name);
