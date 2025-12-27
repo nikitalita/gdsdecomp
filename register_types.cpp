@@ -73,8 +73,6 @@
 #include "utility/pck_dumper.h"
 #include "utility/task_manager.h"
 
-#include "module_etc_decompress/register_types.h"
-
 #ifdef TOOLS_ENABLED
 void gdsdecomp_init_callback() {
 	EditorNode *editor = EditorNode::get_singleton();
@@ -524,7 +522,6 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 #endif
 	init_loaders();
 	init_exporters();
-	initialize_etcpak_decompress_module(p_level);
 
 	// Register ICO image loader
 	ico_loader.instantiate();
@@ -535,7 +532,6 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
-	uninitialize_etcpak_decompress_module(p_level);
 	if (ico_loader.is_valid()) {
 		ImageLoader::remove_image_format_loader(ico_loader);
 		ico_loader.unref();

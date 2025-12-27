@@ -43,7 +43,6 @@ if env["platform"] == "android" or (is_using_clang and env["platform"] == "macos
     # force shared on macos with clang++, because `ld` does not support multiple definitions of the same symbol
     mono_native_lib_type = "Shared"
 
-etcpak_dir = "#thirdparty/etcpak/"
 mmp3thirdparty_dir = "#thirdparty/minimp3/"
 liboggthirdparty_dir = "#thirdparty/libogg/"
 libtheorathirdparty_dir = "#thirdparty/libtheora/"
@@ -195,7 +194,6 @@ def write_version_header():
 write_version_header()
 
 
-env_gdsdecomp.Prepend(CPPPATH=[etcpak_dir])
 if env["builtin_libogg"]:
     env_gdsdecomp.Prepend(CPPPATH=[liboggthirdparty_dir])
 if env["builtin_libvorbis"]:
@@ -862,7 +860,6 @@ if env["tests"]:
 env_gdsdecomp.add_source_files(module_obj, "utility/*.cpp")
 
 env_gdsdecomp.add_source_files(module_obj, "external/tga/*.cpp")
-env_gdsdecomp.add_source_files(module_obj, "external/etcpak-decompress/*.cpp")
 env_gdsdecomp.add_source_files(module_obj, "external/tinygltf/tiny_gltf.cc")
 env_gdsdecomp.add_source_files(module_obj, "module_etc_decompress/*.cpp")
 
