@@ -40,6 +40,14 @@ static etcpak_force_inline int32_t expand7(uint32_t value)
     return (value << 1) | (value >> 6);
 }
 
+// Convert 11-bit signed value [-1023, 1023] to 8-bit unsigned [0, 255] for display
+static etcpak_force_inline uint32_t clamp_s11_to_u8(int32_t value11bit)
+{
+    if( value11bit < -1023 ) { value11bit = -1023; }
+    else if( value11bit > 1023 ) { value11bit = 1023; }
+    return ((value11bit + 1023) * 255 + 1023) / 2046;
+}
+
 static etcpak_force_inline void DecodeT( uint64_t block, uint32_t* dst, uint32_t w )
 {
     const auto r0 = ( block >> 24 ) & 0x1B;
@@ -187,6 +195,120 @@ static etcpak_force_inline void DecodeH( uint64_t block, uint32_t* dst, uint32_t
         {
             const uint8_t index = ( ( ( indexes >> ( j + i * 4 + 16 ) ) & 0x1 ) << 1 ) | ( ( indexes >> ( j + i * 4 ) ) & 0x1 );
             dst[j * w + i] = col_tab[index] | 0xFF000000;
+        }
+    }
+}
+
+// T mode with punchthrough alpha support
+static etcpak_force_inline void DecodeTPunchthrough( uint64_t block, uint32_t* dst, uint32_t w )
+{
+    const uint8_t opaque = block & 0x2;
+    const auto r0 = ( block >> 24 ) & 0x1B;
+    const auto rh0 = ( r0 >> 3 ) & 0x3;
+    const auto rl0 = r0 & 0x3;
+    const auto g0 = ( block >> 20 ) & 0xF;
+    const auto b0 = ( block >> 16 ) & 0xF;
+
+    const auto r1 = ( block >> 12 ) & 0xF;
+    const auto g1 = ( block >> 8 ) & 0xF;
+    const auto b1 = ( block >> 4 ) & 0xF;
+
+    const auto cr0 = ( ( rh0 << 6 ) | ( rl0 << 4 ) | ( rh0 << 2 ) | rl0);
+    const auto cg0 = ( g0 << 4 ) | g0;
+    const auto cb0 = ( b0 << 4 ) | b0;
+
+    const auto cr1 = ( r1 << 4 ) | r1;
+    const auto cg1 = ( g1 << 4 ) | g1;
+    const auto cb1 = ( b1 << 4 ) | b1;
+
+    const auto codeword_hi = ( block >> 2 ) & 0x3;
+    const auto codeword_lo = block & 0x1;
+    const auto codeword = ( codeword_hi << 1 ) | codeword_lo;
+
+    const auto c2r = clampu8( cr1 + table59T58H[codeword] );
+    const auto c2g = clampu8( cg1 + table59T58H[codeword] );
+    const auto c2b = clampu8( cb1 + table59T58H[codeword] );
+
+    const auto c3r = clampu8( cr1 - table59T58H[codeword] );
+    const auto c3g = clampu8( cg1 - table59T58H[codeword] );
+    const auto c3b = clampu8( cb1 - table59T58H[codeword] );
+
+    const uint32_t col_tab[4] = {
+        uint32_t( cr0 | ( cg0 << 8 ) | ( cb0 << 16 ) | 0xFF000000 ),
+        uint32_t( c2r | ( c2g << 8 ) | ( c2b << 16 ) | 0xFF000000 ),
+        uint32_t( cr1 | ( cg1 << 8 ) | ( cb1 << 16 ) | 0xFF000000 ),
+        uint32_t( c3r | ( c3g << 8 ) | ( c3b << 16 ) | 0xFF000000 )
+    };
+
+    const uint32_t indexes = ( block >> 32 ) & 0xFFFFFFFF;
+    for( uint8_t j = 0; j < 4; j++ )
+    {
+        for( uint8_t i = 0; i < 4; i++ )
+        {
+            //2bit indices distributed on two lane 16bit numbers
+            const uint8_t index = ( ( ( indexes >> ( j + i * 4 + 16 ) ) & 0x1 ) << 1) | ( ( indexes >> ( j + i * 4 ) ) & 0x1);
+            // If opaque==0 and MSB==1 && LSB==0 (index==2), set pixel to 0
+            if( opaque == 0 && index == 2 )
+            {
+                dst[j * w + i] = 0;
+            }
+            else
+            {
+                dst[j * w + i] = col_tab[index];
+            }
+        }
+    }
+}
+
+// H mode with punchthrough alpha support
+static etcpak_force_inline void DecodeHPunchthrough( uint64_t block, uint32_t* dst, uint32_t w )
+{
+    const uint8_t opaque = block & 0x2;
+    const uint32_t indexes = ( block >> 32 ) & 0xFFFFFFFF;
+
+    const auto r0444 = ( block >> 27 ) & 0xF;
+    const auto g0444 = ( ( block >> 20 ) & 0x1 ) | ( ( ( block >> 24 ) & 0x7 ) << 1 );
+    const auto b0444 = ( ( block >> 15 ) & 0x7 ) | ( ( ( block >> 19 ) & 0x1 ) << 3 );
+
+    const auto r1444 = ( block >> 11 ) & 0xF;
+    const auto g1444 = ( block >> 7 ) & 0xF;
+    const auto b1444 = ( block >> 3 ) & 0xF;
+
+    const auto r0 = ( r0444 << 4 ) | r0444;
+    const auto g0 = ( g0444 << 4 ) | g0444;
+    const auto b0 = ( b0444 << 4 ) | b0444;
+
+    const auto r1 = ( r1444 << 4 ) | r1444;
+    const auto g1 = ( g1444 << 4 ) | g1444;
+    const auto b1 = ( b1444 << 4 ) | b1444;
+
+    const auto codeword_hi = ( ( block & 0x1 ) << 1 ) | ( ( block & 0x4 ) );
+    const auto c0 = ( r0444 << 8 ) | ( g0444 << 4 ) | ( b0444 << 0 );
+    const auto c1 = ( block >> 3 ) & ( ( 1 << 12 ) - 1 );
+    const auto codeword_lo = ( c0 >= c1 ) ? 1 : 0;
+    const auto codeword = codeword_hi | codeword_lo;
+
+    const uint32_t col_tab[] = {
+        uint32_t( clampu8( r0 + table59T58H[codeword] ) | ( clampu8( g0 + table59T58H[codeword] ) << 8 ) | ( clampu8( b0 + table59T58H[codeword] ) << 16 ) ),
+        uint32_t( clampu8( r0 - table59T58H[codeword] ) | ( clampu8( g0 - table59T58H[codeword] ) << 8 ) | ( clampu8( b0 - table59T58H[codeword] ) << 16 ) ),
+        uint32_t( clampu8( r1 + table59T58H[codeword] ) | ( clampu8( g1 + table59T58H[codeword] ) << 8 ) | ( clampu8( b1 + table59T58H[codeword] ) << 16 ) ),
+        uint32_t( clampu8( r1 - table59T58H[codeword] ) | ( clampu8( g1 - table59T58H[codeword] ) << 8 ) | ( clampu8( b1 - table59T58H[codeword] ) << 16 ) )
+    };
+
+    for( uint8_t j = 0; j < 4; j++ )
+    {
+        for( uint8_t i = 0; i < 4; i++ )
+        {
+            const uint8_t index = ( ( ( indexes >> ( j + i * 4 + 16 ) ) & 0x1 ) << 1 ) | ( ( indexes >> ( j + i * 4 ) ) & 0x1 );
+            // If opaque==0 and MSB==1 && LSB==0 (index==2), set pixel to 0
+            if( opaque == 0 && index == 2 )
+            {
+                dst[j * w + i] = 0;
+            }
+            else
+            {
+                dst[j * w + i] = col_tab[index] | 0xFF000000;
+            }
         }
     }
 }
@@ -806,14 +928,14 @@ static etcpak_force_inline void DecodeRGBA1Part( uint64_t d, uint32_t* dst, uint
     // T mode
     if ( (r1 < 0) || (r1 > 31) )
     {
-        DecodeT( d, dst, w );
+        DecodeTPunchthrough( d, dst, w );
         return;
     }
 
     // H mode
     if ((g1 < 0) || (g1 > 31))
     {
-        DecodeH( d, dst, w );
+        DecodeHPunchthrough( d, dst, w );
         return;
     }
 
@@ -926,12 +1048,6 @@ static etcpak_force_inline void DecodeRSignedPart( uint64_t r, uint32_t* dst, ui
 {
     r = _bswap64( r );
 
-    // Excerpted from section 22.7 Format Signed R11 EAC:
-    // The base codeword is stored in the first 8 bits as shown in Table 22.5 part (a). It is a two’s-complement value in the range
-    // [-127, 127], and where the value -128 is not allowed; however, if it should occur anyway it must be treated as -127.
-    // The base codeword is then multiplied by 8 by shifting it left three steps.
-    //
-    // This is the only difference between the signed and unsigned R11 EAC formats.
     const int32_t base = (((int8_t)( r >> 56 )) <= -128 ? -127 : ((int8_t)( r >> 56 ))) * 8;
     const int32_t mul = ( r >> 52 ) & 0xF;
     const auto atbl = g_alpha[( r >> 48 ) & 0xF];
@@ -941,7 +1057,7 @@ static etcpak_force_inline void DecodeRSignedPart( uint64_t r, uint32_t* dst, ui
         for ( int j=0; j<4; j++ )
         {
             const auto amod = atbl[(r >> ( 45 - j*3 - i*12 )) & 0x7];
-            const uint32_t rc = clampu8( ( base + amod * g_alpha11Mul[mul] )/8 );
+            const uint32_t rc = clamp_s11_to_u8(base + amod * g_alpha11Mul[mul]);
             dst[j*w+i] = rc | 0xFF000000;
         }
     }
@@ -966,10 +1082,10 @@ static etcpak_force_inline void DecodeRGSignedPart( uint64_t r, uint64_t g, uint
         for( int j=0; j<4; j++ )
         {
             const auto rmod = rtbl[(r >> ( 45 - j*3 - i*12 )) & 0x7];
-            const uint32_t rc = clampu8( ( rbase + rmod * g_alpha11Mul[rmul] )/8 );
+            const uint32_t rc = clamp_s11_to_u8(rbase + rmod * g_alpha11Mul[rmul]);
 
             const auto gmod = gtbl[(g >> ( 45 - j*3 - i*12 )) & 0x7];
-            const uint32_t gc = clampu8( ( gbase + gmod * g_alpha11Mul[gmul] )/8 );
+            const uint32_t gc = clamp_s11_to_u8(gbase + gmod * g_alpha11Mul[gmul]);
 
             dst[j*w+i] = rc | (gc << 8) | 0xFF000000;
         }
