@@ -365,15 +365,8 @@ jobs:
 
       - name: run tests
         shell: bash
-        # tee the output, check that the output contains "Status: SUCCESS!" and exit with error if it doesn't
         run: |
-          ${{matrix.bin}} --headless --test --force-colors "--test-case=[GDSDecomp]*" 2>&1 | tee test_output.txt
-          grep "Status: SUCCESS!" test_output.txt
-          if [ $? -ne 0 ]; then
-            echo "Tests failed"
-            exit 1
-          fi
-
+          ${{matrix.bin}} --headless --test --force-colors "--test-case=[GDSDecomp]*"
   export:
     needs: build
     runs-on: ${{ matrix.os }}
