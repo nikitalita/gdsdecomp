@@ -29,7 +29,6 @@
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
 
-#include "core/crypto/crypto_core.h"
 #include "core/error/error_list.h"
 #include "core/error/error_macros.h"
 #include "main/main.h"
@@ -1394,6 +1393,75 @@ NodePath get_node_path(Node *p_node) {
 	return NodePath(path, true);
 }
 
+// disabled in debug builds, so we have to copy-and-paste it here.
+Ref<ArrayMesh> get_nav_array_debug_mesh(const Ref<NavigationMesh> navmesh) {
+	Ref<ArrayMesh> debug_mesh;
+	debug_mesh.instantiate();
+	Vector<Vector3> vertices = navmesh->get_vertices();
+
+	if (vertices.is_empty()) {
+		return debug_mesh;
+	}
+
+	int polygon_count = navmesh->get_polygon_count();
+
+	if (polygon_count < 1) {
+		// no face, no play
+		return debug_mesh;
+	}
+
+	// build geometry face surface
+	Vector<Vector3> face_vertex_array;
+	face_vertex_array.resize(polygon_count * 3);
+
+	for (int i = 0; i < polygon_count; i++) {
+		Vector<int> polygon = navmesh->get_polygon(i);
+
+		face_vertex_array.push_back(vertices[polygon[0]]);
+		face_vertex_array.push_back(vertices[polygon[1]]);
+		face_vertex_array.push_back(vertices[polygon[2]]);
+	}
+
+	Array face_mesh_array;
+	face_mesh_array.resize(Mesh::ARRAY_MAX);
+	face_mesh_array[Mesh::ARRAY_VERTEX] = face_vertex_array;
+
+	// if enabled add vertex colors to colorize each face individually
+	static constexpr bool enabled_geometry_face_random_color = false;
+	static const Color debug_navigation_geometry_face_color = Color(0.5, 1.0, 1.0, 0.4);
+	if (enabled_geometry_face_random_color) {
+		Color polygon_color = debug_navigation_geometry_face_color;
+
+		Vector<Color> face_color_array;
+		face_color_array.resize(polygon_count * 3);
+
+		for (int i = 0; i < polygon_count; i++) {
+			polygon_color = debug_navigation_geometry_face_color * (Color(Math::randf(), Math::randf(), Math::randf()));
+
+			face_color_array.push_back(polygon_color);
+			face_color_array.push_back(polygon_color);
+			face_color_array.push_back(polygon_color);
+		}
+		face_mesh_array[Mesh::ARRAY_COLOR] = face_color_array;
+	}
+
+	debug_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, face_mesh_array);
+	Ref<StandardMaterial3D> face_material;
+	face_material = Ref<StandardMaterial3D>(memnew(StandardMaterial3D));
+	face_material->set_shading_mode(StandardMaterial3D::SHADING_MODE_UNSHADED);
+	face_material->set_transparency(StandardMaterial3D::TRANSPARENCY_ALPHA);
+	face_material->set_albedo(debug_navigation_geometry_face_color);
+	face_material->set_cull_mode(StandardMaterial3D::CULL_DISABLED);
+	face_material->set_flag(StandardMaterial3D::FLAG_DISABLE_FOG, true);
+	if (enabled_geometry_face_random_color) {
+		face_material->set_flag(StandardMaterial3D::FLAG_SRGB_VERTEX_COLOR, true);
+		face_material->set_flag(StandardMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+	}
+	debug_mesh->surface_set_material(0, face_material);
+
+	return debug_mesh;
+}
+
 Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	root_type = root->get_class();
 	root_name = root->get_name();
@@ -1610,10 +1678,7 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		if (!is_auto_generated_node(node) && node != root) {
 			if (auto navigation_region = Object::cast_to<NavigationRegion3D>(node); navigation_region) {
 				if (Ref<NavigationMesh> navmesh = navigation_region->get_navigation_mesh(); navmesh.is_valid()) {
-					bool enabled_edge_lines = NavigationServer3D::get_singleton()->get_debug_navigation_enable_edge_lines();
-					NavigationServer3D::get_singleton()->set_debug_navigation_enable_edge_lines(false);
-					auto debug_mesh = navmesh->get_debug_mesh();
-					NavigationServer3D::get_singleton()->set_debug_navigation_enable_edge_lines(enabled_edge_lines);
+					auto debug_mesh = get_nav_array_debug_mesh(navmesh);
 					replace_with_mi(debug_mesh);
 				}
 			} else if (auto occluder_instance = Object::cast_to<OccluderInstance3D>(node); occluder_instance) {
