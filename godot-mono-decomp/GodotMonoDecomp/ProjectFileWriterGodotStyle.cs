@@ -720,11 +720,18 @@ namespace GodotMonoDecomp
 				// create an empty file named ".gdignore" in the mono directory
 				if (!File.Exists(Path.Combine(copyToDir, ".gdignore")))
 				{
-					if (!Directory.Exists(copyToDir))
+					try
 					{
-						Directory.CreateDirectory(copyToDir);
+						if (!Directory.Exists(copyToDir))
+						{
+							Directory.CreateDirectory(copyToDir);
+						}
+						File.Create(Path.Combine(copyToDir, ".gdignore")).Close();
 					}
-					File.Create(Path.Combine(copyToDir, ".gdignore")).Close();
+					catch (Exception e)
+					{
+						Console.Error.WriteLine($"Error creating .gdignore file in {copyToDir}: {e.Message}");
+					}
 				}
 
 				// use the relative path to the output directory
