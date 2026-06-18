@@ -3,8 +3,8 @@
 [ext_resource type="Theme" uid="uid://crq1fwn0ajw7b" path="res://gdre_theme.tres" id="1_crn14"]
 [ext_resource type="Script" uid="uid://dnjt5hkgucm3" path="res://gdre_resource_preview.gd" id="1_tgfma"]
 [ext_resource type="Texture2D" uid="uid://b3l2iqhf34x5c" path="res://gdre_icons/gdre_LogoBig.svg" id="3_gp5ss"]
-[ext_resource type="PackedScene" uid="uid://cuifra52kkek" path="res://gdre_media_player.tscn" id="4_crn14"]
 [ext_resource type="Script" uid="uid://d3gw3xp1peanv" path="res://gdre_text_editor.gd" id="5_1bufa"]
+[ext_resource type="Script" uid="uid://b75xge8xdomov" path="res://gdre_media_player.gd" id="5_gp5ss"]
 [ext_resource type="Material" uid="uid://dql80mrl8tckq" path="res://gdre_loading_circle.tres" id="6_gp5ss"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gp5ss"]
@@ -47,6 +47,7 @@ size_flags_vertical = 3
 
 [node name="LoadingWaitView" type="CenterContainer" parent="VBoxContainer/RootView/ResourceView" unique_id=99313455]
 unique_name_in_owner = true
+visible = false
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -103,10 +104,17 @@ text = "16x16 RGBA8
 No Mipmaps
 Memory: 1024 B"
 
-[node name="MediaPlayer" parent="VBoxContainer/RootView/ResourceView" unique_id=326216806 instance=ExtResource("4_crn14")]
+[node name="MediaPlayer" type="Control" parent="VBoxContainer/RootView/ResourceView" unique_id=1402627851]
 unique_name_in_owner = true
-visible = false
 layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("1_crn14")
+script = ExtResource("5_gp5ss")
+metadata/_custom_type_script = "uid://b75xge8xdomov"
 
 [node name="TextView" type="CodeEdit" parent="VBoxContainer/RootView/ResourceView" unique_id=2141427000]
 unique_name_in_owner = true

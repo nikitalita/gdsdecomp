@@ -1,18 +1,132 @@
 class_name GDREMediaPlayer
 extends Control
 
-@onready var TIME_LABEL: Label = %TimeLabel
-@onready var PROGRESS_BAR: Slider = %ProgressBar
-@onready var PLAY_BUTTON: Button = %Play
-@onready var PAUSE_BUTTON: Button = %Pause
-@onready var STOP_BUTTON: Button = %Stop
-@onready var AUDIO_PLAYER_STREAM: AudioStreamPlayer = %AudioStreamPlayer
-@onready var AUDIO_PREVIEW_BOX: Control = %AudioPreviewBox
-@onready var AUDIO_VIEW_BOX: Control = %AudioViewBox
-@onready var AUDIO_STREAM_INFO: Label = %AudioStreamInfo
-@onready var VIDEO_PLAYER_STREAM: VideoStreamPlayer = %VideoStreamPlayer
-@onready var VIDEO_VIEW_BOX: Control = %VideoViewBox
-@onready var VIDEO_ASPECT_RATIO_CONTAINER: AspectRatioContainer = %AspectRatioContainer
+class GDREAudioPreviewBox extends ColorRect:
+	@export var editable: bool = true
+	@export var backgroundColor: Color = Color("21262d")
+	@export var lineColor: Color = Color("ffffff")
+	@export var autoSetIndicatorBGColor: bool = true:
+		set(val):
+			if val:
+				indicatorBGColor = _get_indicator_color(backgroundColor)
+			autoSetIndicatorBGColor = val
+		get:
+			return autoSetIndicatorBGColor
+	@export var indicatorLineColor: Color = Color("c8c9cb")
+	@export var indicatorBGColor: Color = Color("909396bf"):
+		set(val):
+			if not autoSetIndicatorBGColor:
+				indicatorBGColor = val
+			else:
+				indicatorBGColor = _get_indicator_color(backgroundColor)
+		get:
+			return indicatorBGColor
+
+	var preview: GDREAudioStreamPreview = null
+	var stream: AudioStream = null
+	var pos: float = 0
+	var dragging: bool = false
+
+	signal pos_changed(pos: float)
+
+	func _get_indicator_color(p_color):
+		return p_color.lerp(Color(1, 1, 1, 0.5), 0.5)
+
+	func _on_input(input: InputEvent):
+		if not editable:
+			return
+		var click = false
+		if input is InputEventMouseButton:
+			if input.button_index == MOUSE_BUTTON_LEFT:
+				if input.pressed:
+					click = true
+					dragging = true
+				else:
+					dragging = false
+		if input is InputEventMouseMotion:
+			if input.button_mask & MOUSE_BUTTON_MASK_LEFT:
+				click = true
+				dragging = true
+			else:
+				dragging = false
+		if click:
+			var rect = get_rect()
+			var previewLen = self.preview.get_length()
+			var new_pos = input.position.x / rect.size.x * previewLen
+			if new_pos != self.pos:
+				_set_pos(new_pos)
+				emit_signal("pos_changed", pos)
+
+	func _init():
+		self.color = backgroundColor
+		if autoSetIndicatorBGColor:
+			indicatorBGColor = _get_indicator_color(backgroundColor)
+
+	func _ready():
+		GDREAudioStreamPreviewGenerator.connect("preview_updated", self._on_preview_updated)
+		self.gui_input.connect(self._on_input)
+
+	func set_stream(p_stream):
+		self.stream = p_stream
+		self.preview = GDREAudioStreamPreviewGenerator.generate_preview(self.stream)
+		queue_redraw()
+
+	func _on_preview_updated(stream_id):
+		if is_instance_valid(self.stream) and self.stream.get_instance_id() == stream_id:
+			queue_redraw()
+
+	func reset():
+		self.preview = null
+		self.stream = null
+		self.pos = 0
+		self.dragging = false
+		queue_redraw()
+
+	func _set_pos(new_pos):
+		var length = self.preview.get_length() if is_instance_valid(self.preview) else 0.0
+		new_pos = clamp(new_pos, 0.0, length)
+		if self.pos != new_pos:
+			self.pos = new_pos
+			queue_redraw()
+		else:
+			self.pos = new_pos
+
+	func update_pos(new_pos):
+		if not dragging:
+			_set_pos(new_pos)
+
+	func _draw():
+		if not is_instance_valid(self.preview):
+			return
+		var rect = get_rect()
+		var rectSize = rect.size
+		var previewLen = self.preview.get_length()
+		for i in range(0, rectSize.x):
+			var ofs = i * previewLen / rectSize.x
+			var ofs_n = (i+1) * previewLen / rectSize.x
+			var max = self.preview.get_max(ofs, ofs_n) * 0.5 + 0.5
+			var min = self.preview.get_min(ofs, ofs_n) * 0.5 + 0.5
+			draw_line(Vector2(i,  min * rectSize.y),
+			Vector2(i, max * rectSize.y), lineColor, 1, false)
+		var indicatorPos = pos / previewLen * rectSize.x
+		if indicatorPos >= 0:
+			draw_rect(Rect2(0, 0, max(0,indicatorPos - 1), rectSize.y), indicatorBGColor)
+			var indicatorColor = _get_indicator_color(indicatorBGColor)
+			indicatorColor.a = 1
+			draw_line(Vector2(indicatorPos, 0), Vector2(indicatorPos, rectSize.y), indicatorColor, 2, false)
+
+var TIME_LABEL: Label
+var PROGRESS_BAR: Slider
+var PLAY_BUTTON: Button
+var PAUSE_BUTTON: Button
+var STOP_BUTTON: Button
+var AUDIO_PLAYER_STREAM: AudioStreamPlayer
+var AUDIO_PREVIEW_BOX: GDREAudioPreviewBox
+var AUDIO_VIEW_BOX: Control
+var AUDIO_STREAM_INFO: Label
+var VIDEO_PLAYER_STREAM: VideoStreamPlayer
+var VIDEO_VIEW_BOX: Control
+var VIDEO_ASPECT_RATIO_CONTAINER: AspectRatioContainer
 
 var controller: PlayerController = null
 var dragging_slider: bool = false
@@ -450,3 +564,164 @@ func _ready():
 	# load_sample("res://anomaly 105 jun12.ogg")
 	# load_sample("res://2.wav")
 	# load_media("res://Door_OGV.ogv")
+
+func _init():
+	var main_margin_container: MarginContainer = MarginContainer.new()
+	main_margin_container.layout_mode = 1
+	main_margin_container.anchors_preset = 15
+	main_margin_container.anchor_right = 1.0
+	main_margin_container.anchor_bottom = 1.0
+	main_margin_container.grow_horizontal = 2
+	main_margin_container.grow_vertical = 2
+	main_margin_container.add_theme_constant_override("margin_bottom", 20)
+	self.add_child(main_margin_container)
+
+	var vbox_container = VBoxContainer.new()
+	vbox_container.layout_mode = 2
+	main_margin_container.add_child(vbox_container)
+
+	var tab_container = TabContainer.new()
+	tab_container.layout_mode = 2
+	tab_container.size_flags_vertical = 3
+	tab_container.current_tab = 0
+	tab_container.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	tab_container.tabs_visible = false
+	vbox_container.add_child(tab_container)
+
+	var default_box = Control.new()
+	default_box.layout_mode = 2
+	tab_container.add_child(default_box)
+
+	AUDIO_VIEW_BOX = Control.new()
+	AUDIO_VIEW_BOX.layout_mode = 2
+	tab_container.add_child(AUDIO_VIEW_BOX)
+
+	AUDIO_PLAYER_STREAM = AudioStreamPlayer.new()
+	AUDIO_VIEW_BOX.add_child(AUDIO_PLAYER_STREAM)
+
+	AUDIO_PREVIEW_BOX = GDREAudioPreviewBox.new()
+	AUDIO_PREVIEW_BOX.layout_mode = 1
+	AUDIO_PREVIEW_BOX.anchors_preset = 15
+	AUDIO_PREVIEW_BOX.anchor_right = 1.0
+	AUDIO_PREVIEW_BOX.anchor_bottom = 1.0
+	AUDIO_PREVIEW_BOX.grow_horizontal = 2
+	AUDIO_PREVIEW_BOX.grow_vertical = 2
+	AUDIO_PREVIEW_BOX.color = Color(0.129412, 0.14902, 0.176471, 1)
+	AUDIO_VIEW_BOX.add_child(AUDIO_PREVIEW_BOX)
+
+	AUDIO_STREAM_INFO = Label.new()
+	AUDIO_STREAM_INFO.layout_mode = 1
+	AUDIO_STREAM_INFO.anchors_preset = -1
+	AUDIO_STREAM_INFO.anchor_left = 1.0
+	AUDIO_STREAM_INFO.anchor_right = 1.0
+	AUDIO_STREAM_INFO.anchor_top = 1.0
+	AUDIO_STREAM_INFO.anchor_bottom = 1.0
+	AUDIO_STREAM_INFO.offset_left = -155.0
+	AUDIO_STREAM_INFO.offset_top = -43.0
+	AUDIO_STREAM_INFO.grow_horizontal = 0
+	AUDIO_STREAM_INFO.grow_vertical = 0
+	AUDIO_STREAM_INFO.layout_direction = 2
+	AUDIO_STREAM_INFO.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 1))
+	AUDIO_STREAM_INFO.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	AUDIO_STREAM_INFO.add_theme_constant_override("outline_size", 8)
+	AUDIO_STREAM_INFO.add_theme_font_size_override("font_size", 14)
+	AUDIO_VIEW_BOX.add_child(AUDIO_STREAM_INFO)
+
+	VIDEO_VIEW_BOX = Control.new()
+	VIDEO_VIEW_BOX.layout_mode = 2
+	VIDEO_VIEW_BOX.size_flags_vertical = 3
+	tab_container.add_child(VIDEO_VIEW_BOX)
+
+	VIDEO_ASPECT_RATIO_CONTAINER = AspectRatioContainer.new()
+	VIDEO_ASPECT_RATIO_CONTAINER.layout_mode = 1
+	VIDEO_ASPECT_RATIO_CONTAINER.anchors_preset = 15
+	VIDEO_ASPECT_RATIO_CONTAINER.anchor_right = 1.0
+	VIDEO_ASPECT_RATIO_CONTAINER.anchor_bottom = 1.0
+	VIDEO_ASPECT_RATIO_CONTAINER.grow_horizontal = 2
+	VIDEO_ASPECT_RATIO_CONTAINER.grow_vertical = 2
+	VIDEO_ASPECT_RATIO_CONTAINER.clip_contents = true
+	VIDEO_ASPECT_RATIO_CONTAINER.ratio = 1.7778
+	VIDEO_VIEW_BOX.add_child(VIDEO_ASPECT_RATIO_CONTAINER)
+
+	var bg = Panel.new()
+	bg.layout_mode = 2
+	var stylebox = StyleBoxFlat.new()
+	stylebox.bg_color = Color(0, 0, 0, 1)
+	bg.add_theme_stylebox_override("panel", stylebox)
+	VIDEO_ASPECT_RATIO_CONTAINER.add_child(bg)
+
+	VIDEO_PLAYER_STREAM = VideoStreamPlayer.new()
+	VIDEO_PLAYER_STREAM.layout_mode = 2
+	VIDEO_PLAYER_STREAM.custom_minimum_size = Vector2(16, 9)
+	VIDEO_PLAYER_STREAM.expand = true
+	VIDEO_ASPECT_RATIO_CONTAINER.add_child(VIDEO_PLAYER_STREAM)
+
+	var BAR_MARGIN_CONTAINER = MarginContainer.new()
+	BAR_MARGIN_CONTAINER.layout_mode = 2
+	BAR_MARGIN_CONTAINER.add_theme_constant_override("margin_left", 40)
+	BAR_MARGIN_CONTAINER.add_theme_constant_override("margin_top", 8)
+	BAR_MARGIN_CONTAINER.add_theme_constant_override("margin_right", 40)
+	BAR_MARGIN_CONTAINER.add_theme_constant_override("margin_bottom", 0)
+	vbox_container.add_child(BAR_MARGIN_CONTAINER)
+
+	var BAR_HBOX: HBoxContainer = HBoxContainer.new()
+	BAR_HBOX.layout_mode = 2
+	BAR_MARGIN_CONTAINER.add_child(BAR_HBOX)
+
+	TIME_LABEL = Label.new()
+	TIME_LABEL.layout_mode = 2
+	TIME_LABEL.layout_direction = 2
+	TIME_LABEL.text = "0:00.0 / 0:00.0"
+	TIME_LABEL.horizontal_alignment = 2
+	TIME_LABEL.vertical_alignment = 1
+	BAR_HBOX.add_child(TIME_LABEL)
+
+	var SPACER = Label.new()
+	SPACER.layout_mode = 2
+	SPACER.text = " "
+	BAR_HBOX.add_child(SPACER)
+
+	PROGRESS_BAR = HSlider.new()
+	PROGRESS_BAR.layout_mode = 2
+	PROGRESS_BAR.size_flags_horizontal = 3
+	PROGRESS_BAR.size_flags_vertical = 4
+	PROGRESS_BAR.step = 0.1
+	BAR_HBOX.add_child(PROGRESS_BAR)
+
+	var MEDIA_CONTROLS_HBOX = HBoxContainer.new()
+	MEDIA_CONTROLS_HBOX.layout_mode = 2
+	MEDIA_CONTROLS_HBOX.size_flags_horizontal = 4
+	MEDIA_CONTROLS_HBOX.alignment = 1
+	vbox_container.add_child(MEDIA_CONTROLS_HBOX)
+
+	PLAY_BUTTON = Button.new()
+	PLAY_BUTTON.layout_mode = 2
+	PLAY_BUTTON.theme_type_variation = "FlatButton"
+	PLAY_BUTTON.icon = play_icon
+	PLAY_BUTTON.flat = true
+	MEDIA_CONTROLS_HBOX.add_child(PLAY_BUTTON)
+
+	var spacer1 = Control.new()
+	spacer1.layout_mode = 2
+	spacer1.custom_minimum_size = Vector2(10, 0)
+	MEDIA_CONTROLS_HBOX.add_child(spacer1)
+
+	PAUSE_BUTTON = Button.new()
+	PAUSE_BUTTON.layout_mode = 2
+	PAUSE_BUTTON.theme_type_variation = "FlatButton"
+	PAUSE_BUTTON.icon = pause_icon
+	PAUSE_BUTTON.disabled = true
+	PAUSE_BUTTON.flat = true
+	MEDIA_CONTROLS_HBOX.add_child(PAUSE_BUTTON)
+
+	var spacer2 = Control.new()
+	spacer2.layout_mode = 2
+	spacer2.custom_minimum_size = Vector2(10, 0)
+	MEDIA_CONTROLS_HBOX.add_child(spacer2)
+
+	STOP_BUTTON = Button.new()
+	STOP_BUTTON.layout_mode = 2
+	STOP_BUTTON.theme_type_variation = "FlatButton"
+	STOP_BUTTON.icon = stop_icon
+	STOP_BUTTON.flat = true
+	MEDIA_CONTROLS_HBOX.add_child(STOP_BUTTON)
