@@ -31,7 +31,6 @@
 #include "texture_layered_previewer.h"
 
 #include "core/input/input.h"
-#include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
 #include "scene/gui/label.h"
 
@@ -571,10 +570,6 @@ bool TextureLayeredPreviewer::can_edit(const String &p_resource_path, const Stri
 		return true;
 	}
 
-	String type = p_type;
-	if (type.is_empty()) {
-		type = ResourceLoader::get_resource_type(p_resource_path);
-	}
 	if (!p_type.is_empty()) {
 		return p_type == "ImageLayeredTexture" || p_type == "TextureLayered" || p_type == "ImageTexture3D" || p_type == "StreamTextureArray" || p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray" || p_type == "CompressedTexture3D" || p_type == "StreamTexture3D" || p_type == "Texture3D";
 	}
