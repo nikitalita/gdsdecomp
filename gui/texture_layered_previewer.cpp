@@ -146,6 +146,40 @@ constexpr const char *cubemap_array_shader = R"(
 	}
 )";
 
+constexpr const char *texture_3d_shader = R"(
+	// Texture3DEditor preview shader.
+
+	shader_type canvas_item;
+
+	uniform sampler3D tex;
+	uniform float layer;
+
+	uniform vec4 u_channel_factors = vec4(1.0);
+
+	vec4 filter_preview_colors(vec4 input_color, vec4 factors) {
+		// Filter RGB.
+		vec4 output_color = input_color * vec4(factors.rgb, input_color.a);
+
+		// Remove transparency when alpha is not enabled.
+		output_color.a = mix(1.0, output_color.a, factors.a);
+
+		// Switch to opaque grayscale when visualizing only one channel.
+		float csum = factors.r + factors.g + factors.b + factors.a;
+		float single = clamp(2.0 - csum, 0.0, 1.0);
+		for (int i = 0; i < 4; i++) {
+			float c = input_color[i];
+			output_color = mix(output_color, vec4(c, c, c, 1.0), factors[i] * single);
+		}
+
+		return output_color;
+	}
+
+	void fragment() {
+		COLOR = textureLod(tex, vec3(UV, layer), 0.0);
+		COLOR = filter_preview_colors(COLOR, u_channel_factors);
+	}
+)";
+
 void TextureLayeredPreviewer::gui_input(const Ref<InputEvent> &p_event) {
 	ERR_FAIL_COND(p_event.is_null());
 
@@ -187,55 +221,82 @@ void TextureLayeredPreviewer::_update_gui() {
 
 	_texture_rect_update_area();
 
-	const Image::Format format = texture->get_format();
+	Ref<TextureLayered> texture_layered = texture;
+	Ref<Texture3D> texture_3d = texture;
+	ERR_FAIL_COND(texture_layered.is_null() && texture_3d.is_null());
+	_texture_rect_update_area();
+
+	const Image::Format format = texture_layered.is_valid() ? texture_layered->get_format() : texture_3d->get_format();
 	const String format_name = Image::get_format_name(format);
 	String texture_info;
 
-	switch (texture->get_layered_type()) {
-		case TextureLayered::LAYERED_TYPE_2D_ARRAY: {
-			layer->set_max(texture->get_layers() - 1);
+	bool has_mipmaps = false;
+	int mip_count = 0;
+	int width = 0;
+	int height = 0;
+	int layers = 0;
+	if (texture_layered.is_valid()) {
+		has_mipmaps = texture_layered->has_mipmaps();
+		width = texture_layered->get_width();
+		height = texture_layered->get_height();
+		layers = texture_layered->get_layers();
+		switch (texture_layered->get_layered_type()) {
+			case TextureLayered::LAYERED_TYPE_2D_ARRAY: {
+				layer->set_max(texture_layered->get_layers() - 1);
 
-			texture_info = vformat(String::utf8("%d×%d (×%d) %s\n"),
-					texture->get_width(),
-					texture->get_height(),
-					texture->get_layers(),
-					format_name);
+				texture_info = vformat(String::utf8("%d×%d (×%d) %s\n"),
+						texture_layered->get_width(),
+						texture_layered->get_height(),
+						texture_layered->get_layers(),
+						format_name);
 
-		} break;
-		case TextureLayered::LAYERED_TYPE_CUBEMAP: {
-			layer->hide();
+			} break;
+			case TextureLayered::LAYERED_TYPE_CUBEMAP: {
+				layer->hide();
 
-			texture_info = vformat(String::utf8("%d×%d %s\n"),
-					texture->get_width(),
-					texture->get_height(),
-					format_name);
+				texture_info = vformat(String::utf8("%d×%d %s\n"),
+						texture_layered->get_width(),
+						texture_layered->get_height(),
+						format_name);
 
-		} break;
-		case TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY: {
-			layer->set_max(texture->get_layers() / 6 - 1);
+			} break;
+			case TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY: {
+				layer->set_max(texture_layered->get_layers() / 6 - 1);
 
-			texture_info = vformat(String::utf8("%d×%d (×%d) %s\n"),
-					texture->get_width(),
-					texture->get_height(),
-					texture->get_layers() / 6,
-					format_name);
+				texture_info = vformat(String::utf8("%d×%d (×%d) %s\n"),
+						texture_layered->get_width(),
+						texture_layered->get_height(),
+						texture_layered->get_layers() / 6,
+						format_name);
 
-		} break;
+			} break;
 
-		default: {
+			default: {
+			}
 		}
-	}
+	} else { // texture_3d
+		has_mipmaps = texture_3d->has_mipmaps();
+		width = texture_3d->get_width();
+		height = texture_3d->get_height();
+		layers = texture_3d->get_depth();
+		layer->set_max(texture_3d->get_depth() - 1);
 
-	if (texture->has_mipmaps()) {
-		const int mip_count = Image::get_image_required_mipmaps(texture->get_width(), texture->get_height(), format);
-		const int memory = Image::get_image_data_size(texture->get_width(), texture->get_height(), format, true) * texture->get_layers();
+		texture_info = vformat(String::utf8("%d×%d×%d %s\n"),
+				texture_3d->get_width(),
+				texture_3d->get_height(),
+				texture_3d->get_depth(),
+				format_name);
+	}
+	if (has_mipmaps) {
+		mip_count = Image::get_image_required_mipmaps(width, height, format);
+		const int memory = Image::get_image_data_size(width, height, format, true) * layers;
 
 		texture_info += vformat(RTR("%s Mipmaps") + "\n" + RTR("Memory: %s"),
 				mip_count,
 				String::humanize_size(memory));
 
 	} else {
-		const int memory = Image::get_image_data_size(texture->get_width(), texture->get_height(), format, false) * texture->get_layers();
+		const int memory = Image::get_image_data_size(width, height, format, false) * layers;
 
 		texture_info += vformat(RTR("No Mipmaps") + "\n" + RTR("Memory: %s"),
 				String::humanize_size(memory));
@@ -291,6 +352,7 @@ void TextureLayeredPreviewer::_texture_changed() {
 void TextureLayeredPreviewer::_update_material(bool p_texture_changed) {
 	materials[0]->set_shader_parameter("layer", layer->get_value());
 	materials[2]->set_shader_parameter("layer", layer->get_value());
+	materials[3]->set_shader_parameter("layer", layer->get_value());
 
 	Vector3 v(-1, -1, -1);
 	v.normalize();
@@ -305,10 +367,9 @@ void TextureLayeredPreviewer::_update_material(bool p_texture_changed) {
 	materials[2]->set_shader_parameter("rot", b);
 
 	if (p_texture_changed) {
-		const TextureLayered::LayeredType type = texture->get_layered_type();
-		use_rotation = type == TextureLayered::LAYERED_TYPE_CUBEMAP || type == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY;
-
-		materials[texture->get_layered_type()]->set_shader_parameter("tex", texture->get_rid());
+		int index = get_material_index();
+		use_rotation = (TextureLayered::LayeredType)index == TextureLayered::LAYERED_TYPE_CUBEMAP || (TextureLayered::LayeredType)index == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY;
+		materials[index]->set_shader_parameter("tex", texture->get_rid());
 	}
 
 	const Vector4 channel_factors = channel_selector->get_selected_channel_factors();
@@ -328,10 +389,28 @@ void TextureLayeredPreviewer::_draw_outline() {
 }
 
 void TextureLayeredPreviewer::_make_materials() {
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < MATERIAL_COUNT; i++) {
 		materials[i].instantiate();
 		materials[i]->set_shader(shaders[i]);
 	}
+}
+
+Pair<int, int> TextureLayeredPreviewer::get_texture_size() const {
+	if (Ref<TextureLayered> texture_layered = texture; texture_layered.is_valid()) {
+		return Pair<int, int>(texture_layered->get_width(), texture_layered->get_height());
+	} else if (Ref<Texture3D> texture_3d = texture; texture_3d.is_valid()) {
+		return Pair<int, int>(texture_3d->get_width(), texture_3d->get_height());
+	}
+	return Pair<int, int>(0, 0);
+}
+
+int TextureLayeredPreviewer::get_material_index() const {
+	if (Ref<TextureLayered> texture_layered = texture; texture_layered.is_valid()) {
+		return (int)texture_layered->get_layered_type();
+	} else if (Ref<Texture3D> texture_3d = texture; texture_3d.is_valid()) {
+		return MATERIAL_COUNT - 1;
+	}
+	return 0;
 }
 
 void TextureLayeredPreviewer::_texture_rect_update_area() {
@@ -339,13 +418,15 @@ void TextureLayeredPreviewer::_texture_rect_update_area() {
 		return;
 	}
 
+	auto [base_width, base_height] = get_texture_size();
+
 	Size2 size = get_size();
-	int tex_width = texture->get_width() * size.height / texture->get_height();
+	int tex_width = base_width * size.height / base_height;
 	int tex_height = size.height;
 
 	if (tex_width > size.width) {
 		tex_width = size.width;
-		tex_height = texture->get_height() * tex_width / texture->get_width();
+		tex_height = base_height * tex_width / base_width;
 	}
 
 	// Prevent the texture from being unpreviewable after the rescale, so that we can still see something
@@ -372,12 +453,16 @@ void TextureLayeredPreviewer::init_shaders() {
 
 	shaders[2].instantiate();
 	shaders[2]->set_code(cubemap_array_shader);
+
+	shaders[3].instantiate();
+	shaders[3]->set_code(texture_3d_shader);
 }
 
 void TextureLayeredPreviewer::finish_shaders() {
 	shaders[0].unref();
 	shaders[1].unref();
 	shaders[2].unref();
+	shaders[3].unref();
 }
 
 Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {
@@ -385,9 +470,8 @@ Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {
 		texture->disconnect_changed(callable_mp(this, &TextureLayeredPreviewer::_texture_changed));
 	}
 	ERR_FAIL_COND_V_MSG(p_texture.is_null(), ERR_INVALID_PARAMETER, "Texture is null");
+	ERR_FAIL_COND_V_MSG(Ref<Texture3D>(p_texture).is_null() && Ref<TextureLayered>(p_texture).is_null(), ERR_INVALID_PARAMETER, "Texture is not a TextureLayered or Texture3D");
 	texture = p_texture;
-
-	ERR_FAIL_COND_V_MSG(!can_edit(p_texture->get_path(), p_texture->get_class()), ERR_INVALID_PARAMETER, "Texture is not a TextureLayered");
 
 	if (texture.is_valid()) {
 		if (materials[0].is_null()) {
@@ -395,7 +479,7 @@ Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {
 		}
 
 		texture->connect_changed(callable_mp(this, &TextureLayeredPreviewer::_texture_changed));
-		texture_rect->set_material(materials[texture->get_layered_type()]);
+		texture_rect->set_material(materials[get_material_index()]);
 
 		setting = true;
 		layer->set_value(0);
