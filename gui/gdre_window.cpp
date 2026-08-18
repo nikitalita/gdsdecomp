@@ -50,6 +50,9 @@ void GDREWindow::popup_box(Node *p_parent, Window *p_box, const String &p_messag
 }
 
 void GDREWindow::set_window_autoscaling(Window *p_window, Size2i p_min_size) {
+#ifdef ANDROID_ENABLED
+	return;
+#endif
 	ERR_FAIL_NULL(p_window);
 	if (Engine::get_singleton()->is_editor_hint()) {
 		return;
