@@ -1867,7 +1867,7 @@ struct KeyWorker {
 		if (all_keys_present()) {
 			return false;
 		}
-		if (!in_thorough_mode() && step >= START_OF_LONG_RUNNING_STAGES && get_found_key_ratio()) {
+		if (!in_thorough_mode() && step >= START_OF_LONG_RUNNING_STAGES && get_found_key_ratio() >= 0.99) {
 			return false;
 		}
 		return !step_too_long(step);
