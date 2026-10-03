@@ -185,7 +185,7 @@ jobs:
 
       - name: Setup Android SDK
         if: matrix.platform == 'android'
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Setup python and scons
         uses: ./.github/actions/godot-deps
