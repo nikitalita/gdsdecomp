@@ -1028,7 +1028,7 @@ Error get_extant_texture_path(Ref<ImportInfo> iinfo, String &path) {
 		static const Vector<String> preferred_formats_v3 = { "s3tc", "etc2", "atsc", "s3tc-low", "nx-low", "atsc-low" };
 		static const Vector<String> preferred_formats_v4 = { "bptc", "astc", "s3tc", "etc2" };
 		const Vector<String> &preferred_formats = iinfo->get_ver_major() <= 3 ? preferred_formats_v3 : preferred_formats_v4;
-		for (int i = 0; i < preferred_formats_v3.size(); i++) {
+		for (int i = 0; i < preferred_formats.size(); i++) {
 			String new_path = iinfo->get_iinfo_val("remap", "path." + preferred_formats[i], String());
 			if (!new_path.is_empty() && FileAccess::exists(new_path)) {
 				path = new_path;
