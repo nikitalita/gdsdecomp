@@ -16,6 +16,7 @@
 #include "scene/resources/atlas_texture.h"
 #include "scene/resources/compressed_texture.h"
 #include "scene/resources/texture.h"
+#include "utility/gdre_settings.h"
 #include "utility/image_saver.h"
 #include "utility/resource_info.h"
 
@@ -212,6 +213,12 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report
 		return OK;
 	}
 	auto p_import_info = p_report->get_import_info();
+	ERR_FAIL_COND_V_MSG(!p_import_info.is_valid(), ERR_PARSE_ERROR, "Import info is not valid");
+
+	int ver_minor = p_import_info->get_ver_minor();
+	if (ver_minor == 0 && GDRESettings::get_singleton()->is_pack_loaded()) {
+		ver_minor = GDRESettings::get_singleton()->get_ver_minor();
+	}
 
 	String ext = p_import_info->get_source_file().get_extension().to_lower();
 	Dictionary params;
@@ -293,7 +300,7 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report
 	params["compress/lossy_quality"] = 1.0; // prevent generational loss
 
 	// Set Basis Universal parameters if used
-	if (p_import_info->get_ver_minor() >= 5) {
+	if (ver_minor >= 5) {
 		params["compress/uastc_level"] = 2; // Default is Fastest, but force to Medium to prevent generational loss
 		params["compress/rdo_quality_loss"] = 0; // Default
 	}
@@ -337,6 +344,14 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report
 		params["roughness/src_normal"] = "";
 
 		// Set processing options
+
+		// remap channels; always set to RGBA
+		if (ver_minor >= 5) {
+			params["process/channel_remap/red"] = 0;
+			params["process/channel_remap/green"] = 1;
+			params["process/channel_remap/blue"] = 2;
+			params["process/channel_remap/alpha"] = 3;
+		}
 		params["process/fix_alpha_border"] = false; // default true, but forcing to false to prevent re-fixing
 		params["process/premult_alpha"] = false; // default false, and forcing cuz destructive
 		params["process/normal_map_invert_y"] = false; // default true, but forcing to false to prevent re-inverting
