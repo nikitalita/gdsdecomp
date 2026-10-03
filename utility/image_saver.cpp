@@ -411,7 +411,7 @@ Error ImageSaver::save_images_as_animated_gif(const String &p_path, const Vector
 	double start_time = 0;
 
 	for (int i = 0; i < p_images.size(); i++) {
-		Ref<Image> frame_image = p_images[i];
+		Ref<Image> frame_image = duplicate ? (Ref<Image>)p_images[i]->duplicate() : p_images[i];
 		GDRE_ERR_DECOMPRESS_OR_FAIL(frame_image);
 		// Convert to RGBA8 if needed
 		if (frame_image->get_format() != Image::FORMAT_RGBA8) {

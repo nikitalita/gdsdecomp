@@ -308,7 +308,7 @@ Ref<ImportInfo> ImportInfo::load_from_file(const String &p_path, int ver_major, 
 	if (p_path.get_extension() == "import") {
 		iinfo = Ref<ImportInfo>(memnew(ImportInfoModern));
 		err = iinfo->_load(p_path);
-		if (err == OK && iinfo.is_valid() && iinfo->ver_major == 0 && ver_major != 0) {
+		if (err == OK && iinfo.is_valid() && iinfo->ver_major == 0 && iinfo->ver_minor == 0 && (ver_major != 0 || ver_minor != 0)) {
 			iinfo->ver_major = ver_major;
 			iinfo->ver_minor = ver_minor;
 		}
