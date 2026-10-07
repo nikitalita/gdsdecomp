@@ -286,7 +286,7 @@ Vector<uint8_t> _build_miptex_entry(const String &p_name, const Ref<Image> &p_sr
 }
 
 Error _export_wad_file(const String &out_path, const String &res_path, const Ref<ImportInfo> &import_infos) {
-	auto res = ResourceCompatLoader::fake_load(res_path);
+	auto res = ResourceCompatLoader::custom_load(res_path, "", ResourceInfo::LoadType::GLTF_LOAD, nullptr, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	ERR_FAIL_COND_V_MSG(res.is_null(), ERR_FILE_CANT_OPEN, "Failed to load resource: " + res_path);
 	bool valid = false;
 	Dictionary textures = res->get("textures", &valid);
