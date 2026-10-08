@@ -11,6 +11,7 @@
 #include "utility/common.h"
 #include "utility/file_access_string.h"
 #include "utility/gdre_settings.h"
+#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 
 Ref<CompatFormatLoader> ResourceCompatLoader::loaders[ResourceCompatLoader::MAX_LOADERS];
@@ -571,7 +572,12 @@ String ResourceCompatLoader::resource_file_to_string(const String &p_path) {
 		return ProjectConfigLoader::get_project_settings_as_string(path);
 	}
 	String ext = path.get_extension().to_lower();
-	if (ext == "tres" || ext == "tscn" || ext == "gd" || !handles_resource(path, "")) {
+	if (ext == "cs" && GDRESettings::get_singleton()->has_loaded_dotnet_assembly()) {
+		String code = GDRESettings::get_singleton()->get_dotnet_decompiler()->decompile_individual_file(path);
+		return code;
+	}
+
+	if (FileAccess::exists(path) && (ext == "tres" || ext == "tscn" || ext == "gd" || ext == "cs" || !handles_resource(path, ""))) {
 		Error err;
 		Ref<FileAccess> f = FileAccess::open(path, FileAccess::READ, &err);
 		if (f.is_null() || err != OK) {
@@ -581,6 +587,9 @@ String ResourceCompatLoader::resource_file_to_string(const String &p_path) {
 			return "ERROR: Failed to open file: " + path;
 		}
 		auto buf = f->get_buffer(f->get_length());
+		if (buf.size() == 0 || (buf.size() == 1 && buf[0] == 0)) {
+			return "";
+		}
 		if (ext == "tres" || ext == "tscn" || gdre::detect_utf8(buf)) {
 			String str;
 			str.append_utf8((const char *)buf.ptr(), buf.size());
