@@ -31,7 +31,6 @@
 #include "scene_previewer.h"
 
 #include "core/config/project_settings.h"
-#include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
 #include "scene/3d/mesh_instance_3d.h"
@@ -366,16 +365,13 @@ bool ScenePreviewer::can_edit(const String &p_resource_path, const String &p_res
 	if (ext == "tscn" || ext == "scn") {
 		return true;
 	}
-	if (ext != "res" && ext != "tres") {
-		return false;
-	}
-	String type = ResourceLoader::get_resource_type(p_resource_path);
-	if (type == "PackedScene") {
-		return true;
-	}
 	return false;
 }
 
 ResourceInfo::LoadType ScenePreviewer::get_load_type() const {
 	return ResourceInfo::LoadType::REAL_LOAD;
+}
+
+bool ScenePreviewer::can_switch_to_text() const {
+	return true;
 }

@@ -118,5 +118,6 @@ public:
 	virtual String get_edited_resource_path() const override;
 	virtual void reset() override;
 	virtual ResourceInfo::LoadType get_load_type() const override;
+	virtual bool can_switch_to_text() const override;
 	ScenePreviewer();
 };
