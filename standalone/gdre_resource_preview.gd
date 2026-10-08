@@ -280,11 +280,11 @@ func load_resource(path: String) -> void:
 		info = ResourceCompatLoader.get_resource_info(path)
 		current_resource_type = info.get("type", "")
 	if (is_sample(ext)):
-		error_opening = not %MediaPlayer.load_sample(path)
+		error_opening = %MediaPlayer.load_sample(path) != OK
 		if not error_opening:
 			%MediaPlayer.visible = true
 	elif (is_video(ext)):
-		error_opening = not %MediaPlayer.load_video(path)
+		error_opening = %MediaPlayer.load_video(path) != OK
 		if not error_opening:
 			%MediaPlayer.visible = true
 	elif (is_image(ext)):
@@ -431,7 +431,7 @@ func _ready():
 	self.connect("resized", self._on_resized)
 	previous_res_info_size = Vector2(0, 100)
 	%ResourceInfoContainer.custom_minimum_size = previous_res_info_size
-	# load_resource("res://.godot/imported/kyuu_on_bike.glb-ecab64cc65c256db28f6d03df73eb447.scn")
+	load_resource('/Users/nikita/Downloads/home/web_user/project/scenes/quests/story_quests/renya_beyond_sorrow/Complementos/music/1. Echoes of Solitude (Loop).ogg')
 	# load_resource("res://.godot/imported/ScifiStruct_3.obj-8ad9868dec2ef9403c73f82a7404489a.mesh")
 	# load_resource("res://.godot/imported/gdre_Script.svg-4c68c9c5e02f5e7a41dddea59a95e245.ctex")
 	#load_resource("res://.godot/imported/anomaly 105 jun12.ogg-d3e939934d210d1a4e1f9d2d34966046.oggvorbisstr")
