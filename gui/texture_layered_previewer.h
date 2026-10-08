@@ -48,10 +48,12 @@ class TextureLayeredPreviewer : public GDREPreviewer {
 
 	SpinBox *layer = nullptr;
 	Label *info = nullptr;
-	Ref<TextureLayered> texture;
+	Ref<Texture> texture;
 
-	static inline Ref<Shader> shaders[3];
-	Ref<ShaderMaterial> materials[3];
+	static constexpr const int MATERIAL_COUNT = 4;
+
+	static inline Ref<Shader> shaders[MATERIAL_COUNT];
+	Ref<ShaderMaterial> materials[MATERIAL_COUNT];
 
 	float x_rot = 0;
 	float y_rot = 0;
@@ -82,6 +84,10 @@ class TextureLayeredPreviewer : public GDREPreviewer {
 	void _update_gui();
 
 	void on_selected_channels_changed();
+
+	Pair<int, int> get_texture_size() const;
+
+	int get_material_index() const;
 
 protected:
 	void _notification(int p_what);
