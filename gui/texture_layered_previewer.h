@@ -97,6 +97,7 @@ public:
 	static void init_shaders();
 	static void finish_shaders();
 
+	virtual String get_previewer_name() const override;
 	virtual Error edit(Ref<Resource> p_texture) override;
 	virtual bool can_edit(const String &p_resource_path, const String &p_resource_type) const override;
 	virtual String get_edited_resource_path() const override;

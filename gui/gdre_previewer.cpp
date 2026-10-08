@@ -2,6 +2,13 @@
 #include "compat/resource_loader_compat.h"
 #include "core/object/class_db.h"
 
+String GDREPreviewer::get_previewer_name() const {
+	String ret = "";
+	GDVIRTUAL_CALL(_get_previewer_name, ret);
+	ERR_FAIL_COND_V_MSG(ret.is_empty(), "", "_get_previewer_name virtual method is not implemented");
+	return ret;
+}
+
 Error GDREPreviewer::edit(Ref<Resource> p_resource) {
 	Error ret = ERR_UNAVAILABLE;
 	GDVIRTUAL_CALL(_edit, p_resource, ret);
@@ -47,6 +54,7 @@ bool GDREPreviewer::can_switch_to_text() const {
 }
 
 void GDREPreviewer::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("get_previewer_name"), &GDREPreviewer::get_previewer_name);
 	ClassDB::bind_method(D_METHOD("edit", "resource"), &GDREPreviewer::edit);
 	ClassDB::bind_method(D_METHOD("edit_from_path", "resource_path"), &GDREPreviewer::edit_from_path);
 	ClassDB::bind_method(D_METHOD("can_edit", "resource_path"), &GDREPreviewer::can_edit);
@@ -54,6 +62,7 @@ void GDREPreviewer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("reset"), &GDREPreviewer::reset);
 	ClassDB::bind_method(D_METHOD("get_load_type"), &GDREPreviewer::get_load_type);
 	ClassDB::bind_method(D_METHOD("can_switch_to_text"), &GDREPreviewer::can_switch_to_text);
+	GDVIRTUAL_BIND(_get_previewer_name);
 	GDVIRTUAL_BIND(_edit, "resource");
 	GDVIRTUAL_BIND(_edit_from_path, "resource_path");
 	GDVIRTUAL_BIND(_can_edit, "resource_path", "resource_type");

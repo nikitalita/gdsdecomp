@@ -349,6 +349,10 @@ void TextureLayeredPreviewer::_texture_changed() {
 }
 
 void TextureLayeredPreviewer::_update_material(bool p_texture_changed) {
+	if (materials[0].is_null()) {
+		WARN_PRINT("materials are null, creating...");
+		_make_materials();
+	}
 	materials[0]->set_shader_parameter("layer", layer->get_value());
 	materials[2]->set_shader_parameter("layer", layer->get_value());
 	materials[3]->set_shader_parameter("layer", layer->get_value());
@@ -462,6 +466,10 @@ void TextureLayeredPreviewer::finish_shaders() {
 	shaders[1].unref();
 	shaders[2].unref();
 	shaders[3].unref();
+}
+
+String TextureLayeredPreviewer::get_previewer_name() const {
+	return "texture_layered";
 }
 
 Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {

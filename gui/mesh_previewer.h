@@ -77,6 +77,7 @@ protected:
 	void gui_input(const Ref<InputEvent> &p_event) override;
 
 public:
+	virtual String get_previewer_name() const override;
 	virtual String get_edited_resource_path() const override;
 	virtual Error edit(Ref<Resource> p_mesh) override;
 	virtual bool can_edit(const String &p_resource_path, const String &p_resource_type) const override;

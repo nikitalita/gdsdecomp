@@ -313,6 +313,10 @@ ScenePreviewer::ScenePreviewer() {
 	previewer_2d->set_visible(false);
 }
 
+String ScenePreviewer::get_previewer_name() const {
+	return "scene";
+}
+
 Error ScenePreviewer::edit(Ref<Resource> p_scene) {
 	ERR_FAIL_COND_V_MSG(p_scene.is_null(), ERR_INVALID_PARAMETER, "Scene is null");
 	reset();

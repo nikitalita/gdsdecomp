@@ -209,6 +209,10 @@ MeshPreviewer::MeshPreviewer() {
 	rot_y = 0;
 }
 
+String MeshPreviewer::get_previewer_name() const {
+	return "mesh";
+}
+
 String MeshPreviewer::get_edited_resource_path() const {
 	if (mesh.is_valid()) {
 		return mesh->get_path();

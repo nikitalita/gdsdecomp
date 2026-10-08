@@ -43,6 +43,9 @@ var default_icon_textures: Dictionary = {
 
 var current_edited_resource_path: String = ""
 
+func _get_previewer_name() -> String:
+	return "media"
+
 func _reset():
 	if controller:
 		controller.stop()
