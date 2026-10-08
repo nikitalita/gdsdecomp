@@ -31,8 +31,8 @@
 #include "texture_layered_previewer.h"
 
 #include "core/input/input.h"
+#include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
-#include "core/object/class_db.h"
 #include "scene/gui/label.h"
 
 #include "gui/gdre_color_channel_selector.h"
@@ -380,12 +380,14 @@ void TextureLayeredPreviewer::finish_shaders() {
 	shaders[2].unref();
 }
 
-void TextureLayeredPreviewer::edit(Ref<TextureLayered> p_texture) {
+Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {
 	if (texture.is_valid()) {
 		texture->disconnect_changed(callable_mp(this, &TextureLayeredPreviewer::_texture_changed));
 	}
-
+	ERR_FAIL_COND_V_MSG(p_texture.is_null(), ERR_INVALID_PARAMETER, "Texture is null");
 	texture = p_texture;
+
+	ERR_FAIL_COND_V_MSG(!can_edit(p_texture->get_path(), p_texture->get_class()), ERR_INVALID_PARAMETER, "Texture is not a TextureLayered");
 
 	if (texture.is_valid()) {
 		if (materials[0].is_null()) {
@@ -410,10 +412,19 @@ void TextureLayeredPreviewer::edit(Ref<TextureLayered> p_texture) {
 	} else {
 		hide();
 	}
+	return OK;
 }
 
 void TextureLayeredPreviewer::reset() {
-	edit(nullptr);
+	if (texture.is_valid()) {
+		texture->disconnect_changed(callable_mp(this, &TextureLayeredPreviewer::_texture_changed));
+	}
+	texture = nullptr;
+	hide();
+}
+
+ResourceInfo::LoadType TextureLayeredPreviewer::get_load_type() const {
+	return ResourceInfo::LoadType::REAL_LOAD;
 }
 
 String TextureLayeredPreviewer::get_edited_resource_path() const {
@@ -470,8 +481,19 @@ TextureLayeredPreviewer::TextureLayeredPreviewer() {
 	add_child(info);
 }
 
-void TextureLayeredPreviewer::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("edit", "texture"), &TextureLayeredPreviewer::edit);
-	ClassDB::bind_method(D_METHOD("reset"), &TextureLayeredPreviewer::reset);
-	ClassDB::bind_method(D_METHOD("get_edited_resource_path"), &TextureLayeredPreviewer::get_edited_resource_path);
+bool TextureLayeredPreviewer::can_edit(const String &p_resource_path, const String &p_type) const {
+	String ext = p_resource_path.get_file().get_extension().to_lower();
+	if (ext == "ctexarray" || ext == "ccube" || ext == "ccubearray" || ext == "texarr" || ext == "ctex3d" || ext == "tex3d") {
+		return true;
+	}
+
+	String type = p_type;
+	if (type.is_empty()) {
+		type = ResourceLoader::get_resource_type(p_resource_path);
+	}
+	if (!p_type.is_empty()) {
+		return p_type == "ImageLayeredTexture" || p_type == "TextureLayered" || p_type == "ImageTexture3D" || p_type == "StreamTextureArray" || p_type == "CompressedTexture2DArray" || p_type == "CompressedCubemap" || p_type == "CompressedCubemapArray" || p_type == "TextureArray" || p_type == "CompressedTexture3D" || p_type == "StreamTexture3D" || p_type == "Texture3D";
+	}
+
+	return false;
 }
