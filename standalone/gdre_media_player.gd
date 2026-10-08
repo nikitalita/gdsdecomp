@@ -1,5 +1,5 @@
 class_name GDREMediaPlayer
-extends Control
+extends GDREPreviewer
 
 @onready var TIME_LABEL: Label = %TimeLabel
 @onready var PROGRESS_BAR: Slider = %ProgressBar
@@ -22,7 +22,9 @@ var last_seek_pos: float = -1
 @export var pause_icon: Texture = preload("res://gdre_icons/gdre_Pause.svg")
 @export var stop_icon: Texture = preload("res://gdre_icons/gdre_Stop.svg")
 
-func reset():
+var current_edited_resource_path: String = ""
+
+func _reset():
 	if controller:
 		controller.stop()
 	controller = PlayerController.new()
@@ -35,7 +37,32 @@ func reset():
 	last_updated_time = 0
 	last_updated_time = -1
 	dragging_slider = false
+	current_edited_resource_path = ""
 
+func _can_edit(path: String, p_type: String) -> bool:
+	return is_video(path, p_type) or is_audio(path, p_type)
+
+func _edit(resource: Resource) -> Error:
+	if resource is VideoStream:
+		if not load_video_stream(resource):
+			return ERR_INVALID_PARAMETER
+	elif resource is AudioStream:
+		if not load_audio_stream(resource):
+			return ERR_INVALID_PARAMETER
+	else:
+		return ERR_INVALID_PARAMETER
+	return OK
+
+func _edit_from_path(path: String) -> Error:
+	if not load_media(path):
+		return ERR_INVALID_PARAMETER
+	return OK
+
+func _get_load_type() -> int:
+	return ResourceCompatLoader.REAL_LOAD
+
+func _get_edited_resource_path() -> String:
+	return current_edited_resource_path
 
 class PlayerController:
 	enum PlayerType {
@@ -231,24 +258,34 @@ func is_supported_video_format(path) -> bool:
 	var ext = path.get_extension().to_lower()
 	return ext == "ogv" || ext == "ogm"
 
-func is_video(path) -> bool:
-	var ext = path.get_extension().to_lower()
-	return ext == "ogv" or ext == "mp4" or ext == "webm" or ext == "ogm"
-
-func is_audio(path) -> bool:
-	return !is_video(path)
 
 func is_non_resource_smp(ext, p_type = ""):
 	return (ext == "wav" || ext == "ogg" || ext == "mp3")
 
+func is_video(path, p_type = "") -> bool:
+	if is_supported_video_format(path):
+		return true
+	if p_type.is_empty():
+		return false
+	return ClassDB.is_parent_class(p_type, "VideoStream")
+
+func is_audio(path, p_type = "") -> bool:
+	var ext = path.get_extension().to_lower()
+
+	if (ext == "oggstr" || ext == "mp3str" || ext == "oggvorbisstr" || ext == "sample" || ext == "smp" || is_non_resource_smp(ext, p_type)):
+		return true
+	if p_type.is_empty():
+		return false
+	return ClassDB.is_parent_class(p_type, "AudioStream")
+
 func load_media(path):
-	if is_video(path):
+	if is_supported_video_format(path):
 		return load_video(path)
-	return load_sample(path)
+	elif is_audio(path):
+		return load_sample(path)
+	return ERR_INVALID_PARAMETER
 
 func load_video(path):
-	if not is_supported_video_format(path):
-		return false
 	var video_stream: VideoStream = ResourceCompatLoader.real_load(path, "", ResourceCompatLoader.CACHE_MODE_IGNORE_DEEP)
 	return load_video_stream(video_stream)
 
@@ -257,6 +294,7 @@ func load_video_stream(video_stream: VideoStream):
 	reset()
 	if (video_stream == null):
 		return false
+	current_edited_resource_path = video_stream.get_path()
 	VIDEO_VIEW_BOX.visible = true
 	VIDEO_PLAYER_STREAM.stream = video_stream
 	VIDEO_PLAYER_STREAM.expand = false
@@ -282,6 +320,8 @@ func load_sample(path):
 			audio_stream = AudioStreamOggVorbis.load_from_file(path)
 		elif ext == "mp3":
 			audio_stream = AudioStreamMP3.load_from_file(path)
+		if audio_stream:
+			audio_stream.set_path_cache(path)
 
 	return load_audio_stream(audio_stream)
 
@@ -289,6 +329,7 @@ func load_audio_stream(audio_stream: AudioStream):
 	reset()
 	if (audio_stream == null):
 		return false
+	current_edited_resource_path = audio_stream.get_path()
 	AUDIO_VIEW_BOX.visible = true
 	AUDIO_PLAYER_STREAM.stream = audio_stream
 	controller = AudioPlayerController.new(AUDIO_PLAYER_STREAM)
