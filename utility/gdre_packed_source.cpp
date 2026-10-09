@@ -517,13 +517,6 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 		WARN_PRINT("Can't decrypt " + itos(encrypted_file_count) + " encrypted files in PCK!");
 	}
 
-// dump file to disk
-#ifdef DEBUG_ENABLED
-	String path = "/Users/nikita/Workspace/godot-ws/test-decomps/GLB_Test_4.7-decomp/assets.sparsepck.decrypted";
-	f->seek(0);
-	auto buffer = f->get_buffer(f->get_length());
-	FileAccess::open(path, FileAccess::WRITE)->store_buffer(buffer);
-#endif
 	return true;
 }
 
