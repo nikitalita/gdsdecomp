@@ -151,6 +151,7 @@ MeshPreviewer::MeshPreviewer() {
 	main = memnew(SubViewportContainer);
 	main->set_anchors_and_offsets_preset(Control::PRESET_FULL_RECT, Control::PRESET_MODE_MINSIZE, 0);
 	main->add_child(viewport);
+	add_child(main);
 	viewport->set_disable_input(true);
 	viewport->set_msaa_3d(Viewport::MSAA_4X);
 	main->set_stretch(true);
