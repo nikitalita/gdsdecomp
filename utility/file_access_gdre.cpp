@@ -96,10 +96,15 @@ Ref<FileAccess> PackSourceCustom::get_bundled_file(const String &p_path, const R
 	return GDREPackedSource::get_bundled_file(p_path, &p_file->get_packed_file(), p_decryption_key);
 }
 
+Ref<FileAccess> PackSourceCustom::open_encrypted_file(const Ref<FileAccess> &p_base, const Vector<uint8_t> &p_key, FileAccess::ModeFlags p_mode, bool p_with_magic, const Vector<uint8_t> &p_iv) {
+	return GDREPackedSource::open_encrypted_file(p_base, p_key, p_mode, p_with_magic, p_iv);
+}
+
 void PackSourceCustom::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("create_file_access_pck", "path", "file", "decryption_key"), &PackSourceCustom::create_file_access_pck);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("seek_pck_offset_from_exe", "file", "path", "custom_magic"), &PackSourceCustom::seek_pck_offset_from_exe, DEFVAL(PackedByteArray()));
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_bundled_file", "path", "file", "decryption_key"), &PackSourceCustom::get_bundled_file);
+	ClassDB::bind_static_method(get_class_static(), D_METHOD("open_encrypted_file", "base", "key", "mode", "with_magic", "iv"), &PackSourceCustom::open_encrypted_file, DEFVAL(FileAccess::READ), DEFVAL(true), DEFVAL(Vector<uint8_t>()));
 	GDVIRTUAL_BIND(_try_open_pack, "path", "replace_files", "offset", "decryption_key");
 	GDVIRTUAL_BIND(_get_file, "path", "file", "decryption_key");
 }
