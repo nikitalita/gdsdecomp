@@ -232,13 +232,17 @@ Ref<FileAccess> DummySource::get_file(const String &p_path, PackedData::PackedFi
 		file_access_memory->open_custom(file_contents[pmd5].ptr(), file_contents[pmd5].size());
 		return file_access_memory;
 	}
-	ERR_FAIL_V_MSG(nullptr, "File not found");
+	ERR_FAIL_V_MSG(Ref<FileAccess>(), "File not found");
 }
 
 void DummySource::add_file_content(const String &p_path, const Vector<uint8_t> &p_file_content) {
 	String simplified_path = p_path.simplify_path().trim_prefix("res://");
 	PathMD5 pmd5(simplified_path.md5_buffer());
 	file_contents[pmd5] = p_file_content;
+}
+
+void DummySource::clear() {
+	file_contents.clear();
 }
 
 Error GDREPackedData::add_pack(const String &p_path, bool p_replace_files, uint64_t p_offset) {
@@ -575,6 +579,7 @@ void GDREPackedData::_clear() {
 	// don't clear custom pack sources, they are owned by the custom pack sources
 	sources.clear();
 	dir_source.reset();
+	dummy_source.clear();
 	set_disabled(true);
 	_free_packed_dirs(root);
 	root = memnew(PackedDir);
