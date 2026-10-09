@@ -84,7 +84,7 @@ func _try_open_pack(pck_path: String, p_replace_files: bool, p_offset: int, p_de
 		if sparse_bundle and enc_directory and version == PACK_FORMAT_VERSION_V4:
 			# V4: Read encrypted directory salt.
 			var salt_data: PackedByteArray = f.get_buffer(32)
-			salt = salt_data.get_string_from_utf8()
+			salt = GDRECommon.get_latin1_string_from_bytes(salt_data)
 		if dir_offset == 0:
 			printerr("Directory offset is 0, this is not a valid PCK file")
 			return false
