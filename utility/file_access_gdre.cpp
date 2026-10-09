@@ -332,6 +332,13 @@ void GDREPackedData::add_path(const String &p_pkg_path, const String &p_path, ui
 		files[pmd5] = pf;
 		file_map[path] = pf_info;
 		delta_patches[pmd5].clear();
+		// Remove salt paths from the file map if they exist so they don't show up in the file listing
+		if (p_bundle && !pf.salt.is_empty()) {
+			String salt_path = "res://" + (abs_path.simplify_path() + pf.salt).sha256_text();
+			if (file_map.has(salt_path)) {
+				file_map.erase(salt_path);
+			}
+		}
 	}
 
 	if (!exists) {
