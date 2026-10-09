@@ -372,7 +372,8 @@ void TextureLayeredPreviewer::_update_material(bool p_texture_changed) {
 	if (p_texture_changed) {
 		int index = get_material_index();
 		use_rotation = (TextureLayered::LayeredType)index == TextureLayered::LAYERED_TYPE_CUBEMAP || (TextureLayered::LayeredType)index == TextureLayered::LAYERED_TYPE_CUBEMAP_ARRAY;
-		materials[index]->set_shader_parameter("tex", texture->get_rid());
+		RID rid = texture.is_valid() ? texture->get_rid() : RID();
+		materials[index]->set_shader_parameter("tex", rid);
 	}
 
 	const Vector4 channel_factors = channel_selector->get_selected_channel_factors();
@@ -509,6 +510,7 @@ Error TextureLayeredPreviewer::edit(Ref<Resource> p_texture) {
 void TextureLayeredPreviewer::reset() {
 	if (texture.is_valid()) {
 		texture->disconnect_changed(callable_mp(this, &TextureLayeredPreviewer::_texture_changed));
+		materials[get_material_index()]->set_shader_parameter("tex", RID());
 	}
 	texture = nullptr;
 	hide();
