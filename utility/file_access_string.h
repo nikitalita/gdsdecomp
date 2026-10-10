@@ -37,7 +37,6 @@ class FileAccessString : public FileAccess {
 	GDSOFTCLASS(FileAccessString, FileAccess);
 
 public:
-
 private:
 	String path;
 	String data;

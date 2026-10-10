@@ -1,14 +1,16 @@
 #pragma once
 
-#include "scene/gui/control.h"
 #include "core/io/resource.h"
+#include "scene/gui/control.h"
 
 #include "utility/resource_info.h"
 
-class GDREPreviewer: public Control {
+class GDREPreviewer : public Control {
 	GDCLASS(GDREPreviewer, Control);
+
 protected:
 	static void _bind_methods();
+
 public:
 	virtual String get_previewer_name() const;
 	virtual Error edit(Ref<Resource> p_scene);
@@ -28,4 +30,3 @@ public:
 	GDVIRTUAL0RC(ResourceInfo::LoadType, _get_load_type);
 	GDVIRTUAL0RC(bool, _can_switch_to_text);
 };
-
