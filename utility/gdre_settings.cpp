@@ -2915,9 +2915,6 @@ Error GDRESettings::load_project_dotnet_assembly() {
 		//res://.mono/assemblies/<Debug or Release>/<assembly_name>.dll
 		search_dirs.push_back("res://.mono/assemblies/Release");
 		search_dirs.push_back("res://.mono/assemblies/Debug");
-	} else if (current_project->type == PackInfo::APK || current_project->type == PackInfo::ZIP || current_project->type == PackInfo::DIR) {
-		// Exported APKs have the assembly in the .godot/mono directory
-		search_dirs.push_back("res://.godot/mono");
 	}
 	// Godot 4.x games have the assembly in a sub-directory named "data_<game_name>_<platform>_<arch>" in the game directory
 	Vector<String> directories = DirAccess::get_directories_at(project_dir);
@@ -2926,6 +2923,11 @@ Error GDRESettings::load_project_dotnet_assembly() {
 			search_dirs.push_back(project_dir.path_join(directory));
 		}
 	}
+	// Godot 4.x games can also have the assembly in the .godot/mono directory
+	if (get_ver_major() >= 4) {
+		search_dirs.push_back("res://.godot/mono");
+	}
+	// Finally, check the game directory
 	search_dirs.push_back(project_dir);
 	String assembly_name = get_dotnet_assembly_name_from_settings();
 	String base_name = get_pack_path().get_file().get_basename();
