@@ -3816,6 +3816,7 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 			skeleton_path_to_skeleton.insert(node_name, skeleton);
 		}
 	}
+	Vector<StringName> skeleton_path_meshes_added;
 
 	for (auto &[skeleton_path, skeleton] : skeleton_path_to_skeleton) {
 		String skeleton_name = skeleton->get_name();
@@ -3831,9 +3832,10 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 			String child_name = child ? child->get_name().operator String() : skeleton_name + "_mesh_instance";
 			mesh_instance = memnew(MeshInstance3D);
 			Ref<Mesh> debug_bones_mesh = generate_debug_bones_mesh(skeleton);
+			ERR_CONTINUE_MSG(debug_bones_mesh.is_null(), vformat("Failed to generate debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
+			ERR_CONTINUE_MSG(debug_bones_mesh->get_surface_count() == 0, vformat("Generated debug bones mesh for skeleton %s in animation library %s has no surfaces!", skeleton_name, p_original_path));
 			Ref<Material> debug_bones_material = debug_bones_mesh->surface_get_material(0);
 			debug_bones_mesh->set_name(skeleton_name + "_debug_bones_mesh");
-			debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
 			mesh_instance->set_mesh(debug_bones_mesh);
 			mesh_instance->set_name(child_name);
 			if (child) {
@@ -3844,10 +3846,17 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 				mesh_instance->set_owner(root);
 			}
 			mesh_instance->set_skeleton_path(NodePath(".."));
-			mesh_instance->set_surface_override_material(0, debug_bones_material);
+			if (debug_bones_material.is_valid()) {
+				debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
+				mesh_instance->set_surface_override_material(0, debug_bones_material);
+			} else {
+				WARN_PRINT(vformat("No material found for debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
+			}
 		}
 		mesh_instance->set_skin(skin);
+		skeleton_path_meshes_added.append(skeleton_path);
 	}
+	ERR_FAIL_COND_V_MSG(skeleton_path_meshes_added.size() == 0, ERR_FILE_CORRUPT, vformat("No meshes added for skeleton paths in animation library %s", p_original_path));
 	AnimationPlayer *animation_player = memnew(AnimationPlayer);
 	animation_library->set_path_cache(p_original_path);
 	animation_player->set_name("AnimationPlayer");
