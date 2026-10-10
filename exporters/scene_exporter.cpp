@@ -674,7 +674,7 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 			step = "serializing GLTF document";
 			break;
 		case ERR_FILE_CORRUPT:
-			step = "GLTF is empty or corrupt";
+			step = "GLTF validation: scene is empty or corrupt";
 			break;
 		case ERR_BUG:
 			step = "GLTF conversion";
@@ -725,6 +725,10 @@ String GLBExporterInstance::add_errors_to_report(Error p_err, const String &err_
 	if (import_param_error_messages.size() > 0) {
 		errors.append("** Errors during import parameter setting:");
 		errors.append_array(import_param_error_messages);
+	}
+	if (validation_error_messages.size() > 0) {
+		errors.append("** Errors during GLTF validation:");
+		errors.append_array(validation_error_messages);
 	}
 	other_error_messages.append_array(_get_logged_error_messages());
 	if (other_error_messages.size() > 0) {
@@ -2540,7 +2544,7 @@ Error GLBExporterInstance::_check_model_can_load(const String &p_dest_path) {
 	String error_string;
 	Error load_err = load_model(p_dest_path, model, error_string);
 	if (load_err != OK) {
-		gltf_serialization_error_messages.append(error_string);
+		validation_error_messages.append(error_string);
 		return ERR_FILE_CORRUPT;
 	}
 	return OK;
@@ -2948,7 +2952,7 @@ void GLBExporterInstance::cancel() {
 	canceled = true;
 }
 
-Error GLBExporterInstance::_get_return_error() {
+Error GLBExporterInstance::_get_return_error(const String &p_dest_path) {
 	bool set_all_externals = !updating_import_info;
 	if (updating_import_info) {
 		set_all_externals = true;
@@ -2967,6 +2971,8 @@ Error GLBExporterInstance::_get_return_error() {
 	Ref<RegEx> animation_error_re = RegEx::create_from_string(ANIMATION_ERROR_PATTERN);
 
 	static const Vector<String> errors_to_ignore = {
+		"Can't set_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
+		"Can't get_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"A node was animated, but it wasn't found in the GLTFState", // animation track not found because it's not exported
 		"Parameter \"p_target_object\" is null.", // object property animated by track not found because it's not exportable by the exporter
 		"Image width specified (0 pixels) must be greater than 0 pixels", // texture export failure caused by zero-sized source images
@@ -3059,6 +3065,15 @@ Error GLBExporterInstance::_get_return_error() {
 		}
 	}
 
+	// Check if the model can be loaded; minimum validation to ensure the model is valid
+	{
+		other_error_messages.append_array(_get_logged_error_messages());
+		if (_check_model_can_load(p_dest_path) != OK) {
+			validation_error_messages.append_array(_get_logged_error_messages());
+			err = ERR_FILE_CORRUPT;
+			GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CORRUPT, "");
+		}
+	}
 	if (had_gltf_serialization_errors) {
 		String _ = add_errors_to_report(ERR_BUG, "");
 	} else if ((!set_all_externals || missing_dependencies.size() > 0) && err == OK) {
@@ -4471,12 +4486,8 @@ Error GLBExporterInstance::_batch_export_instanced_scene(Node *root, const Strin
 	if (updating_import_info) {
 		_update_import_params(p_dest_path);
 	}
-	// Check if the model can be loaded; minimum validation to ensure the model is valid
-	err = _check_model_can_load(p_dest_path);
-	if (err) {
-		GDRE_SCN_EXP_FAIL_V_MSG(ERR_FILE_CORRUPT, "");
-	}
-	err = _get_return_error();
+
+	err = _get_return_error(p_dest_path);
 
 	return err;
 }
