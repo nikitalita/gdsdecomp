@@ -843,6 +843,13 @@ int64_t FileAccessGDRE::_get_size(const String &p_file) {
 	return 0;
 }
 
+String FileAccessGDRE::get_proxy_class_name() const {
+	if (proxy.is_valid()) {
+		return FileAccessGDRE::get_class_name_from_file_access(proxy);
+	}
+	return "";
+}
+
 // DirAccessGDRE
 // This is a copy/paste implementation of DirAccessPack, with the exception of the proxying
 // DirAccessPack accessed the PackedData singleton, which we don't want to do.
@@ -1148,6 +1155,11 @@ DirAccessGDRE::~DirAccessGDRE() {
 }
 
 // At the end so that the header files that they pull in don't screw up the above.
+#include "core/io/file_access_compressed.h"
+#include "core/io/file_access_encrypted.h"
+#include "core/io/file_access_zip.h"
+#include "utility/file_access_buffer.h"
+#include "utility/file_access_string.h"
 #ifdef WINDOWS_ENABLED
 #include "drivers/windows/dir_access_windows.h"
 #include "drivers/windows/file_access_windows.h"
@@ -1206,22 +1218,50 @@ String FileAccessGDRE::fix_path(const String &p_path) const {
 String DirAccessGDRE::fix_path(const String &p_path) const {
 	return PathFinder::_fix_path_file_access(p_path);
 }
+
+String FileAccessGDRE::get_class_name_from_file_access(const Ref<FileAccess> &p_file_access) {
+	ERR_FAIL_COND_V_MSG(p_file_access.is_null(), "", "FileAccess is null");
+	if (Object::cast_to<FileAccessGDRE>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessGDRE";
+	}
+	if (Object::cast_to<FileAccessPack>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessPack";
+	}
+	if (Object::cast_to<FILE_ACCESS_OS>(p_file_access.ptr()) != nullptr) {
+		return FILE_ACCESS_OS_STR;
+	}
+	if (Object::cast_to<FileAccessEncrypted>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessEncrypted";
+	}
+	if (Object::cast_to<FileAccessEncryptedCustom>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessEncryptedCustom";
+	}
+	if (Object::cast_to<FileAccessAPK>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessArray";
+	}
+	if (Object::cast_to<FileAccessMemory>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessMemory";
+	}
+	if (Object::cast_to<FileAccessCompressed>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessCompressed";
+	}
+	if (Object::cast_to<FileAccessZip>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessZip";
+	}
+	if (Object::cast_to<FileAccessBuffer>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessBuffer";
+	}
+	if (Object::cast_to<FileAccessString>(p_file_access.ptr()) != nullptr) {
+		return "FileAccessBuffer";
+	}
+
+	return p_file_access->get_class_name();
+}
+
 //get_current_file_access_class
 String GDREPackedData::get_current_file_access_class(FileAccess::AccessType p_access_type) {
 	Ref<FileAccess> fa = FileAccess::create(p_access_type);
-	Ref<FILE_ACCESS_OS> fa_os = fa;
-	if (fa_os.is_valid()) {
-		return FILE_ACCESS_OS_STR;
-	}
-	Ref<FileAccessPack> fa_pack = fa;
-	if (fa_pack.is_valid()) {
-		return "FileAccessPack";
-	}
-	Ref<FileAccessGDRE> fa_gdre = fa;
-	if (fa_gdre.is_valid()) {
-		return "FileAccessGDRE";
-	}
-	return "";
+	return FileAccessGDRE::get_class_name_from_file_access(fa);
 }
 
 String GDREPackedData::get_current_dir_access_class(DirAccess::AccessType p_access_type) {

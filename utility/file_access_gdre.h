@@ -278,6 +278,9 @@ public:
 	virtual bool file_exists(const String &p_name) override; ///< return true if a file exists
 
 	virtual void close() override;
+
+	static String get_class_name_from_file_access(const Ref<FileAccess> &p_file_access);
+	String get_proxy_class_name() const;
 };
 
 class DirAccessGDRE : public DirAccess {

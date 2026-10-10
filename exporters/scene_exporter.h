@@ -153,6 +153,7 @@ class GLBExporterInstance {
 	Vector<String> import_param_error_messages;
 	Vector<String> dependency_resolution_list;
 	Vector<String> other_error_messages;
+	Vector<String> validation_error_messages;
 
 	constexpr static const char *const COPYRIGHT_STRING_FORMAT = "The Creators of '%s'";
 
@@ -180,7 +181,7 @@ class GLBExporterInstance {
 	void convert_animation_tracks_to_v4_for_player(AnimationPlayer *p_player);
 
 	void _unload_deps();
-	Error _get_return_error();
+	Error _get_return_error(const String &p_dest_path);
 	Node *_instantiate_scene(Ref<PackedScene> scene);
 
 	void set_path_options(Dictionary &import_opts, const String &path, const String &prefix = "save_to_file");
