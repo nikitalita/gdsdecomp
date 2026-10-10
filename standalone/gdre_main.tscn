@@ -21,6 +21,12 @@
 [ext_resource type="PackedScene" uid="uid://bhxdw5q2etvki" path="res://gdre_export_report.tscn" id="16_htlpu"]
 [ext_resource type="PackedScene" uid="uid://8tgbmg7tg5ys" path="res://gdre_patch_translation.tscn" id="16_mjm1x"]
 
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_6hx8r"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+
 [sub_resource type="ButtonGroup" id="ButtonGroup_x51e8"]
 
 [node name="root" type="GodotREEditorStandalone" unique_id=1603667437]
@@ -63,11 +69,14 @@ custom_minimum_size = Vector2(2.08165e-12, 36)
 layout_mode = 2
 placeholder_text = "<e.g. 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F>"
 
-[node name="Label2" type="Label" parent="SetEncryptionKeyWindow/VBoxContainer" unique_id=1933890505]
+[node name="Label2" type="RichTextLabel" parent="SetEncryptionKeyWindow/VBoxContainer" unique_id=1547524909]
 custom_minimum_size = Vector2(2.08165e-12, 2.08165e-12)
 layout_mode = 2
 tooltip_text = "Optional decryption script for games with custom encryption"
-text = "Set Custom Decryption Script..."
+theme_override_styles/normal = SubResource("StyleBoxEmpty_6hx8r")
+bbcode_enabled = true
+text = "Set Custom Decryption Script... [url=https://github.com/GDRETools/gdsdecomp/blob/master/docs/custom_decryptors.md](What's this?)[/url]"
+fit_content = true
 
 [node name="HBoxContainer2" type="HBoxContainer" parent="SetEncryptionKeyWindow/VBoxContainer" unique_id=1842488725]
 layout_mode = 2
