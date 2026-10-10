@@ -229,6 +229,39 @@ TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
 	gdre::rimraf(tmp_pck_path);
 }
 
+TEST_CASE("[GDSDecomp] Check opening PCK with custom pack source") {
+	REQUIRE(GDRESettings::get_singleton());
+	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
+	auto tmp_pck_path = get_tmp_path().path_join("test.pck");
+	auto tmp_test_file = get_tmp_path().path_join("test.txt");
+	auto tmp_project_path = get_tmp_path().path_join("project.binary");
+	REQUIRE(ProjectSettings::get_singleton());
+	ProjectSettings::get_singleton()->save_custom(tmp_project_path);
+
+	CHECK(store_file_as_string(tmp_test_file, "dummy") == OK);
+	HashMap<String, String> files = {
+		{ "res://test.txt", tmp_test_file },
+		{ "res://project.binary", tmp_project_path }
+	};
+	CHECK(create_test_pck(tmp_pck_path, files) == OK);
+
+	auto settings = GDRESettings::get_singleton();
+	REQUIRE(settings);
+
+	GDScriptLanguage::get_singleton()->init();
+	CHECK(ClassDB::class_exists(StringName("PackSourceCustom")));
+	String custom_pack_source_script_path = get_gdsdecomp_path().path_join("docs/gdre_custom_pack_source.gd");
+	CHECK(settings->add_custom_pack_source_script(custom_pack_source_script_path) == OK);
+	CHECK(settings->load_project({ tmp_pck_path }, false) == OK);
+
+	test_pck_files(files);
+
+	CHECK(settings->unload_project() == OK);
+	settings->clear_custom_pack_source_script();
+
+	gdre::rimraf(tmp_test_file);
+	gdre::rimraf(tmp_pck_path);
+}
 // Disabling this for now; fragile and kind of redundant.
 #if 0
 static constexpr const char *const export_presets =
