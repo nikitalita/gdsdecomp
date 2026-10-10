@@ -724,6 +724,11 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 		ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "No valid paths provided!");
 	}
 
+	// set encryption key
+	if (!enc_key.is_empty()) {
+		memcpy(script_encryption_key, enc_key.ptr(), MIN(enc_key.size(), 32));
+	}
+
 	for (int i = 0; i < pck_files.size(); i++) {
 		err = _add_pack(pck_files[i]);
 		if (err) {
@@ -739,8 +744,11 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 			ERR_FAIL_COND_V_MSG(err, err, "Can't load project!");
 		}
 	}
+	if (!is_pack_loaded()) {
+		unload_project(true);
+		ERR_FAIL_V_MSG(err, "FATAL ERROR: loaded project pack, but didn't load files from it!");
+	}
 
-	ERR_FAIL_COND_V_MSG(!is_pack_loaded(), ERR_FILE_CANT_READ, "FATAL ERROR: loaded project pack, but didn't load files from it!");
 	if (_cmd_line_extract) {
 		// we don't want to load the imports and project config if we're just extracting.
 		return OK;
@@ -1224,6 +1232,10 @@ Error GDRESettings::save_project_config_binary(const String &p_out_dir = "") {
 Error GDRESettings::unload_project(bool p_no_reset_ephemeral) {
 	logger->stop_prebuffering();
 	GDREPackedData::get_singleton()->clear();
+	// reset encryption key
+	for (int i = 0; i < 32; i++) {
+		script_encryption_key[i] = 0;
+	}
 	// If this wasn't a custom decryptor set by the user, unload it.
 	if (custom_decryptor.is_valid() && custom_decryption_script_path.is_empty()) {
 		custom_decryptor = nullptr;

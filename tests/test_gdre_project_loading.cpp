@@ -1,9 +1,7 @@
-#include "../compat/resource_compat_binary.h"
-#include "../compat/resource_compat_text.h"
-
 #include "test_common.h"
 #include "tests/test_macros.h"
 
+#include "bytecode/bytecode_base.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 
@@ -25,12 +23,12 @@ namespace TestGdreProjectLoading {
 // 32 0s
 static const String empty_key = "0000000000000000000000000000000000000000000000000000000000000000";
 
-inline Error create_test_pck(const String &pck_path, const HashMap<String, String> &paths, const String &key = empty_key, bool encrypt_directory = false) {
+inline Error create_test_pck(const String &pck_path, const HashMap<String, String> &paths, const String &key = empty_key, bool encrypt_directory = false, bool encrypt_files = false) {
 	PCKPacker pck;
 	Error err = pck.pck_start(pck_path, 32, key, encrypt_directory);
 	ERR_FAIL_COND_V(err, err);
 	for (const auto &path : paths) {
-		err = pck.add_file(path.key, path.value);
+		err = pck.add_file(path.key, path.value, encrypt_files);
 		ERR_FAIL_COND_V(err, err);
 	}
 	err = pck.flush(false);
@@ -112,7 +110,7 @@ TEST_CASE("[GDSDecomp][ProjectConfigLoader] loading example from current engine"
 	gdre::rimraf(binary_project_path);
 }
 
-TEST_CASE("[GDSDecomp] GDRESettings project loading") {
+TEST_CASE("[GDSDecomp][ProjectLoading] GDRESettings project loading") {
 	REQUIRE(gdre::ensure_dir(get_tmp_path()) == OK);
 	auto tmp_pck_path = get_tmp_path().path_join("test.pck");
 	auto tmp_project_path = get_tmp_path().path_join("project.binary");
@@ -147,7 +145,7 @@ TEST_CASE("[GDSDecomp] GDRESettings project loading") {
 	gdre::rimraf(tmp_pck_path);
 }
 
-TEST_CASE("[GDSDecomp] FileAccessGDRE tests") {
+TEST_CASE("[GDSDecomp][ProjectLoading] FileAccessGDRE tests") {
 	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
 	auto tmp_pck_path = get_tmp_path().path_join("FileAccessGDRETest.pck");
 	auto tmp_test_file = get_tmp_path().path_join("test.txt");
@@ -179,7 +177,7 @@ TEST_CASE("[GDSDecomp] FileAccessGDRE tests") {
 	gdre::rimraf(tmp_pck_path);
 }
 
-TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
+TEST_CASE("[GDSDecomp][ProjectLoading] Check opening encrypted PCKs") {
 	REQUIRE(GDRESettings::get_singleton());
 	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
 	auto tmp_pck_path = get_tmp_path().path_join("test.pck");
@@ -195,7 +193,7 @@ TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
 	};
 	static const String key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
-	CHECK(create_test_pck(tmp_pck_path, files, key, true) == OK);
+	CHECK(create_test_pck(tmp_pck_path, files, key, true, true) == OK);
 
 	auto settings = GDRESettings::get_singleton();
 	REQUIRE(settings);
@@ -205,6 +203,10 @@ TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
 		CHECK(settings->load_project({ tmp_pck_path }, false) == OK);
 
 		test_pck_files(files);
+
+		Ref<FileAccessGDRE> fa = FileAccess::open("res://test.txt", FileAccess::READ);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_proxy_class_name() == "FileAccessEncrypted");
 
 		CHECK(settings->unload_project() == OK);
 		settings->reset_encryption_key();
@@ -219,6 +221,9 @@ TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
 		CHECK(settings->load_project({ tmp_pck_path }, false) == OK);
 
 		test_pck_files(files);
+		Ref<FileAccessGDRE> fa = FileAccess::open("res://test.txt", FileAccess::READ);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_proxy_class_name() == "FileAccessEncryptedCustom");
 
 		CHECK(settings->unload_project() == OK);
 		settings->reset_custom_decryptor();
@@ -229,7 +234,7 @@ TEST_CASE("[GDSDecomp] Check opening encrypted PCKs") {
 	gdre::rimraf(tmp_pck_path);
 }
 
-TEST_CASE("[GDSDecomp] Check opening PCK with custom pack source") {
+TEST_CASE("[GDSDecomp][ProjectLoading] Check opening PCK with custom pack source") {
 	REQUIRE(GDRESettings::get_singleton());
 	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
 	auto tmp_pck_path = get_tmp_path().path_join("test.pck");
