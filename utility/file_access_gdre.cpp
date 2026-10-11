@@ -1159,7 +1159,6 @@ DirAccessGDRE::~DirAccessGDRE() {
 #include "core/io/file_access_encrypted.h"
 #include "core/io/file_access_zip.h"
 #include "utility/file_access_buffer.h"
-#include "utility/file_access_string.h"
 #ifdef WINDOWS_ENABLED
 #include "drivers/windows/dir_access_windows.h"
 #include "drivers/windows/file_access_windows.h"
@@ -1249,9 +1248,6 @@ String FileAccessGDRE::get_class_name_from_file_access(const Ref<FileAccess> &p_
 		return "FileAccessZip";
 	}
 	if (Object::cast_to<FileAccessBuffer>(p_file_access.ptr()) != nullptr) {
-		return "FileAccessBuffer";
-	}
-	if (Object::cast_to<FileAccessString>(p_file_access.ptr()) != nullptr) {
 		return "FileAccessBuffer";
 	}
 
