@@ -2978,6 +2978,7 @@ Error GLBExporterInstance::_get_return_error(const String &p_dest_path) {
 	Ref<RegEx> animation_error_re = RegEx::create_from_string(ANIMATION_ERROR_PATTERN);
 
 	static const Vector<String> errors_to_ignore = {
+		"Condition \"dst_ofs % 8 != 0\" is true.", // astcenc: ASTC decompression failed; it's not a problem
 		"Can't set_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"Can't get_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"A node was animated, but it wasn't found in the GLTFState", // animation track not found because it's not exported
@@ -3640,17 +3641,7 @@ int find_animation_nodes_in_scene(const HashMap<NodePath, HashSet<Animation::Tra
 	return has_node_count;
 }
 Error find_best_original_scene_for_animation_library(const String &p_original_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &found_scene, HashMap<String, int> &found_node_path_to_node_index, bool &found_all) {
-	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found;
-	LocalVector<StringName> animation_names;
-	animation_library->get_animation_list(&animation_names);
-	ERR_FAIL_COND_V_MSG(animation_names.is_empty(), ERR_INVALID_PARAMETER, "Animation library has no animations");
-	for (auto &animation_name : animation_names) {
-		Ref<Animation> animation = animation_library->get_animation(animation_name);
-		ERR_CONTINUE(animation.is_null());
-		for (auto &track : animation->get_tracks()) {
-			animation_node_paths_found[track->path].insert(track->type);
-		}
-	}
+	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found = _get_animation_node_paths(animation_library);
 	HashMap<String, Pair<Ref<PackedScene>, HashMap<String, int>>> scene_path_to_packed_scene_to_skeleton_path_to_node_index;
 
 	// now we need to get a list of all the scenes in the project
@@ -3753,6 +3744,47 @@ Error find_best_original_scene_for_animation_library(const String &p_original_pa
 	return OK;
 }
 
+NodePath strip_subnames(const NodePath &p_node_path) {
+	return NodePath(p_node_path.get_names(), p_node_path.is_absolute());
+}
+
+MeshInstance3D *add_debug_bones_mesh_instance_to_skeleton(const String &p_original_path, Skeleton3D *skeleton, const String &skeleton_name) {
+	Node *root = skeleton->get_owner();
+	auto skin = skeleton->create_skin_from_rest_transforms();
+	Ref<SkinReference> skin_ref = skeleton->register_skin(skin);
+	MeshInstance3D *mesh_instance = memnew(MeshInstance3D);
+	String child_name = skeleton_name + "_mesh_instance";
+	Ref<Mesh> debug_bones_mesh = generate_debug_bones_mesh(skeleton);
+	ERR_FAIL_COND_V_MSG(debug_bones_mesh.is_null(), nullptr, vformat("Failed to generate debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
+	ERR_FAIL_COND_V_MSG(debug_bones_mesh->get_surface_count() == 0, nullptr, vformat("Generated debug bones mesh for skeleton %s in animation library %s has no surfaces!", skeleton_name, p_original_path));
+	Ref<Material> debug_bones_material = debug_bones_mesh->surface_get_material(0);
+	debug_bones_mesh->set_name(skeleton_name + "_debug_bones_mesh");
+	mesh_instance->set_mesh(debug_bones_mesh);
+	mesh_instance->set_name(child_name);
+	skeleton->add_child(mesh_instance);
+	mesh_instance->set_owner(root);
+	mesh_instance->set_skeleton_path(NodePath(".."));
+	if (debug_bones_material.is_valid()) {
+		debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
+		mesh_instance->set_surface_override_material(0, debug_bones_material);
+	}
+	mesh_instance->set_skin(skin);
+	return mesh_instance;
+}
+
+MeshInstance3D *get_mesh_instance_pointing_to_skeleton(Skeleton3D *skeleton) {
+	auto children = skeleton->find_children("", "MeshInstance3D", true, false);
+
+	for (auto &child : children) {
+		if (MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(child); mesh_instance) {
+			if (mesh_instance->get_node_or_null(mesh_instance->get_skeleton_path()) == skeleton) {
+				return mesh_instance;
+			}
+		}
+	}
+	return nullptr;
+}
+
 Error _add_animation_library_to_extant_packed_scene(const String &packed_scene_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &new_scene) {
 	ERR_FAIL_COND_V_MSG(animation_library.is_null(), ERR_INVALID_PARAMETER, "Animation library is null");
 	Ref<PackedScene> packed_scene = _resource_load(packed_scene_path, "");
@@ -3764,16 +3796,27 @@ Error _add_animation_library_to_extant_packed_scene(const String &packed_scene_p
 	ERR_FAIL_COND_V_MSG(animation_node_paths_found.is_empty(), ERR_FILE_CORRUPT, "Animation library has no animation node paths");
 	// best root
 	NodePath best_parent_path;
+	NodePath second_best_parent_path;
+	HashSet<NodePath> path_names;
 	for (auto &[node_path, track_types] : animation_node_paths_found) {
-		if (!node_path.get_name(0).is_node_unique_name()) {
+		path_names.insert(strip_subnames(node_path));
+		if (node_path.is_absolute()) {
 			continue;
 		}
-		best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
-		break;
+		if (second_best_parent_path.is_empty()) {
+			second_best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		}
+		if (best_parent_path.is_empty() && node_path.get_name(0).is_node_unique_name()) {
+			best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		}
 	}
 	if (best_parent_path.is_empty()) {
-		auto node_path = animation_node_paths_found.begin()->key;
-		best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		if (second_best_parent_path.is_empty()) {
+			auto node_path = animation_node_paths_found.begin()->key;
+			best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		} else {
+			best_parent_path = second_best_parent_path;
+		}
 	}
 	Node *interm_node = root->get_node_or_null(best_parent_path);
 	if (interm_node == nullptr) {
@@ -3786,7 +3829,19 @@ Error _add_animation_library_to_extant_packed_scene(const String &packed_scene_p
 	animation_player->set_name("AnimationPlayer");
 	animation_player->add_animation_library("", animation_library);
 	best_parent_node->add_child(animation_player);
-	animation_player->set_owner(best_parent_node);
+	animation_player->set_owner(root);
+	for (auto &node_path : path_names) {
+		auto node = best_parent_node->get_node_or_null(node_path);
+		ERR_CONTINUE(node == nullptr);
+		if (Skeleton3D *skeleton = Object::cast_to<Skeleton3D>(node); skeleton) {
+			auto mesh_instance = get_mesh_instance_pointing_to_skeleton(skeleton);
+			if (!mesh_instance) {
+				add_debug_bones_mesh_instance_to_skeleton(packed_scene_path, skeleton, skeleton->get_name());
+			} else if (mesh_instance->get_skin().is_null()) {
+				mesh_instance->set_skin(skeleton->create_skin_from_rest_transforms());
+			}
+		}
+	}
 
 	new_scene = Ref<PackedScene>(memnew(PackedScene));
 	new_scene->pack(root);
@@ -4020,41 +4075,13 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 	Vector<StringName> skeleton_path_meshes_added;
 
 	for (auto &[skeleton_path, skeleton] : skeleton_path_to_skeleton) {
-		String skeleton_name = skeleton->get_name();
-		auto skin = skeleton->create_skin_from_rest_transforms();
-		Ref<SkinReference> skin_ref = skeleton->register_skin(skin);
-		auto children = skeleton->find_children("", "MeshInstance3D", false, false);
-		Node *child = nullptr;
-		if (children.size() > 0) {
-			child = Object::cast_to<Node>(children[0]);
-		}
-		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(child);
+		MeshInstance3D *mesh_instance = get_mesh_instance_pointing_to_skeleton(skeleton);
 		if (!mesh_instance) {
-			String child_name = child ? child->get_name().operator String() : skeleton_name + "_mesh_instance";
-			mesh_instance = memnew(MeshInstance3D);
-			Ref<Mesh> debug_bones_mesh = generate_debug_bones_mesh(skeleton);
-			ERR_CONTINUE_MSG(debug_bones_mesh.is_null(), vformat("Failed to generate debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
-			ERR_CONTINUE_MSG(debug_bones_mesh->get_surface_count() == 0, vformat("Generated debug bones mesh for skeleton %s in animation library %s has no surfaces!", skeleton_name, p_original_path));
-			Ref<Material> debug_bones_material = debug_bones_mesh->surface_get_material(0);
-			debug_bones_mesh->set_name(skeleton_name + "_debug_bones_mesh");
-			mesh_instance->set_mesh(debug_bones_mesh);
-			mesh_instance->set_name(child_name);
-			if (child) {
-				child->replace_by(mesh_instance);
-				memdelete(child);
-			} else {
-				skeleton->add_child(mesh_instance);
-				mesh_instance->set_owner(root);
-			}
-			mesh_instance->set_skeleton_path(NodePath(".."));
-			if (debug_bones_material.is_valid()) {
-				debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
-				mesh_instance->set_surface_override_material(0, debug_bones_material);
-			} else {
-				WARN_PRINT(vformat("No material found for debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
-			}
+			mesh_instance = add_debug_bones_mesh_instance_to_skeleton(p_original_path, skeleton, skeleton_path);
+		} else if (mesh_instance->get_skin().is_null()) {
+			mesh_instance->set_skin(skeleton->create_skin_from_rest_transforms());
 		}
-		mesh_instance->set_skin(skin);
+		ERR_CONTINUE_MSG(mesh_instance == nullptr, vformat("Failed to add debug bones mesh instance to skeleton %s in animation library %s", skeleton_path, p_original_path));
 		skeleton_path_meshes_added.append(skeleton_path);
 	}
 	ERR_FAIL_COND_V_MSG(skeleton_path_meshes_added.size() == 0, ERR_FILE_CORRUPT, vformat("No meshes added for skeleton paths in animation library %s", p_original_path));
@@ -4281,11 +4308,9 @@ struct BatchExportToken : public TaskRunnerStruct {
 		bool found_all = false;
 		auto ret = find_best_original_scene_for_animation_library(p_original_path, animation_library, found_scene, animated_node_path_to_node_index, found_all);
 		if (ret == OK && found_scene.is_valid()) {
-			Ref<PackedScene> fake_packed_scene = found_scene;
-
 			if (p_original_path.get_file().contains("@") && found_all) {
 				String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
-				String parent_path = fake_packed_scene->get_path();
+				String parent_path = found_scene->get_path();
 				if (parent_path.get_file().begins_with(base_file)) {
 					err = _ON_MAIN_THREAD(std::function<Error()>([&]() -> Error {
 						return _add_animation_library_to_extant_packed_scene(parent_path, animation_library, scene);
@@ -4297,6 +4322,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 			}
 			reference_nodes = _find_reference_nodes_for_animation_library(found_scene, animated_node_path_to_node_index);
 		}
+		instance.force_export_multi_root = true;
 
 		return TaskManager::get_singleton()->dispatch_to_main_thread(std::function<Error()>([&]() -> Error {
 											   return _create_packed_scene_from_animation_library(p_original_path, animation_library, reference_nodes, scene);
@@ -4375,7 +4401,6 @@ struct BatchExportToken : public TaskRunnerStruct {
 					err = create_packed_scene_from_mesh(resource, scene);
 				} else if (is_animation_library) {
 					err = create_packed_scene_from_animation_library(resource, scene);
-					instance.force_export_multi_root = true;
 				} else if (is_mesh_library) {
 					err = create_packed_scene_from_mesh_library(resource, scene);
 				} else {
