@@ -3547,13 +3547,25 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 	HashMap<String, int> scenes_to_check;
 	for (auto &scene_path : scene_paths) {
 		List<String> scene_dependencies;
+		HashMap<String, dep_info> deps;
+		get_deps_recursive(scene_path, deps);
 		ResourceCompatLoader::get_dependencies(scene_path, &scene_dependencies);
-		for (auto &scene_dependency : scene_dependencies) {
-			Vector<String> splits = scene_dependency.split("::", true);
-			const String &dep_path = splits.size() >= 3 ? splits[2] : splits[0];
-			if (dep_path == p_original_path) {
+		for (auto &dep : deps) {
+			if (dep.key == p_original_path) {
 				scenes_to_check[scene_path] = 0;
 			}
+		}
+	}
+	// If no scene makes use of it, but it's an auto-split animation library, try to find the scene it was split from
+	if (scenes_to_check.is_empty() && p_original_path.get_file().contains("@")) {
+		String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
+		scene_paths = GDRESettings::get_singleton()->get_file_list({ vformat("*%s*", base_file) });
+		for (auto &scene_path : scene_paths) {
+			if (!scene_path.has_extension("scn") && !scene_path.has_extension("tscn")) {
+				continue;
+			}
+			// No checking dependencies here since we assume the animation library was split from this scene
+			scenes_to_check[scene_path] = 0;
 		}
 	}
 	if (scenes_to_check.is_empty()) {
@@ -4149,9 +4161,15 @@ struct BatchExportToken : public TaskRunnerStruct {
 			if (resource.is_null() && err == OK) {
 				err = ERR_CANT_ACQUIRE_RESOURCE;
 			}
+			if (err != OK) {
+				report->set_error(err);
+				String _ = instance.add_errors_to_report(err);
+				after_preload();
+				return false;
+			}
 
 			Ref<PackedScene> scene = resource;
-			if (err == OK && scene.is_null()) {
+			if (scene.is_null()) {
 				if (is_mesh) {
 					err = create_packed_scene_from_mesh(resource, scene);
 				} else if (is_animation_library) {
@@ -4162,13 +4180,15 @@ struct BatchExportToken : public TaskRunnerStruct {
 				} else {
 					err = ERR_CANT_ACQUIRE_RESOURCE;
 				}
+				if (err != OK) {
+					report->set_error(err);
+					report->set_message(vformat("Failed to create packed scene from %s", resource_type));
+					report->append_error_messages(instance._get_logged_error_messages());
+					after_preload();
+					return false;
+				}
 			}
 
-			if (err != OK) {
-				report->set_error(err);
-				after_preload();
-				return false;
-			}
 			_scene = scene;
 			if (!is_obj_output()) {
 				if (!root) {
@@ -4183,6 +4203,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 					if (err == OK) {
 						err = ERR_CANT_ACQUIRE_RESOURCE;
 					}
+					String _ = instance.add_errors_to_report(err);
 					report->set_error(err);
 				}
 			}
