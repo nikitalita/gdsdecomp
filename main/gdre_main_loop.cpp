@@ -81,7 +81,13 @@ void GDREMainLoop::finalize() {
 
 bool GDREMainLoop::wait_until_next_frame(int64_t p_time_usec) {
 	if (!singleton) {
-		GDREMainLoop::iteration(false);
+		WARN_PRINT_ONCE("GDREMainLoop singleton not initialized, waiting for next frame");
+		if (Thread::is_main_thread()) {
+			return GDREMainLoop::iteration(false);
+		} else {
+			OS::get_singleton()->delay_usec(p_time_usec);
+			return false;
+		}
 	}
 	return singleton->_wait_until_next_frame(p_time_usec, false);
 }
