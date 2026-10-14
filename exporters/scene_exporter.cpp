@@ -3589,7 +3589,56 @@ static inline HashMap<String, int> get_node_path_to_node_index(const Ref<SceneSt
 	return node_path_to_node_index;
 }
 
-HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const String &p_original_path, const Ref<AnimationLibrary> &animation_library) {
+HashMap<NodePath, HashSet<Animation::TrackType>> _get_animation_node_paths(const Ref<AnimationLibrary> &animation_library) {
+	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found;
+	LocalVector<StringName> animation_names;
+	animation_library->get_animation_list(&animation_names);
+	for (auto &animation_name : animation_names) {
+		Ref<Animation> animation = animation_library->get_animation(animation_name);
+		ERR_CONTINUE(animation.is_null());
+		for (auto &track : animation->get_tracks()) {
+			animation_node_paths_found[track->path].insert(track->type);
+		}
+	}
+	return animation_node_paths_found;
+}
+
+int find_animation_nodes_in_scene(const HashMap<NodePath, HashSet<Animation::TrackType>> &animation_node_paths_found,
+		const String &scene_path,
+		Ref<PackedScene> &fake_loaded_scene,
+		HashMap<String, int> &animated_node_path_to_node_index) {
+	Ref<Resource> res = ResourceCompatLoader::fake_load(scene_path);
+	if (res.is_null()) {
+		return -1;
+	}
+	HashMap<Ref<Resource>, Ref<PackedScene>> replaced_packed_scenes;
+	fake_loaded_scene = _ensure_resource_is_packed_scene(res, 0, replaced_packed_scenes);
+	auto state = fake_loaded_scene->get_state();
+	HashMap<String, int> nodePathToNode = get_node_path_to_node_index(state);
+	int has_node_count = 0;
+	for (auto &[node_path, track_types] : animation_node_paths_found) {
+		String full_path = node_path.operator String();
+		String name_only = full_path.get_slice(":", 0);
+		String lookup_name = name_only.trim_prefix("./");
+		if (node_path.get_name(0).is_node_unique_name()) {
+			String non_unique_name = lookup_name.substr(1);
+			for (auto &np : nodePathToNode) {
+				if (np.key.ends_with(non_unique_name)) {
+					has_node_count++;
+					animated_node_path_to_node_index.insert(name_only, np.value);
+					break;
+				}
+			}
+			continue;
+		}
+		if (nodePathToNode.has(lookup_name)) {
+			has_node_count++;
+			animated_node_path_to_node_index.insert(name_only, nodePathToNode[lookup_name]);
+		}
+	}
+	return has_node_count;
+}
+Error find_best_original_scene_for_animation_library(const String &p_original_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &found_scene, HashMap<String, int> &found_node_path_to_node_index, bool &found_all) {
 	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found;
 	LocalVector<StringName> animation_names;
 	animation_library->get_animation_list(&animation_names);
@@ -3601,10 +3650,38 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 			animation_node_paths_found[track->path].insert(track->type);
 		}
 	}
+	HashMap<String, Pair<Ref<PackedScene>, HashMap<String, int>>> scene_path_to_packed_scene_to_skeleton_path_to_node_index;
+
 	// now we need to get a list of all the scenes in the project
-	Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ "*.scn", "*.tscn" });
 	HashMap<String, int> scenes_to_check;
+	// If it's an auto-split animation library, try to find the scene it was split from
+	if (p_original_path.get_file().contains("@")) {
+		String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
+		Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ vformat("*%s*", base_file) });
+		for (auto &scene_path : scene_paths) {
+			if (!scene_path.has_extension("scn") && !scene_path.has_extension("tscn")) {
+				continue;
+			}
+			// No checking dependencies here since we assume the animation library was split from this scene
+			Ref<PackedScene> fake_loaded_scene;
+			HashMap<String, int> animated_node_path_to_node_index;
+			scenes_to_check[scene_path] = find_animation_nodes_in_scene(animation_node_paths_found, scene_path, fake_loaded_scene, animated_node_path_to_node_index);
+			if (scenes_to_check[scene_path] == animation_node_paths_found.size()) {
+				found_scene = fake_loaded_scene;
+				found_node_path_to_node_index = animated_node_path_to_node_index;
+				found_all = true;
+				return OK;
+			} else if (scenes_to_check[scene_path] == -1) {
+				scenes_to_check.erase(scene_path);
+			}
+		}
+	}
+	// If we didn't find all the animation path nodes in the scene it was split from, try to find a scene that uses all of them
+	Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ "*.scn", "*.tscn" });
 	for (auto &scene_path : scene_paths) {
+		if (scenes_to_check.has(scene_path)) {
+			continue;
+		}
 		List<String> scene_dependencies;
 		HashMap<String, dep_info> deps;
 		get_deps_recursive(scene_path, deps);
@@ -3615,25 +3692,15 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 			}
 		}
 	}
-	// If no scene makes use of it, but it's an auto-split animation library, try to find the scene it was split from
-	if (scenes_to_check.is_empty() && p_original_path.get_file().contains("@")) {
-		String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
-		scene_paths = GDRESettings::get_singleton()->get_file_list({ vformat("*%s*", base_file) });
-		for (auto &scene_path : scene_paths) {
-			if (!scene_path.has_extension("scn") && !scene_path.has_extension("tscn")) {
-				continue;
-			}
-			// No checking dependencies here since we assume the animation library was split from this scene
-			scenes_to_check[scene_path] = 0;
-		}
-	}
+
 	if (scenes_to_check.is_empty()) {
-		return HashMap<StringName, Node *>();
+		return ERR_FILE_NOT_FOUND;
 	}
-	HashMap<StringName, Node *> animated_node_path_to_node;
-	HashMap<String, Pair<Ref<PackedScene>, HashMap<String, int>>> scene_path_to_packed_scene_to_skeleton_path_to_node_index;
 	String best_scene;
 	for (auto &[scene_path, has_node_count] : scenes_to_check) {
+		if (has_node_count != 0) {
+			continue;
+		}
 		Ref<Resource> res = ResourceCompatLoader::fake_load(scene_path);
 		if (!res.is_valid()) {
 			continue;
@@ -3666,6 +3733,7 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 		}
 		if (has_node_count == animation_node_paths_found.size()) {
 			best_scene = scene_path;
+			found_all = true;
 			break;
 		}
 	}
@@ -3679,6 +3747,54 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 		best_scene = scenes_to_check.begin()->key;
 	}
 	auto &[parent_packed_scene, animated_node_path_to_node_index] = scene_path_to_packed_scene_to_skeleton_path_to_node_index[best_scene];
+	found_scene = parent_packed_scene;
+	found_node_path_to_node_index = animated_node_path_to_node_index;
+	return OK;
+}
+
+Error _add_animation_library_to_extant_packed_scene(const String &packed_scene_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &new_scene) {
+	ERR_FAIL_COND_V_MSG(animation_library.is_null(), ERR_INVALID_PARAMETER, "Animation library is null");
+	Ref<PackedScene> packed_scene = _resource_load(packed_scene_path, "");
+	ERR_FAIL_COND_V_MSG(packed_scene.is_null(), ERR_FILE_NOT_FOUND, "Packed scene not found at path " + packed_scene_path);
+	Node *root = packed_scene->instantiate();
+	ERR_FAIL_COND_V_MSG(root == nullptr, ERR_FILE_CORRUPT, "Failed to instantiate packed scene at path " + packed_scene_path);
+
+	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found = _get_animation_node_paths(animation_library);
+	ERR_FAIL_COND_V_MSG(animation_node_paths_found.is_empty(), ERR_FILE_CORRUPT, "Animation library has no animation node paths");
+	// best root
+	NodePath best_parent_path;
+	for (auto &[node_path, track_types] : animation_node_paths_found) {
+		if (!node_path.get_name(0).is_node_unique_name()) {
+			continue;
+		}
+		best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		break;
+	}
+	if (best_parent_path.is_empty()) {
+		auto node_path = animation_node_paths_found.begin()->key;
+		best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+	}
+	Node *interm_node = root->get_node_or_null(best_parent_path);
+	if (interm_node == nullptr) {
+		interm_node = root->find_child(best_parent_path.operator String());
+	}
+	ERR_FAIL_COND_V_MSG(interm_node == nullptr, ERR_FILE_CORRUPT, "Intermediate node not found in packed scene at path " + packed_scene_path);
+	Node *best_parent_node = interm_node->get_parent();
+	ERR_FAIL_COND_V_MSG(best_parent_node == nullptr, ERR_FILE_CORRUPT, "Best root node not found in packed scene at path " + packed_scene_path);
+	AnimationPlayer *animation_player = memnew(AnimationPlayer);
+	animation_player->set_name("AnimationPlayer");
+	animation_player->add_animation_library("", animation_library);
+	best_parent_node->add_child(animation_player);
+	animation_player->set_owner(best_parent_node);
+
+	new_scene = Ref<PackedScene>(memnew(PackedScene));
+	new_scene->pack(root);
+	memdelete(root);
+	return OK;
+}
+
+HashMap<StringName, Node *> _find_reference_nodes_for_animation_library(const Ref<PackedScene> &parent_packed_scene, const HashMap<String, int> &animated_node_path_to_node_index) {
+	HashMap<StringName, Node *> animated_node_path_to_node;
 	for (auto &[_anim_path, _node_idx] : animated_node_path_to_node_index) {
 		Ref<PackedScene> packed_scene = parent_packed_scene;
 		Ref<SceneState> state = packed_scene->get_state();
@@ -4013,6 +4129,7 @@ Error _create_packed_scene_from_mesh_library(const String &p_original_path, cons
 	memdelete(root);
 	return OK;
 }
+
 } //namespace
 
 struct BatchExportToken : public TaskRunnerStruct {
@@ -4155,7 +4272,29 @@ struct BatchExportToken : public TaskRunnerStruct {
 	}
 
 	Error create_packed_scene_from_animation_library(const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &scene) {
-		HashMap<StringName, Node *> reference_nodes = find_reference_nodes_for_animation_library(p_original_path, animation_library);
+		HashMap<StringName, Node *> reference_nodes;
+		HashMap<String, int> animated_node_path_to_node_index;
+		Ref<PackedScene> found_scene;
+		bool found_all = false;
+		auto ret = find_best_original_scene_for_animation_library(p_original_path, animation_library, found_scene, animated_node_path_to_node_index, found_all);
+		if (ret == OK && found_scene.is_valid()) {
+			Ref<PackedScene> fake_packed_scene = found_scene;
+
+			if (p_original_path.get_file().contains("@") && found_all) {
+				String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
+				String parent_path = fake_packed_scene->get_path();
+				if (parent_path.get_file().begins_with(base_file)) {
+					err = _ON_MAIN_THREAD(std::function<Error()>([&]() -> Error {
+						return _add_animation_library_to_extant_packed_scene(parent_path, animation_library, scene);
+					})).value_or(ERR_SKIP);
+					if (err == OK) {
+						return err;
+					}
+				}
+			}
+			reference_nodes = _find_reference_nodes_for_animation_library(found_scene, animated_node_path_to_node_index);
+		}
+
 		return TaskManager::get_singleton()->dispatch_to_main_thread(std::function<Error()>([&]() -> Error {
 											   return _create_packed_scene_from_animation_library(p_original_path, animation_library, reference_nodes, scene);
 										   }))
