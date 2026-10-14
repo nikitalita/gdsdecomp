@@ -3098,7 +3098,6 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 
 Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, Ref<ImportInfo> iinfo) {
 	Error err;
-	Ref<PackedScene> scene;
 	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 	if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
 		return ERR_UNAVAILABLE;
@@ -3114,11 +3113,11 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 			return ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, true, ResourceFormatLoader::CACHE_MODE_REUSE);
 		});
 	}
-	if (!result.has_value()) {
+	if (!result.has_value() || result.value().is_null()) {
 		return ERR_SKIP; // cancelled
 	}
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
-	return export_scene_to_obj(scene, p_dest_path, iinfo, ver_major);
+	return export_scene_to_obj(result.value(), p_dest_path, iinfo, ver_major);
 }
 
 Vector<Ref<Mesh>> get_meshes(const Ref<PackedScene> &scene, int ver_major, bool exclude_shadow_meshes = true) {
