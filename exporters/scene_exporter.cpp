@@ -647,10 +647,7 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, Vector<String
 			}
 		}
 	} else {
-		String indent = "";
-#if DEBUG_ENABLED
-		indent = "  ";
-#endif
+		String indent = "  ";
 		err = _encode_buffer_bins(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
