@@ -681,6 +681,13 @@ Error ImportInfoModern::_load(const String &p_path) {
 			set_source_file(source_file);
 			cf->set_value("deps", "dest_files", vec_to_array(dest_files));
 		}
+	} else {
+		if (import_md_path.begins_with("res://") && get_source_file() != import_md_path.get_basename()) {
+#ifdef DEBUG_ENABLED
+			WARN_PRINT("Source file " + get_source_file() + " does not match import MD path " + import_md_path.get_basename());
+#endif
+			set_source_file(import_md_path.get_basename());
+		}
 	}
 
 	if (!cf->has_section("params")) {

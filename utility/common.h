@@ -62,6 +62,26 @@ String num_scientific(double p_num);
 String num_scientific(float p_num);
 bool is_fs_path(const String &p_path);
 
+template <class T, class F>
+bool vector_any_of(const Vector<T> &vec, F &&p_predicate) {
+	for (const T &E : vec) {
+		if (p_predicate(E)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+template <class T, class F>
+bool vector_all_of(const Vector<T> &vec, F &&p_function) {
+	for (const T &E : vec) {
+		if (!p_function(E)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 template <class T, class Itr>
 void hashset_insert_iterable(HashSet<T> &hs, const Itr &iterable) {
 	static_assert(std::is_same_v<decltype(iterable.begin()), decltype(iterable.end())>, "Iterable must be a container");

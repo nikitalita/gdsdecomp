@@ -30,9 +30,12 @@
 
 #include "scene_previewer.h"
 
+#include "compat/resource_loader_compat.h"
 #include "core/config/project_settings.h"
+#include "core/io/resource_loader.h"
 #include "core/object/callable_mp.h"
 #include "core/object/class_db.h"
+#include "modules/gltf/gltf_document.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/gui/box_container.h"
 #include "scene/gui/button.h"
@@ -346,6 +349,38 @@ Error ScenePreviewer::edit(Ref<Resource> p_scene) {
 	return OK;
 }
 
+Ref<PackedScene> convert_gltf_to_packed_scene(const String &p_resource_path) {
+	Ref<GLTFDocument> document = memnew(GLTFDocument);
+	Ref<GLTFState> state = memnew(GLTFState);
+	state->set_handle_binary_image_mode(GLTFState::HandleBinaryImageMode::HANDLE_BINARY_IMAGE_MODE_EMBED_AS_BASISU);
+	ERR_FAIL_COND_V_MSG(document->append_from_file(p_resource_path, state) != OK, nullptr, "Failed to append from file");
+	Ref<PackedScene> packed_scene = memnew(PackedScene);
+	Node *root = document->generate_scene(state);
+	ERR_FAIL_COND_V_MSG(!root, nullptr, "Failed to generate scene");
+	packed_scene->pack(root);
+	memdelete(root);
+	return packed_scene;
+}
+
+Error ScenePreviewer::edit_from_path(const String &p_resource_path) {
+	ERR_FAIL_COND_V_MSG(p_resource_path.is_empty(), ERR_INVALID_PARAMETER, "Resource path is empty");
+	Ref<Resource> resource;
+	String resource_type = ResourceCompatLoader::get_resource_type(p_resource_path);
+
+	if (resource_type != "PackedScene" && FileAccess::exists(p_resource_path)) {
+		ERR_FAIL_COND_V_MSG(!p_resource_path.has_extension("glb") && !p_resource_path.has_extension("gltf"), ERR_INVALID_PARAMETER, "Resource path is not a valid scene file");
+		resource = convert_gltf_to_packed_scene(p_resource_path);
+	} else {
+		if (ResourceCompatLoader::is_globally_available()) {
+			resource = ResourceLoader::load(p_resource_path);
+		} else {
+			resource = ResourceCompatLoader::real_load(p_resource_path);
+		}
+	}
+	ERR_FAIL_COND_V_MSG(!resource.is_valid(), ERR_INVALID_PARAMETER, "Failed to load resource from path");
+	return edit(resource);
+}
+
 void ScenePreviewer::reset() {
 	previewer_3d->reset();
 	previewer_2d->reset();
@@ -366,7 +401,7 @@ bool ScenePreviewer::can_edit(const String &p_resource_path, const String &p_res
 		return p_resource_type == "PackedScene";
 	}
 	String ext = p_resource_path.get_file().get_extension().to_lower();
-	if (ext == "tscn" || ext == "scn") {
+	if (ext == "tscn" || ext == "scn" || ext == "glb" || ext == "gltf") {
 		return true;
 	}
 	return false;

@@ -30,6 +30,7 @@
 
 #include "http_requester.h"
 
+#include "core/config/project_settings.h"
 #include "core/error/error_list.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
@@ -534,9 +535,9 @@ bool HTTPRequester::_update_connection() {
 	ERR_FAIL_V(false);
 }
 
-void HTTPRequester::_request_done(int p_status, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_data) {
+void HTTPRequester::_request_done(Result p_status, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_data) {
 	cancel_request();
-	result_status.set((Result)p_status);
+	result_status.set(p_status);
 }
 
 void HTTPRequester::set_use_threads(bool p_use) {
@@ -761,7 +762,12 @@ Error HTTPRequester::_wait_for_request_completion(HTTPRequester *requester, int 
 		}
 
 		// Done
+		auto result = requester->result_status.get();
 		ret = _get_error_from_status(requester->result_status.get(), requester->response_code);
+		// Don't retry if we timed out while waiting to connect or the DNS failed to resolve
+		if ((result == RESULT_TIMEOUT || result == RESULT_REQUEST_TIMEOUT) && (requester->previous_status == HTTPClient::STATUS_CONNECTING || requester->previous_status == HTTPClient::STATUS_RESOLVING)) {
+			break;
+		}
 		if (ret != OK && retries + 1 < max_tries) {
 			int response_code = requester->response_code;
 			// Don't bother retrying if the file doesn't exist or we don't have access to it
@@ -783,10 +789,14 @@ Error HTTPRequester::_wait_for_request_completion(HTTPRequester *requester, int 
 Error HTTPRequester::wget_sync(const String &p_url, Vector<uint8_t> &response, double timeout, int retries, const Vector<String> &extra_headers, float *p_progress, bool *p_cancelled) {
 	HTTPRequester requester;
 	requester.set_time_limit(timeout);
+	requester.set_request_timeout(MIN(HTTPRequester::get_default_request_timeout(), timeout));
+	auto start_time = OS::get_singleton()->get_unix_time();
 	requester.start_request(p_url, extra_headers, HTTPClient::METHOD_GET);
-
-	requester.set_request_timeout(MIN(15, timeout));
 	Error err = _wait_for_request_completion(&requester, retries, p_progress, p_cancelled, nullptr);
+#if 0
+	auto end_time = OS::get_singleton()->get_unix_time();
+	print_line(vformat("wget_sync %s took %s seconds", p_url, String::num_int64(end_time - start_time)));
+#endif
 	response = requester.body;
 	return err;
 }
@@ -799,9 +809,13 @@ Error HTTPRequester::download_file_sync(const String &p_url, const String &p_out
 
 	HTTPRequester requester;
 	requester.set_time_limit(0);
-	requester.set_request_timeout(15);
+	requester.set_request_timeout(HTTPRequester::get_default_request_timeout());
 	requester.set_download_file(p_output_path);
 	requester.start_request(p_url);
 
 	return _wait_for_request_completion(&requester, 2, p_progress, p_cancelled, r_size);
+}
+
+double HTTPRequester::get_default_request_timeout() {
+	return GLOBAL_GET("network/limits/tcp/connect_timeout_seconds").operator double() * 3;
 }

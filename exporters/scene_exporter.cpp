@@ -50,6 +50,21 @@
 #define PRINT_PERF_CSV 0
 #endif
 
+#define _ON_MAIN_THREAD(...) TaskManager::get_singleton()->dispatch_to_main_thread(__VA_ARGS__)
+
+namespace {
+static Ref<Resource> _resource_load(const String &p_source_path, const String &p_original_path, bool p_using_threaded_load = false, Error *r_error = nullptr) {
+	String path = p_source_path;
+	if (!p_original_path.is_empty() && GDRESettings::get_singleton()->get_mapped_path(p_original_path) == p_source_path) {
+		path = p_original_path;
+	}
+	if (ResourceCompatLoader::is_globally_available()) {
+		return ResourceLoader::load(path, "", ResourceFormatLoader::CACHE_MODE_REUSE, r_error);
+	} else {
+		return ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type(), r_error, p_using_threaded_load, ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+} //namespace
+} //namespace
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
 	String dep;
@@ -632,10 +647,7 @@ Error _serialize_file(Ref<GLTFState> p_state, const String p_path, Vector<String
 			}
 		}
 	} else {
-		String indent = "";
-#if DEBUG_ENABLED
-		indent = "  ";
-#endif
+		String indent = "  ";
 		err = _encode_buffer_bins(p_state, p_path, r_buffer_paths);
 		ERR_FAIL_COND_V(err != OK, err);
 		Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &err);
@@ -2501,13 +2513,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				}
 			}
 			Dictionary gltf_asset = json["asset"];
-#if DEBUG_ENABLED
-			// less file churn when testing
 			gltf_asset["generator"] = "GDRE Tools";
-#else
-			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_gdre_version();
-#endif
-
 			json["asset"] = gltf_asset;
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
@@ -2851,20 +2857,26 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 		_silence_errors(true);
 	}
 #endif
-	auto result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Node *()>)[&scene]() -> Node * {
-		return scene->instantiate();
+	Node *root = nullptr;
+	auto result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<void()>)[&]() -> void {
+		_get_logged_error_messages();
+		root = scene->instantiate();
+		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+		if (root != nullptr) {
+			// iterate to process the message queue (i.e. anything that was called deferred during scene instantiation)
+			GDREMainLoop::iteration(true);
+		}
 	});
 	if (!result.has_value()) {
 		return nullptr; // cancelled
 	}
-	Node *root = result.value();
 #ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(false);
 	}
 #endif
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
-	scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+
 	if (root == nullptr) {
 		err = ERR_CANT_ACQUIRE_RESOURCE;
 		ERR_PRINT(add_errors_to_report(ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path));
@@ -2906,26 +2918,23 @@ void GLBExporterInstance::_load_dep_uids() {
 }
 
 Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
-	auto mode_type = ResourceCompatLoader::get_default_load_type();
 	// loading older scenes will spam warnings about deprecated features
 #ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(true);
 	}
 #endif
-	std::optional<Ref<Resource>> result;
-	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	if (ResourceCompatLoader::is_globally_available()) {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
-			_load_dep_uids();
-			return ResourceLoader::load(source_path, "", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-		});
-	} else {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
-			_load_dep_uids();
-			return ResourceCompatLoader::custom_load(source_path, "", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
-		});
-	}
+	std::optional<Ref<Resource>> result = _ON_MAIN_THREAD((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
+		_load_dep_uids();
+		_get_logged_error_messages();
+		auto res = _resource_load(source_path, iinfo.is_valid() ? iinfo->get_source_file() : "", using_threaded_load(), &err);
+		scene_loading_error_messages.append_array(_get_logged_error_messages());
+		if (res.is_valid()) {
+			// iterate to process the message queue (i.e. anything that was called deferred during scene loading)
+			GDREMainLoop::iteration(true);
+		}
+		return res;
+	});
 	if (!result.has_value()) {
 		return ERR_SKIP;
 	}
@@ -2935,7 +2944,6 @@ Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
 		_silence_errors(false);
 	}
 #endif
-	scene_loading_error_messages.append_array(_get_logged_error_messages());
 	if (err || !r_scene.is_valid()) {
 		r_scene = nullptr;
 		_unload_deps();
@@ -2971,6 +2979,7 @@ Error GLBExporterInstance::_get_return_error(const String &p_dest_path) {
 	Ref<RegEx> animation_error_re = RegEx::create_from_string(ANIMATION_ERROR_PATTERN);
 
 	static const Vector<String> errors_to_ignore = {
+		"Condition \"dst_ofs % 8 != 0\" is true.", // astcenc: ASTC decompression failed; it's not a problem
 		"Can't set_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"Can't get_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"A node was animated, but it wasn't found in the GLTFState", // animation track not found because it's not exported
@@ -3098,27 +3107,19 @@ Error SceneExporter::export_file(const String &p_dest_path, const String &p_src_
 
 Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String &p_src_path, Ref<ImportInfo> iinfo) {
 	Error err;
-	Ref<PackedScene> scene;
 	int ver_major = iinfo.is_valid() ? iinfo->get_ver_major() : get_ver_major(p_src_path);
 	if (ver_major < MINIMUM_GODOT_VER_SUPPORTED) {
 		return ERR_UNAVAILABLE;
 	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	std::optional<Ref<PackedScene>> result;
-	if (ResourceCompatLoader::is_globally_available()) {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
-			return ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-		});
-	} else {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
-			return ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, true, ResourceFormatLoader::CACHE_MODE_REUSE);
-		});
-	}
-	if (!result.has_value()) {
+	std::optional<Ref<PackedScene>> result = _ON_MAIN_THREAD((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
+		return _resource_load(p_src_path, "", true, &err);
+	});
+	if (!result.has_value() || result.value().is_null()) {
 		return ERR_SKIP; // cancelled
 	}
 	ERR_FAIL_COND_V_MSG(err, ERR_FILE_CANT_READ, "Failed to load scene " + p_src_path);
-	return export_scene_to_obj(scene, p_dest_path, iinfo, ver_major);
+	return export_scene_to_obj(result.value(), p_dest_path, iinfo, ver_major);
 }
 
 Vector<Ref<Mesh>> get_meshes(const Ref<PackedScene> &scene, int ver_major, bool exclude_shadow_meshes = true) {
@@ -3274,6 +3275,8 @@ Ref<PackedScene> _ensure_resource_is_packed_scene(const Ref<Resource> &p_resourc
 Ref<ArrayMesh> generate_debug_bones_mesh(Skeleton3D *p_skeleton) {
 	static constexpr Color bone_color = Color(1, 0.8, 0.4);
 	static constexpr real_t bone_axis_length = 0.1;
+	// A bone with no child has no span to measure, so the diamond uses a fixed length.
+	static constexpr real_t single_bone_length = 0.25;
 	static constexpr int bone_shape = 1; // Octahedron
 
 	LocalVector<Color> axis_colors;
@@ -3308,6 +3311,63 @@ Ref<ArrayMesh> generate_debug_bones_mesh(Skeleton3D *p_skeleton) {
 
 	int current_bone_index = 0;
 	Vector<int> bones_to_process = p_skeleton->get_parentless_bones();
+	if (p_skeleton->get_bone_count() == 1) {
+		ERR_FAIL_COND_V(bones_to_process.is_empty(), Ref<ArrayMesh>());
+		int current_bone_idx = bones_to_process[0];
+		Transform3D rest = p_skeleton->get_bone_global_rest(current_bone_idx);
+		Vector3 v0 = rest.origin;
+		// Godot bones point along local +Y. The waist sits at 20% of the length with a 10% radius, matching the parent/child octahedron.
+		constexpr real_t dist = single_bone_length;
+		Vector3 d = rest.basis.get_column(Vector3::AXIS_Y);
+		d = d.is_zero_approx() ? Vector3(0, 1, 0) : d.normalized();
+		Vector3 v1 = v0 + d * dist;
+
+		Vector3 side = d.cross(rest.basis.get_column(Vector3::AXIS_X));
+		if (side.is_zero_approx()) {
+			side = d.cross(Vector3(1, 0, 0));
+		}
+		if (side.is_zero_approx()) {
+			side = d.cross(Vector3(0, 0, 1));
+		}
+		side = side.normalized();
+		Vector3 binormal = d.cross(side).normalized();
+
+		const real_t radius = dist * 0.1;
+		Vector3 mid = v0 + d * dist * 0.2;
+		Vector3 points[4] = {
+			mid + side * radius,
+			mid + binormal * radius,
+			mid - side * radius,
+			mid - binormal * radius,
+		};
+
+		bones[0] = current_bone_idx;
+		surface_tool->set_color(bone_color);
+		auto add_edge = [&](const Vector3 &p_a, const Vector3 &p_b) {
+			surface_tool->set_bones(Vector<int>(bones));
+			surface_tool->set_weights(Vector<float>(weights));
+			surface_tool->add_vertex(p_a);
+			surface_tool->set_bones(Vector<int>(bones));
+			surface_tool->set_weights(Vector<float>(weights));
+			surface_tool->add_vertex(p_b);
+		};
+		for (int j = 0; j < 4; j++) {
+			add_edge(v0, points[j]);
+			add_edge(points[j], v1);
+			add_edge(points[j], points[(j + 1) % 4]);
+		}
+
+		for (int j = 0; j < 3; j++) {
+			Vector3 axis = rest.basis.inverse()[j];
+			if (axis.is_zero_approx()) {
+				continue;
+			}
+			surface_tool->set_color(axis_colors[j]);
+			add_edge(v0, v0 + axis.normalized() * dist * bone_axis_length);
+		}
+
+		return surface_tool->commit();
+	}
 
 	while (bones_to_process.size() > current_bone_index) {
 		int current_bone_idx = bones_to_process[current_bone_index];
@@ -3532,11 +3592,10 @@ static inline HashMap<String, int> get_node_path_to_node_index(const Ref<SceneSt
 	return node_path_to_node_index;
 }
 
-HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const String &p_original_path, const Ref<AnimationLibrary> &animation_library) {
+HashMap<NodePath, HashSet<Animation::TrackType>> _get_animation_node_paths(const Ref<AnimationLibrary> &animation_library) {
 	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found;
 	LocalVector<StringName> animation_names;
 	animation_library->get_animation_list(&animation_names);
-	ERR_FAIL_COND_V_MSG(animation_names.is_empty(), ERR_INVALID_PARAMETER, "Animation library has no animations");
 	for (auto &animation_name : animation_names) {
 		Ref<Animation> animation = animation_library->get_animation(animation_name);
 		ERR_CONTINUE(animation.is_null());
@@ -3544,27 +3603,97 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 			animation_node_paths_found[track->path].insert(track->type);
 		}
 	}
+	return animation_node_paths_found;
+}
+
+int find_animation_nodes_in_scene(const HashMap<NodePath, HashSet<Animation::TrackType>> &animation_node_paths_found,
+		const String &scene_path,
+		Ref<PackedScene> &fake_loaded_scene,
+		HashMap<String, int> &animated_node_path_to_node_index) {
+	Ref<Resource> res = ResourceCompatLoader::fake_load(scene_path);
+	if (res.is_null()) {
+		return -1;
+	}
+	HashMap<Ref<Resource>, Ref<PackedScene>> replaced_packed_scenes;
+	fake_loaded_scene = _ensure_resource_is_packed_scene(res, 0, replaced_packed_scenes);
+	auto state = fake_loaded_scene->get_state();
+	HashMap<String, int> nodePathToNode = get_node_path_to_node_index(state);
+	int has_node_count = 0;
+	for (auto &[node_path, track_types] : animation_node_paths_found) {
+		String full_path = node_path.operator String();
+		String name_only = full_path.get_slice(":", 0);
+		String lookup_name = name_only.trim_prefix("./");
+		if (node_path.get_name(0).is_node_unique_name()) {
+			String non_unique_name = lookup_name.substr(1);
+			for (auto &np : nodePathToNode) {
+				if (np.key.ends_with(non_unique_name)) {
+					has_node_count++;
+					animated_node_path_to_node_index.insert(name_only, np.value);
+					break;
+				}
+			}
+			continue;
+		}
+		if (nodePathToNode.has(lookup_name)) {
+			has_node_count++;
+			animated_node_path_to_node_index.insert(name_only, nodePathToNode[lookup_name]);
+		}
+	}
+	return has_node_count;
+}
+Error find_best_original_scene_for_animation_library(const String &p_original_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &found_scene, HashMap<String, int> &found_node_path_to_node_index, bool &found_all) {
+	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found = _get_animation_node_paths(animation_library);
+	HashMap<String, Pair<Ref<PackedScene>, HashMap<String, int>>> scene_path_to_packed_scene_to_skeleton_path_to_node_index;
+
 	// now we need to get a list of all the scenes in the project
-	Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ "*.scn", "*.tscn" });
 	HashMap<String, int> scenes_to_check;
+	// If it's an auto-split animation library, try to find the scene it was split from
+	if (p_original_path.get_file().contains("@")) {
+		String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
+		Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ vformat("*%s*", base_file) });
+		for (auto &scene_path : scene_paths) {
+			if (!scene_path.has_extension("scn") && !scene_path.has_extension("tscn")) {
+				continue;
+			}
+			// No checking dependencies here since we assume the animation library was split from this scene
+			Ref<PackedScene> fake_loaded_scene;
+			HashMap<String, int> animated_node_path_to_node_index;
+			scenes_to_check[scene_path] = find_animation_nodes_in_scene(animation_node_paths_found, scene_path, fake_loaded_scene, animated_node_path_to_node_index);
+			if (scenes_to_check[scene_path] == animation_node_paths_found.size()) {
+				found_scene = fake_loaded_scene;
+				found_node_path_to_node_index = animated_node_path_to_node_index;
+				found_all = true;
+				return OK;
+			} else if (scenes_to_check[scene_path] == -1) {
+				scenes_to_check.erase(scene_path);
+			}
+		}
+	}
+	// If we didn't find all the animation path nodes in the scene it was split from, try to find a scene that uses all of them
+	Vector<String> scene_paths = GDRESettings::get_singleton()->get_file_list({ "*.scn", "*.tscn" });
 	for (auto &scene_path : scene_paths) {
+		if (scenes_to_check.has(scene_path)) {
+			continue;
+		}
 		List<String> scene_dependencies;
+		HashMap<String, dep_info> deps;
+		get_deps_recursive(scene_path, deps);
 		ResourceCompatLoader::get_dependencies(scene_path, &scene_dependencies);
-		for (auto &scene_dependency : scene_dependencies) {
-			Vector<String> splits = scene_dependency.split("::", true);
-			const String &dep_path = splits.size() >= 3 ? splits[2] : splits[0];
-			if (dep_path == p_original_path) {
+		for (auto &dep : deps) {
+			if (dep.key == p_original_path) {
 				scenes_to_check[scene_path] = 0;
 			}
 		}
 	}
+
 	if (scenes_to_check.is_empty()) {
-		return HashMap<StringName, Node *>();
+		return ERR_FILE_NOT_FOUND;
 	}
-	HashMap<StringName, Node *> animated_node_path_to_node;
-	HashMap<String, Pair<Ref<PackedScene>, HashMap<String, int>>> scene_path_to_packed_scene_to_skeleton_path_to_node_index;
 	String best_scene;
 	for (auto &[scene_path, has_node_count] : scenes_to_check) {
+		if (has_node_count != 0) {
+			continue;
+		}
 		Ref<Resource> res = ResourceCompatLoader::fake_load(scene_path);
 		if (!res.is_valid()) {
 			continue;
@@ -3597,6 +3726,7 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 		}
 		if (has_node_count == animation_node_paths_found.size()) {
 			best_scene = scene_path;
+			found_all = true;
 			break;
 		}
 	}
@@ -3610,6 +3740,118 @@ HashMap<StringName, Node *> find_reference_nodes_for_animation_library(const Str
 		best_scene = scenes_to_check.begin()->key;
 	}
 	auto &[parent_packed_scene, animated_node_path_to_node_index] = scene_path_to_packed_scene_to_skeleton_path_to_node_index[best_scene];
+	found_scene = parent_packed_scene;
+	found_node_path_to_node_index = animated_node_path_to_node_index;
+	return OK;
+}
+
+NodePath strip_subnames(const NodePath &p_node_path) {
+	return NodePath(p_node_path.get_names(), p_node_path.is_absolute());
+}
+
+MeshInstance3D *add_debug_bones_mesh_instance_to_skeleton(const String &p_original_path, Skeleton3D *skeleton, const String &skeleton_name) {
+	Node *root = skeleton->get_owner();
+	auto skin = skeleton->create_skin_from_rest_transforms();
+	Ref<SkinReference> skin_ref = skeleton->register_skin(skin);
+	MeshInstance3D *mesh_instance = memnew(MeshInstance3D);
+	String child_name = skeleton_name + "_mesh_instance";
+	Ref<Mesh> debug_bones_mesh = generate_debug_bones_mesh(skeleton);
+	ERR_FAIL_COND_V_MSG(debug_bones_mesh.is_null(), nullptr, vformat("Failed to generate debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
+	ERR_FAIL_COND_V_MSG(debug_bones_mesh->get_surface_count() == 0, nullptr, vformat("Generated debug bones mesh for skeleton %s in animation library %s has no surfaces!", skeleton_name, p_original_path));
+	Ref<Material> debug_bones_material = debug_bones_mesh->surface_get_material(0);
+	debug_bones_mesh->set_name(skeleton_name + "_debug_bones_mesh");
+	mesh_instance->set_mesh(debug_bones_mesh);
+	mesh_instance->set_name(child_name);
+	skeleton->add_child(mesh_instance);
+	mesh_instance->set_owner(root);
+	mesh_instance->set_skeleton_path(NodePath(".."));
+	if (debug_bones_material.is_valid()) {
+		debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
+		mesh_instance->set_surface_override_material(0, debug_bones_material);
+	}
+	mesh_instance->set_skin(skin);
+	return mesh_instance;
+}
+
+MeshInstance3D *get_mesh_instance_pointing_to_skeleton(Skeleton3D *skeleton) {
+	auto children = skeleton->find_children("", "MeshInstance3D", true, false);
+
+	for (auto &child : children) {
+		if (MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(child); mesh_instance) {
+			if (mesh_instance->get_node_or_null(mesh_instance->get_skeleton_path()) == skeleton) {
+				return mesh_instance;
+			}
+		}
+	}
+	return nullptr;
+}
+
+Error _add_animation_library_to_extant_packed_scene(const String &packed_scene_path, const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &new_scene) {
+	ERR_FAIL_COND_V_MSG(animation_library.is_null(), ERR_INVALID_PARAMETER, "Animation library is null");
+	Ref<PackedScene> packed_scene = _resource_load(packed_scene_path, "");
+	ERR_FAIL_COND_V_MSG(packed_scene.is_null(), ERR_FILE_NOT_FOUND, "Packed scene not found at path " + packed_scene_path);
+	Node *root = packed_scene->instantiate();
+	ERR_FAIL_COND_V_MSG(root == nullptr, ERR_FILE_CORRUPT, "Failed to instantiate packed scene at path " + packed_scene_path);
+
+	HashMap<NodePath, HashSet<Animation::TrackType>> animation_node_paths_found = _get_animation_node_paths(animation_library);
+	ERR_FAIL_COND_V_MSG(animation_node_paths_found.is_empty(), ERR_FILE_CORRUPT, "Animation library has no animation node paths");
+	// best root
+	NodePath best_parent_path;
+	NodePath second_best_parent_path;
+	HashSet<NodePath> path_names;
+	for (auto &[node_path, track_types] : animation_node_paths_found) {
+		path_names.insert(strip_subnames(node_path));
+		if (node_path.is_absolute()) {
+			continue;
+		}
+		if (second_best_parent_path.is_empty()) {
+			second_best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		}
+		if (best_parent_path.is_empty() && node_path.get_name(0).is_node_unique_name()) {
+			best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		}
+	}
+	if (best_parent_path.is_empty()) {
+		if (second_best_parent_path.is_empty()) {
+			auto node_path = animation_node_paths_found.begin()->key;
+			best_parent_path = NodePath({ node_path.get_name(0) }, node_path.is_absolute());
+		} else {
+			best_parent_path = second_best_parent_path;
+		}
+	}
+	Node *interm_node = root->get_node_or_null(best_parent_path);
+	if (interm_node == nullptr) {
+		interm_node = root->find_child(best_parent_path.operator String());
+	}
+	ERR_FAIL_COND_V_MSG(interm_node == nullptr, ERR_FILE_CORRUPT, "Intermediate node not found in packed scene at path " + packed_scene_path);
+	Node *best_parent_node = interm_node->get_parent();
+	ERR_FAIL_COND_V_MSG(best_parent_node == nullptr, ERR_FILE_CORRUPT, "Best root node not found in packed scene at path " + packed_scene_path);
+	AnimationPlayer *animation_player = memnew(AnimationPlayer);
+	animation_player->set_name("AnimationPlayer");
+	animation_player->add_animation_library("", animation_library);
+	best_parent_node->add_child(animation_player);
+	animation_player->set_owner(root);
+	for (auto &node_path : path_names) {
+		auto node = best_parent_node->get_node_or_null(node_path);
+		ERR_CONTINUE(node == nullptr);
+		if (Skeleton3D *skeleton = Object::cast_to<Skeleton3D>(node); skeleton) {
+			auto mesh_instance = get_mesh_instance_pointing_to_skeleton(skeleton);
+			if (!mesh_instance) {
+				add_debug_bones_mesh_instance_to_skeleton(packed_scene_path, skeleton, skeleton->get_name());
+			} else if (mesh_instance->get_skin().is_null()) {
+				mesh_instance->set_skin(skeleton->create_skin_from_rest_transforms());
+			}
+		}
+	}
+
+	new_scene = Ref<PackedScene>(memnew(PackedScene));
+	new_scene->pack(root);
+	memdelete(root);
+	return OK;
+}
+
+HashMap<StringName, Node *> _find_reference_nodes_for_animation_library(const Ref<PackedScene> &parent_packed_scene, const HashMap<String, int> &animated_node_path_to_node_index) {
+	HashMap<StringName, Node *> animated_node_path_to_node;
 	for (auto &[_anim_path, _node_idx] : animated_node_path_to_node_index) {
 		Ref<PackedScene> packed_scene = parent_packed_scene;
 		Ref<SceneState> state = packed_scene->get_state();
@@ -3794,7 +4036,6 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 			node->set_name(node_name);
 			parent->add_child(node);
 			node->set_owner(root);
-			node->set_unique_name_in_owner(true);
 			return node;
 		}
 		return node;
@@ -3834,46 +4075,18 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 	Vector<StringName> skeleton_path_meshes_added;
 
 	for (auto &[skeleton_path, skeleton] : skeleton_path_to_skeleton) {
-		String skeleton_name = skeleton->get_name();
-		auto skin = skeleton->create_skin_from_rest_transforms();
-		Ref<SkinReference> skin_ref = skeleton->register_skin(skin);
-		auto children = skeleton->find_children("", "MeshInstance3D", false, false);
-		Node *child = nullptr;
-		if (children.size() > 0) {
-			child = Object::cast_to<Node>(children[0]);
-		}
-		MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(child);
+		MeshInstance3D *mesh_instance = get_mesh_instance_pointing_to_skeleton(skeleton);
 		if (!mesh_instance) {
-			String child_name = child ? child->get_name().operator String() : skeleton_name + "_mesh_instance";
-			mesh_instance = memnew(MeshInstance3D);
-			Ref<Mesh> debug_bones_mesh = generate_debug_bones_mesh(skeleton);
-			ERR_CONTINUE_MSG(debug_bones_mesh.is_null(), vformat("Failed to generate debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
-			ERR_CONTINUE_MSG(debug_bones_mesh->get_surface_count() == 0, vformat("Generated debug bones mesh for skeleton %s in animation library %s has no surfaces!", skeleton_name, p_original_path));
-			Ref<Material> debug_bones_material = debug_bones_mesh->surface_get_material(0);
-			debug_bones_mesh->set_name(skeleton_name + "_debug_bones_mesh");
-			mesh_instance->set_mesh(debug_bones_mesh);
-			mesh_instance->set_name(child_name);
-			if (child) {
-				child->replace_by(mesh_instance);
-				memdelete(child);
-			} else {
-				skeleton->add_child(mesh_instance);
-				mesh_instance->set_owner(root);
-			}
-			mesh_instance->set_skeleton_path(NodePath(".."));
-			if (debug_bones_material.is_valid()) {
-				debug_bones_material->set_name(skeleton_name + "_debug_bones_material");
-				mesh_instance->set_surface_override_material(0, debug_bones_material);
-			} else {
-				WARN_PRINT(vformat("No material found for debug bones mesh for skeleton %s in animation library %s", skeleton_name, p_original_path));
-			}
+			mesh_instance = add_debug_bones_mesh_instance_to_skeleton(p_original_path, skeleton, skeleton_path);
+		} else if (mesh_instance->get_skin().is_null()) {
+			mesh_instance->set_skin(skeleton->create_skin_from_rest_transforms());
 		}
-		mesh_instance->set_skin(skin);
+		ERR_CONTINUE_MSG(mesh_instance == nullptr, vformat("Failed to add debug bones mesh instance to skeleton %s in animation library %s", skeleton_path, p_original_path));
 		skeleton_path_meshes_added.append(skeleton_path);
 	}
 	ERR_FAIL_COND_V_MSG(skeleton_path_meshes_added.size() == 0, ERR_FILE_CORRUPT, vformat("No meshes added for skeleton paths in animation library %s", p_original_path));
 	AnimationPlayer *animation_player = memnew(AnimationPlayer);
-	animation_library->set_path_cache(p_original_path);
+	animation_library->set_path(p_original_path);
 	animation_player->set_name("AnimationPlayer");
 	animation_player->add_animation_library("", animation_library);
 	root->add_child(animation_player);
@@ -3944,6 +4157,7 @@ Error _create_packed_scene_from_mesh_library(const String &p_original_path, cons
 	memdelete(root);
 	return OK;
 }
+
 } //namespace
 
 struct BatchExportToken : public TaskRunnerStruct {
@@ -4054,6 +4268,8 @@ struct BatchExportToken : public TaskRunnerStruct {
 	}
 
 	void _clear_scene(void *p_userdata = nullptr) {
+		// ensure main loop runs once so that message queues are processed
+		GDREMainLoop::iteration(true);
 		if (root) {
 			memdelete(root);
 			root = nullptr;
@@ -4086,7 +4302,28 @@ struct BatchExportToken : public TaskRunnerStruct {
 	}
 
 	Error create_packed_scene_from_animation_library(const Ref<AnimationLibrary> &animation_library, Ref<PackedScene> &scene) {
-		HashMap<StringName, Node *> reference_nodes = find_reference_nodes_for_animation_library(p_original_path, animation_library);
+		HashMap<StringName, Node *> reference_nodes;
+		HashMap<String, int> animated_node_path_to_node_index;
+		Ref<PackedScene> found_scene;
+		bool found_all = false;
+		auto ret = find_best_original_scene_for_animation_library(p_original_path, animation_library, found_scene, animated_node_path_to_node_index, found_all);
+		if (ret == OK && found_scene.is_valid()) {
+			if (p_original_path.get_file().contains("@") && found_all) {
+				String base_file = p_original_path.get_file().get_slice("@", 0) + "." + p_original_path.get_extension();
+				String parent_path = found_scene->get_path();
+				if (parent_path.get_file().begins_with(base_file)) {
+					err = _ON_MAIN_THREAD(std::function<Error()>([&]() -> Error {
+						return _add_animation_library_to_extant_packed_scene(parent_path, animation_library, scene);
+					})).value_or(ERR_SKIP);
+					if (err == OK) {
+						return err;
+					}
+				}
+			}
+			reference_nodes = _find_reference_nodes_for_animation_library(found_scene, animated_node_path_to_node_index);
+		}
+		instance.force_export_multi_root = true;
+
 		return TaskManager::get_singleton()->dispatch_to_main_thread(std::function<Error()>([&]() -> Error {
 											   return _create_packed_scene_from_animation_library(p_original_path, animation_library, reference_nodes, scene);
 										   }))
@@ -4151,26 +4388,33 @@ struct BatchExportToken : public TaskRunnerStruct {
 			if (resource.is_null() && err == OK) {
 				err = ERR_CANT_ACQUIRE_RESOURCE;
 			}
+			if (err != OK) {
+				report->set_error(err);
+				String _ = instance.add_errors_to_report(err);
+				after_preload();
+				return false;
+			}
 
 			Ref<PackedScene> scene = resource;
-			if (err == OK && scene.is_null()) {
+			if (scene.is_null()) {
 				if (is_mesh) {
 					err = create_packed_scene_from_mesh(resource, scene);
 				} else if (is_animation_library) {
 					err = create_packed_scene_from_animation_library(resource, scene);
-					instance.force_export_multi_root = true;
 				} else if (is_mesh_library) {
 					err = create_packed_scene_from_mesh_library(resource, scene);
 				} else {
 					err = ERR_CANT_ACQUIRE_RESOURCE;
 				}
+				if (err != OK) {
+					report->set_error(err);
+					report->set_message(vformat("Failed to create packed scene from %s", resource_type));
+					report->append_error_messages(instance._get_logged_error_messages());
+					after_preload();
+					return false;
+				}
 			}
 
-			if (err != OK) {
-				report->set_error(err);
-				after_preload();
-				return false;
-			}
 			_scene = scene;
 			if (!is_obj_output()) {
 				if (!root) {
@@ -4185,6 +4429,7 @@ struct BatchExportToken : public TaskRunnerStruct {
 					if (err == OK) {
 						err = ERR_CANT_ACQUIRE_RESOURCE;
 					}
+					String _ = instance.add_errors_to_report(err);
 					report->set_error(err);
 				}
 			}

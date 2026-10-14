@@ -273,7 +273,7 @@ func previewer_is_not_default(previewer: GDREPreviewer) -> bool:
 func previewer_works_on_resource(previewer: GDREPreviewer, path: String, info: Dictionary) -> bool:
 	if not previewer.can_edit(path, info.get("type", "")):
 		return false
-	if previewer is ScenePreviewer and info.get("ver_major", 0) < SceneExporter.get_minimum_godot_ver_supported():
+	if previewer is ScenePreviewer and !info.is_empty() and info.get("ver_major", 0) < SceneExporter.get_minimum_godot_ver_supported():
 		return false
 	return true
 
@@ -305,7 +305,7 @@ func load_resource(path: String) -> void:
 		alt_previewer = previewer
 	else:
 		current_view = previewer
-		if previewer.can_switch_to_text():
+		if previewer.can_switch_to_text() and !current_resource_info.is_empty():
 			alt_previewer = TEXT_PREVIEWER
 		else:
 			alt_previewer = null
