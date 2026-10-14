@@ -50,6 +50,21 @@
 #define PRINT_PERF_CSV 0
 #endif
 
+#define _ON_MAIN_THREAD(...) TaskManager::get_singleton()->dispatch_to_main_thread(__VA_ARGS__)
+
+namespace {
+static Ref<Resource> _resource_load(const String &p_source_path, const String &p_original_path, bool p_using_threaded_load = false, Error *r_error = nullptr) {
+	String path = p_source_path;
+	if (!p_original_path.is_empty() && GDRESettings::get_singleton()->get_mapped_path(p_original_path) == p_source_path) {
+		path = p_original_path;
+	}
+	if (ResourceCompatLoader::is_globally_available()) {
+		return ResourceLoader::load(path, "", ResourceFormatLoader::CACHE_MODE_REUSE, r_error);
+	} else {
+		return ResourceCompatLoader::custom_load(path, "", ResourceCompatLoader::get_default_load_type(), r_error, p_using_threaded_load, ResourceFormatLoader::CACHE_MODE_REUSE);
+	}
+} //namespace
+} //namespace
 struct dep_info {
 	ResourceUID::ID uid = ResourceUID::INVALID_ID;
 	String dep;
@@ -2913,19 +2928,10 @@ Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
 		_silence_errors(true);
 	}
 #endif
-	std::optional<Ref<Resource>> result;
-	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	if (ResourceCompatLoader::is_globally_available()) {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
-			_load_dep_uids();
-			return ResourceLoader::load(source_path, "", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-		});
-	} else {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
-			_load_dep_uids();
-			return ResourceCompatLoader::custom_load(source_path, "", mode_type, &err, using_threaded_load(), ResourceFormatLoader::CACHE_MODE_REUSE);
-		});
-	}
+	std::optional<Ref<Resource>> result = _ON_MAIN_THREAD((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
+		_load_dep_uids();
+		return _resource_load(source_path, iinfo.is_valid() ? iinfo->get_source_file() : "", using_threaded_load(), &err);
+	});
 	if (!result.has_value()) {
 		return ERR_SKIP;
 	}
@@ -3103,16 +3109,9 @@ Error SceneExporter::export_file_to_obj(const String &p_dest_path, const String 
 		return ERR_UNAVAILABLE;
 	}
 	// For some reason, scenes with meshes fail to load without the load done by ResourceLoader::load, possibly due to notification shenanigans.
-	std::optional<Ref<PackedScene>> result;
-	if (ResourceCompatLoader::is_globally_available()) {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
-			return ResourceLoader::load(p_src_path, "PackedScene", ResourceFormatLoader::CACHE_MODE_REUSE, &err);
-		});
-	} else {
-		result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
-			return ResourceCompatLoader::custom_load(p_src_path, "PackedScene", ResourceCompatLoader::get_default_load_type(), &err, true, ResourceFormatLoader::CACHE_MODE_REUSE);
-		});
-	}
+	std::optional<Ref<PackedScene>> result = _ON_MAIN_THREAD((std::function<Ref<PackedScene>()>)[&]() -> Ref<PackedScene> {
+		return _resource_load(p_src_path, "", true, &err);
+	});
 	if (!result.has_value() || result.value().is_null()) {
 		return ERR_SKIP; // cancelled
 	}
@@ -3872,7 +3871,7 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 	}
 	ERR_FAIL_COND_V_MSG(skeleton_path_meshes_added.size() == 0, ERR_FILE_CORRUPT, vformat("No meshes added for skeleton paths in animation library %s", p_original_path));
 	AnimationPlayer *animation_player = memnew(AnimationPlayer);
-	animation_library->set_path_cache(p_original_path);
+	animation_library->set_path(p_original_path);
 	animation_player->set_name("AnimationPlayer");
 	animation_player->add_animation_library("", animation_library);
 	root->add_child(animation_player);
