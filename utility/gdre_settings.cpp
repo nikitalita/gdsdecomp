@@ -217,7 +217,7 @@ GDRESettings::GDRESettings() {
 	logger = memnew(GDRELogger);
 	headless = !RenderingServer::get_singleton() || RenderingServer::get_singleton()->get_video_adapter_name().is_empty();
 	add_logger();
-	PluginManager::load_cache();
+	PluginManager::get_singleton()->load_cache();
 #ifdef ANDROID_ENABLED
 	if (!OS::get_singleton()->request_permission("android.permission.READ_EXTERNAL_STORAGE")) {
 		ERR_PRINT("Permission READ_EXTERNAL_STORAGE is required to access external storage!");
@@ -241,7 +241,7 @@ GDRESettings::GDRESettings() {
 }
 
 GDRESettings::~GDRESettings() {
-	PluginManager::save_cache();
+	PluginManager::get_singleton()->save_cache();
 	remove_current_pack();
 	singleton = nullptr;
 	logger->_disable();

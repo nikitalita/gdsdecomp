@@ -155,6 +155,7 @@ static Ref<TextureExporter> texture_exporter = nullptr;
 static Ref<TranslationExporter> translation_exporter = nullptr;
 static Ref<ObjExporter> obj_exporter = nullptr;
 static GDREPackedData *gdre_packeddata_singleton = nullptr;
+static PluginManager *plugin_manager = nullptr;
 
 //plugin manager sources
 static Ref<CodebergSource> codeberg_source = nullptr;
@@ -270,26 +271,25 @@ void init_plugin_manager_sources() {
 	gitlab_source = memnew(GitLabSource);
 	asset_library_source = memnew(AssetLibrarySource);
 
-	PluginManager::register_source(codeberg_source, false);
-	PluginManager::register_source(github_source, false);
-	PluginManager::register_source(gitlab_source, false);
-	PluginManager::register_source(asset_library_source, false);
+	PluginManager::get_singleton()->register_source(codeberg_source, false);
+	PluginManager::get_singleton()->register_source(github_source, false);
+	PluginManager::get_singleton()->register_source(gitlab_source, false);
+	PluginManager::get_singleton()->register_source(asset_library_source, false);
 }
 
 void deinit_plugin_manager_sources() {
 	if (codeberg_source.is_valid()) {
-		PluginManager::unregister_source(codeberg_source);
+		PluginManager::get_singleton()->unregister_source(codeberg_source);
 	}
 	if (github_source.is_valid()) {
-		PluginManager::unregister_source(github_source);
+		PluginManager::get_singleton()->unregister_source(github_source);
 	}
 	if (gitlab_source.is_valid()) {
-		PluginManager::unregister_source(gitlab_source);
+		PluginManager::get_singleton()->unregister_source(gitlab_source);
 	}
 	if (asset_library_source.is_valid()) {
-		PluginManager::unregister_source(asset_library_source);
+		PluginManager::get_singleton()->unregister_source(asset_library_source);
 	}
-
 	codeberg_source = nullptr;
 	github_source = nullptr;
 	gitlab_source = nullptr;
@@ -618,7 +618,10 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	gdre_main_loop = memnew(GDREMainLoop);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDREMainLoop", GDREMainLoop::get_singleton()));
 
+	plugin_manager = memnew(PluginManager);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PluginManager", PluginManager::get_singleton()));
 	init_plugin_manager_sources();
+
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
 	gdre_config = memnew(GDREConfig);
@@ -664,6 +667,11 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		memdelete(gdre_singleton);
 		gdre_singleton = nullptr;
 	}
+	deinit_plugin_manager_sources();
+	if (plugin_manager != nullptr) {
+		memdelete(plugin_manager);
+		plugin_manager = nullptr;
+	}
 	if (audio_stream_preview_generator) {
 		memdelete(audio_stream_preview_generator);
 		audio_stream_preview_generator = nullptr;
@@ -672,7 +680,6 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		memdelete(task_manager);
 		task_manager = nullptr;
 	}
-	deinit_plugin_manager_sources();
 	free_ver_regex();
 	if (gdre_main_loop) {
 		memdelete(gdre_main_loop);

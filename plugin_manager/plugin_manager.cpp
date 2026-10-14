@@ -13,15 +13,23 @@
 #include "utility/http_requester.h"
 #include "utility/task_manager.h"
 
-Ref<PluginSource> PluginManager::sources[MAX_SOURCES];
-int PluginManager::source_count = 0;
-bool PluginManager::prepopping = false;
-HashMap<String, PluginVersion> PluginManager::plugin_version_cache;
-Mutex PluginManager::plugin_version_cache_mutex;
 // known bad plugin versions and their replacements; these had better be prepopped.
 HashMap<String, Pair<String, String>> PluginManager::known_bad_plugin_versions = {
 	{ "godotsteam", Pair<String, String>("v4.4.1-gde", "v4.4.2-gde") },
 };
+
+PluginManager *PluginManager::singleton = nullptr;
+PluginManager::PluginManager() {
+	singleton = this;
+}
+
+PluginManager::~PluginManager() {
+	singleton = nullptr;
+}
+
+PluginManager *PluginManager::get_singleton() {
+	return singleton;
+}
 
 String PluginManager::get_plugin_download_cache_path() {
 	return GDRESettings::get_gdre_user_path().path_join("download_cache");
@@ -331,44 +339,33 @@ void PluginManager::save_cache() {
 	}
 }
 
-namespace {
-struct PrePopToken {
-	String plugin_name;
-	Ref<PluginSource> source;
-	Pair<int64_t, int64_t> version;
-	Error error = OK;
-};
+String PluginManager::get_prepop_task_description(uint32_t index, PrePopToken *tokens) {
+	return vformat("%s version: %d %d", tokens[index].plugin_name, tokens[index].version.first, tokens[index].version.second);
+}
 
-struct PrePopTask {
-	String describe_task(uint32_t index, PrePopToken *tokens) {
-		return vformat("%s version: %d %d", tokens[index].plugin_name, tokens[index].version.first, tokens[index].version.second);
-	}
-
-	void do_task(uint32_t index, PrePopToken *tokens) {
-		Error &err = tokens[index].error;
-		auto &token = tokens[index];
-		// Use the new workflow: get ReleaseInfo and populate PluginVersion
-		ReleaseInfo release_info = token.source->get_release_info(token.plugin_name, token.version.first, token.version.second, err);
-		ERR_FAIL_COND_MSG(err != OK, vformat("Failed to get release info for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
-		if (release_info.is_valid()) {
-			String cache_key = release_info.get_cache_key();
-			PluginVersion cached_version = PluginManager::get_cached_plugin_version(cache_key);
-			bool valid = cached_version.is_valid();
-			if (valid && cached_version.release_info != release_info) {
-				print_line("Cached version does not match release info for plugin " + token.plugin_name + " version: " + release_info.version);
-				valid = false;
-			}
-			if (!valid) {
-				PluginVersion plugin_version = PluginManager::populate_plugin_version_from_release(release_info, err);
-				ERR_FAIL_COND_MSG(err != OK, vformat("Failed to populate plugin version for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
-				if (plugin_version.is_valid()) {
-					PluginManager::cache_plugin_version(cache_key, plugin_version);
-				}
+void PluginManager::do_prepop_task(uint32_t index, PrePopToken *tokens) {
+	Error &err = tokens[index].error;
+	auto &token = tokens[index];
+	// Use the new workflow: get ReleaseInfo and populate PluginVersion
+	ReleaseInfo release_info = token.source->get_release_info(token.plugin_name, token.version.first, token.version.second, err);
+	ERR_FAIL_COND_MSG(err != OK, vformat("Failed to get release info for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
+	if (release_info.is_valid()) {
+		String cache_key = release_info.get_cache_key();
+		PluginVersion cached_version = PluginManager::get_singleton()->get_cached_plugin_version(cache_key);
+		bool valid = cached_version.is_valid();
+		if (valid && cached_version.release_info != release_info) {
+			print_line("Cached version does not match release info for plugin " + token.plugin_name + " version: " + release_info.version);
+			valid = false;
+		}
+		if (!valid) {
+			PluginVersion plugin_version = PluginManager::get_singleton()->populate_plugin_version_from_release(release_info, err);
+			ERR_FAIL_COND_MSG(err != OK, vformat("Failed to populate plugin version for plugin %s primary id %d secondary id %d", token.plugin_name, token.version.first, token.version.second));
+			if (plugin_version.is_valid()) {
+				PluginManager::get_singleton()->cache_plugin_version(cache_key, plugin_version);
 			}
 		}
 	}
-};
-} //namespace
+}
 
 Error PluginManager::prepop_cache(const Vector<String> &plugin_names, const String &output_path) {
 	bool multithread = !GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
@@ -394,24 +391,23 @@ Error PluginManager::prepop_cache(const Vector<String> &plugin_names, const Stri
 			tokens.push_back(token);
 		}
 	}
-	PrePopTask task;
 	Error err = OK;
 	if (multithread) {
 		gdre::shuffle_vector(tokens);
 		err = TaskManager::get_singleton()->run_multithreaded_group_task(
-				&task,
-				&PrePopTask::do_task,
+				this,
+				&PluginManager::do_prepop_task,
 				tokens.ptrw(),
 				tokens.size(),
-				&PrePopTask::describe_task,
-				"GDRESettings::prepop_plugin_cache_gh",
+				&PluginManager::get_prepop_task_description,
+				"PluginManager::prepop_cache",
 				"Prepopulating plugin cache",
 				true,
 				-1,
 				true);
 	} else {
 		for (int i = 0; i < tokens.size(); i++) {
-			task.do_task(i, tokens.ptrw());
+			do_prepop_task(i, tokens.ptrw());
 			if (tokens[i].error != OK) {
 				break;
 			}
@@ -806,15 +802,15 @@ void PluginManager::clear_download_cache() {
 
 void PluginManager::_bind_methods() {
 	// ClassDB::bind_method(D_METHOD("get_plugin_version", "plugin_name", "version"), &PluginManager::get_plugin_version);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_plugin_info", "plugin_name", "hashes"), &PluginManager::_get_plugin_info);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("load_cache"), &PluginManager::load_cache);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("save_cache"), &PluginManager::save_cache);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("prepop_cache", "plugin_names", "output_path"), &PluginManager::prepop_cache);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("register_source", "name", "source"), &PluginManager::register_source);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("unregister_source", "name"), &PluginManager::unregister_source);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("print_plugin_cache"), &PluginManager::print_plugin_cache);
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("clear_plugin_cache", "clear_static_cache"), &PluginManager::clear_plugin_cache, DEFVAL(false));
-	ClassDB::bind_static_method(get_class_static(), D_METHOD("clear_download_cache"), &PluginManager::clear_download_cache);
+	ClassDB::bind_method(D_METHOD("get_plugin_info", "plugin_name", "hashes"), &PluginManager::_get_plugin_info);
+	ClassDB::bind_method(D_METHOD("load_cache"), &PluginManager::load_cache);
+	ClassDB::bind_method(D_METHOD("save_cache"), &PluginManager::save_cache);
+	ClassDB::bind_method(D_METHOD("prepop_cache", "plugin_names", "output_path"), &PluginManager::prepop_cache);
+	ClassDB::bind_method(D_METHOD("register_source", "name", "source"), &PluginManager::register_source);
+	ClassDB::bind_method(D_METHOD("unregister_source", "name"), &PluginManager::unregister_source);
+	ClassDB::bind_method(D_METHOD("print_plugin_cache"), &PluginManager::print_plugin_cache);
+	ClassDB::bind_method(D_METHOD("clear_plugin_cache", "clear_static_cache"), &PluginManager::clear_plugin_cache, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("clear_download_cache"), &PluginManager::clear_download_cache);
 }
 
 namespace {
