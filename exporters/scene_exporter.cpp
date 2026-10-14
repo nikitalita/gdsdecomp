@@ -4240,6 +4240,8 @@ struct BatchExportToken : public TaskRunnerStruct {
 	}
 
 	void _clear_scene(void *p_userdata = nullptr) {
+		// ensure main loop runs once so that message queues are processed
+		GDREMainLoop::iteration(true);
 		if (root) {
 			memdelete(root);
 			root = nullptr;
