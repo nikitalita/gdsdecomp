@@ -25,6 +25,16 @@ HashMap<String, String> AssetLibrarySource::GODOT_VERSION_RELEASE_DATES = {
 };
 
 Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Dictionary> &r_assets, int ver_major) {
+	{
+		MutexLock lock(cache_mutex);
+		if (search_cache.has(plugin_name)) {
+			auto &cache = search_cache[plugin_name];
+			if (!is_cache_expired(cache.retrieved_time)) {
+				r_assets = cache.results;
+				return OK;
+			}
+		}
+	}
 	static const Vector<String> _GODOT_VERSIONS = { "2.99", "3.99", "4.99" };
 	Vector<String> godot_versions;
 	if (ver_major == 0) {
@@ -36,7 +46,6 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 	static const String URL_TEMPLATE = "https://godotengine.org/asset-library/api/asset?type=addon&filter={0}&godot_version={1}&max_results={2}&page={3}";
 	Array assets;
 
-	bool any_version_succeeded = false;
 	for (const auto &godot_version : godot_versions) {
 		int page = 0;
 		int pages = 1000;
@@ -47,11 +56,7 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 										 .replace("{3}", itos(page));
 			Vector<uint8_t> response;
 			Error err = HTTPRequester::wget_sync(request_url, response, HTTPRequester::get_default_request_timeout(), 1);
-			if (err != OK) {
-				ERR_FAIL_COND_V_MSG(err == ERR_TIMEOUT, err, "Timeout while getting assets ids for plugin " + plugin_name);
-				break;
-			}
-			any_version_succeeded = true;
+			ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get assets for plugin " + plugin_name);
 			String response_str;
 			response_str.append_utf8((const char *)response.ptr(), response.size());
 			Dictionary dict = JSON::parse_string(response_str);
@@ -66,8 +71,15 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 			assets.append_array(page_assets);
 		}
 	}
-	ERR_FAIL_COND_V_MSG(!any_version_succeeded, ERR_PARSE_ERROR, "All attempts to get assets ids for plugin " + plugin_name + " failed");
 	r_assets = gdre::array_to_vector<Dictionary>(assets);
+	{
+		MutexLock lock(cache_mutex);
+		SearchCache cache;
+		cache.retrieved_time = OS::get_singleton()->get_unix_time();
+		cache.search_query = plugin_name;
+		cache.results = r_assets;
+		search_cache[plugin_name] = cache;
+	}
 	return OK;
 }
 
@@ -336,6 +348,18 @@ void AssetLibrarySource::load_edit_cache() {
 	file->close();
 }
 
+void AssetLibrarySource::load_search_cache() {
+	MutexLock lock(cache_mutex);
+	String search_cache_file = PluginManager::get_plugin_cache_path().path_join("asset_lib_search_cache.json");
+	if (!FileAccess::exists(search_cache_file)) {
+		return;
+	}
+	Dictionary json = JSON::parse_string(FileAccess::get_file_as_string(search_cache_file));
+	for (auto &E : json) {
+		search_cache[E.key] = SearchCache::from_json(E.value);
+	}
+}
+
 void AssetLibrarySource::load_cache_internal() {
 	Error err = load_edit_list_cache();
 	if (err != OK) {
@@ -343,6 +367,7 @@ void AssetLibrarySource::load_cache_internal() {
 		return;
 	}
 	load_edit_cache();
+	load_search_cache();
 }
 
 void AssetLibrarySource::save_edit_list_cache() {
@@ -380,9 +405,27 @@ void AssetLibrarySource::save_edit_cache() {
 	json.clear();
 }
 
+void AssetLibrarySource::save_search_cache() {
+	MutexLock lock(cache_mutex);
+	String search_cache_file = PluginManager::get_plugin_cache_path().path_join("asset_lib_search_cache.json");
+	gdre::ensure_dir(search_cache_file.get_base_dir());
+	auto file = FileAccess::open(search_cache_file, FileAccess::WRITE);
+	if (file.is_null()) {
+		return;
+	}
+	Dictionary json;
+	for (auto &E : search_cache) {
+		json[E.key] = E.value.to_json();
+	}
+	file->store_string(JSON::stringify(json));
+	file->close();
+	json.clear();
+}
+
 void AssetLibrarySource::save_cache() {
 	save_edit_list_cache();
 	save_edit_cache();
+	save_search_cache();
 }
 
 bool AssetLibrarySource::handles_plugin(const String &plugin_name) {
@@ -423,6 +466,22 @@ Dictionary EditCache::to_json() const {
 		{ "edit_id", edit_id },
 		{ "edit", edit }
 	};
+}
+
+Dictionary SearchCache::to_json() const {
+	return {
+		{ "retrieved_time", retrieved_time },
+		{ "search_query", search_query },
+		{ "results", gdre::vector_to_array(results) }
+	};
+}
+
+SearchCache SearchCache::from_json(const Dictionary &json) {
+	SearchCache cache;
+	cache.retrieved_time = json.get("retrieved_time", 0);
+	cache.search_query = json.get("search_query", "");
+	cache.results = gdre::array_to_vector<Dictionary>(json.get("results", Array()));
+	return cache;
 }
 
 Vector<ReleaseInfo> AssetLibrarySource::find_release_infos_by_tag(const String &plugin_name, const String &tag, Error &r_error) {
