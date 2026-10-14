@@ -2516,13 +2516,7 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 				}
 			}
 			Dictionary gltf_asset = json["asset"];
-#if DEBUG_ENABLED
-			// less file churn when testing
 			gltf_asset["generator"] = "GDRE Tools";
-#else
-			gltf_asset["generator"] = "GDRE Tools v" + GDRESettings::get_gdre_version();
-#endif
-
 			json["asset"] = gltf_asset;
 		}
 		GDRE_SCN_EXP_CHECK_CANCEL();
