@@ -28,6 +28,7 @@
 #include "utility/glob.h"
 #include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/import_info.h"
+#include "utility/pack_info.h"
 #include "utility/pcfg_loader.h"
 #include "utility/task_manager.h"
 
@@ -333,7 +334,7 @@ String GDRESettings::get_non_standard_header() const {
 }
 
 void GDRESettings::set_project_path(const String &p_path) {
-	project_path = p_path;
+	project_path = p_path.simplify_path();
 }
 String GDRESettings::get_project_path() const {
 	return project_path;
@@ -1519,62 +1520,76 @@ Vector<String> GDRESettings::get_pack_paths() const {
 	return ret;
 }
 
+static inline String find_extant_right_side_dir(const String &p_path) {
+	String dir_path = p_path.trim_prefix("res://").get_base_dir().simplify_path();
+	while (!dir_path.is_empty() && !DirAccess::dir_exists_absolute("res://" + dir_path)) {
+		auto parts = dir_path.split("/", false, 1);
+		if (parts.size() < 2) {
+			dir_path = "";
+			break;
+		}
+		dir_path = parts[1];
+	}
+	return dir_path;
+}
+
 String GDRESettings::localize_path(const String &p_path, const String &resource_dir) const {
-	String res_path = resource_dir != "" ? resource_dir : project_path;
+	String res_path = !resource_dir.is_empty() ? resource_dir.simplify_path() : project_path;
 #ifdef TOOLS_ENABLED
 	if (res_path.is_empty() && Engine::get_singleton()->is_editor_hint()) {
 		res_path = ProjectSettings::get_singleton()->get_resource_path();
 	}
 #endif
+	String path = p_path.simplify_path();
 
-	if (p_path.begins_with("res://") || p_path.begins_with("user://")) {
-		return p_path.simplify_path();
-	}
-	if (!res_path.is_empty() && p_path.simplify_path().begins_with(res_path)) {
-		return p_path.replace(res_path, "res://").simplify_path();
-	}
-	if ((p_path.is_absolute_path())) {
-		if (!res_path.is_empty()) {
-			if (p_path.begins_with(res_path)) {
-				return p_path.replace(res_path, "res://").simplify_path();
-			}
-			String path = p_path.simplify_path();
-			if (path.begins_with(res_path)) {
-				return path.replace(res_path, "res://").simplify_path();
-			}
-		}
-		if (is_pack_loaded() && (res_path == "" || !p_path.begins_with(res_path))) {
-			// On rare occasions, import files can sometimes contain absolute paths for the source file(e.g. "C:\Users\John\Desktop\icon.png")
-			// we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
-			String dir_path = p_path.get_base_dir().simplify_path();
-			// LEFT hand side, not right
-			while (!dir_path.is_empty() && !DirAccess::dir_exists_absolute("res://" + dir_path)) {
-				auto parts = dir_path.split("/", false, 1);
-				if (parts.size() < 2) {
-					dir_path = "";
-					break;
+	if (bool is_res = path.begins_with("res://"); is_res || path.begins_with("user://")) {
+		// obj files sometimes have dependencies imported with paths relative to the project root;
+		// If this begins with "res://../", we need to find the right-side directory that exists in the pack
+		// e.g. res://../GodotProject/icon.png == res://icon.png
+		if (path.begins_with(is_res ? "res://../" : "user://../")) {
+			if (is_pack_loaded() && res_path.is_empty()) {
+				String prefix = is_res ? "res://" : "user://";
+				int count = path.count("../", 0);
+				String dir_path;
+				auto parts = path.trim_prefix(prefix).get_base_dir().split("/", false, count * 2);
+				if (parts.size() == count * 2 + 1) {
+					dir_path = parts[count * 2];
+					if (!dir_path.is_empty() && DirAccess::dir_exists_absolute(prefix + dir_path)) {
+						return prefix + dir_path.path_join(path.get_file());
+					}
 				}
-				dir_path = parts[1];
 			}
-			if (!dir_path.is_empty()) {
-				return "res://" + dir_path.path_join(p_path.get_file());
-			}
+			// else fall through to the dir checking logic below
+		} else {
+			return path;
 		}
-		return p_path.simplify_path();
+	} else {
+		if (!res_path.is_empty() && path.begins_with(res_path)) {
+			return path.replace_first(res_path, "res://");
+		}
+		if (path.is_absolute_path()) {
+			if (is_pack_loaded() && res_path.is_empty()) {
+				// On rare occasions, import files can sometimes contain absolute paths for the source file(e.g. "C:\Users\John\Desktop\icon.png")
+				// we need to start popping off the left-hand sides of the path until we find a directory that exists in the pack
+				String dir_path = find_extant_right_side_dir(p_path);
+				if (!dir_path.is_empty()) {
+					return "res://" + dir_path.path_join(p_path.get_file());
+				}
+			}
+			return path;
+		}
 	}
 
-	if (res_path == "") {
+	if (res_path.is_empty()) {
 		//not initialized yet
-		if (!p_path.is_absolute_path()) {
+		if (!path.is_absolute_path() && is_pack_loaded()) {
 			//just tack on a "res://" here
-			return "res://" + p_path;
+			return "res://" + path;
 		}
-		return p_path.simplify_path();
+		return path;
 	}
 
 	Ref<DirAccess> dir = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
-
-	String path = p_path.replace("\\", "/").simplify_path();
 
 	if (dir->change_dir(path) == OK) {
 		String cwd = dir->get_current_dir();
@@ -1612,7 +1627,7 @@ String GDRESettings::localize_path(const String &p_path, const String &resource_
 }
 
 String GDRESettings::globalize_path(const String &p_path, const String &resource_dir) const {
-	String res_path = resource_dir != "" ? resource_dir : project_path;
+	String res_path = resource_dir != "" ? resource_dir.simplify_path() : project_path;
 #ifdef TOOLS_ENABLED
 	if (res_path.is_empty() && Engine::get_singleton()->is_editor_hint()) {
 		res_path = ProjectSettings::get_singleton()->get_resource_path();
