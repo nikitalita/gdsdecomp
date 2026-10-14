@@ -247,6 +247,9 @@ public:
 				can_cancel(p_can_cancel),
 				high_priority(p_high_priority),
 				progress_start(p_progress_start) {
+			if (tasks > elements) { // Don't spin up more threads than we need
+				tasks = elements;
+			}
 			progress_enabled = p_progress_enabled;
 			progress = p_progress;
 			runs_current_thread = p_runs_current_thread;
@@ -275,7 +278,7 @@ public:
 
 		bool _do_one_iteration(bool p_no_memory_check = false) {
 			// if we're using too much memory, wait until it goes down
-			if (unlikely(is_memory_usage_too_high() && !canceled && !p_no_memory_check)) {
+			if (unlikely(!p_no_memory_check && is_memory_usage_too_high() && !canceled)) {
 				tasks_busy_waiting++;
 				while (is_memory_usage_too_high() && !canceled) {
 					if (tasks_busy_waiting == tasks || elements - last_completed == tasks_busy_waiting) {
