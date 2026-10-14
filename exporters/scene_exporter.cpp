@@ -3272,6 +3272,8 @@ Ref<PackedScene> _ensure_resource_is_packed_scene(const Ref<Resource> &p_resourc
 Ref<ArrayMesh> generate_debug_bones_mesh(Skeleton3D *p_skeleton) {
 	static constexpr Color bone_color = Color(1, 0.8, 0.4);
 	static constexpr real_t bone_axis_length = 0.1;
+	// A bone with no child has no span to measure, so the diamond uses a fixed length.
+	static constexpr real_t single_bone_length = 0.25;
 	static constexpr int bone_shape = 1; // Octahedron
 
 	LocalVector<Color> axis_colors;
@@ -3306,6 +3308,63 @@ Ref<ArrayMesh> generate_debug_bones_mesh(Skeleton3D *p_skeleton) {
 
 	int current_bone_index = 0;
 	Vector<int> bones_to_process = p_skeleton->get_parentless_bones();
+	if (p_skeleton->get_bone_count() == 1) {
+		ERR_FAIL_COND_V(bones_to_process.is_empty(), Ref<ArrayMesh>());
+		int current_bone_idx = bones_to_process[0];
+		Transform3D rest = p_skeleton->get_bone_global_rest(current_bone_idx);
+		Vector3 v0 = rest.origin;
+		// Godot bones point along local +Y. The waist sits at 20% of the length with a 10% radius, matching the parent/child octahedron.
+		constexpr real_t dist = single_bone_length;
+		Vector3 d = rest.basis.get_column(Vector3::AXIS_Y);
+		d = d.is_zero_approx() ? Vector3(0, 1, 0) : d.normalized();
+		Vector3 v1 = v0 + d * dist;
+
+		Vector3 side = d.cross(rest.basis.get_column(Vector3::AXIS_X));
+		if (side.is_zero_approx()) {
+			side = d.cross(Vector3(1, 0, 0));
+		}
+		if (side.is_zero_approx()) {
+			side = d.cross(Vector3(0, 0, 1));
+		}
+		side = side.normalized();
+		Vector3 binormal = d.cross(side).normalized();
+
+		const real_t radius = dist * 0.1;
+		Vector3 mid = v0 + d * dist * 0.2;
+		Vector3 points[4] = {
+			mid + side * radius,
+			mid + binormal * radius,
+			mid - side * radius,
+			mid - binormal * radius,
+		};
+
+		bones[0] = current_bone_idx;
+		surface_tool->set_color(bone_color);
+		auto add_edge = [&](const Vector3 &p_a, const Vector3 &p_b) {
+			surface_tool->set_bones(Vector<int>(bones));
+			surface_tool->set_weights(Vector<float>(weights));
+			surface_tool->add_vertex(p_a);
+			surface_tool->set_bones(Vector<int>(bones));
+			surface_tool->set_weights(Vector<float>(weights));
+			surface_tool->add_vertex(p_b);
+		};
+		for (int j = 0; j < 4; j++) {
+			add_edge(v0, points[j]);
+			add_edge(points[j], v1);
+			add_edge(points[j], points[(j + 1) % 4]);
+		}
+
+		for (int j = 0; j < 3; j++) {
+			Vector3 axis = rest.basis.inverse()[j];
+			if (axis.is_zero_approx()) {
+				continue;
+			}
+			surface_tool->set_color(axis_colors[j]);
+			add_edge(v0, v0 + axis.normalized() * dist * bone_axis_length);
+		}
+
+		return surface_tool->commit();
+	}
 
 	while (bones_to_process.size() > current_bone_index) {
 		int current_bone_idx = bones_to_process[current_bone_index];
