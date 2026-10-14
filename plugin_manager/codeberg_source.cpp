@@ -1,5 +1,6 @@
 #include "plugin_manager/codeberg_source.h"
 
+#include "core/config/project_settings.h"
 #include "core/error/error_list.h"
 #include "utility/http_requester.h"
 
@@ -68,7 +69,7 @@ int CodebergSource::get_release_page_limit() {
 
 Error CodebergSource::make_request(const String &url, const Vector<String> &extra_headers, Vector<uint8_t> &response) {
 	// more retries for codeberg since it's unreliable at times
-	Error err = HTTPRequester::wget_sync(url, response, 10, 8, extra_headers);
+	Error err = HTTPRequester::wget_sync(url, response, HTTPRequester::get_default_request_timeout() * 3, 8, extra_headers);
 	if (err == ERR_TIMEOUT) { // codeberg often passes back a 503 Service Unavailable error if the rate limit is exceeded; we'll treat this as a rate limit error
 		err = ERR_BUSY;
 	}

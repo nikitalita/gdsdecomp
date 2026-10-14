@@ -36,6 +36,7 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 	static const String URL_TEMPLATE = "https://godotengine.org/asset-library/api/asset?type=addon&filter={0}&godot_version={1}&max_results={2}&page={3}";
 	Array assets;
 
+	bool any_version_succeeded = false;
 	for (const auto &godot_version : godot_versions) {
 		int page = 0;
 		int pages = 1000;
@@ -45,8 +46,12 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 										 .replace("{2}", "500")
 										 .replace("{3}", itos(page));
 			Vector<uint8_t> response;
-			Error err = HTTPRequester::wget_sync(request_url, response, 30, 2);
-			ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get assets ids for plugin " + plugin_name + " godot version " + godot_version);
+			Error err = HTTPRequester::wget_sync(request_url, response, HTTPRequester::get_default_request_timeout(), 1);
+			if (err != OK) {
+				ERR_FAIL_COND_V_MSG(err == ERR_TIMEOUT, err, "Timeout while getting assets ids for plugin " + plugin_name);
+				break;
+			}
+			any_version_succeeded = true;
 			String response_str;
 			response_str.append_utf8((const char *)response.ptr(), response.size());
 			Dictionary dict = JSON::parse_string(response_str);
@@ -61,6 +66,7 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 			assets.append_array(page_assets);
 		}
 	}
+	ERR_FAIL_COND_V_MSG(!any_version_succeeded, ERR_PARSE_ERROR, "All attempts to get assets ids for plugin " + plugin_name + " failed");
 	r_assets = gdre::array_to_vector<Dictionary>(assets);
 	return OK;
 }
@@ -107,7 +113,7 @@ Error AssetLibrarySource::get_edit_list(int64_t asset_id, Vector<Dictionary> &r_
 		String URL = URL_TEMPLATE.replace("{0}", itos(asset_id)).replace("{1}", itos(page));
 
 		Vector<uint8_t> response;
-		Error err = HTTPRequester::wget_sync(URL, response, 30, 2);
+		Error err = HTTPRequester::wget_sync(URL, response, HTTPRequester::get_default_request_timeout(), 1);
 		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to get edit list for asset " + itos(asset_id));
 		String response_str;
 		response_str.append_utf8((const char *)response.ptr(), response.size());
@@ -150,7 +156,7 @@ Error AssetLibrarySource::get_edit(int64_t edit_id, Dictionary &r_edit) {
 	String URL = "https://godotengine.org/asset-library/api/asset/edit/{0}";
 	URL = URL.replace("{0}", itos(edit_id));
 	Vector<uint8_t> response;
-	Error err = HTTPRequester::wget_sync(URL, response, 30, 2);
+	Error err = HTTPRequester::wget_sync(URL, response, HTTPRequester::get_default_request_timeout(), 1);
 	if (err || response.size() == 0) {
 		return err;
 	}

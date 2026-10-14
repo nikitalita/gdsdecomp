@@ -495,7 +495,7 @@ void GitHubSource::clear_cache() {
 
 Error GitHubSource::make_request(const String &url, const Vector<String> &extra_headers, Vector<uint8_t> &response) {
 	// more retries for github since it's
-	Error err = HTTPRequester::wget_sync(url, response, 15, 5, extra_headers);
+	Error err = HTTPRequester::wget_sync(url, response, HTTPRequester::get_default_request_timeout() * 3, 5, extra_headers);
 	if (err == ERR_UNAUTHORIZED) { // github passes back a 401 Unauthorized error if the rate limit is exceeded; we'll treat this as a rate limit error
 		err = ERR_BUSY;
 	}

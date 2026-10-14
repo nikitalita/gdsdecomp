@@ -75,7 +75,7 @@ Error GitLabSource::recache_release_list(const String &plugin_name) {
 		String request_url = gitlab_release_api_url.replace("{0}", org).replace("{1}", repo);
 
 		Vector<uint8_t> response;
-		Error err = HTTPRequester::wget_sync(request_url, response, 15, 2);
+		Error err = HTTPRequester::wget_sync(request_url, response, HTTPRequester::get_default_request_timeout() * 3, 2);
 		if (err) {
 			return err;
 		}

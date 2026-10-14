@@ -131,7 +131,7 @@ private:
 
 	Thread thread;
 
-	void _request_done(int p_status, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_data);
+	void _request_done(Result p_status, int p_code, const PackedStringArray &p_headers, const PackedByteArray &p_data);
 	static void _thread_func(void *p_userdata);
 	bool _check_timeout();
 	static Error _get_error_from_status(Result p_status, int p_code);
@@ -182,7 +182,7 @@ public:
 
 	static Error wget_sync(const String &p_url, Vector<uint8_t> &response, double timeout = 0, int retries = 0, const Vector<String> &extra_headers = {}, float *p_progress = nullptr, bool *p_cancelled = nullptr);
 	static Error download_file_sync(const String &p_url, const String &p_output_path, float *p_progress = nullptr, bool *p_cancelled = nullptr, int64_t *r_size = nullptr);
-
+	static double get_default_request_timeout();
 	Result get_result_status() const;
 
 	HTTPRequester();
