@@ -115,6 +115,7 @@ class ScenePreviewer : public GDREPreviewer {
 public:
 	virtual String get_previewer_name() const override;
 	virtual Error edit(Ref<Resource> p_scene) override;
+	virtual Error edit_from_path(const String &p_resource_path) override;
 	virtual bool can_edit(const String &p_resource_path, const String &p_resource_type) const override;
 	virtual String get_edited_resource_path() const override;
 	virtual void reset() override;
