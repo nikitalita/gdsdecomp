@@ -42,6 +42,7 @@ BRANCHES_TO_MERGE=(
 	gltf-mutex-all-document-extensions
 	gltf-node-weights
 	gltf-clear-mipmaps-before-dupe
+	fix-mesh-index-3.x
 )
 
 # set fail on error
