@@ -2866,20 +2866,26 @@ Node *GLBExporterInstance::_instantiate_scene(Ref<PackedScene> scene) {
 		_silence_errors(true);
 	}
 #endif
-	auto result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<Node *()>)[&scene]() -> Node * {
-		return scene->instantiate();
+	Node *root = nullptr;
+	auto result = TaskManager::get_singleton()->dispatch_to_main_thread((std::function<void()>)[&]() -> void {
+		_get_logged_error_messages();
+		root = scene->instantiate();
+		scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+		if (root != nullptr) {
+			// iterate to process the message queue (i.e. anything that was called deferred during scene instantiation)
+			GDREMainLoop::iteration(true);
+		}
 	});
 	if (!result.has_value()) {
 		return nullptr; // cancelled
 	}
-	Node *root = result.value();
 #ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
 		_silence_errors(false);
 	}
 #endif
 	// this isn't an explcit error by itself, but it's context in case we experience further errors during the export
-	scene_instantiation_error_messages.append_array(_get_logged_error_messages());
+
 	if (root == nullptr) {
 		err = ERR_CANT_ACQUIRE_RESOURCE;
 		ERR_PRINT(add_errors_to_report(ERR_CANT_ACQUIRE_RESOURCE, "Failed to instantiate scene " + source_path));
@@ -2932,6 +2938,10 @@ Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
 		_get_logged_error_messages();
 		auto res = _resource_load(source_path, iinfo.is_valid() ? iinfo->get_source_file() : "", using_threaded_load(), &err);
 		scene_loading_error_messages.append_array(_get_logged_error_messages());
+		if (res.is_valid()) {
+			// iterate to process the message queue (i.e. anything that was called deferred during scene loading)
+			GDREMainLoop::iteration(true);
+		}
 		return res;
 	});
 	if (!result.has_value()) {
@@ -4035,7 +4045,6 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 			node->set_name(node_name);
 			parent->add_child(node);
 			node->set_owner(root);
-			node->set_unique_name_in_owner(true);
 			return node;
 		}
 		return node;
