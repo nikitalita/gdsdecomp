@@ -279,16 +279,16 @@ void init_plugin_manager_sources() {
 
 void deinit_plugin_manager_sources() {
 	if (codeberg_source.is_valid()) {
-		PluginManager::get_singleton()->unregister_source(codeberg_source);
+		PluginManager::get_singleton()->unregister_source(codeberg_source, false);
 	}
 	if (github_source.is_valid()) {
-		PluginManager::get_singleton()->unregister_source(github_source);
+		PluginManager::get_singleton()->unregister_source(github_source, false);
 	}
 	if (gitlab_source.is_valid()) {
-		PluginManager::get_singleton()->unregister_source(gitlab_source);
+		PluginManager::get_singleton()->unregister_source(gitlab_source, false);
 	}
 	if (asset_library_source.is_valid()) {
-		PluginManager::get_singleton()->unregister_source(asset_library_source);
+		PluginManager::get_singleton()->unregister_source(asset_library_source, false);
 	}
 	codeberg_source = nullptr;
 	github_source = nullptr;
@@ -618,10 +618,6 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	gdre_main_loop = memnew(GDREMainLoop);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDREMainLoop", GDREMainLoop::get_singleton()));
 
-	plugin_manager = memnew(PluginManager);
-	Engine::get_singleton()->add_singleton(Engine::Singleton("PluginManager", PluginManager::get_singleton()));
-	init_plugin_manager_sources();
-
 	gdre_singleton = memnew(GDRESettings);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDRESettings", GDRESettings::get_singleton()));
 	gdre_config = memnew(GDREConfig);
@@ -633,6 +629,10 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 #ifdef TOOLS_ENABLED
 	EditorNode::add_init_callback(&gdsdecomp_init_callback);
 #endif
+	plugin_manager = memnew(PluginManager);
+	Engine::get_singleton()->add_singleton(Engine::Singleton("PluginManager", PluginManager::get_singleton()));
+	init_plugin_manager_sources();
+
 	init_loaders();
 	init_exporters();
 
@@ -659,6 +659,14 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	}
 	deinit_exporters();
 	deinit_loaders();
+
+	plugin_manager->save_cache();
+	deinit_plugin_manager_sources();
+	if (plugin_manager != nullptr) {
+		memdelete(plugin_manager);
+		plugin_manager = nullptr;
+	}
+
 	if (gdre_config) {
 		memdelete(gdre_config);
 		gdre_config = nullptr;
@@ -666,11 +674,6 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	if (gdre_singleton) {
 		memdelete(gdre_singleton);
 		gdre_singleton = nullptr;
-	}
-	deinit_plugin_manager_sources();
-	if (plugin_manager != nullptr) {
-		memdelete(plugin_manager);
-		plugin_manager = nullptr;
 	}
 	if (audio_stream_preview_generator) {
 		memdelete(audio_stream_preview_generator);

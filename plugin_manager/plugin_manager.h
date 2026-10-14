@@ -2,6 +2,7 @@
 
 #include "core/object/object.h"
 #include "core/object/ref_counted.h"
+#include "core/object/worker_thread_pool.h"
 #include "core/os/mutex.h"
 
 #include "plugin_info.h"
@@ -27,6 +28,8 @@ private:
 	Ref<PluginSource> sources[MAX_SOURCES];
 	int source_count;
 	bool prepopping;
+	WorkerThreadPool::TaskID load_cache_task_id = -1;
+	bool loaded_cache = false;
 	HashMap<String, PluginVersion> plugin_version_cache;
 	Mutex plugin_version_cache_mutex;
 	static HashMap<String, Pair<String, String>> known_bad_plugin_versions;
@@ -46,6 +49,18 @@ private:
 
 	PluginVersion _get_plugin_version_for_current_release_info(const ReleaseInfo &release_info, Error &r_error);
 
+	void _load_cache_on_this_thread(void *_unused = nullptr);
+	bool is_prepopping();
+	// PluginVersion cache management
+	PluginVersion get_cached_plugin_version(const String &cache_key);
+	void erase_cached_plugin_version(const String &cache_key);
+	void cache_plugin_version(const String &cache_key, const PluginVersion &version);
+	PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info, Error &r_error);
+	PluginVersion get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error);
+
+	void _wait_for_load_task();
+	void ensure_cache_loaded();
+
 protected:
 	static void _bind_methods();
 
@@ -59,22 +74,17 @@ public:
 	TaskManager::DownloadTaskID download_plugin(const PluginVersion &p_plugin_version, String &r_save_path, Error &r_error);
 	PluginVersion get_plugin_info(const String &plugin_name, const Vector<String> &hashes);
 	Vector<PluginVersion> get_possibles_from_deps(const String &plugin_name, const Ref<GodotVer> engine_version, const Vector<PluginBin> &deps);
-	void load_cache();
-	void save_cache();
 	Error prepop_cache(const Vector<String> &plugin_names, const String &output_path);
-	bool is_prepopping();
-	// PluginVersion cache management
-	PluginVersion get_cached_plugin_version(const String &cache_key);
-	void erase_cached_plugin_version(const String &cache_key);
-	void cache_plugin_version(const String &cache_key, const PluginVersion &version);
-	PluginVersion populate_plugin_version_from_release(const ReleaseInfo &release_info, Error &r_error);
-	PluginVersion get_plugin_version_for_key(const String &plugin_name, int64_t primary_id, int64_t secondary_id, Error &r_error);
 	// Source management
 	void register_source(Ref<PluginSource> source, bool at_front = false);
-	void unregister_source(Ref<PluginSource> source);
+	void unregister_source(Ref<PluginSource> source, bool save_cache = true);
 	void print_plugin_cache();
 	void clear_plugin_cache(bool clear_static_cache = false);
 	void clear_download_cache();
+
+	void reload_cache();
+	void save_cache();
+	void start_load_cache();
 
 	PluginManager();
 	~PluginManager();
