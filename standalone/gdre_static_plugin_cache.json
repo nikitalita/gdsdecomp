@@ -17338,6 +17338,748 @@
 }
 ]
 },
+"codeberg-12691254-2000043": {
+"cache_version": 7,
+"plugin_name": "godotsteam_server",
+"release_info": {
+"plugin_source": "codeberg",
+"primary_id": 12691254,
+"secondary_id": 2000043,
+"version": "v4.12-gde",
+"release_date": "2026-10-05T04:57:04Z",
+"download_url": "https://codeberg.org/godotsteam/godotsteam-server/releases/download/v4.12-gde/godotsteam-server-4.12-gdextension-plugin-4.4.zip",
+"repository_url": "https://codeberg.org/godotsteam/godotsteam-server"
+},
+"min_godot_version": "4.4",
+"size": 20116348,
+"archive_sha256": "a52db86605ebb238a643e965bdd9c79ab770f58d624bef1817b0c40364c29d99",
+"gdexts": [
+{
+"relative_path": "addons/godotsteam_server/godotsteam_server.gdextension",
+"min_godot_version": "4.4",
+"bins": [
+{
+"name": "res://addons/godotsteam_server/androidarm64/libgodotsteam_server.android.template_debug.arm64.so",
+"sha256": "93d5807f285b059d4cde306279991996233c2465e685afe0fece416c6ac9dcb3",
+"verbatim_sha256": "93d5807f285b059d4cde306279991996233c2465e685afe0fece416c6ac9dcb3",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/androidarm64/libgodotsteam_server.android.template_release.arm64.so",
+"sha256": "aa7fe4e714537fd229ed3403362c6987fad6c9d2f75c37e028995c127a2d2378",
+"verbatim_sha256": "aa7fe4e714537fd229ed3403362c6987fad6c9d2f75c37e028995c127a2d2378",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libgodotsteam_server.linux.template_debug.arm64.so",
+"sha256": "9f79194759d0374b7b85a828d22d0b5503cad42268823e382e2541486d195d15",
+"verbatim_sha256": "9f79194759d0374b7b85a828d22d0b5503cad42268823e382e2541486d195d15",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libgodotsteam_server.linux.template_debug.x86_64.so",
+"sha256": "031b0da9bea1a495795f6571c18c296c902307e08cde37b26512d3d2fa959d51",
+"verbatim_sha256": "031b0da9bea1a495795f6571c18c296c902307e08cde37b26512d3d2fa959d51",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libgodotsteam_server.linux.template_debug.x86_32.so",
+"sha256": "4d081acaec45c2643aefaea312f10a43f6544308b70dff3b65d0be68c85ff31b",
+"verbatim_sha256": "4d081acaec45c2643aefaea312f10a43f6544308b70dff3b65d0be68c85ff31b",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libgodotsteam_server.linux.template_release.arm64.so",
+"sha256": "a3e60a0d6c50ea7c6e20ce247e67546cdc626c304ca53855e43e3d1054096eb5",
+"verbatim_sha256": "a3e60a0d6c50ea7c6e20ce247e67546cdc626c304ca53855e43e3d1054096eb5",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libgodotsteam_server.linux.template_release.x86_64.so",
+"sha256": "38175695ebcf7a20703f5487eafd1f965d8cfd738a06a7bf8ba8b98350d2bf48",
+"verbatim_sha256": "38175695ebcf7a20703f5487eafd1f965d8cfd738a06a7bf8ba8b98350d2bf48",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libgodotsteam_server.linux.template_release.x86_32.so",
+"sha256": "9c3dd7cad18f05aa1e57256e7225df4423b72b804e4d60c12fca6e688239f419",
+"verbatim_sha256": "9c3dd7cad18f05aa1e57256e7225df4423b72b804e4d60c12fca6e688239f419",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libgodotsteam_server.macos.template_debug.universal.dylib",
+"exists": false,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libgodotsteam_server.macos.template_release.universal.dylib",
+"exists": false,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/libgodotsteam_server.windows.template_debug.x86_64.dll",
+"sha256": "95204e90c263007a3574cd5b5291587dc7023d7b7b79c74559e5f63dba1afdd5",
+"verbatim_sha256": "8d38e6dae1755109b2ec50089ab5b25f83c7f08b12dc97d266b17d5b9f5beedd",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/libgodotsteam_server.windows.template_debug.x86_32.dll",
+"sha256": "59b585ded8712eabb3e36ef04e24af38556b04500cc76215d677a6328e0c624e",
+"verbatim_sha256": "b35afc4655ac13aceb1e8f95acd63bbf2b4998dfc0490c7754b89cb137b5b03a",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/libgodotsteam_server.windows.template_release.x86_64.dll",
+"sha256": "32df818d34105cb05de6f02841901b2279fe3e3792830850b8a21829d419260a",
+"verbatim_sha256": "61d3cb2db20e1751a7a336497c541fcaa334578ac22023eae99a4b73732e025a",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/libgodotsteam_server.windows.template_release.x86_32.dll",
+"sha256": "18d11c4118ae2b81ca96e3f2da4a7812d02699662a026edd48d318c22a09d6b1",
+"verbatim_sha256": "f8808b4ab6f62c7e43d0623f7d54156ea402956c28c96e17703458ebcf3547be",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/godotsteam_server/androidarm64/libsteam_api.so",
+"sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"verbatim_sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"exists": true,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libsteam_api.so",
+"sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"verbatim_sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libsteam_api.so",
+"sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"verbatim_sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libsteam_api.so",
+"sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"verbatim_sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libsteam_api.dylib",
+"sha256": "e13603a1c526771870abffd7c1585374596c4aced266c87c4330797793b75a57",
+"verbatim_sha256": "ac6aca01a62b9ddfb8240fcc4ebdefab3d6b97da1ba3bbc87ff89b03369cc870",
+"exists": true,
+"tags": [
+"macos",
+"universal"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/steam_api64.dll",
+"sha256": "3a52a5e822bddc329d14aea419b6b76584956e26e6d8d9e6179ee31fe3b2a78a",
+"verbatim_sha256": "8de54d32508e216c9135b8bf025749243d44e404c1c22a8e5fe35acecabe7a9c",
+"exists": true,
+"bin_ver": "10.83.75.46",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/steam_api.dll",
+"sha256": "8686b3212111f497497d1d41683716fae61d36474afbd3c3ed9613e8a9ba03e8",
+"verbatim_sha256": "0eb196af5d9b12f19ad838770c82420c5b799862b0d0b041c1fa142b2199ac95",
+"exists": true,
+"bin_ver": "10.85.81.20",
+"tags": [
+"windows",
+"x86_32"
+]
+}
+]
+}
+]
+},
+"codeberg-12691260-1993308": {
+"cache_version": 7,
+"plugin_name": "godotsteam",
+"release_info": {
+"plugin_source": "codeberg",
+"primary_id": 12691260,
+"secondary_id": 1993308,
+"version": "v4.23-gde",
+"release_date": "2026-10-04T05:57:36Z",
+"download_url": "https://codeberg.org/godotsteam/godotsteam/releases/download/v4.23-gde/godotsteam-4.23-gdextension-plugin-4.4.zip",
+"repository_url": "https://codeberg.org/godotsteam/godotsteam"
+},
+"min_godot_version": "4.4",
+"size": 27592373,
+"archive_sha256": "c1728b4bf330da851a00eaf64dab2e99c506018b1d9f529511b25d7fe7649e97",
+"gdexts": [
+{
+"relative_path": "addons/godotsteam/godotsteam.gdextension",
+"min_godot_version": "4.4",
+"bins": [
+{
+"name": "res://addons/godotsteam/androidarm64/libgodotsteam.android.template_debug.arm64.so",
+"sha256": "e9497ee114a05a7bc72d1760aa20662d1f47c7a8611492fd46f8f7e0562535dd",
+"verbatim_sha256": "e9497ee114a05a7bc72d1760aa20662d1f47c7a8611492fd46f8f7e0562535dd",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/androidarm64/libgodotsteam.android.template_release.arm64.so",
+"sha256": "ceef2a9cb656e11402723ba728833f6606083cb814c58854f20da7cdc8221678",
+"verbatim_sha256": "ceef2a9cb656e11402723ba728833f6606083cb814c58854f20da7cdc8221678",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libgodotsteam.linux.template_debug.arm64.so",
+"sha256": "8114507217a59ed35a8c4eebf308086dfe04dff940dc16c6b07f090c963425f5",
+"verbatim_sha256": "8114507217a59ed35a8c4eebf308086dfe04dff940dc16c6b07f090c963425f5",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so",
+"sha256": "fc1c9e40ecb80211603544cf73ee98df3970d78fe65ee08ef2fa2ff6966682fa",
+"verbatim_sha256": "fc1c9e40ecb80211603544cf73ee98df3970d78fe65ee08ef2fa2ff6966682fa",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libgodotsteam.linux.template_debug.x86_32.so",
+"sha256": "88e76b762ee7879be11182f3b508c15dd99d0f869476a9a707e082bdb938766c",
+"verbatim_sha256": "88e76b762ee7879be11182f3b508c15dd99d0f869476a9a707e082bdb938766c",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libgodotsteam.linux.template_release.arm64.so",
+"sha256": "6a6007f84f8f68950845799fe142e386b057b7605fa080861edc301605177930",
+"verbatim_sha256": "6a6007f84f8f68950845799fe142e386b057b7605fa080861edc301605177930",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so",
+"sha256": "9bb12a43baede7d3a11942413ab6c0eb2947588fde578da775905f922aaa0406",
+"verbatim_sha256": "9bb12a43baede7d3a11942413ab6c0eb2947588fde578da775905f922aaa0406",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libgodotsteam.linux.template_release.x86_32.so",
+"sha256": "da19ec58275be17a73ef8a135d27fc10642869a97c4d41c5d97f8199f86b7171",
+"verbatim_sha256": "da19ec58275be17a73ef8a135d27fc10642869a97c4d41c5d97f8199f86b7171",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libgodotsteam.macos.template_debug.universal.dylib",
+"sha256": "4bb274c7c1f7d656883fae47f17d0a807114ff2a62eef7927dac0da11e5e71a1",
+"verbatim_sha256": "20c1bbbca43106ab20ebfe3c585a0fcf8b878ba283b726123d6ca6034bb62996",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libgodotsteam.macos.template_release.universal.dylib",
+"sha256": "30108fe0f41db53b3fed455785e18ff30b841b1aeddd78283351cad705a05d8a",
+"verbatim_sha256": "f483d68a1f32949aa7d8b400977b160a339c5d47cf107af91afa741663022e4b",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll",
+"sha256": "bb7a284c68aec790252e6f856ebbee6397340def98087b937c633f3e1716571b",
+"verbatim_sha256": "6431f60c8d92d4cf91a686a76cfdedd8e33cc125efadf568ed176d302b8db938",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/libgodotsteam.windows.template_debug.x86_32.dll",
+"sha256": "92cf0703fbc4ed1ddc423c1fac746f8d8785783c1466092c9c23b33ae080f15f",
+"verbatim_sha256": "9b0fe3242af1088aae9436c4cc0813958fbe9b50755d2a47e36c2902b107216a",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll",
+"sha256": "8e1c5f75003cc61dbffdf0030a696af16697230e7baaba2338b0488d2edebced",
+"verbatim_sha256": "d06c4df2b462e7696ee597286c53775ad7bb02a988dfa5bc5b6b4ce59591e62d",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/libgodotsteam.windows.template_release.x86_32.dll",
+"sha256": "73a09c30b1319cf8c4545207da892cd52102d8dc17c0f351ed7d0ca7fef06c77",
+"verbatim_sha256": "dfeb687256e57d63b4c95fb06b41583f3c1ea80dd56c31fb970eb31686a94dd6",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/godotsteam/androidarm64/libsteam_api.so",
+"sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"verbatim_sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"exists": true,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libsteam_api.so",
+"sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"verbatim_sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libsteam_api.so",
+"sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"verbatim_sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libsteam_api.so",
+"sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"verbatim_sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libsteam_api.dylib",
+"sha256": "e13603a1c526771870abffd7c1585374596c4aced266c87c4330797793b75a57",
+"verbatim_sha256": "ac6aca01a62b9ddfb8240fcc4ebdefab3d6b97da1ba3bbc87ff89b03369cc870",
+"exists": true,
+"tags": [
+"macos",
+"universal"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/steam_api64.dll",
+"sha256": "3a52a5e822bddc329d14aea419b6b76584956e26e6d8d9e6179ee31fe3b2a78a",
+"verbatim_sha256": "8de54d32508e216c9135b8bf025749243d44e404c1c22a8e5fe35acecabe7a9c",
+"exists": true,
+"bin_ver": "10.83.75.46",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/steam_api.dll",
+"sha256": "8686b3212111f497497d1d41683716fae61d36474afbd3c3ed9613e8a9ba03e8",
+"verbatim_sha256": "0eb196af5d9b12f19ad838770c82420c5b799862b0d0b041c1fa142b2199ac95",
+"exists": true,
+"bin_ver": "10.85.81.20",
+"tags": [
+"windows",
+"x86_32"
+]
+}
+]
+}
+]
+},
+"codeberg-12756069-2011701": {
+"cache_version": 7,
+"plugin_name": "godotsteam_server",
+"release_info": {
+"plugin_source": "codeberg",
+"primary_id": 12756069,
+"secondary_id": 2011701,
+"version": "v4.12.1-gde",
+"release_date": "2026-10-07T06:05:29Z",
+"download_url": "https://codeberg.org/godotsteam/godotsteam-server/releases/download/v4.12.1-gde/godotsteam-server-4.12.1-gdextension-plugin-4.4.zip",
+"repository_url": "https://codeberg.org/godotsteam/godotsteam-server"
+},
+"min_godot_version": "4.4",
+"size": 19491660,
+"archive_sha256": "412b0bb1008127249ffce151129ffb7c6b353e506fb43165d01942263b26080a",
+"gdexts": [
+{
+"relative_path": "addons/godotsteam_server/godotsteam_server.gdextension",
+"min_godot_version": "4.4",
+"bins": [
+{
+"name": "res://addons/godotsteam_server/androidarm64/libgodotsteam_server.android.template_debug.arm64.so",
+"sha256": "926d5e18f3327d5f3989af213d7a90c3f47dee83bf30f6cb395b59a43a0908a6",
+"verbatim_sha256": "926d5e18f3327d5f3989af213d7a90c3f47dee83bf30f6cb395b59a43a0908a6",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/androidarm64/libgodotsteam_server.android.template_release.arm64.so",
+"sha256": "bcab19dd24e60e7d63969a8e5c7b21d8efeac6e9eb178b2ca655378f92d41e1c",
+"verbatim_sha256": "bcab19dd24e60e7d63969a8e5c7b21d8efeac6e9eb178b2ca655378f92d41e1c",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libgodotsteam_server.linux.template_debug.arm64.so",
+"sha256": "467da997d6abb443013dd956967d7218162886de8c8f26f9e6934ddd79ecfc73",
+"verbatim_sha256": "467da997d6abb443013dd956967d7218162886de8c8f26f9e6934ddd79ecfc73",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libgodotsteam_server.linux.template_debug.x86_64.so",
+"sha256": "855431ede7e929fb5b4330cb8269a01ae40defbeadbb41a2e6b99da2ea654877",
+"verbatim_sha256": "855431ede7e929fb5b4330cb8269a01ae40defbeadbb41a2e6b99da2ea654877",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libgodotsteam_server.linux.template_debug.x86_32.so",
+"sha256": "36ea5c59cb2c0866f26de2f5f985b13875e4cf6ee6fa71620fc5348daf4e0fd0",
+"verbatim_sha256": "36ea5c59cb2c0866f26de2f5f985b13875e4cf6ee6fa71620fc5348daf4e0fd0",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libgodotsteam_server.linux.template_release.arm64.so",
+"sha256": "02ef206d9de6a3665df344bd2fabdd0111b487911089387029609345330ffda6",
+"verbatim_sha256": "02ef206d9de6a3665df344bd2fabdd0111b487911089387029609345330ffda6",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libgodotsteam_server.linux.template_release.x86_64.so",
+"sha256": "af454e86f932070724c918942d9bc50973e3927735870c2208f2fcd1157e4034",
+"verbatim_sha256": "af454e86f932070724c918942d9bc50973e3927735870c2208f2fcd1157e4034",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libgodotsteam_server.linux.template_release.x86_32.so",
+"sha256": "e192f0e957d408d0e9004a0fca7b2d2da4b9426677fad6fdf3a5cd332911beba",
+"verbatim_sha256": "e192f0e957d408d0e9004a0fca7b2d2da4b9426677fad6fdf3a5cd332911beba",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libgodotsteam_server.macos.template_debug.dylib",
+"exists": false,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libgodotsteam_server.macos.template_release.dylib",
+"exists": false,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/libgodotsteam_server.windows.template_debug.x86_64.dll",
+"sha256": "89a3487dd6ab6da315bf9b4a6ebeb1244b0c2336659582ed50fa4d4e89e21756",
+"verbatim_sha256": "1969df8736ce8921df2817ad0b785b7010be86041e73e9e75fa48b1ceeeeef39",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/libgodotsteam_server.windows.template_debug.x86_32.dll",
+"sha256": "e65f066509a18509491d0b3958b8d6075eba8b1be55cbb53b21ed65f280663a8",
+"verbatim_sha256": "79f0aef6b2ee2c21f27915494d6fa58544733b95664794c98cefb9d5b3b43e77",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/libgodotsteam_server.windows.template_release.x86_64.dll",
+"sha256": "2a39921f1b8ad6cb75fdad8c26d74cebf732e2bc2d91a7df0d56af97763307be",
+"verbatim_sha256": "8c8a8d8fd5e8444a2eafba4d538b478a6ca31f98454153f51b2976bc0e8ba0df",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/libgodotsteam_server.windows.template_release.x86_32.dll",
+"sha256": "a7f84e5e2cf471c56023c802a4b749d48d60e6ec03423d03478d4e0668dcddf7",
+"verbatim_sha256": "c78b2ce923e9e019bc113be173bc18cbf73720973c5434637ef956720029a4a4",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/godotsteam_server/androidarm64/libsteam_api.so",
+"sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"verbatim_sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"exists": true,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linuxarm64/libsteam_api.so",
+"sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"verbatim_sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux64/libsteam_api.so",
+"sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"verbatim_sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/linux32/libsteam_api.so",
+"sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"verbatim_sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam_server/osx/libsteam_api.dylib",
+"sha256": "e13603a1c526771870abffd7c1585374596c4aced266c87c4330797793b75a57",
+"verbatim_sha256": "ac6aca01a62b9ddfb8240fcc4ebdefab3d6b97da1ba3bbc87ff89b03369cc870",
+"exists": true,
+"tags": [
+"macos",
+"universal"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win64/steam_api64.dll",
+"sha256": "3a52a5e822bddc329d14aea419b6b76584956e26e6d8d9e6179ee31fe3b2a78a",
+"verbatim_sha256": "8de54d32508e216c9135b8bf025749243d44e404c1c22a8e5fe35acecabe7a9c",
+"exists": true,
+"bin_ver": "10.83.75.46",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam_server/win32/steam_api.dll",
+"sha256": "8686b3212111f497497d1d41683716fae61d36474afbd3c3ed9613e8a9ba03e8",
+"verbatim_sha256": "0eb196af5d9b12f19ad838770c82420c5b799862b0d0b041c1fa142b2199ac95",
+"exists": true,
+"bin_ver": "10.85.81.20",
+"tags": [
+"windows",
+"x86_32"
+]
+}
+]
+}
+]
+},
 "codeberg-2823876-181886": {
 "cache_version": 7,
 "plugin_name": "godotsteam_server",
@@ -214620,6 +215362,327 @@
 "web",
 "release",
 "wasm32"
+]
+}
+]
+}
+]
+},
+"github-405788699-618764686": {
+"cache_version": 7,
+"plugin_name": "ffmpeg",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 405788699,
+"secondary_id": 618764686,
+"version": "autobuild-2026-10-07-13-22",
+"release_date": "2026-10-07T13:22:46Z",
+"download_url": "https://github.com/EIRTeam/EIRTeam.FFmpeg/releases/download/autobuild-2026-10-07-13-22/eirteam-ffmpeg-84ea333.zip",
+"repository_url": "https://github.com/EIRTeam/EIRTeam.FFmpeg",
+"sha256_sum": "4bfa0e6220e92a0a229ff77701195a89fbb22dc56b8766ae40467a1a31e5fe6f"
+},
+"min_godot_version": "4.1",
+"size": 11572172,
+"archive_sha256": "4bfa0e6220e92a0a229ff77701195a89fbb22dc56b8766ae40467a1a31e5fe6f",
+"gdexts": [
+{
+"relative_path": "addons/ffmpeg/ffmpeg.gdextension",
+"min_godot_version": "4.1",
+"bins": [
+{
+"name": "res://addons/ffmpeg/win64/libgdffmpeg.windows.template_debug.x86_64.dll",
+"sha256": "24abe000d4bffd9666a10bfc05e495ecab1f571c987c23de84bbc07c0ec9dccc",
+"verbatim_sha256": "2c7132616b2a9176e85b9ef34ae599ca1f99a61b6f5abcd4905615b9aa5fa5ac",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/libgdffmpeg.windows.template_release.x86_64.dll",
+"sha256": "34c307c3f06679a734f6711a2c1860a0e8b5e1891b928ba2e7b9e3fd28f82401",
+"verbatim_sha256": "848cf640f8beebeb8ed0458706b352141499f1fc2ee065403dcef470a91ab4fa",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libgdffmpeg.linux.template_debug.x86_64.so",
+"sha256": "b3ddd9ef4409d325698bf10c977227acc5ba84803fa8d37e2c4aff89078e98ee",
+"verbatim_sha256": "b3ddd9ef4409d325698bf10c977227acc5ba84803fa8d37e2c4aff89078e98ee",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libgdffmpeg.linux.template_release.x86_64.so",
+"sha256": "fcea87f5afef58a663d9c8a064811cd620fcde5e098a130315eec93b21081008",
+"verbatim_sha256": "fcea87f5afef58a663d9c8a064811cd620fcde5e098a130315eec93b21081008",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libgdffmpeg.android.template_debug.arm64.so",
+"exists": false,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libgdffmpeg.android.template_release.arm64.so",
+"exists": false,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libgdffmpeg.macos.template_debug.framework",
+"exists": false,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libgdffmpeg.macos.template_release.framework",
+"exists": false,
+"tags": [
+"macos",
+"release"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/ffmpeg/win64/avcodec-60.dll",
+"sha256": "d682adb68153672fe0c15c49da247d278168f126903317ef9e1b70e4ac6b5a9a",
+"verbatim_sha256": "be1909c25afc88c6b54daa1372ef9fe402518b4459a6f09bf513c17b062c6f46",
+"exists": true,
+"bin_ver": "60.22.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/avfilter-9.dll",
+"sha256": "ec928f97ccd8fb6127c1a27ba7b225e24f7c1631b1343493a698754925ebcc02",
+"verbatim_sha256": "5bd684f98cfe0f0d9adf410ffa8a97efbdd0ebd6b830ffb2561d5dd337b8bc33",
+"exists": true,
+"bin_ver": "9.10.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/avformat-60.dll",
+"sha256": "abd4ec576c5715b3b127f8034590486c2dee321dac294041716f784a20d18171",
+"verbatim_sha256": "be395e0b846690841c152c019d746207af9b595bdbd0ae5dba55ce1e1306aa39",
+"exists": true,
+"bin_ver": "60.10.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/avutil-58.dll",
+"sha256": "7a42858db8874b8fcb5c55c667ef0a2ea9a97d92e1ee466ffd74321a9473a27d",
+"verbatim_sha256": "e2d6add09e9aa735ce7a9dc3b25cb00151d412556b1a1da0dea1a8b597729a98",
+"exists": true,
+"bin_ver": "58.14.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/swresample-4.dll",
+"sha256": "d7e99da37b15e7ff1d35fa67f3a005ed03442a2ad519ea67f904d9a82b234da1",
+"verbatim_sha256": "ef963e60786af7523ef3d83feeee3d11ca45672a58845ad30c11f5573bca8146",
+"exists": true,
+"bin_ver": "4.11.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/win64/swscale-7.dll",
+"sha256": "4f164e343982333357700372697f3e967bec141e4800de41d9e60e39864cfe86",
+"verbatim_sha256": "81050c2d623c8834d9af9a8cc6244b9e5c6e901e53cd288214178b3447fbee73",
+"exists": true,
+"bin_ver": "7.3.100",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libavcodec.so.60",
+"sha256": "71a6707cdeab94425c8dfaaeae3c97f47c1e38dcea817a196b9f815772d998dc",
+"verbatim_sha256": "71a6707cdeab94425c8dfaaeae3c97f47c1e38dcea817a196b9f815772d998dc",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libavfilter.so.9",
+"sha256": "37f6277343e7235398d2b157480ffcb472824fb6a965bb1fee0374194c8db34d",
+"verbatim_sha256": "37f6277343e7235398d2b157480ffcb472824fb6a965bb1fee0374194c8db34d",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libavformat.so.60",
+"sha256": "a7e451fa96072a702029b380e09e91cd6d4c4deaf9fe52fe308d109b0c367a47",
+"verbatim_sha256": "a7e451fa96072a702029b380e09e91cd6d4c4deaf9fe52fe308d109b0c367a47",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libavutil.so.58",
+"sha256": "27e3d406423c5b5308ec3c44410f561f33c7146346dc572ebbe59ab74798c571",
+"verbatim_sha256": "27e3d406423c5b5308ec3c44410f561f33c7146346dc572ebbe59ab74798c571",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libswresample.so.4",
+"sha256": "a88c56faba2628e977786490cb04b8f9d2a9524cfaede0d3d9abe29951ab7c81",
+"verbatim_sha256": "a88c56faba2628e977786490cb04b8f9d2a9524cfaede0d3d9abe29951ab7c81",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/linux64/libswscale.so.7",
+"sha256": "92bf879222de54bf063ba8668aad7c8795617f5debb4a985567817542508734b",
+"verbatim_sha256": "92bf879222de54bf063ba8668aad7c8795617f5debb4a985567817542508734b",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libavcodec.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libavfilter.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libavformat.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libavutil.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libswresample.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/android/libswscale.so",
+"exists": false,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libavcodec.dylib",
+"exists": false,
+"tags": [
+"macos"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libavfilter.dylib",
+"exists": false,
+"tags": [
+"macos"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libavformat.dylib",
+"exists": false,
+"tags": [
+"macos"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libavutil.dylib",
+"exists": false,
+"tags": [
+"macos"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libswresample.dylib",
+"exists": false,
+"tags": [
+"macos"
+]
+},
+{
+"name": "res://addons/ffmpeg/macos/libswscale.dylib",
+"exists": false,
+"tags": [
+"macos"
 ]
 }
 ]
