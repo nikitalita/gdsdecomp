@@ -2921,7 +2921,6 @@ void GLBExporterInstance::_load_dep_uids() {
 }
 
 Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
-	auto mode_type = ResourceCompatLoader::get_default_load_type();
 	// loading older scenes will spam warnings about deprecated features
 #ifndef DEBUG_ENABLED
 	if (ver_major <= 3) {
@@ -2930,7 +2929,10 @@ Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
 #endif
 	std::optional<Ref<Resource>> result = _ON_MAIN_THREAD((std::function<Ref<Resource>()>)[&]() -> Ref<Resource> {
 		_load_dep_uids();
-		return _resource_load(source_path, iinfo.is_valid() ? iinfo->get_source_file() : "", using_threaded_load(), &err);
+		_get_logged_error_messages();
+		auto res = _resource_load(source_path, iinfo.is_valid() ? iinfo->get_source_file() : "", using_threaded_load(), &err);
+		scene_loading_error_messages.append_array(_get_logged_error_messages());
+		return res;
 	});
 	if (!result.has_value()) {
 		return ERR_SKIP;
@@ -2941,7 +2943,6 @@ Error GLBExporterInstance::_load_scene(Ref<Resource> &r_scene) {
 		_silence_errors(false);
 	}
 #endif
-	scene_loading_error_messages.append_array(_get_logged_error_messages());
 	if (err || !r_scene.is_valid()) {
 		r_scene = nullptr;
 		_unload_deps();
