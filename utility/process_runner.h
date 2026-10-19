@@ -4,7 +4,7 @@
 #include "core/object/ref_counted.h"
 #include "utility/task_manager.h"
 
-class ProcessRunner: public RefCounted {
+class ProcessRunner : public RefCounted {
 	GDCLASS(ProcessRunner, RefCounted);
 
 	struct ProcessRunnerStruct : public TaskRunnerStruct {
@@ -40,8 +40,10 @@ class ProcessRunner: public RefCounted {
 	TaskManager::TaskManagerID task_id = -1;
 	std::shared_ptr<ProcessRunnerStruct> runner_struct;
 	Error ret_error = OK;
+
 protected:
 	ProcessRunner() = default;
+
 public:
 	~ProcessRunner();
 
