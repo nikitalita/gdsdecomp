@@ -626,13 +626,9 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	Engine::get_singleton()->add_singleton(Engine::Singleton("GDREAudioStreamPreviewGenerator", GDREAudioStreamPreviewGenerator::get_singleton()));
 	task_manager = memnew(TaskManager);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("TaskManager", TaskManager::get_singleton()));
-#ifdef TOOLS_ENABLED
-	EditorNode::add_init_callback(&gdsdecomp_init_callback);
-#endif
 	plugin_manager = memnew(PluginManager);
 	Engine::get_singleton()->add_singleton(Engine::Singleton("PluginManager", PluginManager::get_singleton()));
 	init_plugin_manager_sources();
-
 	init_loaders();
 	init_exporters();
 
@@ -643,6 +639,9 @@ void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 		TextureLayeredPreviewer::init_shaders();
 		TexturePreviewer::init_shaders();
 	}
+#ifdef TOOLS_ENABLED
+	EditorNode::add_init_callback(&gdsdecomp_init_callback);
+#endif
 }
 
 void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {

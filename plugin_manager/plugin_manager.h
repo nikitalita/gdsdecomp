@@ -26,8 +26,8 @@ private:
 	static constexpr const char *STATIC_PLUGIN_CACHE_PATH = "res://gdre_static_plugin_cache.json";
 	static constexpr const int MAX_SOURCES = 64;
 	Ref<PluginSource> sources[MAX_SOURCES];
-	int source_count;
-	bool prepopping;
+	int source_count = 0;
+	bool prepopping = false;
 	WorkerThreadPool::TaskID load_cache_task_id = -1;
 	bool loaded_cache = false;
 	HashMap<String, PluginVersion> plugin_version_cache;
