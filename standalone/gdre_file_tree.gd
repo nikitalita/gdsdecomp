@@ -27,6 +27,7 @@ enum ColType {
 # make setters for the export
 
 @export var show_copy_paths_in_right_click_menu: bool = true
+@export var show_flat_mode_option_in_right_click_menu: bool = false
 # Enables a check mark on the first column of the tree.
 @export var check_mode: bool = true:
 	set(val):
@@ -69,7 +70,7 @@ enum ColType {
 			var error_str = ""
 			if item.get_icon(_name_col) == file_broken:
 				error_str = item.get_tooltip_text(_name_col)
-			add_file_tree_item(item.get_metadata(_name_col), item.get_icon(_name_col), size or -1, error_str, info)
+			add_file_tree_item(item.get_metadata(_name_col), item.get_icon(_name_col), size, error_str, info)
 			item.get_parent().remove_child(item)
 		if flat_mode:
 			for item in get_all_folder_items(get_root()):
@@ -147,6 +148,7 @@ var custom_right_click_map: Dictionary[int, CustomRightClickItem] = {}
 
 
 enum {
+	POPUP_FLAT_MODE,
 	POPUP_COPY_PATHS,
 	POPUP_CHECK_ALL,
 	POPUP_UNCHECK_ALL,
@@ -308,6 +310,8 @@ func _on_right_click_id(id):
 	clear_right_click_state()
 	right_click_menu.hide()
 	match id:
+		POPUP_FLAT_MODE:
+			self.flat_mode = not self.flat_mode
 		POPUP_COPY_PATHS:
 			var selected_files: PackedStringArray = []
 			for item in selected_items:
@@ -336,6 +340,11 @@ func _on_right_click_visibility_changed():
 func pop_right_menu_items(check_name: String = "Item", plural: bool = false, has_folder: bool = false, selected_items: Array[TreeItem] = []):
 	right_click_menu.clear(true)
 	right_click_menu.reset_size()
+	if self.show_flat_mode_option_in_right_click_menu:
+		right_click_menu.add_item("Flat mode", POPUP_FLAT_MODE)
+		right_click_menu.set_item_as_checkable(right_click_menu.get_item_index(POPUP_FLAT_MODE), true)
+		right_click_menu.set_item_checked(right_click_menu.get_item_index(POPUP_FLAT_MODE), self.flat_mode)
+		right_click_menu.add_separator("", POPUP_SEPERATOR)
 	if self.show_copy_paths_in_right_click_menu:
 		right_click_menu.add_item("Copy path" + ("s" if plural else ""), POPUP_COPY_PATHS)
 	if self.check_mode:
@@ -347,12 +356,8 @@ func pop_right_menu_items(check_name: String = "Item", plural: bool = false, has
 			right_click_menu.add_separator("", POPUP_SEPERATOR)
 		right_click_menu.add_item("Fold all", POPUP_FOLD_ALL)
 		right_click_menu.add_item("Unfold all", POPUP_UNFOLD_ALL)
-		if (has_folder):
-			right_click_menu.set_item_disabled(POPUP_FOLD_ALL, false)
-			right_click_menu.set_item_disabled(POPUP_UNFOLD_ALL, false)
-		else:
-			right_click_menu.set_item_disabled(POPUP_FOLD_ALL, true)
-			right_click_menu.set_item_disabled(POPUP_UNFOLD_ALL, true)
+		right_click_menu.set_item_disabled(right_click_menu.get_item_index(POPUP_FOLD_ALL), not has_folder)
+		right_click_menu.set_item_disabled(right_click_menu.get_item_index(POPUP_UNFOLD_ALL), not has_folder)
 	if custom_right_click_map.size() > 0:
 		if right_click_menu.get_item_count() != 0:
 			right_click_menu.add_separator("", POPUP_CUSTOM_SEPERATOR)

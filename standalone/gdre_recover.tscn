@@ -177,6 +177,7 @@ columns = 2
 column_titles_visible = true
 select_mode = 2
 script = ExtResource("2_02dmf")
+show_flat_mode_option_in_right_click_menu = true
 metadata/_custom_type_script = "uid://cww2hw50p8q3i"
 
 [node name="AssemblyPickerHBox" type="HBoxContainer" parent="MarginContainer/VBoxContainer/HSplitContainer/TreeViewVBox" unique_id=672571296]
