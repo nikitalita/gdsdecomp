@@ -399,6 +399,7 @@ Error copy_dir(const String &src, const String &dst);
 
 Ref<FileAccess> open_encrypted_v3(const String &p_path, int p_mode, const Vector<uint8_t> &p_key);
 Ref<FileAccess> open_encrypted_v3_from_file(Ref<FileAccess> p_path, int p_mode, const Vector<uint8_t> &p_key);
+Ref<FileAccess> open_encrypted_v3_from_file_password(Ref<FileAccess> p_path, int p_mode, const String &p_password);
 Vector<String> filter_error_backtraces(const Vector<String> &p_error_messages);
 Vector<String> get_files_for_paths(const Vector<String> &p_paths);
 String get_java_path();
