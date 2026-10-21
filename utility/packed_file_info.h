@@ -16,9 +16,8 @@ class PackedFileInfo : public RefCounted {
 	String path;
 	String raw_path;
 	PackedData::PackedFile pf;
-	bool malformed_path;
+	bool malformed_path = false;
 	bool md5_passed = false;
-	uint32_t flags;
 	bool dummy_path = false;
 
 	void set_md5_match(bool pass) { md5_passed = pass; }
@@ -29,17 +28,6 @@ public:
 		raw_path = p_path;
 		malformed_path = false;
 		dummy_path = p_is_dummy;
-		fix_path();
-	}
-	void init(const String &pck_path, const String &p_path, const uint64_t ofs, const uint64_t sz, const uint8_t md5arr[16], PackSource *p_src, const bool encrypted = false) {
-		pf.pack = pck_path;
-		raw_path = p_path;
-		pf.offset = ofs;
-		pf.size = sz;
-		memcpy(pf.md5, md5arr, 16);
-		malformed_path = false;
-		pf.encrypted = encrypted;
-		pf.src = p_src;
 		fix_path();
 	}
 	String get_pack() const { return pf.pack; }
