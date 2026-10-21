@@ -654,7 +654,7 @@ func dump_files(output_dir:String, files: PackedStringArray, ignore_checksum_err
 		err = pckdump.check_md5_all_files()
 	if err != OK:
 		if (err != ERR_SKIP and not ignore_checksum_errors):
-			print("MD5 checksum failed, not proceeding...")
+			print("MD5 checksum failed, not proceeding... (to ignore this, use --ignore-checksum-errors)")
 			return err
 		elif (ignore_checksum_errors):
 			print("MD5 checksum failed, but --ignore_checksum_errors specified, proceeding anyway...")
