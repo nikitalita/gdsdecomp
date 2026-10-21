@@ -1,11 +1,14 @@
 #include "pck_dumper.h"
 #include "core/error/error_list.h"
+#include "crypto/custom_decryptor.h"
 #include "gdre_settings.h"
 
+#include "core/crypto/crypto_core.h"
 #include "core/io/dir_access.h"
 #include "core/io/file_access.h"
 #include "core/object/class_db.h"
 #include "utility/common.h"
+#include "utility/file_access_gdre.h"
 #include "utility/packed_file_info.h"
 
 #include <gui/gdre_standalone.h>
@@ -13,8 +16,31 @@
 
 const static Vector<uint8_t> empty_md5 = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
+static inline String get_file_md5(Ref<FileAccess> f) {
+	CryptoCore::MD5Context ctx;
+	ctx.start();
+
+	unsigned char step[32768];
+
+	while (true) {
+		uint64_t br = f->get_buffer(step, 32768);
+		if (br > 0) {
+			ctx.update(step, br);
+		}
+		if (br < 4096) {
+			break;
+		}
+	}
+
+	unsigned char hash[16];
+	ctx.finish(hash);
+
+	return String::md5(hash);
+}
+
 bool PckDumper::_pck_file_check_md5(Ref<PackedFileInfo> &file) {
-	auto hash = FileAccess::get_md5(file->get_path());
+	Ref<FileAccess> file_access = FileAccess::open(file->get_path(), FileAccess::READ | FileAccessGDRE::SKIP_NON_PACK_ENCRYPTED);
+	auto hash = get_file_md5(file_access);
 	auto p_md5 = String::md5(file->get_md5().ptr());
 	bool ret = hash == p_md5;
 	if (!ret && file->is_encrypted()) {

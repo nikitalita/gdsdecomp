@@ -251,6 +251,10 @@ protected:
 	virtual void _set_access_type(AccessType p_access) override;
 
 public:
+	enum {
+		SKIP_NON_PACK_ENCRYPTED = 1 << 20, // Flag to skip opening non-PCK encrypted files with custom decryptor
+	};
+
 	virtual Error open_internal(const String &p_path, int p_mode_flags) override; ///< open a file
 	virtual bool is_open() const override; ///< true when file is open
 	virtual String get_path() const override { return path; }

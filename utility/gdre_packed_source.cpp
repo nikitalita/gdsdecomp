@@ -522,15 +522,15 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 
 Ref<FileAccess> GDREPackedSource::open_encrypted_file(const Ref<FileAccess> &p_base, const Vector<uint8_t> &p_key, FileAccess::ModeFlags p_mode, bool p_with_magic, const Vector<uint8_t> &p_iv) {
 	// fail if mode is not read or write
-	ERR_FAIL_COND_V_MSG((p_mode != FileAccess::READ && p_mode != FileAccess::WRITE), nullptr, "Invalid mode for encrypted file, only READ and WRITE are supported");
+	ERR_FAIL_COND_V_MSG((p_mode & FileAccess::READ_WRITE) == 0, nullptr, "Invalid mode for encrypted file, only READ and WRITE are supported");
 	Ref<FileAccess> fae;
 	Error err = OK;
 	if (Ref<CustomDecryptor> custom_decryptor = GDRESettings::get_singleton()->get_custom_decryptor(); custom_decryptor.is_valid()) {
 		fae = FileAccessEncryptedCustom::create(custom_decryptor);
-		err = ((Ref<FileAccessEncryptedCustom>)fae)->open_and_parse(p_base, p_key, p_mode == FileAccess::READ ? FileAccessEncryptedCustom::Mode::MODE_READ : FileAccessEncryptedCustom::Mode::MODE_WRITE, p_with_magic, p_iv);
+		err = ((Ref<FileAccessEncryptedCustom>)fae)->open_and_parse(p_base, p_key, p_mode & FileAccess::READ ? FileAccessEncryptedCustom::Mode::MODE_READ : FileAccessEncryptedCustom::Mode::MODE_WRITE, p_with_magic, p_iv);
 	} else {
 		fae = memnew(FileAccessEncrypted);
-		err = ((Ref<FileAccessEncrypted>)fae)->open_and_parse(p_base, p_key, p_mode == FileAccess::READ ? FileAccessEncrypted::Mode::MODE_READ : FileAccessEncrypted::Mode::MODE_WRITE_AES256, p_with_magic, p_iv);
+		err = ((Ref<FileAccessEncrypted>)fae)->open_and_parse(p_base, p_key, p_mode & FileAccess::READ ? FileAccessEncrypted::Mode::MODE_READ : FileAccessEncrypted::Mode::MODE_WRITE_AES256, p_with_magic, p_iv);
 	}
 	if (err != OK) {
 		return nullptr;

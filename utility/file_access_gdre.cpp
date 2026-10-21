@@ -655,13 +655,15 @@ Error FileAccessGDRE::open_internal(const String &p_path, int p_mode_flags) {
 			if (is_gdre_file(p_path)) {
 				WARN_PRINT(vformat("Opening gdre file %s from a loaded external pack???? PLEASE REPORT THIS!!!!", p_path));
 			};
-			if (Ref<CustomDecryptor> custom_decryptor = GDRESettings::get_singleton()->get_custom_decryptor(); custom_decryptor.is_valid() && custom_decryptor->is_file_nonpck_encrypted(proxy)) {
-				auto fae = FileAccessEncryptedCustom::create(custom_decryptor);
-				Error err = fae->open_and_parse(proxy, GDRESettings::get_singleton()->get_encryption_key(), FileAccessEncryptedCustom::MODE_READ, true);
-				if (err != OK) {
-					return err;
+			if (!(p_mode_flags & SKIP_NON_PACK_ENCRYPTED)) {
+				if (Ref<CustomDecryptor> custom_decryptor = GDRESettings::get_singleton()->get_custom_decryptor(); custom_decryptor.is_valid() && custom_decryptor->is_file_nonpck_encrypted(proxy)) {
+					auto fae = FileAccessEncryptedCustom::create(custom_decryptor);
+					Error err = fae->open_and_parse(proxy, GDRESettings::get_singleton()->get_encryption_key(), FileAccessEncryptedCustom::MODE_READ, true);
+					if (err != OK) {
+						return err;
+					}
+					proxy = fae;
 				}
-				proxy = fae;
 			}
 			return proxy->get_error();
 		}
