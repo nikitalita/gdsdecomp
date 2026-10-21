@@ -106,7 +106,6 @@ String ImageParserV2::image_v2_to_string(const Variant &r_v, bool is_pcfg) {
 		}
 	} else {
 		int ds = data.size();
-		String data_str;
 		for (int i = 0; i < ds; i++) {
 			uint8_t byte = data[i];
 			const char hex[16] = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };

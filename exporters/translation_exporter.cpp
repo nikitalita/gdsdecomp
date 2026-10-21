@@ -1040,7 +1040,6 @@ struct KeyWorker {
 	}
 
 	void extract_middles(const Vector<String> &frs, HashSet<String> &middles) {
-		auto old_hshset = gdre::vector_to_hashset(frs);
 		auto insert_into_hashset = [&](const String &s) {
 			if (s.is_numeric() || s.is_empty()) {
 				return false;

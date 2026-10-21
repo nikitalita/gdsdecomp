@@ -1792,7 +1792,6 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 			} else {
 				p_store_string_func(p_store_string_ud, ver_major == 2 ? "ByteArray( " : "PoolByteArray( ");
 			}
-			String s;
 			Vector<uint8_t> data = p_variant;
 			write_packed_elements(data, p_store_string_func, p_store_string_ud);
 			if constexpr (ver_major == 2 && is_pcfg) {

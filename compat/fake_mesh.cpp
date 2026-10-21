@@ -458,7 +458,6 @@ bool FakeMesh::_set(const StringName &p_name, const Variant &p_value) {
 			get_path()));
 
 	int idx = sname.get_slicec('/', 1).to_int();
-	String what = sname.get_slicec('/', 2);
 
 	if (idx == surfaces.size()) {
 		//create
@@ -974,7 +973,6 @@ TypedArray<Array> FakeMesh::surface_get_blend_shape_arrays(int p_surface) const 
 		TypedArray<Array> blend_shape_array;
 		blend_shape_array.resize(blend_shapes.size());
 		for (uint32_t i = 0; i < blend_shape_count; i++) {
-			Vector<uint8_t> unused;
 			RenderingServerTypes::SurfaceData fake_sd;
 			fake_sd.format = bs_format;
 			fake_sd.vertex_data = blend_shape_data.slice(i * divisor, (i + 1) * divisor);

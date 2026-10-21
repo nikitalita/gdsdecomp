@@ -1,7 +1,5 @@
 #include "fake_script.h"
 
-#include "compat/resource_loader_compat.h"
-#include "compat/variant_decoder_compat.h"
 #include "core/io/missing_resource.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
@@ -187,7 +185,6 @@ void FakeScriptInstance::update_cached_prop_names() {
 		List<PropertyInfo> members;
 		script->get_script_property_list(&members);
 		for (const PropertyInfo &E : members) {
-			Variant def;
 			_cached_prop_info.insert(E.name, E);
 		}
 		for (const auto &E : _cached_prop_info) {

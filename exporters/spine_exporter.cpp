@@ -18,10 +18,10 @@ Error _export_file(const String &out_path, const String &res_path, Dictionary &d
 	ERR_FAIL_COND_V_MSG(content.is_empty(), ERR_FILE_CANT_OPEN, "Failed to load file: " + res_path);
 	dict = JSON::parse_string(content);
 	ERR_FAIL_COND_V_MSG(dict.is_empty(), ERR_FILE_CANT_OPEN, "Failed to parse file: " + res_path);
-	String source_path = dict["source_path"];
+	// String source_path = dict["source_path"];
 	String atlas_data = dict["atlas_data"];
-	String normal_map_prefix = dict["normal_texture_prefix"];
-	String specular_map_prefix = dict["specular_texture_prefix"];
+	// String normal_map_prefix = dict["normal_texture_prefix"];
+	// String specular_map_prefix = dict["specular_texture_prefix"];
 
 	gdre::ensure_dir(out_path.get_base_dir());
 	auto f = FileAccess::open(out_path, FileAccess::WRITE);

@@ -2075,9 +2075,7 @@ Error ResourceFormatSaverXMLInstance::set_save_settings(const Ref<Resource> &p_r
 	ver_major = CompatFormatLoader::get_ver_major_from_flags(p_flags);
 	ver_minor = CompatFormatLoader::get_ver_minor_from_flags(p_flags);
 	bool set_format = ver_major != 0;
-	String original_path;
 	if (compat.is_valid()) {
-		original_path = compat->original_path;
 		if (!set_format) {
 			ver_major = compat->ver_major;
 			ver_minor = compat->ver_minor;
@@ -2657,7 +2655,6 @@ void ResourceFormatSaverXMLInstance::write_property(const String &p_name, const 
 			// Vector<String>::Read r = data.read();
 			const String *ptr = data.ptr();
 			;
-			String s;
 			//write_string("\n");
 
 			for (int i = 0; i < len; i++) {

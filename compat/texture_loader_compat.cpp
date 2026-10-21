@@ -655,7 +655,6 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 
 	r_data.clear();
 
-	String ext = p_path.get_extension();
 	bool is_layered = r_type != V4_MODE_3D;
 
 	int limit = is_layered ? r_depth : r_depth + mipmaps;
@@ -779,7 +778,6 @@ bool ResourceConverterTexture2D::handles_type(const String &p_type, int ver_majo
 }
 
 Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
-	String name;
 	Ref<Resource> texture;
 	if (const Ref<Resource> img = res->get("image"); img.is_valid()) {
 		ImageTextureConverterCompat converter;

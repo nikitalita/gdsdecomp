@@ -71,7 +71,6 @@ static void add_wayland_args(List<String> *args) {
 
 // returns true if we should quit the program immediately
 static bool modify_cli_args(List<String> *args, List<String> *user_args) {
-	Vector<String> engine_args;
 	bool found_help = false;
 	String path = "";
 	bool display_driver_chosen = false;

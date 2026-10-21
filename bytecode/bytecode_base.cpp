@@ -155,7 +155,6 @@ String GDScriptDecomp::get_error_message() {
 }
 
 String GDScriptDecomp::get_constant_string(const Vector<Variant> &constants, uint32_t constId) {
-	String constString;
 	GDSDECOMP_FAIL_COND_V_MSG(constId >= constants.size(), "", "Invalid constant ID.");
 	const Variant &var = constants[constId];
 	return get_constant_string(var);
@@ -564,7 +563,6 @@ Error GDScriptDecomp::debug_print(Vector<uint8_t> p_buffer) {
 	int FUNC_MAX = get_function_count();
 	ERR_FAIL_COND_V(version != get_bytecode_version(), ERR_INVALID_DATA);
 	//Decompile script
-	String line;
 	Ref<GodotVer> gv = get_godot_ver();
 	print_line("Bytecode version: " + itos(bytecode_version));
 	print_line("Variant version: " + itos(variant_ver_major));
@@ -1911,7 +1909,6 @@ Error GDScriptDecomp::test_bytecode_match(const Vector<uint8_t> &p_buffer1, cons
 			if (get_global_token(old_token) != get_global_token(new_token)) {
 				bl_print(String("Different Tokens: ") + get_token_name_plus_value(state1, old_token) + String(" != ") + get_token_name_plus_value(state2, new_token));
 			} else {
-				String old_token_name = GDScriptTokenizerCompat::get_token_name(get_global_token(old_token));
 				int old_token_val = old_token >> TOKEN_BITS;
 				int new_token_val = new_token >> TOKEN_BITS;
 				String old_token_text = get_token_text(state1, i);

@@ -384,7 +384,7 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 		return ERR_INVALID_DATA;
 	}
 
-	String ns = script_info.get("namespace", "");
+	// String ns = script_info.get("namespace", "");
 	local_name = script_info.get("class_name", "");
 	base_classes = script_info.get("base_classes", Vector<String>());
 	base_type_paths = script_info.get("base_type_paths", Vector<String>());

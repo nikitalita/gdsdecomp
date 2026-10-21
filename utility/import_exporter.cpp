@@ -586,7 +586,6 @@ void ImportExporter::rewrite_metadata(ExportToken &token) {
 		}
 	}
 	if (!err && iinfo->get_ver_major() >= 4 && export_matches_source && token_report->get_rewrote_metadata() != ExportReport::NOT_IMPORTABLE) {
-		String resource_script_class;
 		List<String> deps;
 		auto path = iinfo->get_path();
 		if (ResourceCompatLoader::handles_resource(path)) {
@@ -654,7 +653,6 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 				output = output_dir.path_join("addons");
 			}
 			auto idx = th.find(rel_gdext_path);
-			auto subpath = th.substr(0, idx);
 			tmp_dir = th.substr(0, idx);
 		} else {
 			// what we are going to do is pop off the left-side parts of the rel_gdext_path until we find something that matches
@@ -1941,7 +1939,6 @@ Dictionary ImportExporterReport::get_totals() {
 Dictionary ImportExporterReport::get_unsupported_types() {
 	Dictionary unsupported;
 	for (int i = 0; i < unsupported_types.size(); i++) {
-		auto split = unsupported_types[i].split("%");
 		unsupported[i] = unsupported_types[i];
 	}
 	return unsupported;
@@ -2824,9 +2821,6 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 	bool had_failed_exports = export_failed_reports.size() > 0;
 	GDRE_CHECK(!had_failed_exports);
 	Vector<Ref<ExportReport>> successes = array_to_vector<Ref<ExportReport>>(report->get_successes());
-	Vector<Ref<ExportReport>> success_reports;
-	Vector<Ref<ExportReport>> failed_reports;
-	Vector<Ref<ExportReport>> not_run_reports;
 
 	Vector<String> unzipped_output_dirs;
 	for (auto &download : report->get_downloaded_plugins()) {

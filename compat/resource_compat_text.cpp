@@ -2156,7 +2156,6 @@ Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Re
 	Error err;
 	Ref<FileAccess> f = FileAccess::open(p_path, FileAccess::WRITE, &err);
 	ERR_FAIL_COND_V_MSG(err, ERR_CANT_OPEN, "Cannot save file '" + p_path + "'.");
-	String ext = p_path.get_extension().to_lower();
 	return save_to_file(f, p_path, p_resource, p_flags);
 }
 
@@ -2727,7 +2726,7 @@ Error ResourceFormatSaverCompatText::save(const Ref<Resource> &p_resource, const
 #endif
 	String path = GDRESettings::get_singleton()->globalize_path(p_path);
 	ResourceFormatSaverCompatTextInstance saver;
-	return saver.save(p_path, p_resource, p_flags);
+	return saver.save(path, p_resource, p_flags);
 }
 
 Error ResourceFormatSaverCompatText::set_uid(const String &p_path, ResourceUID::ID p_uid) {

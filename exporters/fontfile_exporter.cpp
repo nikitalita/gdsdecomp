@@ -899,7 +899,6 @@ Vector<GlyphInfo> _get_character_ranges(Ref<Resource> fontfile) {
 			}
 		}
 	}
-	Vector<String> character_ranges;
 	Vector<GlyphInfo> glyph_infos;
 	// to ensure order is preserved
 	for (auto &glyph : glyph_list) {

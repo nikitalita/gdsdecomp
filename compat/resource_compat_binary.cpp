@@ -3065,7 +3065,6 @@ Ref<Resource> ResourceLoaderCompatBinary::finish_ext_load(Ref<ResourceLoader::Lo
 	if (should_threaded_load()) {
 		return ResourceLoader::_load_complete(*load_token.ptr(), r_err);
 	}
-	String path;
 	for (int i = 0; i < external_resources.size(); i++) {
 		if (external_resources[i].load_token == load_token) {
 			if (r_err) {

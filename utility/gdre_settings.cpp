@@ -3368,7 +3368,6 @@ public:
 
 void GDRESettings::add_logger() {
 	OS *os_singleton = OS::get_singleton();
-	String os_name = os_singleton->get_name();
 	GDREOS<PLATFORM_OS> *_gdre_os = reinterpret_cast<GDREOS<PLATFORM_OS> *>(os_singleton);
 	STDOUT_LOGGER *stdout_logger = memnew(STDOUT_LOGGER);
 	GDRELogger::set_stdout_logger(stdout_logger);

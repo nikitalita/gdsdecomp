@@ -285,7 +285,6 @@ Vector<Ref<GDScriptDecomp>> GDScriptDecompVersion::get_decomps_for_bytecode_ver(
 
 Vector<GDScriptDecompVersion> GDScriptDecompVersion::get_decomp_versions(bool include_dev, int ver_major) {
 	Vector<GDScriptDecompVersion> versions;
-	String ver_major_str = itos(ver_major);
 	for (int i = 0; i < GDScriptDecompVersion::decomp_versions.size(); i++) {
 		if (GDScriptDecompVersion::decomp_versions[i].commit == 0xfffffff || GDScriptDecompVersion::decomp_versions[i].commit == 0x0000000) {
 			continue;

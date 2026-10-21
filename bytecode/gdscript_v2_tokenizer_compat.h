@@ -111,8 +111,6 @@ class GDScriptV2TokenizerCompatText : public GDScriptV2TokenizerCompat {
 	const GDScriptDecomp *decomp;
 	Ref<GodotVer> engine_ver;
 
-	bool has_abstract = false;
-
 	_FORCE_INLINE_ bool _is_at_end() { return position >= length; }
 	_FORCE_INLINE_ char32_t _peek(int p_offset = 0) { return position + p_offset >= 0 && position + p_offset < length ? _current[p_offset] : '\0'; }
 	int indent_level() const { return indent_stack.size(); }

@@ -153,10 +153,6 @@ String get_error_message_for_vector_mismatch(const T &original_data, const T &ex
 			shifted = num + first_mismatch < num_mismatches;
 			num_mismatches = MAX(1, shifted ? num : num_mismatches);
 		}
-		String prefix = "First mismatch at";
-		if (shifted) {
-			prefix = "Shifted at";
-		}
 		error_message = vformat("%s %d/%d, num: %d", shifted ? "Shifted at" : "First mismatch at", first_mismatch, original_data.size(), num_mismatches);
 		if (size_mismatch) {
 			error_message += vformat(" (size: %d != %d)", original_data.size(), exported_data.size());

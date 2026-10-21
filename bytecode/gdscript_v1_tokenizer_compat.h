@@ -245,7 +245,6 @@ class GDScriptV1TokenizerBufferCompat : public GDScriptTokenizerV1Compat {
 	Vector<uint32_t> tokens;
 	Variant nil;
 	int token = 0;
-	int current_line = 0;
 	int current_indent = 0;
 
 	String error_message;

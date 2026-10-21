@@ -1543,9 +1543,6 @@ GDScriptTokenizerV1Compat::Token GDScriptTokenizerV1Compat::scan() {
 
 	last_token_was_newline = false;
 
-	StringName id;
-	Variant c;
-	String err;
 	Token data;
 	data.type = g_token;
 	switch (g_token) {

@@ -311,8 +311,6 @@ void OptimizedTranslationExtractor::_bind_methods() {
 }
 
 HashSet<uint32_t> OptimizedTranslationExtractor::get_message_hash_set() const {
-	Variant r_ret;
-
 	int htsize = hash_table.size();
 
 	if (htsize == 0) {
@@ -332,8 +330,6 @@ HashSet<uint32_t> OptimizedTranslationExtractor::get_message_hash_set() const {
 		}
 		const Bucket &bucket = *(const Bucket *)&btptr[p];
 		for (int j = 0; j < bucket.size; j++) {
-			String rstr;
-			// bucket.elem[j].key
 			ret.insert(bucket.elem[j].key);
 		}
 	}
