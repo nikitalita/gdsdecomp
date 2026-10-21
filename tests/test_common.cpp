@@ -1,4 +1,6 @@
 #include "test_common.h"
+#include "tests/test_macros.h"
+
 #include "core/os/main_loop.h"
 #include "main/gdre_main_loop.h"
 #include "servers/audio/audio_driver.h"
@@ -161,7 +163,7 @@ public:
 	void test_case_start(const doctest::TestCaseData &p_in) override {
 		GDREMainLoop::set_is_testing(true);
 		String name = String(p_in.m_name);
-		String suite_name = String(p_in.m_test_suite);
+		[[maybe_unused]] String suite_name = String(p_in.m_test_suite);
 		if (name.contains("[ProjectRecovery]") || name.contains("[FakeScript]")) {
 #ifndef XR_DISABLED
 			xr_server = memnew(XRServer);

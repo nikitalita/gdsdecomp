@@ -418,7 +418,7 @@ TEST_CASE("[GDSDecomp][Bytecode] Test sample GDScript bytecode") {
 		String test_dir = get_test_scripts_path().path_join(version).path_join("code");
 		REQUIRE(DirAccess::exists(test_dir));
 		Vector<String> files = gdre::get_recursive_dir_list(test_dir, { "*.gdc" });
-		String output_dir = get_tmp_path().path_join(version).path_join("code");
+		[[maybe_unused]] String output_dir = get_tmp_path().path_join(version).path_join("code");
 		for (const String &file : files) {
 			auto sub_case_name = vformat("Testing compiling script %s, version %s", file, version);
 			SUBCASE(sub_case_name.utf8().get_data()) {
@@ -705,7 +705,7 @@ void test_fake_script() {
 	auto gdscript_test_scripts = get_gdscript2_0_scripts();
 	for (int i = 0; i < gdscript_test_scripts.size(); i++) {
 		auto script_path = gdscript_test_scripts[i];
-		auto sub_case_name = vformat("Testing compiling script %s", script_path);
+		[[maybe_unused]] auto sub_case_name = vformat("Testing compiling script %s", script_path);
 		String script_text = FileAccess::get_file_as_string(script_path);
 		test_individual_script(script_path, script_text);
 	}

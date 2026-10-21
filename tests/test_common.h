@@ -1,5 +1,6 @@
 #pragma once
-#include "tests/test_macros.h"
+#include "core/string/ustring.h"
+#include "core/templates/vector.h"
 
 String get_gdsdecomp_path();
 

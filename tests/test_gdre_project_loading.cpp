@@ -69,7 +69,6 @@ TEST_CASE("[GDSDecomp] GDRESettings works") {
 	REQUIRE(GDRESettings::get_singleton());
 	GDRESettings *settings = GDRESettings::get_singleton();
 	CHECK(settings->get_cwd() != "");
-	auto cwd = settings->get_cwd();
 	auto gdsdecomp_path = get_gdsdecomp_path();
 	// check that modules/gdsdecomp exists
 	auto da = DirAccess::open(gdsdecomp_path);

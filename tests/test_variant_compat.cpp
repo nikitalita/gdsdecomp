@@ -413,7 +413,6 @@ TEST_CASE("[GDSDecomp][VariantCompat] Vector<Vector3>") {
 // vector4
 TEST_CASE("[GDSDecomp][VariantCompat] Vector<Vector4>") {
 	Vector<Vector4> arr = { Vector4(0, 0, 0, 0), Vector4(1, 1, 1, 1) };
-	String arg_str = "0, 0, 0, 0, 1, 1, 1, 1";
 	test_variant_write_v4("Simple Vector<Vector4>", arr);
 }
 
