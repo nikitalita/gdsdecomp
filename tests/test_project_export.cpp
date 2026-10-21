@@ -5,8 +5,6 @@
 #include "core/io/json.h"
 
 #include "exporters/export_report.h"
-#include "exporters/resource_exporter.h"
-#include "exporters/translation_exporter.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/import_exporter.h"

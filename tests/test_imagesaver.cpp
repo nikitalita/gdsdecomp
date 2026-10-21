@@ -97,3 +97,42 @@ TEST_CASE("[GDSDecomp][ImageSaver] Test saving images") {
 		}
 	}
 }
+
+TEST_CASE("[GDSDecomp][ImageSaver] Test saving images with compression") {
+	String temp_dir = get_tmp_path().path_join("image_saver");
+	gdre::rimraf(temp_dir);
+	gdre::ensure_dir(temp_dir);
+	Vector<Image::Format> compress_modes = {
+		Image::FORMAT_DXT1, // BC1
+		Image::FORMAT_DXT3, // BC2
+		Image::FORMAT_DXT5, // BC3
+		Image::FORMAT_RGTC_R, // BC4
+		Image::FORMAT_RGTC_RG, // BC5
+		Image::FORMAT_BPTC_RGBA, // BC7
+		Image::FORMAT_BPTC_RGBF, // BC6 Signed
+		Image::FORMAT_BPTC_RGBFU, // BC6 Unsigned
+		Image::FORMAT_ETC, // ETC1
+		Image::FORMAT_ETC2_R11,
+		// Image::FORMAT_ETC2_R11S, // Signed, NOT srgb.
+		Image::FORMAT_ETC2_RG11,
+		// Image::FORMAT_ETC2_RG11S, // Signed, NOT srgb.
+		Image::FORMAT_ETC2_RGB8,
+		Image::FORMAT_ETC2_RGBA8,
+		// Image::FORMAT_ETC2_RGB8A1,
+		Image::FORMAT_ETC2_RA_AS_RG, // ETC2 RGBA with a RA-RG swizzle for normal maps.
+		Image::FORMAT_DXT5_RA_AS_RG, // BC3 with a RA-RG swizzle for normal maps.
+		Image::FORMAT_ASTC_4x4,
+		Image::FORMAT_ASTC_4x4_HDR,
+		Image::FORMAT_ASTC_8x8,
+		Image::FORMAT_ASTC_8x8_HDR,
+	};
+	for (const auto &p_format : compress_modes) {
+		String ext = Image::format_names[p_format];
+		SUBCASE(vformat("Image saver can save images compressed with %s", ext).utf8().get_data()) {
+			Ref<Image> img = Image::create_empty(128, 128, false, p_format);
+			String temp_path = temp_dir.path_join(vformat("test_compressed_%s.png", ext));
+			CHECK(ImageSaver::save_image(temp_path, img, false) == OK);
+			CHECK(FileAccess::get_file_as_bytes(temp_path).size() > 0);
+		}
+	}
+}
