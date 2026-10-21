@@ -440,7 +440,7 @@ Error VariantParserCompat::parse_value(VariantParser::Token &token, Variant &r_v
 					}
 				} else {
 					Ref<Script> script = resource;
-					if (script.is_valid() && script->is_valid()) {
+					if (script.is_valid() && script->is_script_valid()) {
 						key_type = Variant::OBJECT;
 						key_class_name = script->get_instance_base_type();
 						key_script = script;
@@ -486,7 +486,7 @@ Error VariantParserCompat::parse_value(VariantParser::Token &token, Variant &r_v
 					}
 				} else {
 					Ref<Script> script = resource;
-					if (script.is_valid() && script->is_valid()) {
+					if (script.is_valid() && script->is_script_valid()) {
 						value_type = Variant::OBJECT;
 						value_class_name = script->get_instance_base_type();
 						value_script = script;
@@ -624,7 +624,7 @@ Error VariantParserCompat::parse_value(VariantParser::Token &token, Variant &r_v
 					}
 				} else {
 					Ref<Script> script = resource;
-					if (script.is_valid() && script->is_valid()) {
+					if (script.is_valid() && script->is_script_valid()) {
 						type = Variant::OBJECT;
 						type_class_name = script->get_instance_base_type();
 						var_script = resource;

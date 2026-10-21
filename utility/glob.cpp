@@ -27,8 +27,8 @@
 #include "core/io/dir_access.h"
 #include "core/object/class_db.h"
 #include "core/os/os.h"
+#include "core/string/regex.h"
 #include "core/templates/hash_map.h"
-#include "modules/regex/regex.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 

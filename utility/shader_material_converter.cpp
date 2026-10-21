@@ -1,6 +1,6 @@
 #include "shader_material_converter.h"
 
-#include "modules/regex/regex.h"
+#include "core/string/regex.h"
 #include "scene/main/node.h"
 #include "scene/resources/image_texture.h"
 #include "scene/resources/material.h"
@@ -235,7 +235,7 @@ ShaderLanguage::ShaderNode *get_shader_node(ShaderLanguage &sl, Ref<Shader> shad
 	String preprocessed_code;
 	String error_text;
 	List<ShaderPreprocessor::FilePosition> error_positions;
-	Error result = preprocessor.preprocess(code, shader->get_path(), preprocessed_code, &error_text, &error_positions, nullptr, nullptr);
+	Error result = preprocessor.preprocess(code, shader->get_path(), preprocessed_code);
 	ERR_FAIL_COND_V_MSG(result != OK, nullptr, vformat("Failed to preprocess shader %s (line %d): %s", shader->get_path(), error_positions.front() ? error_positions.front()->get().line : 0, error_text));
 
 	ShaderLanguage::ShaderCompileInfo info;

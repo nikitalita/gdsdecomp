@@ -393,6 +393,10 @@ FakeScriptInstance::~FakeScriptInstance() {
 	// Cleanup if needed
 }
 
-Ref<Script> FakeScriptInstance::get_script() const {
+Script *FakeScriptInstance::get_script() const {
+	return script.ptr();
+}
+
+Ref<Script> FakeScriptInstance::get_script_ref() const {
 	return script;
 }

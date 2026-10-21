@@ -32,7 +32,7 @@
 
 #include "core/templates/safe_refcount.h"
 #include "scene/main/node.h"
-#include "servers/audio/audio_stream.h"
+#include "scene/resources/audio/audio_stream.h"
 
 class GDREAudioStreamPreview : public RefCounted {
 	GDCLASS(GDREAudioStreamPreview, RefCounted);

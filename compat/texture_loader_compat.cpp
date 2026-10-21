@@ -524,7 +524,7 @@ Error TextureLoaderCompat::_load_data_ctex2d_v4(const String &p_path, int &tw, i
 	r_data_format = f->get_32();
 	f->seek(pos);
 
-	image = CompressedTexture2D::load_image_from_file(f, p_size_limit);
+	image = CompressedTexture2D::load_image_from_file(f);
 
 	if (image.is_null() || image->is_empty()) {
 		return ERR_CANT_OPEN;
@@ -665,7 +665,7 @@ Error TextureLoaderCompat::_load_data_ctexlayered_v4(const String &p_path, Vecto
 			r_data_format = f->get_32();
 			f->seek(pos);
 		}
-		Ref<Image> image = CompressedTexture2D::load_image_from_file(f, 0);
+		Ref<Image> image = CompressedTexture2D::load_image_from_file(f);
 		ERR_FAIL_COND_V(image.is_null() || image->is_empty(), ERR_CANT_OPEN);
 		if (i == 0) {
 			r_format = image->get_format();
@@ -965,7 +965,7 @@ void normalize_image_formats(const Vector<Ref<Image>> &images) {
 			if (image->is_compressed()) {
 				auto mode = ImageSaver::get_compress_mode_from_format(safe_format);
 				image->decompress();
-				auto astc_format = (safe_format >= Image::Format::FORMAT_ASTC_8x8) ? Image::ASTC_FORMAT_8x8 : Image::ASTC_FORMAT_4x4;
+				auto astc_format = (safe_format >= Image::Format::FORMAT_ASTC_8x8) ? Image::COMPRESS_PROFILE_MAX_COMPRESSION : Image::COMPRESS_PROFILE_MAX_QUALITY;
 				Image::BPTCFormat bptc_format = Image::BPTC_DETECT;
 				if (mode == Image::CompressMode::COMPRESS_BPTC) {
 					switch (safe_format) {

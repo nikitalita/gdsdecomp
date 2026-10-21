@@ -7,7 +7,7 @@
 
 #include "core/string/ustring.h"
 #include "exporters/export_report.h"
-#include "scene/resources/audio_stream_wav.h"
+#include "scene/resources/audio/audio_stream_wav.h"
 
 #define DATA_PAD 16
 namespace {

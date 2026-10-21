@@ -25,9 +25,9 @@
 
 #pragma once
 #include "core/object/object.h"
+#include "core/string/regex.h"
 #include "core/string/ustring.h"
 #include "core/templates/vector.h"
-#include "modules/regex/regex.h"
 
 class Glob : public Object {
 	GDCLASS(Glob, Object);

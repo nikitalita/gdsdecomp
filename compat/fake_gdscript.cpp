@@ -239,7 +239,7 @@ bool FakeGDScript::is_tool() const {
 	return tool;
 }
 
-bool FakeGDScript::is_valid() const {
+bool FakeGDScript::is_script_valid() const {
 	return valid;
 }
 

@@ -1,5 +1,6 @@
 #include "sample_loader_compat.h"
-#include "scene/resources/audio_stream_wav.h"
+#include "core/io/missing_resource.h"
+#include "scene/resources/audio/audio_stream_wav.h"
 
 Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
 	String name = get_resource_name(res, ver_major);

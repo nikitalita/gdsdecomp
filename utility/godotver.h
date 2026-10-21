@@ -33,11 +33,7 @@
 #include "core/object/ref_counted.h"
 #include "core/string/ustring.h"
 
-#include "modules/modules_enabled.gen.h"
-
-#ifdef MODULE_REGEX_ENABLED
-#include "modules/regex/regex.h"
-#endif
+#include "core/string/regex.h"
 // <sys/sysmacros.h> is included somewhere, which defines major(dev) to gnu_dev_major(dev)
 #if defined(major)
 #undef major

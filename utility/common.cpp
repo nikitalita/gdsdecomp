@@ -10,7 +10,7 @@
 #include "core/io/file_access.h"
 #include "core/io/image_loader.h"
 #include "core/object/class_db.h"
-#include "modules/regex/regex.h"
+#include "core/string/regex.h"
 #include "modules/zip/zip_reader.h"
 #include "utility/gdre_logger.h"
 #include "utility/task_manager.h"

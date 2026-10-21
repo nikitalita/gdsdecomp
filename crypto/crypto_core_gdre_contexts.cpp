@@ -47,9 +47,9 @@ Error AESContextGDRE::start(Mode p_mode, const PackedByteArray &p_key, const Pac
 	}
 	// Encryption/decryption key.
 	if (p_mode == MODE_CBC_ENCRYPT || p_mode == MODE_ECB_ENCRYPT || p_mode == MODE_CFB_ENCRYPT || p_mode == MODE_CFB_DECRYPT) {
-		ctx.set_encode_key(p_key.ptr(), key_bits);
+		// ctx.set_encode_key(p_key.ptr(), key_bits);
 	} else {
-		ctx.set_decode_key(p_key.ptr(), key_bits);
+		// ctx.set_decode_key(p_key.ptr(), key_bits);
 	}
 	mode = p_mode;
 	return OK;
@@ -63,38 +63,38 @@ PackedByteArray AESContextGDRE::update(const PackedByteArray &p_src) {
 	out.resize(len);
 	const uint8_t *src_ptr = p_src.ptr();
 	uint8_t *out_ptr = out.ptrw();
-	switch (mode) {
-		case MODE_ECB_ENCRYPT: {
-			for (int i = 0; i < len; i += 16) {
-				Error err = ctx.encrypt_ecb(src_ptr + i, out_ptr + i);
-				ERR_FAIL_COND_V(err != OK, PackedByteArray());
-			}
-		} break;
-		case MODE_ECB_DECRYPT: {
-			for (int i = 0; i < len; i += 16) {
-				Error err = ctx.decrypt_ecb(src_ptr + i, out_ptr + i);
-				ERR_FAIL_COND_V(err != OK, PackedByteArray());
-			}
-		} break;
-		case MODE_CBC_ENCRYPT: {
-			Error err = ctx.encrypt_cbc(len, iv.ptrw(), p_src.ptr(), out.ptrw());
-			ERR_FAIL_COND_V(err != OK, PackedByteArray());
-		} break;
-		case MODE_CBC_DECRYPT: {
-			Error err = ctx.decrypt_cbc(len, iv.ptrw(), p_src.ptr(), out.ptrw());
-			ERR_FAIL_COND_V(err != OK, PackedByteArray());
-		} break;
-		case MODE_CFB_ENCRYPT: {
-			Error err = ctx.encrypt_cfb(len, iv.ptrw(), p_src.ptr(), out.ptrw());
-			ERR_FAIL_COND_V(err != OK, PackedByteArray());
-		} break;
-		case MODE_CFB_DECRYPT: {
-			Error err = ctx.decrypt_cfb(len, iv.ptrw(), p_src.ptr(), out.ptrw());
-			ERR_FAIL_COND_V(err != OK, PackedByteArray());
-		} break;
-		default:
-			ERR_FAIL_V_MSG(PackedByteArray(), "Bug!");
-	}
+	// switch (mode) {
+	// 	case MODE_ECB_ENCRYPT: {
+	// 		for (int i = 0; i < len; i += 16) {
+	// 			Error err = ctx.encrypt_ecb(src_ptr + i, out_ptr + i);
+	// 			ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 		}
+	// 	} break;
+	// 	case MODE_ECB_DECRYPT: {
+	// 		for (int i = 0; i < len; i += 16) {
+	// 			Error err = ctx.decrypt_ecb(src_ptr + i, out_ptr + i);
+	// 			ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 		}
+	// 	} break;
+	// 	case MODE_CBC_ENCRYPT: {
+	// 		Error err = ctx.encrypt_cbc(len, iv.ptrw(), p_src.ptr(), out.ptrw());
+	// 		ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 	} break;
+	// 	case MODE_CBC_DECRYPT: {
+	// 		Error err = ctx.decrypt_cbc(len, iv.ptrw(), p_src.ptr(), out.ptrw());
+	// 		ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 	} break;
+	// 	case MODE_CFB_ENCRYPT: {
+	// 		Error err = ctx.encrypt_cfb(len, iv.ptrw(), p_src.ptr(), out.ptrw());
+	// 		ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 	} break;
+	// 	case MODE_CFB_DECRYPT: {
+	// 		Error err = ctx.decrypt_cfb(len, iv.ptrw(), p_src.ptr(), out.ptrw());
+	// 		ERR_FAIL_COND_V(err != OK, PackedByteArray());
+	// 	} break;
+	// 	default:
+	// 		ERR_FAIL_V_MSG(PackedByteArray(), "Bug!");
+	// }
 	return out;
 }
 

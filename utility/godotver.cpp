@@ -31,7 +31,7 @@
 #include "godotver.h"
 
 #include "core/object/class_db.h"
-#include "modules/regex/regex.h"
+#include "core/string/regex.h"
 
 // initialized by register_types.cpp
 Ref<RegEx> SemVer::strict_regex = nullptr;
@@ -173,7 +173,6 @@ void SemVer::_bind_methods() {
 }
 
 bool SemVer::parse_valid(const String &p_ver_text, Ref<SemVer> &r_semver) {
-#ifdef MODULE_REGEX_ENABLED
 	Ref<RegExMatch> match = SemVer::strict_regex->search(p_ver_text);
 
 	if (match.is_valid()) {
@@ -186,55 +185,6 @@ bool SemVer::parse_valid(const String &p_ver_text, Ref<SemVer> &r_semver) {
 		return true;
 	}
 	return false;
-#else
-	String ver_text = p_ver_text;
-	// strip leading "v" or "V"
-	if (p_ver_text.begins_with("v") || p_ver_text.begins_with("V")) {
-		ver_text = p_ver_text.substr(1);
-	}
-	Vector<String> ver_numbers = ver_text.split(".", false, 3);
-	int major = 0;
-	int minor = 0;
-	int patch = 0;
-	// We should have exactly 3 splits, and the first two should be numbers
-	if ((ver_numbers.size() == 3 && ver_numbers[0].is_valid_int() && ver_numbers[1].is_valid_int())) {
-		major = ver_numbers[0].to_int();
-		minor = ver_numbers[1].to_int();
-	} else {
-		return false;
-	}
-	String prerelease;
-	String buildmeta;
-	bool is_windows_style = false;
-	// we may have pre-release or patch numbers
-	String leftover = ver_numbers.size() == 3 ? ver_numbers[2] : "";
-	bool is_non_strict = false;
-	if (!leftover.is_empty() && !leftover.is_valid_int()) {
-		Vector<String> pre_comp;
-		// build meta always comes after prerelease tag
-		if (leftover.contains("+")) {
-			pre_comp = leftover.split("+", true, 2);
-			if (pre_comp.size() != 2) {
-				return false;
-			}
-			leftover = pre_comp[0];
-			buildmeta = pre_comp[1];
-		}
-		if (leftover.contains("-")) {
-			// we can have as many dashes as we want in the prerelease string, so limit to 2 splits
-			Vector<String> pre_comp = leftover.split("-", 2);
-			leftover = pre_comp[0];
-			prerelease = pre_comp[1];
-		}
-	}
-	if (leftover.is_valid_int()) {
-		patch = leftover.to_int();
-	} else { //failed validation, what's leftover should be a number
-		return false;
-	}
-	r_semver = SemVer::create(major, minor, patch, prerelease, buildmeta);
-	return true;
-#endif
 }
 
 Ref<SemVer> SemVer::parse(const String &p_ver_text) {
@@ -390,7 +340,6 @@ bool GodotVer::is_not_custom_build() {
 }
 
 bool GodotVer::parse_valid(const String &p_ver_text, Ref<GodotVer> &r_semver) {
-#ifdef MODULE_REGEX_ENABLED
 	Ref<RegExMatch> match = GodotVer::non_strict_regex->search(p_ver_text);
 	if (match.is_valid()) {
 		// Godot version specific hacks
@@ -406,10 +355,6 @@ bool GodotVer::parse_valid(const String &p_ver_text, Ref<GodotVer> &r_semver) {
 	}
 
 	return false;
-#else
-	ERR_FAIL_V_MSG(false, "CAN'T PARSE VERSION WITHOUT REGEX MODULE");
-
-#endif
 }
 
 Ref<GodotVer> GodotVer::parse(const String &p_ver_text) {

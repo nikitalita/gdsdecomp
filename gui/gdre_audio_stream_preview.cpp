@@ -31,6 +31,7 @@
 #include "gdre_audio_stream_preview.h"
 
 #include "core/object/class_db.h"
+#include "servers/audio/audio_server.h"
 
 /////////////////////
 

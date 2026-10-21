@@ -695,7 +695,7 @@ bool generate_class_index(const String &source_dir) {
 	return generate_class_index_recursive(dir->get_current_dir());
 }
 void test_fake_script() {
-	GDScriptTests::GDScriptTestRunner runner(get_gdscript_tests_path(), true, false, false);
+	GDScriptTests::GDScriptTestRunner runner(get_gdscript_tests_path(), false, false);
 	generate_class_index(get_gdscript_tests_path());
 	GDRESettings::get_singleton()->_set_version_override(GODOT_VERSION_FULL_CONFIG);
 	String project_path = GDRESettings::get_singleton()->get_project_path();

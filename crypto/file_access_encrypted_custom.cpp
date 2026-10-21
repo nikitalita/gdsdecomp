@@ -35,15 +35,6 @@
 #include "core/object/class_db.h"
 #include "core/variant/variant.h"
 
-CryptoCore::RandomGenerator *FileAccessEncryptedCustom::_fae_static_rng = nullptr;
-
-void FileAccessEncryptedCustom::deinitialize() {
-	if (_fae_static_rng) {
-		memdelete(_fae_static_rng);
-		_fae_static_rng = nullptr;
-	}
-}
-
 Error FileAccessEncryptedCustom::open_and_parse(Ref<FileAccess> p_base, const Vector<uint8_t> &p_key, Mode p_mode, bool p_with_magic, const Vector<uint8_t> &p_iv) {
 	ERR_FAIL_NULL_V_MSG(decryptor, ERR_UNCONFIGURED, "Decryptor is not set.");
 	ERR_FAIL_COND_V_MSG(file.is_valid(), ERR_ALREADY_IN_USE, vformat("Can't open file while another file from path '%s' is open.", file->get_path_absolute()));

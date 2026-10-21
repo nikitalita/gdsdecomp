@@ -76,11 +76,14 @@ Error FileAccessEncryptedv3::open_and_parse(Ref<FileAccess> p_base, const Vector
 		ERR_FAIL_COND_V(blen != ds, ERR_FILE_CORRUPT);
 
 		CryptoCore::AESContext ctx;
-		ctx.set_decode_key(key.ptrw(), 256);
+		// ctx.set_decode_key(key.ptrw(), 256);
 
-		for (uint64_t i = 0; i < ds; i += 16) {
-			ctx.decrypt_ecb(&data.write[i], &data.write[i]);
-		}
+		// for (uint64_t i = 0; i < ds; i += 16) {
+		// 	ctx.decrypt_ecb(&data.write[i], &data.write[i]);
+		// }
+		ctx.setup(CryptoCore::AESContext::Mode::DECRYPT, CryptoCore::AESContext::Cipher::ECB, key.ptrw(), key.size(), nullptr, 0);
+		ctx.update(data.ptrw(), ds, data.ptrw(), ds);
+		ctx.finish(nullptr, 0);
 
 		data.resize(length);
 
@@ -132,11 +135,9 @@ void FileAccessEncryptedv3::_close() {
 		}
 
 		CryptoCore::AESContext ctx;
-		ctx.set_encode_key(key.ptrw(), 256);
-
-		for (uint64_t i = 0; i < len; i += 16) {
-			ctx.encrypt_ecb(&compressed.write[i], &compressed.write[i]);
-		}
+		ctx.setup(CryptoCore::AESContext::Mode::ENCRYPT, CryptoCore::AESContext::Cipher::ECB, key.ptrw(), key.size(), nullptr, 0);
+		ctx.update(compressed.ptrw(), len, compressed.ptrw(), len);
+		ctx.finish(nullptr, 0);
 
 		file->store_32(ENCRYPTED_HEADER_MAGIC);
 		file->store_32(mode);

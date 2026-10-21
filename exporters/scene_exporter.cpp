@@ -5,6 +5,7 @@
 #include "core/io/resource_loader.h"
 #include "core/object/property_info.h"
 #include "core/os/thread_safe.h"
+#include "core/string/regex.h"
 #include "core/variant/variant.h"
 #include "core/version_generated.gen.h"
 #include "exporters/export_report.h"
@@ -13,7 +14,6 @@
 #include "modules/gltf/extensions/physics/gltf_document_extension_physics.h"
 #include "modules/gltf/gltf_document.h"
 #include "modules/gltf/structures/gltf_node.h"
-#include "modules/regex/regex.h"
 #include "scene/3d/mesh_instance_3d.h"
 #include "scene/3d/navigation/navigation_region_3d.h"
 #include "scene/3d/occluder_instance_3d.h"
@@ -1881,7 +1881,7 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			}
 			if (!shapes.is_empty()) {
 				StaticBody3D *static_body = memnew(StaticBody3D());
-				static_body->set_name(mesh_instance->get_name().operator String() + "_StaticBody3D");
+				static_body->set_name(mesh_instance->get_name().string() + "_StaticBody3D");
 				mesh_instance->add_child(static_body);
 				for (auto &shape : shapes) {
 					shape->set_owner(nullptr);
@@ -3906,9 +3906,9 @@ HashMap<StringName, Node *> _find_reference_nodes_for_animation_library(const Re
 			}
 		}
 		ERR_CONTINUE_MSG(anim_node_index == -1, "Skeleton path " + animated_path + " not found in instance");
-		Object *obj = ClassDB::instantiate(state->get_node_type(anim_node_index).operator String());
+		Object *obj = ClassDB::instantiate(state->get_node_type(anim_node_index).string());
 		Node *node = Object::cast_to<Node>(obj);
-		ERR_CONTINUE_MSG(node == nullptr, "Failed to instantiate node type " + state->get_node_type(anim_node_index).operator String());
+		ERR_CONTINUE_MSG(node == nullptr, "Failed to instantiate node type " + state->get_node_type(anim_node_index).string());
 		int property_count = state->get_node_property_count(anim_node_index);
 		for (int i = 0; i < property_count; i++) {
 			StringName property_name = state->get_node_property_name(anim_node_index, i);
@@ -3932,7 +3932,7 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 	for (auto &animation_name : animation_names) {
 		Ref<Animation> animation = animation_library->get_animation(animation_name);
 		ERR_CONTINUE(animation.is_null());
-		String animation_name_string = animation_name.operator String();
+		String animation_name_string = animation_name.string();
 		if (animation_name_string.to_upper() == "RESET" || animation_name_string.to_upper().remove_chars("-_").to_upper() == "TPOSE") {
 			reset_animation = animation;
 		}
@@ -4031,7 +4031,7 @@ Error _create_packed_scene_from_animation_library(const String &p_original_path,
 			}
 			if (node_name.is_node_unique_name()) {
 				node->set_unique_name_in_owner(true);
-				node_name = node_name.operator String().substr(1);
+				node_name = node_name.string().substr(1);
 			}
 			node->set_name(node_name);
 			parent->add_child(node);

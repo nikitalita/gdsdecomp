@@ -153,7 +153,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, true);
 		CHECK(error == OK);
 		String gd_ret;
-		error = VariantWriter::write_to_string(p_val, gd_ret, nullptr, nullptr, true);
+		error = VariantWriter::write_to_string(p_val, gd_ret, false, nullptr, nullptr, true);
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
@@ -167,7 +167,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, false);
 		CHECK(error == OK);
 		String gd_ret;
-		error = VariantWriter::write_to_string(p_val, gd_ret, nullptr, nullptr, false);
+		error = VariantWriter::write_to_string(p_val, gd_ret, false, nullptr, nullptr, false);
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);

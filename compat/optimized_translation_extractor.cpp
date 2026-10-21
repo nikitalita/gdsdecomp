@@ -74,7 +74,7 @@ void OptimizedTranslationExtractor::generate(const Ref<Translation> &p_from) {
 
 	for (const StringName &E : keys) {
 		//hash string
-		CharString cs = E.operator String().utf8();
+		CharString cs = E.string().utf8();
 		uint32_t h = hash(0, cs.get_data());
 		Pair<int, CharString> p;
 		p.first = idx;
@@ -82,7 +82,7 @@ void OptimizedTranslationExtractor::generate(const Ref<Translation> &p_from) {
 		buckets.write[h % size].push_back(p);
 
 		//compress string
-		CharString src_s = p_from->get_message(E).operator String().utf8();
+		CharString src_s = p_from->get_message(E).string().utf8();
 		CompressedString ps;
 		ps.orig_len = src_s.size();
 		ps.offset = total_compression_size;
@@ -186,7 +186,7 @@ void OptimizedTranslationExtractor::generate(const Ref<Translation> &p_from) {
 }
 
 bool OptimizedTranslationExtractor::_set(const StringName &p_name, const Variant &p_value) {
-	String prop_name = p_name.operator String();
+	String prop_name = p_name.string();
 	if (prop_name == "hash_table") {
 		hash_table = p_value;
 	} else if (prop_name == "bucket_table") {
@@ -203,7 +203,7 @@ bool OptimizedTranslationExtractor::_set(const StringName &p_name, const Variant
 }
 
 bool OptimizedTranslationExtractor::_get(const StringName &p_name, Variant &r_ret) const {
-	String prop_name = p_name.operator String();
+	String prop_name = p_name.string();
 	if (prop_name == "hash_table") {
 		r_ret = hash_table;
 	} else if (prop_name == "bucket_table") {
@@ -221,7 +221,7 @@ StringName OptimizedTranslationExtractor::get_message(const String &p_src_text, 
 }
 
 StringName OptimizedTranslationExtractor::get_message(const StringName &p_src_text, const StringName &p_context) const {
-	return get_message(p_src_text.operator String().utf8().get_data(), p_context);
+	return get_message(p_src_text.string().utf8().get_data(), p_context);
 }
 
 uint32_t OptimizedTranslationExtractor::hash_multipart(uint32_t d, const char *part1, const char *part2, const char *part3, const char *part4, const char *part5, const char *part6) const {
@@ -428,7 +428,7 @@ String OptimizedTranslationExtractor::get_message_multipart_str(const char *part
 }
 
 String OptimizedTranslationExtractor::get_message_str(const StringName &p_src_text) const {
-	return get_message_str(p_src_text.operator String().utf8().get_data());
+	return get_message_str(p_src_text.string().utf8().get_data());
 }
 
 String OptimizedTranslationExtractor::get_message_str(const String &p_src_text) const {

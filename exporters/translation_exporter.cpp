@@ -12,9 +12,9 @@
 #include "core/error/error_list.h"
 #include "core/object/class_db.h"
 #include "core/string/optimized_translation.h"
+#include "core/string/regex.h"
 #include "core/string/translation.h"
 #include "core/string/ustring.h"
-#include "modules/regex/regex.h"
 #include "utility/pcfg_loader.h"
 #include <cstdio>
 

@@ -7,8 +7,8 @@
 #include "core/math/expression.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
+#include "core/string/regex.h"
 #include "core/string/ustring.h"
-#include "modules/regex/regex.h"
 #include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
@@ -524,7 +524,7 @@ bool FakeCSharpScript::is_tool() const {
 	return tool;
 }
 
-bool FakeCSharpScript::is_valid() const {
+bool FakeCSharpScript::is_script_valid() const {
 	return valid;
 }
 

@@ -1,6 +1,7 @@
 #include "test_common.h"
 #include "core/os/main_loop.h"
 #include "main/gdre_main_loop.h"
+#include "servers/audio/audio_driver.h"
 #include "servers/audio/audio_server.h"
 #include <utility/gdre_settings.h>
 

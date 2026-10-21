@@ -1,8 +1,8 @@
 #include "visual_shader_compat.h"
 #include "core/error/error_macros.h"
+#include "core/string/regex.h"
 #include "core/version_generated.gen.h"
 #include "modules/gdscript/gdscript.h"
-#include "modules/regex/regex.h"
 #include "utility/gdre_config.h"
 #include "utility/resource_info.h"
 

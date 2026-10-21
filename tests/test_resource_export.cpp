@@ -11,7 +11,7 @@
 #include <core/object/class_db.h>
 #include <exporters/fontfile_exporter.h>
 #include <modules/gdsdecomp/exporters/resource_exporter.h>
-#include <scene/resources/audio_stream_wav.h>
+#include <scene/resources/audio/audio_stream_wav.h>
 #include <scene/resources/font.h>
 
 TEST_FORCE_LINK(test_resource_export)

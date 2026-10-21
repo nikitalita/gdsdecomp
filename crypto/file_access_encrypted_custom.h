@@ -60,8 +60,6 @@ private:
 
 	void _close();
 
-	static CryptoCore::RandomGenerator *_fae_static_rng;
-
 protected:
 	static void _bind_methods();
 	static Ref<FileAccess> _create_and_parse_non_custom(Ref<FileAccess> p_base, const Vector<uint8_t> &p_key, Mode p_mode, bool p_with_magic = true, const Vector<uint8_t> &p_iv = Vector<uint8_t>());
@@ -119,8 +117,6 @@ public:
 	void set_length(uint64_t p_length) { length = p_length; }
 
 	bool get_use_magic() const { return use_magic; }
-
-	static void deinitialize();
 
 	void set_decryptor(Ref<CustomDecryptor> p_decryptor);
 

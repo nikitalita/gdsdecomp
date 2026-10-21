@@ -549,8 +549,8 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 			}
 
 			ERR_FAIL_INDEX_V(bt, Variant::VARIANT_MAX, ERR_INVALID_DATA);
-			r_type.builtin_type = (Variant::Type)bt;
-			if (!p_allow_objects && r_type.builtin_type == Variant::OBJECT) {
+			r_type.variant_type = (Variant::Type)bt;
+			if (!p_allow_objects && r_type.variant_type == Variant::OBJECT) {
 				r_type.class_name = EncodedObjectAsID::get_class_static();
 			}
 			return OK;
@@ -562,7 +562,7 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 				return err;
 			}
 
-			r_type.builtin_type = Variant::OBJECT;
+			r_type.variant_type = Variant::OBJECT;
 			if (p_allow_objects) {
 				r_type.class_name = str;
 			} else {
@@ -577,7 +577,7 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 				return err;
 			}
 
-			r_type.builtin_type = Variant::OBJECT;
+			r_type.variant_type = Variant::OBJECT;
 			if (p_allow_objects) {
 				ERR_FAIL_COND_V_MSG(path.is_empty() || !path.begins_with("res://") || !ResourceLoader::exists(path, "Script"), ERR_INVALID_DATA, vformat("Invalid script path \"%s\".", path));
 				r_type.script = ResourceLoader::load(path, "Script");
@@ -1270,7 +1270,7 @@ Error VariantDecoderCompat::decode_variant_4(Variant &r_variant, const uint8_t *
 			}
 
 			Dictionary dict;
-			if (key_type.builtin_type != Variant::NIL || value_type.builtin_type != Variant::NIL) {
+			if (key_type.variant_type != Variant::NIL || value_type.variant_type != Variant::NIL) {
 				dict.set_typed(key_type, value_type);
 			}
 
@@ -1327,7 +1327,7 @@ Error VariantDecoderCompat::decode_variant_4(Variant &r_variant, const uint8_t *
 			}
 
 			Array array;
-			if (type.builtin_type != Variant::NIL) {
+			if (type.variant_type != Variant::NIL) {
 				array.set_typed(type);
 			}
 
@@ -4305,20 +4305,20 @@ Error VariantDecoderCompat::encode_variant_2(const Variant &p_variant, uint8_t *
 }
 
 static void _encode_container_type_header(const ContainerType &p_type, uint32_t &header, uint32_t p_shift, bool p_full_objects) {
-	if (p_type.builtin_type != Variant::NIL) {
+	if (p_type.variant_type != Variant::NIL) {
 		if (p_type.script.is_valid()) {
 			header |= (p_full_objects ? CONTAINER_TYPE_KIND_SCRIPT : CONTAINER_TYPE_KIND_CLASS_NAME) << p_shift;
 		} else if (p_type.class_name != StringName()) {
 			header |= CONTAINER_TYPE_KIND_CLASS_NAME << p_shift;
 		} else {
-			// No need to check `p_full_objects` since `class_name` should be non-empty for `builtin_type == Variant::OBJECT`.
+			// No need to check `p_full_objects` since `class_name` should be non-empty for `variant_type == Variant::OBJECT`.
 			header |= CONTAINER_TYPE_KIND_BUILTIN << p_shift;
 		}
 	}
 }
 
 static Error _encode_container_type(const ContainerType &p_type, uint8_t *&buf, int &r_len, bool p_full_objects) {
-	if (p_type.builtin_type != Variant::NIL) {
+	if (p_type.variant_type != Variant::NIL) {
 		if (p_type.script.is_valid()) {
 			if (p_full_objects) {
 				String path = p_type.script->get_path();
@@ -4330,9 +4330,9 @@ static Error _encode_container_type(const ContainerType &p_type, uint8_t *&buf, 
 		} else if (p_type.class_name != StringName()) {
 			_encode_string(p_full_objects ? p_type.class_name : EncodedObjectAsID::get_class_static(), buf, r_len);
 		} else {
-			// No need to check `p_full_objects` since `class_name` should be non-empty for `builtin_type == Variant::OBJECT`.
+			// No need to check `p_full_objects` since `class_name` should be non-empty for `variant_type == Variant::OBJECT`.
 			if (buf) {
-				encode_uint32(p_type.builtin_type, buf);
+				encode_uint32(p_type.variant_type, buf);
 				buf += 4;
 			}
 			r_len += 4;

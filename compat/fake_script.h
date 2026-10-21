@@ -1,6 +1,5 @@
 #pragma once
 
-#include "core/io/missing_resource.h"
 #include <core/object/script_language.h>
 #include <core/templates/rb_set.h>
 
@@ -65,7 +64,7 @@ public:
 	virtual MethodInfo get_method_info(const StringName &p_method) const override { return {}; }
 
 	virtual bool is_tool() const override { return false; }
-	virtual bool is_valid() const override { return true; }
+	virtual bool is_script_valid() const override { return true; }
 	virtual bool is_abstract() const override { return false; }
 
 	virtual ScriptLanguage *get_language() const override { return nullptr; }
@@ -179,7 +178,7 @@ public:
 	virtual void refcount_incremented() override {}
 	virtual bool refcount_decremented() override { return true; } //return true if it can die
 
-	virtual Ref<Script> get_script() const override;
+	virtual Script *get_script() const override;
 
 	virtual bool is_placeholder() const override { return false; }
 
@@ -191,5 +190,6 @@ public:
 	virtual ScriptLanguage *get_language() override;
 
 	void force_set_property(const StringName &p_name, const Variant &p_value);
+	Ref<Script> get_script_ref() const;
 	virtual ~FakeScriptInstance();
 };
