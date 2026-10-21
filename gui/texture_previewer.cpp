@@ -352,7 +352,7 @@ Error TexturePreviewer::edit_from_path(const String &p_resource_path) {
 		}
 		auto loader = ImageLoader::recognize(p_resource_path.get_extension().to_lower());
 		if (loader.is_valid()) {
-			Ref<Image> image;
+			Ref<Image> image = memnew(Image);
 			Error err = ImageLoader::load_image(p_resource_path, image);
 			if (err != OK) {
 				return err;
