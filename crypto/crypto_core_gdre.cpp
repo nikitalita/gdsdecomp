@@ -1,112 +1,179 @@
 #include "crypto_core_gdre.h"
 
 #include "core/os/memory.h"
-// #define MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
-// #include <thirdparty/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/aria.h>
-// #include <thirdparty/mbedtls/tf-psa-crypto/drivers/builtin/include/mbedtls/private/camellia.h>
-// #undef MBEDTLS_DECLARE_PRIVATE_IDENTIFIERS
-// AES256
+#include <mbedtls/base64.h>
+#include <psa/crypto.h>
+
+// Camellia
 CryptoCoreGdre::CamelliaContext::CamelliaContext() {
-	// ctx = memalloc(sizeof(mbedtls_camellia_context));
-	// mbedtls_camellia_init((mbedtls_camellia_context *)ctx);
+	ctx = memalloc_zeroed(sizeof(psa_cipher_operation_t));
 }
 
 CryptoCoreGdre::CamelliaContext::~CamelliaContext() {
-	// mbedtls_camellia_free((mbedtls_camellia_context *)ctx);
-	// memfree((mbedtls_camellia_context *)ctx);
+	psa_cipher_abort((psa_cipher_operation_t *)ctx);
+	psa_destroy_key(key_id);
+	memfree((psa_cipher_operation_t *)ctx);
 }
 
-Error CryptoCoreGdre::CamelliaContext::set_encode_key(const uint8_t *p_key, size_t p_bits) {
-	// int ret = mbedtls_camellia_setkey_enc((mbedtls_camellia_context *)ctx, p_key, p_bits);
-	// return ret ? FAILED : OK;
+void CryptoCoreGdre::CamelliaContext::reset() {
+	psa_cipher_abort((psa_cipher_operation_t *)ctx);
+	psa_destroy_key(key_id);
+	key_id = PSA_KEY_ID_NULL;
+	alg = PSA_ALG_NONE;
 }
 
-Error CryptoCoreGdre::CamelliaContext::set_decode_key(const uint8_t *p_key, size_t p_bits) {
-	// int ret = mbedtls_camellia_setkey_dec((mbedtls_camellia_context *)ctx, p_key, p_bits);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::CamelliaContext::setup(Mode p_mode, Cipher p_cipher, const uint8_t *p_key, size_t p_key_length, const uint8_t *p_iv, size_t p_iv_size) {
+	reset();
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	switch (p_mode) {
+		case Mode::NONE:
+			return OK;
+		case Mode::ENCRYPT:
+		case Mode::DECRYPT:
+			break;
+		default:
+			return ERR_INVALID_PARAMETER;
+	}
+	switch (p_cipher) {
+		case Cipher::CBC:
+			alg = PSA_ALG_CBC_NO_PADDING;
+			break;
+		case Cipher::ECB:
+			alg = PSA_ALG_ECB_NO_PADDING;
+			break;
+		case Cipher::CFB:
+			alg = PSA_ALG_CFB;
+			break;
+		default:
+			return ERR_INVALID_PARAMETER;
+	}
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_algorithm(&attr, alg);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_CAMELLIA);
+	psa_set_key_bits(&attr, p_key_length << 3);
+	int ret = psa_import_key(&attr, p_key, p_key_length, &key_id);
+	if (ret) {
+		return FAILED;
+	}
+	if (p_mode == Mode::ENCRYPT) {
+		ret = psa_cipher_encrypt_setup((psa_cipher_operation_t *)ctx, key_id, alg);
+	} else {
+		ret = psa_cipher_decrypt_setup((psa_cipher_operation_t *)ctx, key_id, alg);
+	}
+	if (ret == PSA_SUCCESS && p_iv_size) {
+		ret = psa_cipher_set_iv((psa_cipher_operation_t *)ctx, p_iv, p_iv_size);
+	}
+	if (ret) {
+		reset();
+		return FAILED;
+	}
+	return OK;
 }
 
-Error CryptoCoreGdre::CamelliaContext::encrypt_ecb(const uint8_t p_src[16], uint8_t r_dst[16]) {
-	// int ret = mbedtls_camellia_crypt_ecb((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_ENCRYPT, p_src, r_dst);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::CamelliaContext::update(const uint8_t *p_src, size_t p_src_size, uint8_t *r_dst, size_t p_dst_size) {
+	size_t size = 0;
+	int ret = psa_cipher_update((psa_cipher_operation_t *)ctx, p_src, p_src_size, r_dst, p_dst_size, &size);
+	if (ret) {
+		return FAILED;
+	}
+	ERR_FAIL_COND_V(p_dst_size != size, ERR_BUG);
+	return OK;
 }
 
-Error CryptoCoreGdre::CamelliaContext::encrypt_cbc(size_t p_length, uint8_t r_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// int ret = mbedtls_camellia_crypt_cbc((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_ENCRYPT, p_length, r_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::CamelliaContext::finish(uint8_t *r_dst, size_t p_dst_size) {
+	size_t size = 0;
+	int ret = psa_cipher_finish((psa_cipher_operation_t *)ctx, r_dst, p_dst_size, &size);
+	reset();
+	if (ret) {
+		return FAILED;
+	}
+	ERR_FAIL_COND_V(p_dst_size != size, ERR_BUG);
+	return OK;
 }
 
-Error CryptoCoreGdre::CamelliaContext::encrypt_cfb(size_t p_length, uint8_t p_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// size_t iv_off = 0; // Ignore and assume 16-byte alignment.
-	// int ret = mbedtls_camellia_crypt_cfb128((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_ENCRYPT, p_length, &iv_off, p_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::CamelliaContext::decrypt_ecb(const uint8_t p_src[16], uint8_t r_dst[16]) {
-	// int ret = mbedtls_camellia_crypt_ecb((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_DECRYPT, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::CamelliaContext::decrypt_cbc(size_t p_length, uint8_t r_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// int ret = mbedtls_camellia_crypt_cbc((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_DECRYPT, p_length, r_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::CamelliaContext::decrypt_cfb(size_t p_length, uint8_t p_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// size_t iv_off = 0; // Ignore and assume 16-byte alignment.
-	// int ret = mbedtls_camellia_crypt_cfb128((mbedtls_camellia_context *)ctx, MBEDTLS_CAMELLIA_DECRYPT, p_length, &iv_off, p_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-// ARIA
+// Aria
 CryptoCoreGdre::AriaContext::AriaContext() {
-	// ctx = memalloc(sizeof(mbedtls_aria_context));
-	// mbedtls_aria_init((mbedtls_aria_context *)ctx);
+	ctx = memalloc_zeroed(sizeof(psa_cipher_operation_t));
 }
 
 CryptoCoreGdre::AriaContext::~AriaContext() {
-	// mbedtls_aria_free((mbedtls_aria_context *)ctx);
-	// memfree((mbedtls_aria_context *)ctx);
+	psa_cipher_abort((psa_cipher_operation_t *)ctx);
+	psa_destroy_key(key_id);
+	memfree((psa_cipher_operation_t *)ctx);
 }
 
-Error CryptoCoreGdre::AriaContext::set_encode_key(const uint8_t *p_key, size_t p_bits) {
-	// int ret = mbedtls_aria_setkey_enc((mbedtls_aria_context *)ctx, p_key, p_bits);
-	// return ret ? FAILED : OK;
+void CryptoCoreGdre::AriaContext::reset() {
+	psa_cipher_abort((psa_cipher_operation_t *)ctx);
+	psa_destroy_key(key_id);
+	key_id = PSA_KEY_ID_NULL;
+	alg = PSA_ALG_NONE;
 }
 
-Error CryptoCoreGdre::AriaContext::set_decode_key(const uint8_t *p_key, size_t p_bits) {
-	// int ret = mbedtls_aria_setkey_dec((mbedtls_aria_context *)ctx, p_key, p_bits);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::AriaContext::setup(Mode p_mode, Cipher p_cipher, const uint8_t *p_key, size_t p_key_length, const uint8_t *p_iv, size_t p_iv_size) {
+	reset();
+	psa_key_attributes_t attr = PSA_KEY_ATTRIBUTES_INIT;
+	switch (p_mode) {
+		case Mode::NONE:
+			return OK;
+		case Mode::ENCRYPT:
+		case Mode::DECRYPT:
+			break;
+		default:
+			return ERR_INVALID_PARAMETER;
+	}
+	switch (p_cipher) {
+		case Cipher::CBC:
+			alg = PSA_ALG_CBC_NO_PADDING;
+			break;
+		case Cipher::ECB:
+			alg = PSA_ALG_ECB_NO_PADDING;
+			break;
+		case Cipher::CFB:
+			alg = PSA_ALG_CFB;
+			break;
+		default:
+			return ERR_INVALID_PARAMETER;
+	}
+	psa_set_key_usage_flags(&attr, PSA_KEY_USAGE_ENCRYPT | PSA_KEY_USAGE_DECRYPT);
+	psa_set_key_algorithm(&attr, alg);
+	psa_set_key_type(&attr, PSA_KEY_TYPE_ARIA);
+	psa_set_key_bits(&attr, p_key_length << 3);
+	int ret = psa_import_key(&attr, p_key, p_key_length, &key_id);
+	if (ret) {
+		return FAILED;
+	}
+	if (p_mode == Mode::ENCRYPT) {
+		ret = psa_cipher_encrypt_setup((psa_cipher_operation_t *)ctx, key_id, alg);
+	} else {
+		ret = psa_cipher_decrypt_setup((psa_cipher_operation_t *)ctx, key_id, alg);
+	}
+	if (ret == PSA_SUCCESS && p_iv_size) {
+		ret = psa_cipher_set_iv((psa_cipher_operation_t *)ctx, p_iv, p_iv_size);
+	}
+	if (ret) {
+		reset();
+		return FAILED;
+	}
+	return OK;
 }
 
-Error CryptoCoreGdre::AriaContext::encrypt_ecb(const uint8_t p_src[16], uint8_t r_dst[16]) {
-	// int ret = mbedtls_aria_crypt_ecb((mbedtls_aria_context *)ctx, p_src, r_dst);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::AriaContext::update(const uint8_t *p_src, size_t p_src_size, uint8_t *r_dst, size_t p_dst_size) {
+	size_t size = 0;
+	int ret = psa_cipher_update((psa_cipher_operation_t *)ctx, p_src, p_src_size, r_dst, p_dst_size, &size);
+	if (ret) {
+		return FAILED;
+	}
+	ERR_FAIL_COND_V(p_dst_size != size, ERR_BUG);
+	return OK;
 }
 
-Error CryptoCoreGdre::AriaContext::encrypt_cbc(size_t p_length, uint8_t r_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// int ret = mbedtls_aria_crypt_cbc((mbedtls_aria_context *)ctx, MBEDTLS_ARIA_ENCRYPT, p_length, r_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::AriaContext::encrypt_cfb(size_t p_length, uint8_t p_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// size_t iv_off = 0; // Ignore and assume 16-byte alignment.
-	// int ret = mbedtls_aria_crypt_cfb128((mbedtls_aria_context *)ctx, MBEDTLS_ARIA_ENCRYPT, p_length, &iv_off, p_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::AriaContext::decrypt_ecb(const uint8_t p_src[16], uint8_t r_dst[16]) {
-	// int ret = mbedtls_aria_crypt_ecb((mbedtls_aria_context *)ctx, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::AriaContext::decrypt_cbc(size_t p_length, uint8_t r_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// int ret = mbedtls_aria_crypt_cbc((mbedtls_aria_context *)ctx, MBEDTLS_ARIA_DECRYPT, p_length, r_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
-}
-
-Error CryptoCoreGdre::AriaContext::decrypt_cfb(size_t p_length, uint8_t p_iv[16], const uint8_t *p_src, uint8_t *r_dst) {
-	// size_t iv_off = 0; // Ignore and assume 16-byte alignment.
-	// int ret = mbedtls_aria_crypt_cfb128((mbedtls_aria_context *)ctx, MBEDTLS_ARIA_DECRYPT, p_length, &iv_off, p_iv, p_src, r_dst);
-	// return ret ? FAILED : OK;
+Error CryptoCoreGdre::AriaContext::finish(uint8_t *r_dst, size_t p_dst_size) {
+	size_t size = 0;
+	int ret = psa_cipher_finish((psa_cipher_operation_t *)ctx, r_dst, p_dst_size, &size);
+	reset();
+	if (ret) {
+		return FAILED;
+	}
+	ERR_FAIL_COND_V(p_dst_size != size, ERR_BUG);
+	return OK;
 }

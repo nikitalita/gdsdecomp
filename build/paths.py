@@ -4,6 +4,8 @@ import os
 EXTERNAL_STEM = "external_install"
 
 MBEDTLS_THIRDPARTY_DIR = "#thirdparty/mbedtls/include/"
+PSA_CRYPTO_THIRDPARTY_DIR = "#thirdparty/mbedtls/tf-psa-crypto/include/"
+PSA_CRYPTO_THIRDPARTY_DRIVERS_BUILTIN_DIR = "#thirdparty/mbedtls/tf-psa-crypto/drivers/builtin/include/"
 MMP3_THIRDPARTY_DIR = "#thirdparty/minimp3/"
 LIBOGG_THIRDPARTY_DIR = "#thirdparty/libogg/"
 LIBTHEORA_THIRDPARTY_DIR = "#thirdparty/libtheora/"
