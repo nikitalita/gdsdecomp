@@ -30,19 +30,19 @@ git reset --hard $HEAD
 BRANCHES_TO_MERGE=(
 	material-fix-deprecated-param
 	fix-pack-error
-	convert-3.x-escn
+	MeshInstance3D-old-prop
+	resource-start-load-finish-load
+	convert-shader-3.x-new
+	convert-animation-3.x-new
 	fix-compat-array-shapes
 	fix-diraccess-windows
 	fix-cli-parser
 	gltf-fix-skeleton-bone
 	gltf-fix-double-precision
 	gltf-fix-vertex-colors
-	fix-v3-meshes
 	fix-clearcoat-gloss
-	gltf-mutex-all-document-extensions
 	gltf-node-weights
 	gltf-clear-mipmaps-before-dupe
-	fix-mesh-index-3.x
 )
 
 # set fail on error
@@ -63,7 +63,7 @@ else
     sed_in_place() { sed -i "$@"; }
 fi
 
-git push nikitalita $NEW_BRANCH_NAME --set-upstream
+# git push nikitalita $NEW_BRANCH_NAME --set-upstream
 
 # change the branch name in .github/workflows/all_builds.yml and the README.md
 sed_in_place "s/GODOT_MAIN_SYNC_REF: .*/GODOT_MAIN_SYNC_REF: $NEW_BRANCH_NAME/" "$GDRE_PATH/.github/workflows/all_builds.yml"

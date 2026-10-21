@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 Import("env")
 Import("env_modules")
 
-GODOT_MAIN_SYNC_REF = "gdre-wb-f964fa714f5"
+GODOT_MAIN_SYNC_REF = "gdre-wb-7782e7e21e"
 MODULE_DIR = get_module_dir(env)
 BUILD_DIR = get_build_dir(env)
 
