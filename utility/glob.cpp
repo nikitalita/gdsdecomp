@@ -684,7 +684,6 @@ Vector<String> Glob::names_in_dirs(const Vector<String> &names, const Vector<Str
 
 Vector<String> Glob::dirs_in_names(const Vector<String> &names, const Vector<String> &dirs) {
 	Vector<String> patterns;
-	Vector<String> ret;
 	for (auto &dir : dirs) {
 		patterns.push_back(dir.path_join("*"));
 	}

@@ -1137,7 +1137,6 @@ String DirAccessGDRE::read_link(String p_file) {
 
 Error DirAccessGDRE::create_link(String p_source, String p_target) {
 	if (proxy.is_valid()) {
-		String new_source;
 		return proxy->create_link(p_source, p_target);
 	}
 	return ERR_UNAVAILABLE;

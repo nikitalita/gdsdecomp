@@ -219,7 +219,6 @@ Error PckDumper::_pck_dump_to_dir(
 	int files_extracted = 0;
 	Error err = OK;
 	Vector<ExtractToken> tokens;
-	Vector<String> paths_to_extract;
 	gdre::CaselessHashSet seen_paths;
 	HashSet<String> files_to_extract_set = gdre::vector_to_hashset(files_to_extract);
 	for (int i = 0; i < files.size(); i++) {

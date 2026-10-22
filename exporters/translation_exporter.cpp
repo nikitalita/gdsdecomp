@@ -693,7 +693,6 @@ struct KeyWorker {
 			last_char = p_res_s[new_len - 1];
 		}
 		CharString res_s_copy;
-		String num_str;
 
 		if (stripped_last_char) {
 			res_s_copy = p_res_s;
@@ -1522,7 +1521,6 @@ struct KeyWorker {
 
 	Vector<String> split_on_godot_format_placeholders(const String &str) {
 		Vector<String> result;
-		String current_part;
 
 		if (!str.contains("%")) {
 			return { str };
@@ -2156,8 +2154,6 @@ struct KeyWorker {
 		Vector<String> prefixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
 		Vector<String> suffixes_for_DETECTED_PREFIX_SUFFIX_COMBINED;
 		if (should_run_step(Stage::COMMON_PREFIX_SUFFIX)) {
-			auto sanitized_standard_suffixes = get_sanitized_strings(STANDARD_SUFFIXES);
-
 			get_common_prefix_suffix(common_prefixes, common_suffixes);
 			prep_common_prefix_suffix();
 
@@ -2167,7 +2163,6 @@ struct KeyWorker {
 				HashSet<String> working_set = get_prefix_suffix_working_set();
 				pop_charstr_vectors();
 				Vector<CharString> working_set_t = iter_string_to_charstring(working_set);
-				String stage_name = "Common prefix/suffix";
 				Error stage3_err = run_stage(&KeyWorker::prefix_suffix_task_2<false>, working_set_t, get_stage_name(Stage::COMMON_PREFIX_SUFFIX), true);
 
 				RET_ON_ERROR(stage3_err);
@@ -2218,7 +2213,7 @@ struct KeyWorker {
 			// stage 4.1: try to find keys with just prefixes and suffixes
 			for (const auto &prefix : common_prefixes_t) {
 				for (const auto &suffix : common_suffixes_t) {
-					String combined = String::utf8(prefix.get_data()) + String::utf8(suffix.get_data());
+					// String combined = String::utf8(prefix.get_data()) + String::utf8(suffix.get_data());
 					if (try_key_suffix<true>(prefix.get_data(), suffix.get_data())) {
 						// if (!key_to_message.has(combined)) {
 						// 	reg_successful_prefix(prefix.get_data());
@@ -2765,7 +2760,7 @@ Error TranslationExporter::patch_translations(const String &output_dir, const St
 	Error err = get_translations(translation_info, default_locale, default_translation, translations, keys);
 	ERR_FAIL_COND_V_MSG(err != OK, err, "Could not get translations");
 
-	Vector<String> default_messages = default_translation->get_translated_message_list();
+	// Vector<String> default_messages = default_translation->get_translated_message_list();
 	HashMap<String, Pair<Ref<Translation>, Vector<String>>> translation_messages;
 	for (auto &translation : translations) {
 		translation_messages[get_translation_locale(translation)] = Pair<Ref<Translation>, Vector<String>>(translation, translation->get_translated_message_list());

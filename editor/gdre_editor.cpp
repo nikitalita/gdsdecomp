@@ -1250,7 +1250,6 @@ void GodotREEditor::_pck_save_prep() {
 #define PCK_PADDING 16
 
 void GodotREEditor::_pck_save_request(const String &p_path) {
-	String error_string;
 	Vector<String> include_filters = pck_save_dialog->get_enc_filters_in().split(",", false);
 	Vector<String> exclude_filters = pck_save_dialog->get_enc_filters_ex().split(",", false);
 	auto file_paths_to_pack = PckCreator::get_files_to_pack(pck_file, include_filters, exclude_filters);

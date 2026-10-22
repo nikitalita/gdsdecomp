@@ -349,7 +349,6 @@ void PluginManager::start_load_cache() {
 
 void PluginManager::_load_cache_on_this_thread(void *_unused) {
 	auto start_time = OS::get_singleton()->get_ticks_msec();
-	Dictionary d;
 	if (FileAccess::exists(STATIC_PLUGIN_CACHE_PATH)) {
 		load_plugin_version_cache_file(STATIC_PLUGIN_CACHE_PATH, true);
 	}
@@ -565,7 +564,6 @@ Error PluginManager::populate_plugin_version_hashes(PluginVersion &plugin_versio
 			files.remove_at(i);
 		}
 	}
-	String gd_ext_file = "";
 	Ref<DirAccess> da = DirAccess::create(DirAccess::ACCESS_FILESYSTEM);
 
 	// get all the gdexts

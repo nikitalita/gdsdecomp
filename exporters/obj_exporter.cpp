@@ -183,7 +183,6 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const
 		HashMap<Triplet, int, TripletHasher> triplet_to_index;
 		Vector<String> surface_material_names;
 		Vector<Vector<int>> surface_face_triplet_indices;
-		Vector<String> groups;
 		r_mesh_info.has_shadow_meshes = r_mesh_info.has_shadow_meshes || has_shadow_mesh(p_mesh);
 		auto surface_count = get_surface_count(p_mesh);
 		for (int surf_idx = 0; surf_idx < surface_count; surf_idx++) {

@@ -189,7 +189,6 @@ HashMap<String, ShaderMaterialConverter::UniformInfo> fallback_parse_shader_unif
 	for (auto &E : matches) {
 		Ref<RegExMatch> match = E;
 		ShaderMaterialConverter::UniformInfo info;
-		String param_name = match->get_string(3);
 		info.name = match->get_string("name");
 		info.scope = ShaderMaterialConverter::UniformInfo::parse_scope(match->get_string("scope"));
 		info.type = ShaderMaterialConverter::UniformInfo::parse_data_type(match->get_string("type"));
@@ -512,7 +511,6 @@ Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> ShaderMaterialConverter::convert_sha
 	// We also need to handle the texture parameters and features
 	using Hint = ShaderLanguage::ShaderNode::Uniform::Hint;
 	ERR_FAIL_COND_V_MSG(p_shader_material.is_null(), {}, "ShaderMaterial is NULL");
-	List<StringName> list;
 	Ref<Shader> shader = p_shader_material->get_shader();
 	if (shader.is_null()) {
 #ifdef DEBUG_ENABLED

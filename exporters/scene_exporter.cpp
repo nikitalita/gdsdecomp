@@ -1764,7 +1764,6 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		// generate mesh instances from script properties
 		if (si) {
 			si->get_property_list(&properties);
-			HashSet<Variant> other_values;
 			HashSet<Ref<Skin>> skins;
 			HashSet<NodePath> skeleton_paths;
 			for (auto &prop : properties) {
@@ -1837,12 +1836,12 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 			auto transform = node3d ? node3d->get_transform() : Transform3D();
 			auto script = node->get_script();
 			original_node = node;
-			String original_class = node->get_class();
+			// String original_class = node->get_class();
 			List<PropertyInfo> properties;
 			node->get_property_list(&properties);
 			//VisualInstance3D, CollisionObject3D, NavigationRegion3D
 			//E.usage == PROPERTY_USAGE_CATEGORY && E.name == "BaseMaterial3D"
-			const HashSet<StringName> original_classes = { "VisualInstance3D", "CollisionObject3D", "NavigationRegion3D" };
+			// const HashSet<StringName> original_classes = { "VisualInstance3D", "CollisionObject3D", "NavigationRegion3D" };
 			bool hit_node_3d_category = false;
 			for (auto &E : properties) {
 				// setting any of the Node or Object properties will screw this up
@@ -2197,7 +2196,6 @@ String GLBExporterInstance::get_gltf_image_hash(const Ref<GLTFState> &p_state, c
 		mime_type = dict["mimeType"];
 	}
 
-	String resource_uri;
 	// We only need the image hash if it's embedded in the glTF file, so if it's not a bufferView, we can return early.
 	Vector<uint8_t> data;
 	if (dict.has("bufferView")) {
@@ -2233,7 +2231,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 		GDRE_SCN_EXP_CHECK_CANCEL();
 		String game_name = GDRESettings::get_singleton()->get_game_name();
 		String copyright_string = vformat(COPYRIGHT_STRING_FORMAT, game_name.is_empty() ? p_dest_path.get_file().get_basename() : game_name);
-		List<String> deps;
 		Ref<GLTFDocument> doc;
 		doc.instantiate();
 		Ref<GLTFState> state;
@@ -2257,7 +2254,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			doc->set_visibility_mode(GLTFDocument::VisibilityMode::VISIBILITY_MODE_INCLUDE_OPTIONAL);
 		}
 		int32_t flags = 0;
-		auto exts = doc->get_supported_gltf_extensions();
 		flags |= 16; // EditorSceneFormatImporter::IMPORT_USE_NAMED_SKIN_BINDS;
 		bool was_silenced = _is_logger_silencing_errors();
 		_silence_errors(true);
@@ -2405,8 +2401,6 @@ Error GLBExporterInstance::_export_instanced_scene(Node *root, const String &p_d
 			if (json.has("meshes")) {
 				auto default_light_map_size = Vector2i(0, 0);
 				HashSet<String> mesh_names;
-				Vector<Pair<Ref<ArrayMesh>, MeshInstance3D *>> mesh_to_instance;
-				Vector<bool> mesh_is_shadow;
 				auto gltf_meshes = state->get_meshes();
 				Array json_meshes = json.has("meshes") ? (Array)json["meshes"] : Array();
 				HashSet<Ref<ImporterMesh>> shadow_meshes;
@@ -3881,7 +3875,6 @@ HashMap<StringName, Node *> _find_reference_nodes_for_animation_library(const Re
 						instance = state->get_node_instance(0);
 						break;
 					}
-					auto names = instance_node_path.get_name_count() - 1 == 0 ? Vector<StringName>({ StringName(".") }) : instance_node_path.get_names().slice(0, instance_node_path.get_name_count() - 1);
 
 					instance_node_path = NodePath(instance_node_path.get_names().slice(0, instance_node_path.get_name_count() - 1), instance_node_path.is_absolute());
 				}

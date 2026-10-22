@@ -790,7 +790,7 @@ Error HTTPRequester::wget_sync(const String &p_url, Vector<uint8_t> &response, d
 	HTTPRequester requester;
 	requester.set_time_limit(timeout);
 	requester.set_request_timeout(MIN(HTTPRequester::get_default_request_timeout(), timeout));
-	auto start_time = OS::get_singleton()->get_unix_time();
+	[[maybe_unused]] auto start_time = OS::get_singleton()->get_unix_time();
 	requester.start_request(p_url, extra_headers, HTTPClient::METHOD_GET);
 	Error err = _wait_for_request_completion(&requester, retries, p_progress, p_cancelled, nullptr);
 #if 0

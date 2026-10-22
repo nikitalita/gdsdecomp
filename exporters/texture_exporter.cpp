@@ -389,7 +389,6 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report
 
 Error TextureExporter::_convert_tex(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
-	String dst_dir = dest_path.get_base_dir();
 	Ref<Texture2D> tex;
 	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
 
@@ -424,7 +423,6 @@ Error TextureExporter::_convert_tex(const String &p_path, const String &dest_pat
 
 Error TextureExporter::_convert_atex(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
-	String dst_dir = dest_path.get_base_dir();
 	Ref<Texture2D> loaded_tex = ResourceCompatLoader::custom_load(p_path, "", ResourceInfo::GLTF_LOAD, &err, false, ResourceFormatLoader::CACHE_MODE_IGNORE_DEEP);
 	// deprecated format
 	if (err == ERR_UNAVAILABLE) {
@@ -634,7 +632,6 @@ Error save_image_with_mipmaps(const String &dest_path, const Vector<Ref<Image>> 
 
 Error TextureExporter::_convert_3d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
-	String dst_dir = dest_path.get_base_dir();
 	Ref<ImportInfo> iinfo;
 	if (report.is_valid()) {
 		iinfo = report->get_import_info();
@@ -840,7 +837,6 @@ Vector<Ref<Image>> fix_cross_cubemaps(const Vector<Ref<Image>> &images, int widt
 
 Error TextureExporter::_convert_layered_2d(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
 	Error err;
-	String dst_dir = dest_path.get_base_dir();
 	Ref<ImportInfo> iinfo;
 	if (report.is_valid()) {
 		iinfo = report->get_import_info();
@@ -1246,7 +1242,6 @@ String TextureExporter::get_name() const {
 }
 
 String TextureExporter::get_default_export_extension(const String &res_path) const {
-	String extension = res_path.get_extension();
 	if (res_path.has_extension("dpitex")) {
 		return "svg";
 	}

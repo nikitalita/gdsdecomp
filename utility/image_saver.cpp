@@ -266,7 +266,6 @@ Error ImageSaver::save_image_as_bmp(const String &p_path, const Ref<Image> &p_im
 }
 
 Error ImageSaver::save_image_as_tga(const String &p_path, const Ref<Image> &p_img, bool duplicate) {
-	Vector<uint8_t> buffer;
 	Ref<Image> source_image = duplicate ? (Ref<Image>)p_img->duplicate() : p_img;
 	GDRE_ERR_DECOMPRESS_OR_FAIL(source_image);
 	int width = source_image->get_width();

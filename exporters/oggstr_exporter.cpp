@@ -222,7 +222,6 @@ auto packet_data_to_flat_vector(const TypedArray<Array> &packet_data) -> Vector<
 Error OggStrExporter::test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const {
 	Error _ret_err = OK;
 	{
-		String real_src = export_report->get_import_info()->get_source_file();
 		auto dests = export_report->get_resources_used();
 		GDRE_REQUIRE_GE(dests.size(), 1);
 		String pck_resource = dests[0];

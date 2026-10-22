@@ -430,7 +430,7 @@ Vector<String> ImportInfoModern::get_dest_files() const {
 namespace {
 struct RemapPathSorter {
 	bool operator()(const Pair<String, Variant> &a, const Pair<String, Variant> &b) const {
-		String feature = a.first.get_slicec('.', 1);
+		// String feature = a.first.get_slicec('.', 1);
 		return a.first < b.first;
 	}
 };
@@ -970,7 +970,6 @@ Error ImportInfov2::_load(const String &p_path) {
 			source_file = p_path.get_base_dir().path_join(base + "." + ext);
 		}
 		String new_ext = source_file.get_extension().to_lower();
-		String type = res_info->get_type().to_lower();
 		static const HashSet<String> autoconverted_extensions = {
 			"xml",
 			"xres",

@@ -137,7 +137,6 @@ bool FileAccessString::store_line(const String &p_line) {
 }
 
 String FileAccessString::get_as_utf8_string() const {
-	String s = data.substr(pos);
 	return data;
 }
 

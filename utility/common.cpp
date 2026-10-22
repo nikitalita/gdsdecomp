@@ -139,13 +139,13 @@ struct RecursiveListDirTaskData {
 				TaskManager::get_singleton()->wait_for_task_completion(group_id);
 			}
 			if (files_first) {
-				ret.append_array(std::move(files));
+				ret.append_array(files);
 			}
 			for (auto &t : tokens) {
-				ret.append_array(std::move(t.ret));
+				ret.append_array(t.ret);
 			}
 			if (!files_first) {
-				ret.append_array(std::move(files));
+				ret.append_array(files);
 			}
 		} else {
 			files.sort_custom<FileNoCaseComparator>();
@@ -252,11 +252,9 @@ Vector<String> gdre::get_recursive_dir_list(const String &p_dir, const Vector<St
 }
 
 bool gdre::dir_has_any_matching_wildcards(const String &p_dir, const Vector<String> &wildcards) {
-	Vector<String> ret;
 	Error err;
 	Ref<DirAccess> da = DirAccess::open(p_dir, &err);
 	ERR_FAIL_COND_V_MSG(da.is_null(), false, "Failed to open directory " + p_dir);
-	Vector<String> dirs;
 
 	da->list_dir_begin();
 	String f = da->get_next();
