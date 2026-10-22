@@ -18,6 +18,7 @@
 #include "scene/resources/texture.h"
 #include "utility/gdre_settings.h"
 #include "utility/image_saver.h"
+#include "utility/import_info.h"
 #include "utility/resource_info.h"
 
 #include <cstdint>
@@ -1031,7 +1032,7 @@ Error TextureExporter::_convert_svg(const String &p_path, const String &dest_pat
 	return OK;
 }
 
-Error get_extant_texture_path(Ref<ImportInfo> iinfo, String &path) {
+static inline Error get_extant_texture_path(Ref<ImportInfo> iinfo, String &path) {
 	path = iinfo->get_path();
 
 	if (iinfo->get_dest_files().size() > 1 && iinfo->get_ver_major() >= 3) {
@@ -1063,68 +1064,99 @@ Error get_extant_texture_path(Ref<ImportInfo> iinfo, String &path) {
 	return OK;
 }
 
+static inline bool source_is_rewritable(const Ref<ImportInfo> &iinfo) {
+	return iinfo->get_ver_major() < 2 && iinfo->is_import();
+}
+
+static inline String get_validated_export_dest(const Ref<ImportInfo> &iinfo) {
+	String export_dest = iinfo->get_export_dest();
+	if (export_dest.is_empty()) {
+#ifdef DEBUG_ENABLED
+		WARN_PRINT("Export destination is empty for import info " + iinfo->get_path());
+#endif
+		export_dest = iinfo->get_source_file();
+	}
+	String export_ext = export_dest.get_extension().to_lower();
+
+	// for Godot 2.x resources, we can easily rewrite the metadata to point to a renamed file with a different extension,
+	// but this isn't the case for 3.x and greater, so we have to save in the original (lossy) format.
+	if (export_ext != "png" && (source_is_rewritable(iinfo) || !ImageSaver::is_supported_extension(export_ext))) {
+		export_dest = export_dest.get_basename() + ".png";
+		// for v3-4, this won't be importable, so we have to save it to a non-importable folder
+		if (iinfo->get_ver_major() > 2 && iinfo->is_import()) {
+			if (!export_dest.trim_prefix("res://").begins_with(".assets")) {
+				String prefix = ".assets";
+				if (export_dest.begins_with("res://")) {
+					prefix = "res://.assets";
+				}
+				export_dest = prefix.path_join(export_dest.trim_prefix("res://"));
+			}
+		}
+	}
+	return export_dest;
+}
+
+static inline bool format_is_lossy(const String &source_ext, int ver_major, int ver_minor) {
+	if (source_ext == "jpg" || source_ext == "jpeg" || source_ext == "svg") {
+		return true;
+	}
+	if (source_ext == "webp") {
+		return ver_major < 4 && !(ver_major == 3 && ver_minor >= 4);
+	}
+	return false;
+}
+
+static inline ImportInfo::LossType get_loss_type(const Ref<ImportInfo> &iinfo) {
+	String source_ext = iinfo->get_source_file().get_extension().to_lower();
+	auto loss_type = ImportInfo::LossType::LOSSLESS;
+	if (iinfo->get_type() == "DPITexture") {
+		if (source_ext != "svg") {
+			loss_type = ImportInfo::LossType::STORED_LOSSY;
+		}
+	} else if (format_is_lossy(source_ext, iinfo->get_ver_major(), iinfo->get_ver_minor())) {
+		loss_type = ImportInfo::LossType::STORED_LOSSY;
+	}
+	return loss_type;
+}
+
+static void set_loss_type_and_rewrite_export_dest(const Ref<ImportInfo> &iinfo, const Ref<ExportReport> &report) {
+	auto loss_type = get_loss_type(iinfo);
+	iinfo->set_export_dest(get_validated_export_dest(iinfo));
+
+	if (report.is_valid()) {
+		if (!source_is_rewritable(iinfo)) {
+			report->set_loss_type(loss_type);
+		}
+	}
+}
+
+static Error get_extant_path_and_set_error(const Ref<ExportReport> &report, String &path) {
+	auto iinfo = report->get_import_info();
+	Error err = get_extant_texture_path(iinfo, path);
+	if (err) {
+		report->set_error(err);
+		report->set_message("No existing textures found for this import");
+		report->append_message_detail({ "Possibles:" });
+		report->append_message_detail(iinfo->get_dest_files());
+	}
+	return err;
+}
+
 Ref<ExportReport> TextureExporter::export_resource(const String &output_dir, Ref<ImportInfo> iinfo) {
-	String path = iinfo->get_path();
-	String source = iinfo->get_source_file();
-	bool lossy = false;
 	int ver_major = iinfo->get_ver_major();
 	int ver_minor = iinfo->get_ver_minor();
 	Ref<ExportReport> report = memnew(ExportReport(iinfo, get_name()));
 
-	Error err = get_extant_texture_path(iinfo, path);
-	if (err) {
-		report->set_error(ERR_FILE_NOT_FOUND);
-		report->set_message("No existing textures found for this import");
-		report->append_message_detail({ "Possibles:" });
-		report->append_message_detail(iinfo->get_dest_files());
+	String path;
+	if (get_extant_path_and_set_error(report, path) != OK) {
 		return report;
 	}
 	report->set_resources_used({ path });
 	String importer = iinfo->get_importer();
+	set_loss_type_and_rewrite_export_dest(iinfo, report);
+	bool lossy = format_is_lossy(iinfo->get_export_dest().get_extension().to_lower(), ver_major, ver_minor);
 
-	// for Godot 2.x resources, we can easily rewrite the metadata to point to a renamed file with a different extension,
-	// but this isn't the case for 3.x and greater, so we have to save in the original (lossy) format.
-	String source_ext = source.get_extension().to_lower();
-	if (source_ext != "png" || ver_major == 2) {
-		if (ver_major > 2) {
-			if ((source_ext == "jpg" || source_ext == "jpeg") || source_ext == "svg") {
-				lossy = true;
-				report->set_loss_type(ImportInfo::STORED_LOSSY);
-			} else if (source_ext == "webp") {
-				// if the engine <3.4, it can't handle lossless encoded WEBPs
-				if (ver_major < 4 && !(ver_major == 3 && ver_minor >= 4)) {
-					lossy = true;
-					report->set_loss_type(ImportInfo::STORED_LOSSY);
-				}
-			} else if (!ImageSaver::is_supported_extension(source_ext)) {
-				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
-				// If this is version 3-4, we need to rewrite the import metadata to point to the new resource name
-				// save it under .assets, which won't be picked up for import by the godot editor
-				if (false) {
-					// disable this for now
-					// iinfo->set_source_file(iinfo->get_export_dest());
-				} else {
-					if (!iinfo->get_export_dest().replace("res://", "").begins_with(".assets")) {
-						String prefix = ".assets";
-						if (iinfo->get_export_dest().begins_with("res://")) {
-							prefix = "res://.assets";
-						}
-						iinfo->set_export_dest(prefix.path_join(iinfo->get_export_dest().replace("res://", "")));
-					}
-				}
-			}
-		} else { //version 2
-			if (!iinfo->is_import()) {
-				if (source_ext == "webp" || source_ext == "svg" || source_ext == "jpg" || source_ext == "jpeg") {
-					lossy = true;
-					report->set_loss_type(ImportInfo::STORED_LOSSY);
-				}
-			} else {
-				iinfo->set_export_dest(iinfo->get_export_dest().get_basename() + ".png");
-			}
-		}
-	}
-
+	Error err = OK;
 	String img_format = "bitmap";
 	String dest_path = output_dir.path_join(iinfo->get_export_dest().replace("res://", ""));
 	if (importer == "image") {
