@@ -96,6 +96,7 @@ Error ImageSaver::save_image(const String &dest_path, const Ref<Image> &p_img, b
 }
 
 Error ImageSaver::decompress_image(const Ref<Image> &img) {
+	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_INVALID_PARAMETER, "Image is null");
 	Error err;
 	if (img->is_compressed()) {
 		err = img->decompress();
@@ -103,6 +104,9 @@ Error ImageSaver::decompress_image(const Ref<Image> &img) {
 			return err;
 		}
 		ERR_FAIL_COND_V_MSG(err != OK || img.is_null(), err, "Failed to decompress image.");
+		if (img->is_compressed()) {
+			return ERR_COMPILATION_FAILED;
+		}
 	}
 	return OK;
 }
