@@ -686,12 +686,20 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 	auto plugin_files = gdre::get_recursive_dir_list(tmp_dir, {}, false);
 	auto existing_files = gdre::vector_to_hashset(gdre::get_recursive_dir_list(output, {}, false));
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
+	static const HashSet<String> extensions_to_skip = {
+		"shader",
+		"gdshader",
+		"tscn",
+		"tres",
+		"res",
+		"scn"
+	};
 	for (auto &file : plugin_files) {
 		String plugin_path = tmp_dir.path_join(file);
 		String existing_path = output.path_join(file);
 		if (existing_files.has(file)) {
 			String ext = file.get_extension().to_lower();
-			if (ext == "cs" || ext == "uid") {
+			if (extensions_to_skip.has(ext)) {
 				// not overwriting code or uid files because the project may have changed them in an incompatible way
 				continue;
 			} else if (ext == "gd") {
