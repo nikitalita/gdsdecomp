@@ -30,7 +30,8 @@ static const HashMap<String, Vector<String>> release_file_exclude_masks = {
 	{ "epic-online-services-godot", { "*-android-*", "*-ios-*", "*-macos-*", "*-windows-*", "*-linux-*", "*-web*" } },
 	{ "fmod", { "*android.zip", "*demo.zip" } },
 	{ "godotgif", { "*_convert_binary_*" } },
-	{ "twovoip", { "*lipsync*", "*LipSync*", "*twovoipgodot4mqtt*" } }
+	{ "twovoip", { "*lipsync*", "*LipSync*", "*twovoipgodot4mqtt*" } },
+	{ "sentry", { "*demo-project*", "*debug-symbols*" } }
 };
 
 static const HashMap<String, Vector<String>> plugin_map = {
