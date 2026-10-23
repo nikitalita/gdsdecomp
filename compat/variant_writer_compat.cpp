@@ -1,5 +1,6 @@
 #include "variant_writer_compat.h"
 #include "core/crypto/crypto_core.h"
+#include "core/variant/container_type_validate.h"
 
 #include "compat/resource_loader_compat.h"
 #include "core/object/class_db.h"
@@ -1058,13 +1059,42 @@ struct VarWriter {
 		return "Resource(\"" + path.c_escape_multiline() + "\")";
 	}
 
+	static void write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud);
+
 	static Error write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud);
-	static Error write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count);
+	static Error write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count);
 
 }; // struct VariantWriterCompatInstance
 
 template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
-Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, int p_recursion_count) {
+void VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud,
+		VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+	if (p_type.script.is_valid()) {
+		String resource_text;
+		if (p_encode_res_func) {
+			resource_text = p_encode_res_func(p_encode_res_ud, p_type.script);
+		}
+		if (resource_text.is_empty() && p_type.script->get_path().is_resource_file()) {
+			resource_text = encode_resource_reference(p_type.script->get_path());
+		}
+
+		if (!resource_text.is_empty()) {
+			p_store_string_func(p_store_string_ud, resource_text);
+		} else {
+			ERR_PRINT("Failed to encode a path to a custom script for a container type.");
+			p_store_string_func(p_store_string_ud, p_type.class_name);
+		}
+	} else if (p_type.class_name != StringName()) {
+		p_store_string_func(p_store_string_ud, p_type.class_name);
+	} else if (p_type.variant_type == Variant::NIL) {
+		p_store_string_func(p_store_string_ud, "Variant");
+	} else {
+		p_store_string_func(p_store_string_ud, Variant::get_type_name(p_type.variant_type));
+	}
+}
+
+template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
+Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count) {
 	switch (p_variant.get_type()) {
 		case Variant::NIL: {
 			p_store_string_func(p_store_string_ud, "null");
@@ -1269,29 +1299,31 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 				}
 			}
 
-			//store as generic object
+			// pretty print has new lines
+			const String value_prefix = p_pretty_print ? " " : "";
+			const String value_suffix = p_pretty_print ? ",\n" : ",";
+			const String object_start_suffix = p_pretty_print ? "\n" : "";
+			const String object_end_prefix = p_pretty_print ? "\n" : "";
+			const String object_end_suffix = p_pretty_print ? "" : "\n";
 
-			p_store_string_func(p_store_string_ud, "Object(" + ResourceCompatLoader::object_get_class_name_for_saving(obj) + ",");
+			//store as generic object
+			p_store_string_func(p_store_string_ud, "Object(" + obj->get_class() + "," + object_start_suffix);
 
 			List<PropertyInfo> props;
 			obj->get_property_list(&props);
 			bool first = true;
-			for (const PropertyInfo &E : props) {
-				if (E.usage & PROPERTY_USAGE_STORAGE || E.usage & PROPERTY_USAGE_SCRIPT_VARIABLE) {
-					//must be serialized
-
-					if (first) {
-						first = false;
-					} else {
-						p_store_string_func(p_store_string_ud, ",");
+			for (const PropertyInfo &prop : props) {
+				if (prop.usage & PROPERTY_USAGE_STORAGE || prop.usage & PROPERTY_USAGE_SCRIPT_VARIABLE) {
+					if (!first) {
+						p_store_string_func(p_store_string_ud, value_suffix);
 					}
-
-					p_store_string_func(p_store_string_ud, "\"" + E.name + "\":");
-					write_compat_v4(obj->get(E.name), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+					first = false;
+					p_store_string_func(p_store_string_ud, "\"" + prop.name + "\":" + value_prefix);
+					write_compat_v4(obj->get(prop.name), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_pretty_print, p_recursion_count);
 				}
 			}
 
-			p_store_string_func(p_store_string_ud, ")\n");
+			p_store_string_func(p_store_string_ud, object_end_prefix + ")" + object_end_suffix);
 		} break;
 
 		case Variant::DICTIONARY: {
@@ -1300,61 +1332,11 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 			if (dict.is_typed()) {
 				p_store_string_func(p_store_string_ud, "Dictionary[");
 
-				Variant::Type key_builtin_type = (Variant::Type)dict.get_typed_key_builtin();
-				StringName key_class_name = dict.get_typed_key_class_name();
-				Ref<Script> key_script = dict.get_typed_key_script();
-
-				if (key_script.is_valid()) {
-					String resource_text;
-					if (p_encode_res_func) {
-						resource_text = p_encode_res_func(p_encode_res_ud, key_script);
-					}
-					if (resource_text.is_empty() && key_script->get_path().is_resource_file()) {
-						resource_text = encode_resource_reference(key_script->get_path());
-					}
-
-					if (!resource_text.is_empty()) {
-						p_store_string_func(p_store_string_ud, resource_text);
-					} else {
-						ERR_PRINT("Failed to encode a path to a custom script for a dictionary key type.");
-						p_store_string_func(p_store_string_ud, key_class_name);
-					}
-				} else if (key_class_name != StringName()) {
-					p_store_string_func(p_store_string_ud, key_class_name);
-				} else if (key_builtin_type == Variant::NIL) {
-					p_store_string_func(p_store_string_ud, "Variant");
-				} else {
-					p_store_string_func(p_store_string_ud, Variant::get_type_name(key_builtin_type));
-				}
+				write_container_type(dict.get_key_type(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
 
 				p_store_string_func(p_store_string_ud, ", ");
 
-				Variant::Type value_builtin_type = (Variant::Type)dict.get_typed_value_builtin();
-				StringName value_class_name = dict.get_typed_value_class_name();
-				Ref<Script> value_script = dict.get_typed_value_script();
-
-				if (value_script.is_valid()) {
-					String resource_text;
-					if (p_encode_res_func) {
-						resource_text = p_encode_res_func(p_encode_res_ud, value_script);
-					}
-					if (resource_text.is_empty() && value_script->get_path().is_resource_file()) {
-						resource_text = encode_resource_reference(value_script->get_path());
-					}
-
-					if (!resource_text.is_empty()) {
-						p_store_string_func(p_store_string_ud, resource_text);
-					} else {
-						ERR_PRINT("Failed to encode a path to a custom script for a dictionary value type.");
-						p_store_string_func(p_store_string_ud, value_class_name);
-					}
-				} else if (value_class_name != StringName()) {
-					p_store_string_func(p_store_string_ud, value_class_name);
-				} else if (value_builtin_type == Variant::NIL) {
-					p_store_string_func(p_store_string_ud, "Variant");
-				} else {
-					p_store_string_func(p_store_string_ud, Variant::get_type_name(value_builtin_type));
-				}
+				write_container_type(dict.get_value_type(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
 
 				p_store_string_func(p_store_string_ud, "](");
 			}
@@ -1376,9 +1358,9 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 
 					for (size_t i = 0; i < keys.size(); i++) {
 						const Variant &E = keys[i];
-						write_compat_v4(E, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+						write_compat_v4(E, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_pretty_print, p_recursion_count);
 						p_store_string_func(p_store_string_ud, ": ");
-						write_compat_v4(dict[E], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+						write_compat_v4(dict[E], p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_pretty_print, p_recursion_count);
 						if (i < keys.size() - 1) {
 							p_store_string_func(p_store_string_ud, ",\n");
 						} else {
@@ -1401,30 +1383,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 			if (array.is_typed()) {
 				p_store_string_func(p_store_string_ud, "Array[");
 
-				Variant::Type builtin_type = (Variant::Type)array.get_typed_builtin();
-				StringName class_name = array.get_typed_class_name();
-				Ref<Script> script = array.get_typed_script();
-
-				if (script.is_valid()) {
-					String resource_text = String();
-					if (p_encode_res_func) {
-						resource_text = p_encode_res_func(p_encode_res_ud, script);
-					}
-					if (resource_text.is_empty() && script->get_path().is_resource_file()) {
-						resource_text = encode_resource_reference(script->get_path());
-					}
-
-					if (!resource_text.is_empty()) {
-						p_store_string_func(p_store_string_ud, resource_text);
-					} else {
-						ERR_PRINT("Failed to encode a path to a custom script for an array type.");
-						p_store_string_func(p_store_string_ud, class_name);
-					}
-				} else if (class_name != StringName()) {
-					p_store_string_func(p_store_string_ud, class_name);
-				} else {
-					p_store_string_func(p_store_string_ud, Variant::get_type_name(builtin_type));
-				}
+				write_container_type(array.get_element_type(), p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud);
 
 				p_store_string_func(p_store_string_ud, "](");
 			}
@@ -1444,7 +1403,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 					} else {
 						p_store_string_func(p_store_string_ud, ", ");
 					}
-					write_compat_v4(var, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_recursion_count);
+					write_compat_v4(var, p_store_string_func, p_store_string_ud, p_encode_res_func, p_encode_res_ud, p_pretty_print, p_recursion_count);
 				}
 
 				p_store_string_func(p_store_string_ud, "]");
@@ -1915,17 +1874,19 @@ Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, Stri
 		} break;
 
 		case 4: {
+			// script never pretty prints
+			static constexpr bool pretty_print = false;
 			if (ver_minor > 4) {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, true, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, true, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, false, true, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, true, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			} else {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, true, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, true, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, false, true, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, true, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			}
 		} break;
@@ -1955,17 +1916,18 @@ Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String
 		} break;
 
 		case 4: {
+			bool pretty_print = ver_minor >= 8 ? true : false;
 			if (ver_minor > 4) {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, true, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, true, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, true, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, true, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			} else {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, true, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, true, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, true, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, true, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			}
 		} break;
@@ -1993,17 +1955,19 @@ Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_s
 		} break;
 
 		case 4: {
+			// verions below 4.8 didn't have pretty printing
+			bool pretty_print = ver_minor >= 8 ? true : false;
 			if (ver_minor > 4) {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, false, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			} else {
 				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				} else {
-					return VarWriter<4, false, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, 0);
+					return VarWriter<4, false, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 				}
 			}
 		} break;

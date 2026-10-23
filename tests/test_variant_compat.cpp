@@ -153,7 +153,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, true);
 		CHECK(error == OK);
 		String gd_ret;
-		error = VariantWriter::write_to_string(p_val, gd_ret, false, nullptr, nullptr, true);
+		error = VariantWriter::write_to_string(p_val, gd_ret, true, nullptr, nullptr, true);
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
@@ -167,7 +167,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, false);
 		CHECK(error == OK);
 		String gd_ret;
-		error = VariantWriter::write_to_string(p_val, gd_ret, false, nullptr, nullptr, false);
+		error = VariantWriter::write_to_string(p_val, gd_ret, true, nullptr, nullptr, false);
 		CHECK(error == OK);
 		CHECK(compat_ret.size() == gd_ret.size());
 		CHECK(compat_ret == gd_ret);
@@ -977,6 +977,14 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
 			CHECK(original_data[i] == parsed_data[i]);
 		}
 	}
+}
+
+TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Object") {
+	String obj_v3_str = String(R"(Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":0,"alt":false,"shift":false,"control":false,"meta":false,"command":false,"pressed":false,"scancode":16777221,"physical_scancode":0,"unicode":0,"echo":false,"script":null))") + "\n";
+	Ref<InputEventKey> obj_v3 = parse_and_get_variant(obj_v3_str, Variant::OBJECT);
+	REQUIRE(obj_v3.is_valid());
+	test_variant_write_v3("Object", obj_v3, obj_v3_str, true);
+	test_variant_write_v4("Object", obj_v3, true);
 }
 
 // The following tests are pilfered from test_variant.h, repurposed for VariantCompat.
