@@ -145,6 +145,8 @@ bool all_messages_at_index_are_blank(const Vector<Vector<String>> &translation_m
 	return true;
 }
 
+static const HashSet<CharString> FALLBACK_PUNCTUATION_STRS = { CharString("_"), CharString(".") };
+static const HashSet<char32_t> FALLBACK_PUNCTUATION = { '_', '.' };
 struct KeyWorker {
 	static constexpr uint64_t MAX_STAGE_TIME = 30 * 1000ULL;
 
@@ -279,6 +281,20 @@ struct KeyWorker {
 		return str;
 	}
 
+	const HashSet<CharString> &get_punctuation_strs() const {
+		if (punctuation_str.is_empty()) {
+			return FALLBACK_PUNCTUATION_STRS;
+		}
+		return punctuation_str;
+	}
+
+	const HashSet<char32_t> &get_punctuation() const {
+		if (punctuation.is_empty()) {
+			return FALLBACK_PUNCTUATION;
+		}
+		return punctuation;
+	}
+
 	// make this a template that can take in either a HashMap or a HashMap
 	//  use the is_flat_or_parallel_flat_hash_map trait
 	static String find_common_prefix(const KeyMessageMap &key_to_msg) {
@@ -360,7 +376,7 @@ struct KeyWorker {
 			if (res_s.is_empty()) {
 				continue;
 			}
-			auto parts = gdre::split_multichar(res_s, punctuation, false, 0);
+			auto parts = gdre::split_multichar(res_s, get_punctuation(), false, 0);
 			String prefix = parts.size() > 0 ? parts[0] : "";
 			inc_counts(prefix_counts, prefix);
 			for (int i = 1; i < parts.size() - 1; i++) {
@@ -368,7 +384,7 @@ struct KeyWorker {
 				int part_start_idx = prefix.length();
 				while (part_start_idx < res_s.length()) {
 					auto chr = res_s[part_start_idx];
-					if (punctuation.has(chr)) {
+					if (get_punctuation().has(chr)) {
 						prefix += chr;
 					} else {
 						break;
@@ -378,7 +394,7 @@ struct KeyWorker {
 				prefix += part;
 				inc_counts(prefix_counts, prefix);
 			}
-			auto suffix_parts = gdre::split_multichar(res_s, punctuation, false, 0);
+			auto suffix_parts = gdre::split_multichar(res_s, get_punctuation(), false, 0);
 			String suffix = suffix_parts.size() > 0 ? suffix_parts[suffix_parts.size() - 1] : "";
 			inc_counts(suffix_counts, suffix);
 			// check if the suffix ends with a number
@@ -391,7 +407,7 @@ struct KeyWorker {
 				// strip the trailing numbers
 				while (suffix.length() > 0) {
 					last_char = suffix[suffix.length() - 1];
-					if ((last_char >= '0' && last_char <= '9') || (punctuation.has(last_char))) {
+					if ((last_char >= '0' && last_char <= '9') || (get_punctuation().has(last_char))) {
 						suffix = suffix.substr(0, suffix.length() - 1);
 						end_pad++;
 					} else {
@@ -406,7 +422,7 @@ struct KeyWorker {
 				int part_end_idx = res_s.length() - (suffix.length() + end_pad) - 1;
 				while (part_end_idx > 0) {
 					auto chr = res_s[part_end_idx];
-					if (punctuation.has(chr)) {
+					if (get_punctuation().has(chr)) {
 						suffix = chr + suffix;
 					} else {
 						break;
@@ -566,7 +582,7 @@ struct KeyWorker {
 			}
 			return true;
 		}
-		for (auto p : punctuation_str) {
+		for (auto p : get_punctuation_strs()) {
 			if (try_key_multipart(prefix, p.get_data(), suffix)) {
 				if constexpr (!dont_register_success) {
 					reg_successful_prefix(prefix);
@@ -585,7 +601,7 @@ struct KeyWorker {
 			}
 			return true;
 		}
-		for (auto p : punctuation_str) {
+		for (auto p : get_punctuation_strs()) {
 			if (try_key_multipart(prefix, p.get_data(), suffix)) {
 				if constexpr (!dont_register_success) {
 					reg_successful_suffix(suffix);
@@ -608,7 +624,7 @@ struct KeyWorker {
 			}
 			return true;
 		}
-		for (auto p : punctuation_str) {
+		for (auto p : get_punctuation_strs()) {
 			if (try_key_multipart(prefix, p.get_data(), suffix, p.get_data(), suffix2)) {
 				if constexpr (!dont_register_success) {
 					reg_successful_suffix(combine_string(prefix, p.get_data(), suffix, p.get_data(), suffix2));
@@ -637,7 +653,7 @@ struct KeyWorker {
 			reg_successful_suffix(combine_string(suffix));
 			return true;
 		}
-		for (auto p : punctuation_str) {
+		for (auto p : get_punctuation_strs()) {
 			if (try_key_multipart(prefix, p.get_data(), key, p.get_data(), suffix)) {
 				reg_successful_prefix(combine_string(prefix));
 				reg_successful_suffix(combine_string(suffix));
@@ -887,7 +903,7 @@ struct KeyWorker {
 	bool has_nonspace_and_std_punctuation(const String &s) {
 		for (int i = 0; i < s.length(); i++) {
 			char32_t c = s.ptr()[i];
-			if (c != ' ' && !punctuation.has(c) && ALL_PUNCTUATION.has(c)) {
+			if (c != ' ' && !get_punctuation().has(c) && ALL_PUNCTUATION.has(c)) {
 				return true;
 			}
 		}
@@ -898,12 +914,12 @@ struct KeyWorker {
 		if (res_s.is_empty()) {
 			return true;
 		}
-		if (res_s.size() > static_cast<int64_t>(max_key_len)) {
+		if (max_key_len > 0 && res_s.size() > static_cast<int64_t>(max_key_len)) {
 			return true;
 		}
 
 		// if (filter_punctuation) {
-		if (has_nonspace_and_std_punctuation(res_s)) {
+		if (!punctuation.is_empty() && has_nonspace_and_std_punctuation(res_s)) {
 			return true;
 		}
 		// contains any whitespace
@@ -948,7 +964,7 @@ struct KeyWorker {
 		String ret;
 		for (int i = 0; i < s.length(); i++) {
 			char32_t c = s.ptr()[i];
-			if (punctuation.has(c) || !REMOVABLE_PUNCTUATION.has(c)) {
+			if (get_punctuation().has(c) || !REMOVABLE_PUNCTUATION.has(c)) {
 				ret += c;
 			}
 		}
@@ -958,7 +974,7 @@ struct KeyWorker {
 	String _san_string_no_spaces(const String &msg) {
 		auto msg_str = remove_removable_punct(msg).strip_escapes().strip_edges();
 
-		for (auto ch : punctuation) {
+		for (auto ch : get_punctuation()) {
 			// strip edges
 			msg_str = msg_str.trim_suffix(String::chr(ch)).trim_prefix(String::chr(ch));
 		}
@@ -969,7 +985,7 @@ struct KeyWorker {
 			String new_msg_str;
 			for (int i = 0; i < msg_str.length(); i++) {
 				char32_t p = msg_str.ptr()[i];
-				if (punctuation.has(p) || !ALL_PUNCTUATION.has(p)) {
+				if (get_punctuation().has(p) || !ALL_PUNCTUATION.has(p)) {
 					new_msg_str += String::chr(p);
 				} else if (i != 0 && msg_str.ptr()[i - 1] != ' ') { // no consecutive spaces
 					new_msg_str += " ";
@@ -1001,7 +1017,7 @@ struct KeyWorker {
 		for (const T &msg : input_messages) {
 			auto msg_str = _san_string_no_spaces(msg);
 			if (msg_str.contains(" ")) {
-				for (char32_t p : punctuation) {
+				for (char32_t p : get_punctuation()) {
 					auto nar = msg_str.replace(" ", String::chr(p));
 					new_strings.insert(nar);
 				}
@@ -1022,6 +1038,9 @@ struct KeyWorker {
 	}
 
 	char32_t get_most_popular_punctuation() {
+		if (punctuation_counts.size() == 0) {
+			return '_'; // use underscore as a fallback
+		}
 		char32_t punct = 0;
 		int64_t max_count = 0;
 		for (auto kv : punctuation_counts) {
@@ -1679,7 +1698,7 @@ struct KeyWorker {
 	}
 
 	bool starts_with_punctuation(const String &str) {
-		for (const auto &punct : punctuation) {
+		for (const auto &punct : get_punctuation()) {
 			if (str.begins_with(String::chr(punct))) {
 				return true;
 			}
@@ -1688,7 +1707,7 @@ struct KeyWorker {
 	}
 
 	bool ends_with_punctuation(const String &str) {
-		for (const auto &punct : punctuation) {
+		for (const auto &punct : get_punctuation()) {
 			if (str.ends_with(String::chr(punct))) {
 				return true;
 			}
@@ -1698,7 +1717,7 @@ struct KeyWorker {
 
 	String trim_punctuation(const String &str) {
 		String result = str;
-		for (const auto &punct : punctuation) {
+		for (const auto &punct : get_punctuation()) {
 			String punct_str = String::chr(punct);
 			while (result.begins_with(punct_str)) {
 				result = result.trim_prefix(punct_str);
@@ -1767,6 +1786,12 @@ struct KeyWorker {
 	}
 
 	bool normalize_key_characteristics(double p_threshold = 0.95) {
+		if (key_to_message.size() == 0) {
+			keys_are_all_upper = false;
+			keys_are_all_lower = false;
+			keys_are_all_ascii = false;
+			return true;
+		}
 		auto threshold = p_threshold;
 		bool changed = false;
 		double size = !done_setting_key_stats ? key_to_message.size() : max_keys_before_done_setting_key_stats;
@@ -1788,7 +1813,7 @@ struct KeyWorker {
 		if (keys_have_whitespace && (double)keys_that_have_whitespace / size < (1.0 - threshold)) {
 			keys_have_whitespace = false;
 			changed = true;
-			for (const auto p : gdre::hashset_to_vector(punctuation)) {
+			for (const auto p : punctuation) {
 				if (is_whitespace(p)) {
 					punctuation_counts.erase(p);
 					punctuation.erase(p);
@@ -1799,7 +1824,7 @@ struct KeyWorker {
 		}
 
 		if (punctuation_counts.size() > 1) {
-			for (const auto p : gdre::hashset_to_vector(punctuation)) {
+			for (const auto p : punctuation) {
 				auto count = punctuation_counts.has(p) ? punctuation_counts[p] : 0;
 				// if it's used in less than 1% of the keys, we can safely assume that it's not a punctuation mark we have to worry about
 				if ((double)count / (double)key_to_message.size() < 0.01) {
@@ -2051,7 +2076,9 @@ struct KeyWorker {
 
 		// the above finds the vast majority of the keys, so we can stop setting key stats
 		max_keys_before_done_setting_key_stats = key_to_message.size();
-		done_setting_key_stats = true;
+		if (max_keys_before_done_setting_key_stats != 0) {
+			done_setting_key_stats = true;
+		}
 
 		// Stage 2: Partial resource strings
 		// look for keys in every PART of the resource strings
@@ -2061,7 +2088,7 @@ struct KeyWorker {
 			word_regex.instantiate();
 
 			String char_re = "[\\w\\d";
-			for (char32_t p : punctuation) {
+			for (char32_t p : get_punctuation()) {
 				char_re += "\\" + String::chr(p);
 			}
 			char_re += "]";
@@ -2123,7 +2150,7 @@ struct KeyWorker {
 
 		if (!keys_have_whitespace && punctuation.size() > 0 && punctuation.size() <= 2) {
 			for (const auto &str : filtered_resource_strings) {
-				for (const auto &punct : punctuation) {
+				for (const auto &punct : get_punctuation()) {
 					if (str == String::chr(punct)) {
 						break;
 					}
@@ -2158,7 +2185,7 @@ struct KeyWorker {
 			prep_common_prefix_suffix();
 
 			if ((common_prefixes.size() == 0 && common_suffixes.size() == 0)) {
-				skip_stage("Common prefix/suffix");
+				skip_stage(get_stage_name(Stage::COMMON_PREFIX_SUFFIX));
 			} else {
 				HashSet<String> working_set = get_prefix_suffix_working_set();
 				pop_charstr_vectors();
@@ -2183,7 +2210,7 @@ struct KeyWorker {
 				bl_debug("Skipping stage 4 because there are too many resource strings");
 			}
 			run_prefix_suffix_missing_messages_only();
-			skip_stage("Common prefix/suffix");
+			skip_stage(get_stage_name(Stage::COMMON_PREFIX_SUFFIX));
 		}
 		RET_ON_FOUND_ALL();
 
