@@ -7733,6 +7733,758 @@
 }
 ]
 },
+"asset_lib-1999-8381": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 1999,
+"secondary_id": 8381,
+"version": "1.7",
+"release_date": "2023-07-18",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/7c73ffbbb6a10895e2e0330ea328cec698536de7.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/1999"
+},
+"size": 12155160,
+"archive_sha256": "4f38d0d778f872e830a4184b807ad6650820fa79e05e4074ad85ef963e9217ea"
+},
+"asset_lib-1999-8395": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 1999,
+"secondary_id": 8395,
+"version": "1.7.1",
+"release_date": "2023-07-21",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/7cee2cf032e9b19e225100ddd3b7c734e7ffe2c4.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/1999"
+},
+"size": 12155237,
+"archive_sha256": "15795869975fb3d27c20eb7ad411f43e074932a777247d1e5dd5b7b8fc90ea9d"
+},
+"asset_lib-1999-8464": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 1999,
+"secondary_id": 8464,
+"version": "1.7.2",
+"release_date": "2023-07-30",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/ab60a7e0aba91bc81875489b9ca98e412f03223b.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/1999"
+},
+"size": 12155239,
+"archive_sha256": "0212485bdd530bc13a3909a1e27c311a86f3281e52f81269febdad112af737f2"
+},
+"asset_lib-231-1029": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1029,
+"version": "1.0",
+"release_date": "2019-03-14",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/a696ee41503ff41798d4fd401bf03b97c1177521.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4140031,
+"archive_sha256": "4ac28d1664fe3fea8b833ce85eb0ac2e435f82d6ebf1421b75b7250a23191f3a"
+},
+"asset_lib-231-1057": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1057,
+"version": "1.0.1",
+"release_date": "2019-03-21",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/cf2e4a1fa0f40cfdd876343b9b5f34a884b46c00.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4139930,
+"archive_sha256": "a6940a59a26a92ae83e0bf74097081c6c16ae540f4fda45592a8b8e7eacd1afe"
+},
+"asset_lib-231-1152": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1152,
+"version": "1.0.2",
+"release_date": "2019-06-11",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/f188d3fc3c87f4010cbb19785b7b7c3750428788.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4140223,
+"archive_sha256": "fb1bb95d6f934ea04efb426ebf3cc27be4437bb439b96284f11ee7833246a13d"
+},
+"asset_lib-231-1299": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1299,
+"version": "1.1",
+"release_date": "2019-10-09",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/6dfdef3a558d1bb3e4f9a34822bfd4b7d60afc9e.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4146033,
+"archive_sha256": "52a3a528216f4c748bd2f932f927fcaed6dd9d60f43051f588c820d77d7e4bec"
+},
+"asset_lib-231-1527": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1527,
+"version": "1.1.1",
+"release_date": "2020-01-18",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/6ba7ae4a7085545a9e8b21c981a580456363ccef.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4146414,
+"archive_sha256": "6cd0abd47093870589c404888e9316c91fe551d36ef1f103626a2d806213e3cd"
+},
+"asset_lib-231-1895": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1895,
+"version": "1.2",
+"release_date": "2020-04-05",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/a4d0a55493994bcf10b668ff1272ca1655c2ab32.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-a4d0a55493994bcf10b668ff1272ca1655c2ab32/",
+"size": 4322564,
+"archive_sha256": "1bdd7777a1e77df52256de63c5978794c54f0d02386e7f9c070d4503fde0d49c",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "6003d676c61ca540dd591189baaad1ebd9bf5ec1ba3fa07cb29a8424c1d3504a",
+"verbatim_sha256": "13591845fe26b5fea3e253d267efe304335ff64082f9e437acdaceabd8449a94",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-1943": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 1943,
+"version": "1.2.1",
+"release_date": "2020-04-23",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/1cdd66b8e6572f056d514e443a6ea08668447628.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-1cdd66b8e6572f056d514e443a6ea08668447628/",
+"size": 3879124,
+"archive_sha256": "c30a4f928bfcba13ab7d989ed1784e868fd4472185eba01f460ba161524a3950",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "834f3cf4c886b8608776a7e0a688d42cafd9d19e18f4312b33d8862eb46e4220",
+"verbatim_sha256": "78453d14a91a903e5135d3c41a2426e72e7a7f9190dc433263ca8c4a1f6005d4",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2083": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2083,
+"version": "1.3",
+"release_date": "2020-05-31",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/e51b7bd3a92ab445039ce71281a94de38bbcc170.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-e51b7bd3a92ab445039ce71281a94de38bbcc170/",
+"size": 4622648,
+"archive_sha256": "687d00040df066b78391e5c8565eb289bdcae532ec6f46c86afb76e9a58680f7",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2115": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2115,
+"version": "1.3.1",
+"release_date": "2020-06-11",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/3a29c66e4f68b12bbd63135e90f2a059ae03a853.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-3a29c66e4f68b12bbd63135e90f2a059ae03a853/",
+"size": 4622598,
+"archive_sha256": "617783501fbd33655ad5929b9df0c68fa249361b7bb79c3a9131370b899b7de2",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2288": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2288,
+"version": "1.3.2",
+"release_date": "2020-07-25",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/05569cd93b3aa73ae43106bca327ea164f8d4212.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-05569cd93b3aa73ae43106bca327ea164f8d4212/",
+"size": 4623426,
+"archive_sha256": "5cb815e9a6f1f6c7ae824335dad840fba9c5cc8c72c45c3def30318c7a34f45e",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2327": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2327,
+"version": "1.3.3",
+"release_date": "2020-08-13",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/a3687cbf99bf1ad2d27a9ac8a4e2e04444af9f49.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-a3687cbf99bf1ad2d27a9ac8a4e2e04444af9f49/",
+"size": 4623477,
+"archive_sha256": "29e080026678ec5aa948640f2960679aaa382a00edab72b49b8ba9fb1fdfd09e",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2392": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2392,
+"version": "1.3.4",
+"release_date": "2020-09-06",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/25f26464f38438d68cdfaaa93ff04e026122ce43.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-25f26464f38438d68cdfaaa93ff04e026122ce43/",
+"size": 5429266,
+"archive_sha256": "45adf6246a97d86cd7f5cc195318f397196befb3208d4005461eb0325b973c00",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/hterrain_native.so",
+"exists": false,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2547": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2547,
+"version": "1.4",
+"release_date": "2020-10-25",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/01b6b165d1c5b07fb11821c629b33094710d3a82.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-01b6b165d1c5b07fb11821c629b33094710d3a82/",
+"size": 10021150,
+"archive_sha256": "ae37c664b7314d4e611e3bef07366c35d27cef4fd2e6a13d1ccfa8f5705ca653",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"verbatim_sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2786": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2786,
+"version": "1.5",
+"release_date": "2020-12-12",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/5e6620a879be53b6fbfe4450c63ce63d38f743f2.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-5e6620a879be53b6fbfe4450c63ce63d38f743f2/",
+"size": 11216348,
+"archive_sha256": "378380b1ecae005c8aa93e02dc3909de7505dfac0923824524204c6f7e7543e5",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"verbatim_sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2803": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2803,
+"version": "1.5.1",
+"release_date": "2020-12-17",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/6c000f4345ab2814a6bb6f31d6cb6074f3bdaf84.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-6c000f4345ab2814a6bb6f31d6cb6074f3bdaf84/",
+"size": 11216381,
+"archive_sha256": "5c15cefe6945bbd240cccffb9597b27f2cca327a9091abff3185dd08a7726996",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"verbatim_sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-2830": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 2830,
+"version": "1.5.2",
+"release_date": "2020-12-23",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/8694590990cf5a0fbc69c3698cb13d0197f296a1.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-8694590990cf5a0fbc69c3698cb13d0197f296a1/",
+"size": 11216182,
+"archive_sha256": "993679ebf1b1918f17a5087ed425fe55396f99e9cd3e7db6c2a58a190c305377",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "5836057b21e6986bd5ec6f6c93e9e723214bcd4918521691c9b74ec1d6d6ed40",
+"verbatim_sha256": "91faccbe5bc3f4ead876f9329168c2c87118ad4172d59fd272e35a7a75c8ce14",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"verbatim_sha256": "ab91f9ee3dc49bcc6b271596570260788e08d0bd53ddebdaf58585f85cd9b674",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-5886": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 5886,
+"version": "1.6",
+"release_date": "2022-06-02",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/82049a7522f17bfc81870984cf74694a46391ded.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-82049a7522f17bfc81870984cf74694a46391ded/",
+"size": 11349920,
+"archive_sha256": "bf1e71061187c27df61cba72a24493c72ef1ce6487406a5569c04f6e71104756",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "4fc345f351a02ce129f67fe50cda200710ee8ed970ea3c49936f875a049d37e5",
+"verbatim_sha256": "0275fff82ac62c03215e1d30d5d661cb53edc523e97207a8496019227f880d9d",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "04ff97e45a9510d2d7d7f50eebaa0748b1e1a0f795a5fb365b11e6b00746bdda",
+"verbatim_sha256": "04ff97e45a9510d2d7d7f50eebaa0748b1e1a0f795a5fb365b11e6b00746bdda",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-5922": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 5922,
+"version": "1.6.1",
+"release_date": "2022-06-12",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/85c43173f937b083e216c5f2b911a41cf6aabe02.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"base_folder": "godot_heightmap_plugin-85c43173f937b083e216c5f2b911a41cf6aabe02/",
+"size": 11349958,
+"archive_sha256": "1e69b06e966a8f6a93aacb3bad06b6fa1d69501ca0106680279f1b5a1f610710",
+"gdexts": [
+{
+"relative_path": "addons/zylann.hterrain/native/hterrain.gdnlib",
+"bins": [
+{
+"name": "res://addons/zylann.hterrain/native/bin/win64/hterrain_native.dll",
+"sha256": "4fc345f351a02ce129f67fe50cda200710ee8ed970ea3c49936f875a049d37e5",
+"verbatim_sha256": "0275fff82ac62c03215e1d30d5d661cb53edc523e97207a8496019227f880d9d",
+"exists": true,
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/zylann.hterrain/native/bin/linux/libhterrain_native.so",
+"sha256": "04ff97e45a9510d2d7d7f50eebaa0748b1e1a0f795a5fb365b11e6b00746bdda",
+"verbatim_sha256": "04ff97e45a9510d2d7d7f50eebaa0748b1e1a0f795a5fb365b11e6b00746bdda",
+"exists": true,
+"tags": [
+"X11",
+"x86_64"
+]
+}
+]
+}
+]
+},
+"asset_lib-231-771": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 771,
+"version": "0.5",
+"release_date": "2018-05-27",
+"download_url": "https://github.com/Zylann/godot_heightmap_native_plugin/archive/39de73b867c608ca766356181d24902fd19de980.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 4497885,
+"archive_sha256": "2c4d9311c0b78eff0bd0557af99d15fc219acc55b34ebef0b0eb9ff41d40183a"
+},
+"asset_lib-231-792": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 792,
+"version": "0.6",
+"release_date": "2018-06-11",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/bb77f6ebe2d174e0c09aca4f33c3982649464915.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 143322,
+"archive_sha256": "360d0d8996c1158b93579320e78d1fa095f3478559a81bed31bd507215dc0e0d"
+},
+"asset_lib-231-803": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 803,
+"version": "0.6.1",
+"release_date": "2018-06-22",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/bf6904bbde1e58edd103cc197116ce777aa7cf99.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 143204,
+"archive_sha256": "5a520890060af292bddcf453c03961df4df8c0bf521880b39ae6d09ad8e93854"
+},
+"asset_lib-231-813": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 813,
+"version": "0.7",
+"release_date": "2018-06-30",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/23f0bf4c470ac37a7f649c80600685c90aa9f41c.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 113285,
+"archive_sha256": "5bbea133cff2aa79e5d7383d882181836e40ff769429e80472a872b7f2fa5d30"
+},
+"asset_lib-231-835": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 835,
+"version": "0.8",
+"release_date": "2018-08-08",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/7b3ef3afb76cf4585cf5a09e7a1b6e65173455da.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 117692,
+"archive_sha256": "bb851e9dce71824f9244c97172c37c00a3a67ac09b7c3390f6198e54457e7c66"
+},
+"asset_lib-231-934": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 934,
+"version": "0.8.1",
+"release_date": "2018-12-02",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/a932b11db4984bc26f45c0a3160ed7768654469a.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 118695,
+"archive_sha256": "b6f15441e4117894053427c172d17caad85782a36ccba925e10fbf9a51bc8444"
+},
+"asset_lib-231-946": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 946,
+"version": "0.9",
+"release_date": "2018-12-10",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/8df7efbbcd97e8b93446035a851e04f98beb963c.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 292328,
+"archive_sha256": "bb8a2b6338ffeef4a5334d690e406d28ff05d3badd66933d1525f9f717f13d7a"
+},
+"asset_lib-231-953": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 953,
+"version": "0.9.1",
+"release_date": "2018-12-17",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/1529c3901a3a6837bd0a8d3a3a40708853dbf4bd.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 292423,
+"archive_sha256": "cff063a1f184ebc6d4f5740ca4f69740b520431c283ba9d4b0b9ee8396c9842e"
+},
+"asset_lib-231-955": {
+"cache_version": 7,
+"plugin_name": "zylann.hterrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 231,
+"secondary_id": 955,
+"version": "0.10",
+"release_date": "2018-12-27",
+"download_url": "https://github.com/Zylann/godot_heightmap_plugin/archive/3564af1a0ab3cd99afe0ca7e4ed9a867d5f68abf.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/231"
+},
+"size": 303573,
+"archive_sha256": "beabb8475ccf7ba6855d46207b533679905053c04d1a6e3a65f02264a8a0e873"
+},
 "asset_lib-2985-12120": {
 "cache_version": 7,
 "plugin_name": "imgui-godot",
@@ -8711,6 +9463,36 @@
 ]
 }
 ]
+},
+"asset_lib-3509-14585": {
+"cache_version": 7,
+"plugin_name": "infinite_heightmap_terrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 3509,
+"secondary_id": 14585,
+"version": "1.0",
+"release_date": "2024-11-14",
+"download_url": "https://github.com/PGComai/Infinite-Heightmap-Terrain/archive/253a55592a0ff2ca888f41f600c9321b4c9cdb34.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/3509"
+},
+"size": 19432,
+"archive_sha256": "19112ad668f9006e47d0072d73433d00c5a72fe846c64c48bb52dc6b259740b2"
+},
+"asset_lib-3509-18108": {
+"cache_version": 7,
+"plugin_name": "infinite_heightmap_terrain",
+"release_info": {
+"plugin_source": "asset_lib",
+"primary_id": 3509,
+"secondary_id": 18108,
+"version": "1.1",
+"release_date": "2025-08-15",
+"download_url": "https://github.com/PGComai/Infinite-Heightmap-Terrain/archive/cd4becfe3c09b29f17864da0ff28ac8094b99a64.zip",
+"repository_url": "https://godotengine.org/asset-library/asset/3509"
+},
+"size": 8080,
+"archive_sha256": "ad63ad1148a5d4af9835ffff9de733551a9f9f0cc3553004aa2be4a39e9aa272"
 },
 "asset_lib-444-1401": {
 "cache_version": 7,
@@ -18067,6 +18849,252 @@
 },
 {
 "name": "res://addons/godotsteam_server/win32/steam_api.dll",
+"sha256": "8686b3212111f497497d1d41683716fae61d36474afbd3c3ed9613e8a9ba03e8",
+"verbatim_sha256": "0eb196af5d9b12f19ad838770c82420c5b799862b0d0b041c1fa142b2199ac95",
+"exists": true,
+"bin_ver": "10.85.81.20",
+"tags": [
+"windows",
+"x86_32"
+]
+}
+]
+}
+]
+},
+"codeberg-13024262-2083325": {
+"cache_version": 7,
+"plugin_name": "godotsteam",
+"release_info": {
+"plugin_source": "codeberg",
+"primary_id": 13024262,
+"secondary_id": 2083325,
+"version": "v4.23.2-gde",
+"release_date": "2026-10-20T00:31:38Z",
+"download_url": "https://codeberg.org/godotsteam/godotsteam/releases/download/v4.23.2-gde/godotsteam-4.23.2-gdextension-plugin-4.4.zip",
+"repository_url": "https://codeberg.org/godotsteam/godotsteam"
+},
+"min_godot_version": "4.4",
+"size": 27424462,
+"archive_sha256": "4f1db786924ad0e1de9b161d87276b1a0b7504332ceec2e9c6694be202c33da4",
+"gdexts": [
+{
+"relative_path": "addons/godotsteam/godotsteam.gdextension",
+"min_godot_version": "4.4",
+"bins": [
+{
+"name": "res://addons/godotsteam/androidarm64/libgodotsteam.android.template_debug.arm64.so",
+"sha256": "abd3c79b340a7286bec66a0566eb5be507834cb989e048c45a2b9b6610ac36ff",
+"verbatim_sha256": "abd3c79b340a7286bec66a0566eb5be507834cb989e048c45a2b9b6610ac36ff",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/androidarm64/libgodotsteam.android.template_release.arm64.so",
+"sha256": "9f260452bf4cb964e45b229a2819431e8cbb83af00b6ac32b65186851477358d",
+"verbatim_sha256": "9f260452bf4cb964e45b229a2819431e8cbb83af00b6ac32b65186851477358d",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libgodotsteam.linux.template_debug.arm64.so",
+"sha256": "b96b83c5197eca020766e5ad9a3cf6243b36c09145b336a1dd5195c9e358eaf5",
+"verbatim_sha256": "b96b83c5197eca020766e5ad9a3cf6243b36c09145b336a1dd5195c9e358eaf5",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libgodotsteam.linux.template_debug.x86_64.so",
+"sha256": "d68845898d14ea6a1a50029438b24746149e2cd75af983295682633b0e1aa8c4",
+"verbatim_sha256": "d68845898d14ea6a1a50029438b24746149e2cd75af983295682633b0e1aa8c4",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libgodotsteam.linux.template_debug.x86_32.so",
+"sha256": "621a033eac833207e8366295e3a49d68d9fb6c6b08346f8688478787aae027e3",
+"verbatim_sha256": "621a033eac833207e8366295e3a49d68d9fb6c6b08346f8688478787aae027e3",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libgodotsteam.linux.template_release.arm64.so",
+"sha256": "114a2dac6b26d1a15efc4bdcb210fd914874a2c0cf433e5c9462b6a225fd8995",
+"verbatim_sha256": "114a2dac6b26d1a15efc4bdcb210fd914874a2c0cf433e5c9462b6a225fd8995",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libgodotsteam.linux.template_release.x86_64.so",
+"sha256": "d7fbfee849169a4bfb5e5b7d0bc4fc90223c121bf46d69dfe379b54d865ca8cf",
+"verbatim_sha256": "d7fbfee849169a4bfb5e5b7d0bc4fc90223c121bf46d69dfe379b54d865ca8cf",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libgodotsteam.linux.template_release.x86_32.so",
+"sha256": "0088b64514bc48308a98c1d49efe49c78841f31a92ca7f07d5dae8feba303409",
+"verbatim_sha256": "0088b64514bc48308a98c1d49efe49c78841f31a92ca7f07d5dae8feba303409",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libgodotsteam.macos.template_debug.dylib",
+"exists": false,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libgodotsteam.macos.template_release.dylib",
+"exists": false,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/libgodotsteam.windows.template_debug.x86_64.dll",
+"sha256": "ed64bb0209092018a2e63e42e9ebeace58b91c872c33e2cfb9b799e54d736eb6",
+"verbatim_sha256": "8eb26b667ad0e85c77fda8ff7aa020496ace6afd58bccc544365c782df8f773e",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/libgodotsteam.windows.template_debug.x86_32.dll",
+"sha256": "82851e142418ae68c52ca2f45bd88dccbce54587061344771f92f537713b841e",
+"verbatim_sha256": "700f734d446cf06b7e99f095e35fab3e134de12a316454beca094aee2f1fb0df",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/libgodotsteam.windows.template_release.x86_64.dll",
+"sha256": "0260992f53f685ac5b85c39359f645747669f8b3d8ac68053ad6dd436544473f",
+"verbatim_sha256": "6535af56d325af0fff52dbb5de3703d110bb430fdef4e3026d7ece617270e530",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/libgodotsteam.windows.template_release.x86_32.dll",
+"sha256": "c3ed1421faa9fe6ac552072cef858f83a236f52c4aa0eb8a52b07cbdc73fe97c",
+"verbatim_sha256": "fe4ba7687ab0d1383eda3c803f8c8c389f4cb944bd672e1eac369833045e913e",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/godotsteam/androidarm64/libsteam_api.so",
+"sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"verbatim_sha256": "5297044572182f98fd39efc98de3a35e307e9101381430703942d9e388867feb",
+"exists": true,
+"tags": [
+"android",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linuxarm64/libsteam_api.so",
+"sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"verbatim_sha256": "eae3df623fd1e614c995d06a123ef7e961fb1fa5087392f8ea628bff9e7f56ad",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux64/libsteam_api.so",
+"sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"verbatim_sha256": "659127fd3c36788162149006efb607ae24c08b7264259c7af52c806fa40c2b4f",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/linux32/libsteam_api.so",
+"sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"verbatim_sha256": "37c76adddac3f9bbe132f26731bb2a8155420688564bb39ab6972e7a4dc6f27c",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/godotsteam/osx/libsteam_api.dylib",
+"sha256": "e13603a1c526771870abffd7c1585374596c4aced266c87c4330797793b75a57",
+"verbatim_sha256": "ac6aca01a62b9ddfb8240fcc4ebdefab3d6b97da1ba3bbc87ff89b03369cc870",
+"exists": true,
+"tags": [
+"macos",
+"universal"
+]
+},
+{
+"name": "res://addons/godotsteam/win64/steam_api64.dll",
+"sha256": "3a52a5e822bddc329d14aea419b6b76584956e26e6d8d9e6179ee31fe3b2a78a",
+"verbatim_sha256": "8de54d32508e216c9135b8bf025749243d44e404c1c22a8e5fe35acecabe7a9c",
+"exists": true,
+"bin_ver": "10.83.75.46",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/godotsteam/win32/steam_api.dll",
 "sha256": "8686b3212111f497497d1d41683716fae61d36474afbd3c3ed9613e8a9ba03e8",
 "verbatim_sha256": "0eb196af5d9b12f19ad838770c82420c5b799862b0d0b041c1fa142b2199ac95",
 "exists": true,
@@ -223981,6 +225009,1384 @@
 "exists": false,
 "tags": [
 "macos"
+]
+}
+]
+}
+]
+},
+"github-415691556-650184531": {
+"cache_version": 7,
+"plugin_name": "terrain_3d",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 415691556,
+"secondary_id": 650184531,
+"version": "v1.1.0-rc1",
+"release_date": "2026-10-17T10:28:27Z",
+"download_url": "https://github.com/TokisanGames/Terrain3D/releases/download/v1.1.0-rc1/Terrain3D_v1.1.0-rc1.zip",
+"repository_url": "https://github.com/TokisanGames/Terrain3D",
+"sha256_sum": "549d0c1d45982ae2e30d90275f754a9c7174b8f57eb600bc93a8108b98d44636"
+},
+"min_godot_version": "4.5",
+"size": 45642614,
+"archive_sha256": "549d0c1d45982ae2e30d90275f754a9c7174b8f57eb600bc93a8108b98d44636",
+"gdexts": [
+{
+"relative_path": "addons/terrain_3d/terrain.gdextension",
+"min_godot_version": "4.5",
+"bins": [
+{
+"name": "res://addons/terrain_3d/bin/libterrain.windows.debug.x86_64.dll",
+"sha256": "045eecb551d7d72127e6d7aeac7ac25612985bffeadfb9cbdb0e4a70b2b91190",
+"verbatim_sha256": "a26f8b371f921959c11a054af1eee66cdfc8679279074d8946f1250c86a5cc3b",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.windows.release.x86_64.dll",
+"sha256": "38537bd81353db8f8228eb59914abf67ad56c13a19c0783c45adb5c4f4e18fb0",
+"verbatim_sha256": "0eed59fbc8dd71be2a3eaa340ef17d4f3b9e9015ef23ce6f1fb8ffedf8374432",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.windows.debug.arm64.dll",
+"sha256": "3b840b00660d0a0842c1d56030d02fe98324c4fa84fd4137906316dd4d9b77c8",
+"verbatim_sha256": "36354f8e98654dfd142c09ec4e5d22d765ce84a6d6eac5387f17ea14b1655042",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.windows.release.arm64.dll",
+"sha256": "43baf73b7c6b573235286c19a74f933ac2075e0d00aac4a50b0ff7ddb6812d10",
+"verbatim_sha256": "1c71a77245cc45095f0d1d6d7e76880fbfdee292bc11d923d0ef0b37651088c3",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.debug.x86_64.so",
+"sha256": "ef92374be64e9c652a6a3bd68ab604bf0dcf3c2bc8c88d6c1e5887560509cd29",
+"verbatim_sha256": "ef92374be64e9c652a6a3bd68ab604bf0dcf3c2bc8c88d6c1e5887560509cd29",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.release.x86_64.so",
+"sha256": "c693e3a072710c5ca4ced40ae6893368719b0d60044a1fc62b67d6710bde0f2a",
+"verbatim_sha256": "c693e3a072710c5ca4ced40ae6893368719b0d60044a1fc62b67d6710bde0f2a",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.debug.arm64.so",
+"exists": false,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.release.arm64.so",
+"exists": false,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.debug.rv64.so",
+"exists": false,
+"tags": [
+"linux",
+"debug",
+"rv64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.linux.release.rv64.so",
+"exists": false,
+"tags": [
+"linux",
+"release",
+"rv64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.macos.debug.framework",
+"sha256": "a8010dec43de4d3206afb728a29b2ec37e4e28f9ebea45f84f3a466a8bd95b4a",
+"verbatim_sha256": "523357bc10779467711afba3eefd32de9bceaf349eac5b108fd19672ca1278da",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.macos.release.framework",
+"sha256": "df14f3139309c40f88b25d289d7ddf8e8d60d2c9bbbf05dcc906ab8f23c3b11b",
+"verbatim_sha256": "26740d4a114413f1918bd40414c1df0140922fd63e0e99277273740f50b44ad4",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.android.debug.arm64.so",
+"sha256": "71b5f742d9a91278a45ab0bcf815d098b2f6a35066a1c05aa5f69c24323edab7",
+"verbatim_sha256": "71b5f742d9a91278a45ab0bcf815d098b2f6a35066a1c05aa5f69c24323edab7",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.android.release.arm64.so",
+"sha256": "dc41fc85c53e201fd49cf25f83444f06706831da54224132687ed8437da2e6f3",
+"verbatim_sha256": "dc41fc85c53e201fd49cf25f83444f06706831da54224132687ed8437da2e6f3",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.ios.debug.universal.dylib",
+"sha256": "7f1e0f36acf4d14534861eae8fbaa0fe993ab3fa37176a67bb52b05d9cc25fec",
+"verbatim_sha256": "7f1e0f36acf4d14534861eae8fbaa0fe993ab3fa37176a67bb52b05d9cc25fec",
+"exists": true,
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.ios.release.universal.dylib",
+"sha256": "0595882ab11fd2a332aaca827bc96eab5ee631eb953cc2e4b7ad5fc133b585e5",
+"verbatim_sha256": "0595882ab11fd2a332aaca827bc96eab5ee631eb953cc2e4b7ad5fc133b585e5",
+"exists": true,
+"tags": [
+"ios",
+"release"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.web.release.wasm32.nothreads.wasm",
+"sha256": "9a21a7f67311978ee61f1e9f47f74dbbd73e7fac854e1e2c0ba69c9c90e9dbcb",
+"verbatim_sha256": "9a21a7f67311978ee61f1e9f47f74dbbd73e7fac854e1e2c0ba69c9c90e9dbcb",
+"exists": true,
+"tags": [
+"web",
+"release",
+"wasm32",
+"nothreads"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.web.release.wasm32.threads.wasm",
+"sha256": "40963470f90a567bd22a4a3aedb877c1991bc90578e21df34b4f52267e3dac64",
+"verbatim_sha256": "40963470f90a567bd22a4a3aedb877c1991bc90578e21df34b4f52267e3dac64",
+"exists": true,
+"tags": [
+"web",
+"release",
+"wasm32",
+"threads"
+]
+},
+{
+"name": "res://addons/terrain_3d/bin/libterrain.web.release.wasm64.threads.wasm",
+"exists": false,
+"tags": [
+"web",
+"release",
+"wasm64",
+"threads"
+]
+}
+]
+}
+]
+},
+"github-419454286-662216512": {
+"cache_version": 7,
+"plugin_name": "GameAnalytics",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 419454286,
+"secondary_id": 662216512,
+"version": "3.2.0",
+"release_date": "2026-10-21T11:03:17Z",
+"download_url": "https://github.com/GameAnalytics/GA-SDK-GODOT/releases/download/3.2.0/GameAnalytics-Godot-3.2.0.zip",
+"repository_url": "https://github.com/GameAnalytics/GA-SDK-GODOT",
+"sha256_sum": "0d0c5f0a1e3e6b3922fd2616a4c12a9d39e1c962907382d368dbc1d7a5601796"
+},
+"min_godot_version": "4.5",
+"size": 28335534,
+"archive_sha256": "0d0c5f0a1e3e6b3922fd2616a4c12a9d39e1c962907382d368dbc1d7a5601796",
+"gdexts": [
+{
+"relative_path": "addons/GameAnalytics/GameAnalytics.gdextension",
+"min_godot_version": "4.5",
+"bins": [
+{
+"name": "bin/linux/libGodotGameAnalytics.so",
+"sha256": "1aa9c41fd5f6dd3654d1a53b3b6771b04090e4adf464bf8c1e0c3a1904a37a6b",
+"verbatim_sha256": "1aa9c41fd5f6dd3654d1a53b3b6771b04090e4adf464bf8c1e0c3a1904a37a6b",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "bin/linux/libGodotGameAnalytics.so",
+"sha256": "1aa9c41fd5f6dd3654d1a53b3b6771b04090e4adf464bf8c1e0c3a1904a37a6b",
+"verbatim_sha256": "1aa9c41fd5f6dd3654d1a53b3b6771b04090e4adf464bf8c1e0c3a1904a37a6b",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "bin/windows/libGodotGameAnalytics.dll",
+"sha256": "b7a3b47c4344e6418975510bdbd783c91fd3969697520dce04d6a13da1179ba2",
+"verbatim_sha256": "722ac3228a94552a9e19c40e8f3260e6ba98df325ec94d4b756582ceee7e16ef",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "bin/windows/libGodotGameAnalytics.dll",
+"sha256": "b7a3b47c4344e6418975510bdbd783c91fd3969697520dce04d6a13da1179ba2",
+"verbatim_sha256": "722ac3228a94552a9e19c40e8f3260e6ba98df325ec94d4b756582ceee7e16ef",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "bin/macos/libGodotGameAnalytics.dylib",
+"sha256": "428825f3fa066c77a7203ce89792ed91cf51a1191c33ffc090cc1eec42804efd",
+"verbatim_sha256": "4ff183362fabe9eee5b1a2f99744b4698a753a5236628d4e2d1e5f7425deb0f4",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "bin/macos/libGodotGameAnalytics.dylib",
+"sha256": "428825f3fa066c77a7203ce89792ed91cf51a1191c33ffc090cc1eec42804efd",
+"verbatim_sha256": "4ff183362fabe9eee5b1a2f99744b4698a753a5236628d4e2d1e5f7425deb0f4",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "bin/ios/libGodotGameAnalytics.ios.template_debug.xcframework",
+"sha256": "30eb307bdc76e3f2794c36f29d19b6e3d675a0a5bf8c4b704ee12dbc4251a22d",
+"verbatim_sha256": "b0a25b6c6d8610df0fefa526c1b15218ebf46906dedf6cfc86a6c847b10fc4be",
+"exists": true,
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "bin/ios/libGodotGameAnalytics.ios.template_release.xcframework",
+"sha256": "24d1a3f6afe76b797de9d54d0a1929b49e1c01bbbdb23bccf395a50489260889",
+"verbatim_sha256": "60e23a1161e9ce777d5077c3b0227bdb617c84ed9a75ee5f16b315f79d191354",
+"exists": true,
+"tags": [
+"ios",
+"release"
+]
+},
+{
+"name": "bin/android/libGodotGameAnalytics.so",
+"sha256": "1f3d410b3dffa3ac4c6856d6a8e101aec7a5b0e7a1ecf5a8593ca8531777ca38",
+"verbatim_sha256": "1f3d410b3dffa3ac4c6856d6a8e101aec7a5b0e7a1ecf5a8593ca8531777ca38",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "bin/android/libGodotGameAnalytics.so",
+"sha256": "1f3d410b3dffa3ac4c6856d6a8e101aec7a5b0e7a1ecf5a8593ca8531777ca38",
+"verbatim_sha256": "1f3d410b3dffa3ac4c6856d6a8e101aec7a5b0e7a1ecf5a8593ca8531777ca38",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "bin/web/libGodotGameAnalytics.wasm",
+"sha256": "0181429842d278d61762ea01894d77b65a8daf49c5e8a3127a3949487a306ff5",
+"verbatim_sha256": "0181429842d278d61762ea01894d77b65a8daf49c5e8a3127a3949487a306ff5",
+"exists": true,
+"tags": [
+"web",
+"debug"
+]
+},
+{
+"name": "bin/web/libGodotGameAnalytics.wasm",
+"sha256": "0181429842d278d61762ea01894d77b65a8daf49c5e8a3127a3949487a306ff5",
+"verbatim_sha256": "0181429842d278d61762ea01894d77b65a8daf49c5e8a3127a3949487a306ff5",
+"exists": true,
+"tags": [
+"web",
+"release"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/GameAnalytics/lib/ios/GameAnalytics.xcframework",
+"sha256": "e69b6d79c77d780d33d709ab0f66b092c1c0b77fa2f8c508ca3baa0c6332fd2f",
+"verbatim_sha256": "9fb2f8f9176ac30dc863c3404b4b45ef64e31bad4435defe0b8684a865151d2c",
+"exists": true,
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/GameAnalytics/lib/ios/libgodot-cpp.ios.template_debug.xcframework",
+"sha256": "d24339b1aa65f5acc08ef05e82b7a87c8211e67a2da1c4c8b6adacb94bbd2a9f",
+"verbatim_sha256": "3f91a2f2650db12135bbee98614a61aae0b63d80086a4a28fa52c49bc73b381a",
+"exists": true,
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/GameAnalytics/lib/ios/GameAnalytics.xcframework",
+"sha256": "e69b6d79c77d780d33d709ab0f66b092c1c0b77fa2f8c508ca3baa0c6332fd2f",
+"verbatim_sha256": "9fb2f8f9176ac30dc863c3404b4b45ef64e31bad4435defe0b8684a865151d2c",
+"exists": true,
+"tags": [
+"ios",
+"release"
+]
+},
+{
+"name": "res://addons/GameAnalytics/lib/ios/libgodot-cpp.ios.template_release.xcframework",
+"sha256": "b9d8389438d9728e46f6c8f352de99bfd867133f780a51b2897df0475f638d7d",
+"verbatim_sha256": "90710db397ad8bfd8dbbc84b40bc893e78daabbcdb2e31b5ca47bb18fe481cc6",
+"exists": true,
+"tags": [
+"ios",
+"release"
+]
+}
+]
+}
+]
+},
+"github-419480955-662294388": {
+"cache_version": 7,
+"plugin_name": "sentry",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 419480955,
+"secondary_id": 662294388,
+"version": "2.4.0",
+"release_date": "2026-10-21T11:34:08Z",
+"download_url": "https://github.com/getsentry/sentry-godot/releases/download/2.4.0/sentry-godot-debug-symbols-2.4.0%2B24732d3.zip",
+"repository_url": "https://github.com/getsentry/sentry-godot",
+"sha256_sum": "7de0704ff1f145f1a2bef0963c5db299a6098fd84914d1cbc966fa02f41c6fbc"
+},
+"size": 402194035,
+"archive_sha256": "7de0704ff1f145f1a2bef0963c5db299a6098fd84914d1cbc966fa02f41c6fbc"
+},
+"github-419480955-662294390": {
+"cache_version": 7,
+"plugin_name": "sentry",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 419480955,
+"secondary_id": 662294390,
+"version": "2.4.0",
+"release_date": "2026-10-21T11:34:09Z",
+"download_url": "https://github.com/getsentry/sentry-godot/releases/download/2.4.0/sentry-godot-2.4.0%2B24732d3.zip",
+"repository_url": "https://github.com/getsentry/sentry-godot",
+"sha256_sum": "b5aeaa4fd8da732ca651a948e39f27c150ea1f69e7b202c3af9312a817883ecc"
+},
+"min_godot_version": "4.5",
+"size": 40669028,
+"archive_sha256": "b5aeaa4fd8da732ca651a948e39f27c150ea1f69e7b202c3af9312a817883ecc",
+"gdexts": [
+{
+"relative_path": "addons/sentry/sentry.gdextension",
+"min_godot_version": "4.5",
+"bins": [
+{
+"name": "res://addons/sentry/bin/macos/libsentry.macos.debug.dylib",
+"sha256": "0aef27d3019ffe5f3f2870b58ed4da10b105ad77f5180eb084f59473dddfd183",
+"verbatim_sha256": "568b4371609780ce15660fac6e3896ba5f6441191cff21176c9776e1975a15c3",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libsentry.macos.release.dylib",
+"sha256": "7d1a1547fbf8192d0a34a88314d1f6c5839def7daeaad96924d445946fcd713e",
+"verbatim_sha256": "5e3946a96c753b2029bf5988fc0da7ad8c6d40ef885d00f4364e34c7eee0c34d",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/libsentry.windows.debug.x86_64.dll",
+"sha256": "849a4d58d937cd45e665e38ad8ca9061b36c1dfc3bcaf06c44f41d423ddf05fa",
+"verbatim_sha256": "aef6748cb882fcbfa3de023711b472e595ec2058362f208205480d8cf85359c7",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/libsentry.windows.release.x86_64.dll",
+"sha256": "cf57086469ce741febe6897503e2e8ee5d3203651b858d687249bfa803b3193d",
+"verbatim_sha256": "ffe77c03e570968b34f0302503927bad00912e9fe2ce52b46b8c65080199d7c8",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/libsentry.windows.debug.x86_32.dll",
+"sha256": "0893aaa540875ae64ab94c73b2c1d13402535d94014ab291c7c28103df641c8c",
+"verbatim_sha256": "7fed9b1dd3161101def6f9af7d6e821a94b4faf926c095a8ab257d5d1dd6e69a",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/libsentry.windows.release.x86_32.dll",
+"sha256": "cb1dff970574b6ae70861ab9294e7ad7f4f2960668d1b7efa43ccf56ffe28957",
+"verbatim_sha256": "500ccc560183eda0b756f0023c89e46b8b1702c9dc21fe7e43bb22f709869926",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/libsentry.windows.debug.arm64.dll",
+"sha256": "38919d44d574d93345ae8ed1e71485359448d173b47f16d33c04f44ac9c4c2d6",
+"verbatim_sha256": "24e7dd17e19e378666ff598e0b6d5610456a19351bf95d77d131f719c55d2812",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/libsentry.windows.release.arm64.dll",
+"sha256": "d756aef2290416f3c35a117fc00cf0782bb1af5221f8d0aabe857cc22f2b6868",
+"verbatim_sha256": "b89aea4fa50a246fab68c36a6b89aae4a71da377e2501a03abe3106588825bcd",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_64/libsentry.linux.debug.x86_64.so",
+"sha256": "ef47a5dda16e19239dbe162a03c9ab11681c546efbc305704969b71b242a27d2",
+"verbatim_sha256": "ef47a5dda16e19239dbe162a03c9ab11681c546efbc305704969b71b242a27d2",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_64/libsentry.linux.release.x86_64.so",
+"sha256": "ff910c717485e92a5c39b82d1c4d7d1b6f6b525c68716b830b6e9fcd7b4aaf38",
+"verbatim_sha256": "ff910c717485e92a5c39b82d1c4d7d1b6f6b525c68716b830b6e9fcd7b4aaf38",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/libsentry.linux.debug.x86_32.so",
+"sha256": "70fccfbd63887937e117e394dafec4802b30a083a496854b4b93fee065d0775b",
+"verbatim_sha256": "70fccfbd63887937e117e394dafec4802b30a083a496854b4b93fee065d0775b",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/libsentry.linux.release.x86_32.so",
+"sha256": "f2a2a61da26a61eb8bfe98e069c97929cf71b9c0a399b35b2c365e9d650bcb9c",
+"verbatim_sha256": "f2a2a61da26a61eb8bfe98e069c97929cf71b9c0a399b35b2c365e9d650bcb9c",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/libsentry.linux.debug.arm64.so",
+"sha256": "5b09ada2059f1b044f2b6223b90f6ac6964dd48e4e910ee8adb8365335c2528d",
+"verbatim_sha256": "5b09ada2059f1b044f2b6223b90f6ac6964dd48e4e910ee8adb8365335c2528d",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/libsentry.linux.release.arm64.so",
+"sha256": "9153e8dc869b6581ef76a706f7f45e6f4e9297f9f1c23d1e71bad041b2523842",
+"verbatim_sha256": "9153e8dc869b6581ef76a706f7f45e6f4e9297f9f1c23d1e71bad041b2523842",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.arm64.so",
+"sha256": "d04b892af4029c4188e066727035dd95e73f868971a8921f47520597c1eb56a9",
+"verbatim_sha256": "d04b892af4029c4188e066727035dd95e73f868971a8921f47520597c1eb56a9",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.arm64.so",
+"sha256": "1f2581293dbeaef53efb1e625fabc056d00b187b91e4a0c6918b97eeb0fe074d",
+"verbatim_sha256": "1f2581293dbeaef53efb1e625fabc056d00b187b91e4a0c6918b97eeb0fe074d",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.arm32.so",
+"sha256": "30ec83eabb72ae1af4ff27daafce0338adaa0019148f8d529e53ec26e30a1f3b",
+"verbatim_sha256": "30ec83eabb72ae1af4ff27daafce0338adaa0019148f8d529e53ec26e30a1f3b",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.arm32.so",
+"sha256": "52dee03282fc3a9d37dcd09da05c10f1f4f716db9b2fc27d66a39d4e0700b843",
+"verbatim_sha256": "52dee03282fc3a9d37dcd09da05c10f1f4f716db9b2fc27d66a39d4e0700b843",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.x86_64.so",
+"sha256": "9cffe15d0df3c1dd19f9940dc4e5f9e6073385622e293af567e1630694bbcaa9",
+"verbatim_sha256": "9cffe15d0df3c1dd19f9940dc4e5f9e6073385622e293af567e1630694bbcaa9",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.x86_64.so",
+"sha256": "140d912e70dd5f65284d604f78154aed26301f5f16ef675b197d5a9311734b51",
+"verbatim_sha256": "140d912e70dd5f65284d604f78154aed26301f5f16ef675b197d5a9311734b51",
+"exists": true,
+"tags": [
+"android",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.x86_32.so",
+"sha256": "81267665e97a102157c6e5e3182ce4c827e59f2f1e3639076b679086bd5236cf",
+"verbatim_sha256": "81267665e97a102157c6e5e3182ce4c827e59f2f1e3639076b679086bd5236cf",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.x86_32.so",
+"sha256": "05175bd683df3b8fa73f61cfe5aef35c230abf7ea41097ab485e9fad4a706ce8",
+"verbatim_sha256": "05175bd683df3b8fa73f61cfe5aef35c230abf7ea41097ab485e9fad4a706ce8",
+"exists": true,
+"tags": [
+"android",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/libsentry.ios.debug.xcframework",
+"sha256": "cb9e44d7b537ccc63112e77d7cb691b01cd24f4004a865261a5d76abd028b025",
+"verbatim_sha256": "3108b046c715a462604c452df8af331566a01dd2c7ee9f37a1dceaa8540ef4a8",
+"exists": true,
+"bin_ver": "1.0",
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/libsentry.ios.release.xcframework",
+"sha256": "235588ae7d4f2eed1c2c10f3879dd5a81ef0c5a6dd1df7ea07959e8011cf41a9",
+"verbatim_sha256": "3520b80e48c5ade0d7c53e5319e2ae43999141987e755b8792f2580de6be49b8",
+"exists": true,
+"bin_ver": "1.0",
+"tags": [
+"ios",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.debug.wasm32.nothreads.wasm",
+"sha256": "eca9e77880d0cfe38c2b08ab5ebdc82c465dc12dc8ea2834c87827a04f199484",
+"verbatim_sha256": "eca9e77880d0cfe38c2b08ab5ebdc82c465dc12dc8ea2834c87827a04f199484",
+"exists": true,
+"tags": [
+"web",
+"debug",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.release.wasm32.nothreads.wasm",
+"sha256": "add4c8e4f14fb80979c14eff595a72517fe0084a1e95b8fdbe78f26759fdb57d",
+"verbatim_sha256": "add4c8e4f14fb80979c14eff595a72517fe0084a1e95b8fdbe78f26759fdb57d",
+"exists": true,
+"tags": [
+"web",
+"release",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.debug.wasm32.wasm",
+"sha256": "4c1a4a3b8d4469ac24839b26da7ee008e7d33c8d87ee536a8b555f90952ab3e6",
+"verbatim_sha256": "4c1a4a3b8d4469ac24839b26da7ee008e7d33c8d87ee536a8b555f90952ab3e6",
+"exists": true,
+"tags": [
+"web",
+"debug",
+"threads",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.release.wasm32.wasm",
+"sha256": "191a6fe2e1a8d81415cffe4bc26eeae78de979169cef36f74c872590cc407661",
+"verbatim_sha256": "191a6fe2e1a8d81415cffe4bc26eeae78de979169cef36f74c872590cc407661",
+"exists": true,
+"tags": [
+"web",
+"release",
+"threads",
+"wasm32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/sentry/bin/linux/x86_64/crashpad_handler",
+"sha256": "b09029c2e7b375502dc410fda2dd9562c66b6bbfb0f94ab25a840b0e62feaadd",
+"verbatim_sha256": "b09029c2e7b375502dc410fda2dd9562c66b6bbfb0f94ab25a840b0e62feaadd",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/crashpad_handler",
+"sha256": "59f3dc4581169e1a92eb16ce2f4ef1a1c5203e33d2dd2825320112fad96d8e88",
+"verbatim_sha256": "59f3dc4581169e1a92eb16ce2f4ef1a1c5203e33d2dd2825320112fad96d8e88",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/crashpad_handler",
+"sha256": "d9cdd198e7b6897de4942033ae90b9cec413b58460138d1decee956be8c36459",
+"verbatim_sha256": "d9cdd198e7b6897de4942033ae90b9cec413b58460138d1decee956be8c36459",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/crashpad_handler.exe",
+"sha256": "a5561aa532a6f41db0e24bdfcc9c565366739aa578087b26f2633c78efa0e3c5",
+"verbatim_sha256": "6d2e0063e64b701bed71ef5973daeaef32d061b186ec737395ee0654c70e6d4c",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/crashpad_wer.dll",
+"sha256": "8958b2166632f8fa02e15d0a99d13b85820a8ccb3f8ab4a8318a9066deb5c9d1",
+"verbatim_sha256": "bdbeee273791ad9c68b4ef198a5698cc7e6c0eaf4fdea6c1d762e1d79141d43a",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/crashpad_handler.exe",
+"sha256": "b8c04d964bfb1556c01b8202aaa6e37235166d731f678bb8833fdf4dcfd1b059",
+"verbatim_sha256": "c0110b6b536839a333ff20ed0c07ba3ce4719e1ad6bac2f8989e68d526c40dbe",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/crashpad_wer.dll",
+"sha256": "41c4d61ce7b68fba9310d0fd1a57ba21c8b72c43eb68fad8aeeb67941d145e03",
+"verbatim_sha256": "48a02c281c7e2d666aa386064b3372e1086b9c3c84a389279161ff3a831f8369",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/crashpad_handler.exe",
+"sha256": "06757c2eecd5f8c2914a75c0ecfb94d53c2f7d5e21878364d9f45e73065f9e1e",
+"verbatim_sha256": "87a9494ec00d4eeaca5e2f833a86e026477b53b527a7511558326ce9b7ebf52b",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/crashpad_wer.dll",
+"sha256": "cf5d527dc1e40e4902c24507cec44bc60e378eee854664cf7b349c01d4cf4543",
+"verbatim_sha256": "f58de24a1d688cff0d110a6c82e37aac45365441ba4f2e1dae3199e86b5a1dcd",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libSentry.dylib",
+"sha256": "b93e6e0ca01b316e8d051ef0c4698088195a7f0c4aec46ce8db88e15ff02f46c",
+"verbatim_sha256": "b11c546352c51e4bf020662354f2cf71223c0867f751096cbe4d35e04ae889d5",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libSentry.dylib",
+"sha256": "b93e6e0ca01b316e8d051ef0c4698088195a7f0c4aec46ce8db88e15ff02f46c",
+"verbatim_sha256": "b11c546352c51e4bf020662354f2cf71223c0867f751096cbe4d35e04ae889d5",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/Sentry.xcframework",
+"sha256": "47bbe1daaba039b0087f2a56a325231e4afa55cb65c2015c75f75e25e6a891f7",
+"verbatim_sha256": "54163c9ab7d1ae3227386ede7eb5734f078c17d90b8f68e0f0cf40ef40a13525",
+"exists": true,
+"bin_ver": "9.30.2",
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/Sentry.xcframework",
+"sha256": "47bbe1daaba039b0087f2a56a325231e4afa55cb65c2015c75f75e25e6a891f7",
+"verbatim_sha256": "54163c9ab7d1ae3227386ede7eb5734f078c17d90b8f68e0f0cf40ef40a13525",
+"exists": true,
+"bin_ver": "9.30.2",
+"tags": [
+"ios",
+"release"
+]
+}
+]
+}
+]
+},
+"github-419480955-662294391": {
+"cache_version": 7,
+"plugin_name": "sentry",
+"release_info": {
+"plugin_source": "github",
+"primary_id": 419480955,
+"secondary_id": 662294391,
+"version": "2.4.0",
+"release_date": "2026-10-21T11:34:09Z",
+"download_url": "https://github.com/getsentry/sentry-godot/releases/download/2.4.0/sentry-godot-demo-project-2.4.0%2B24732d3.zip",
+"repository_url": "https://github.com/getsentry/sentry-godot",
+"sha256_sum": "e1256525e9f25d1aaa32d7a797275d52f6fd3d611807d9edd9e0d23c1debba2e"
+},
+"min_godot_version": "4.5",
+"size": 40710531,
+"archive_sha256": "e1256525e9f25d1aaa32d7a797275d52f6fd3d611807d9edd9e0d23c1debba2e",
+"gdexts": [
+{
+"relative_path": "addons/sentry/sentry.gdextension",
+"min_godot_version": "4.5",
+"bins": [
+{
+"name": "res://addons/sentry/bin/macos/libsentry.macos.debug.dylib",
+"sha256": "0aef27d3019ffe5f3f2870b58ed4da10b105ad77f5180eb084f59473dddfd183",
+"verbatim_sha256": "568b4371609780ce15660fac6e3896ba5f6441191cff21176c9776e1975a15c3",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libsentry.macos.release.dylib",
+"sha256": "7d1a1547fbf8192d0a34a88314d1f6c5839def7daeaad96924d445946fcd713e",
+"verbatim_sha256": "5e3946a96c753b2029bf5988fc0da7ad8c6d40ef885d00f4364e34c7eee0c34d",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/libsentry.windows.debug.x86_64.dll",
+"sha256": "849a4d58d937cd45e665e38ad8ca9061b36c1dfc3bcaf06c44f41d423ddf05fa",
+"verbatim_sha256": "aef6748cb882fcbfa3de023711b472e595ec2058362f208205480d8cf85359c7",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/libsentry.windows.release.x86_64.dll",
+"sha256": "cf57086469ce741febe6897503e2e8ee5d3203651b858d687249bfa803b3193d",
+"verbatim_sha256": "ffe77c03e570968b34f0302503927bad00912e9fe2ce52b46b8c65080199d7c8",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/libsentry.windows.debug.x86_32.dll",
+"sha256": "0893aaa540875ae64ab94c73b2c1d13402535d94014ab291c7c28103df641c8c",
+"verbatim_sha256": "7fed9b1dd3161101def6f9af7d6e821a94b4faf926c095a8ab257d5d1dd6e69a",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/libsentry.windows.release.x86_32.dll",
+"sha256": "cb1dff970574b6ae70861ab9294e7ad7f4f2960668d1b7efa43ccf56ffe28957",
+"verbatim_sha256": "500ccc560183eda0b756f0023c89e46b8b1702c9dc21fe7e43bb22f709869926",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/libsentry.windows.debug.arm64.dll",
+"sha256": "38919d44d574d93345ae8ed1e71485359448d173b47f16d33c04f44ac9c4c2d6",
+"verbatim_sha256": "24e7dd17e19e378666ff598e0b6d5610456a19351bf95d77d131f719c55d2812",
+"exists": true,
+"tags": [
+"windows",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/libsentry.windows.release.arm64.dll",
+"sha256": "d756aef2290416f3c35a117fc00cf0782bb1af5221f8d0aabe857cc22f2b6868",
+"verbatim_sha256": "b89aea4fa50a246fab68c36a6b89aae4a71da377e2501a03abe3106588825bcd",
+"exists": true,
+"tags": [
+"windows",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_64/libsentry.linux.debug.x86_64.so",
+"sha256": "ef47a5dda16e19239dbe162a03c9ab11681c546efbc305704969b71b242a27d2",
+"verbatim_sha256": "ef47a5dda16e19239dbe162a03c9ab11681c546efbc305704969b71b242a27d2",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_64/libsentry.linux.release.x86_64.so",
+"sha256": "ff910c717485e92a5c39b82d1c4d7d1b6f6b525c68716b830b6e9fcd7b4aaf38",
+"verbatim_sha256": "ff910c717485e92a5c39b82d1c4d7d1b6f6b525c68716b830b6e9fcd7b4aaf38",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/libsentry.linux.debug.x86_32.so",
+"sha256": "70fccfbd63887937e117e394dafec4802b30a083a496854b4b93fee065d0775b",
+"verbatim_sha256": "70fccfbd63887937e117e394dafec4802b30a083a496854b4b93fee065d0775b",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/libsentry.linux.release.x86_32.so",
+"sha256": "f2a2a61da26a61eb8bfe98e069c97929cf71b9c0a399b35b2c365e9d650bcb9c",
+"verbatim_sha256": "f2a2a61da26a61eb8bfe98e069c97929cf71b9c0a399b35b2c365e9d650bcb9c",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/libsentry.linux.debug.arm64.so",
+"sha256": "5b09ada2059f1b044f2b6223b90f6ac6964dd48e4e910ee8adb8365335c2528d",
+"verbatim_sha256": "5b09ada2059f1b044f2b6223b90f6ac6964dd48e4e910ee8adb8365335c2528d",
+"exists": true,
+"tags": [
+"linux",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/libsentry.linux.release.arm64.so",
+"sha256": "9153e8dc869b6581ef76a706f7f45e6f4e9297f9f1c23d1e71bad041b2523842",
+"verbatim_sha256": "9153e8dc869b6581ef76a706f7f45e6f4e9297f9f1c23d1e71bad041b2523842",
+"exists": true,
+"tags": [
+"linux",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.arm64.so",
+"sha256": "d04b892af4029c4188e066727035dd95e73f868971a8921f47520597c1eb56a9",
+"verbatim_sha256": "d04b892af4029c4188e066727035dd95e73f868971a8921f47520597c1eb56a9",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.arm64.so",
+"sha256": "1f2581293dbeaef53efb1e625fabc056d00b187b91e4a0c6918b97eeb0fe074d",
+"verbatim_sha256": "1f2581293dbeaef53efb1e625fabc056d00b187b91e4a0c6918b97eeb0fe074d",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.arm32.so",
+"sha256": "30ec83eabb72ae1af4ff27daafce0338adaa0019148f8d529e53ec26e30a1f3b",
+"verbatim_sha256": "30ec83eabb72ae1af4ff27daafce0338adaa0019148f8d529e53ec26e30a1f3b",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"arm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.arm32.so",
+"sha256": "52dee03282fc3a9d37dcd09da05c10f1f4f716db9b2fc27d66a39d4e0700b843",
+"verbatim_sha256": "52dee03282fc3a9d37dcd09da05c10f1f4f716db9b2fc27d66a39d4e0700b843",
+"exists": true,
+"tags": [
+"android",
+"release",
+"arm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.x86_64.so",
+"sha256": "9cffe15d0df3c1dd19f9940dc4e5f9e6073385622e293af567e1630694bbcaa9",
+"verbatim_sha256": "9cffe15d0df3c1dd19f9940dc4e5f9e6073385622e293af567e1630694bbcaa9",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.x86_64.so",
+"sha256": "140d912e70dd5f65284d604f78154aed26301f5f16ef675b197d5a9311734b51",
+"verbatim_sha256": "140d912e70dd5f65284d604f78154aed26301f5f16ef675b197d5a9311734b51",
+"exists": true,
+"tags": [
+"android",
+"release",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.debug.x86_32.so",
+"sha256": "81267665e97a102157c6e5e3182ce4c827e59f2f1e3639076b679086bd5236cf",
+"verbatim_sha256": "81267665e97a102157c6e5e3182ce4c827e59f2f1e3639076b679086bd5236cf",
+"exists": true,
+"tags": [
+"android",
+"debug",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/android/libsentry.android.release.x86_32.so",
+"sha256": "05175bd683df3b8fa73f61cfe5aef35c230abf7ea41097ab485e9fad4a706ce8",
+"verbatim_sha256": "05175bd683df3b8fa73f61cfe5aef35c230abf7ea41097ab485e9fad4a706ce8",
+"exists": true,
+"tags": [
+"android",
+"release",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/libsentry.ios.debug.xcframework",
+"sha256": "cb9e44d7b537ccc63112e77d7cb691b01cd24f4004a865261a5d76abd028b025",
+"verbatim_sha256": "3108b046c715a462604c452df8af331566a01dd2c7ee9f37a1dceaa8540ef4a8",
+"exists": true,
+"bin_ver": "1.0",
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/libsentry.ios.release.xcframework",
+"sha256": "235588ae7d4f2eed1c2c10f3879dd5a81ef0c5a6dd1df7ea07959e8011cf41a9",
+"verbatim_sha256": "3520b80e48c5ade0d7c53e5319e2ae43999141987e755b8792f2580de6be49b8",
+"exists": true,
+"bin_ver": "1.0",
+"tags": [
+"ios",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.debug.wasm32.nothreads.wasm",
+"sha256": "eca9e77880d0cfe38c2b08ab5ebdc82c465dc12dc8ea2834c87827a04f199484",
+"verbatim_sha256": "eca9e77880d0cfe38c2b08ab5ebdc82c465dc12dc8ea2834c87827a04f199484",
+"exists": true,
+"tags": [
+"web",
+"debug",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.release.wasm32.nothreads.wasm",
+"sha256": "add4c8e4f14fb80979c14eff595a72517fe0084a1e95b8fdbe78f26759fdb57d",
+"verbatim_sha256": "add4c8e4f14fb80979c14eff595a72517fe0084a1e95b8fdbe78f26759fdb57d",
+"exists": true,
+"tags": [
+"web",
+"release",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.debug.wasm32.wasm",
+"sha256": "4c1a4a3b8d4469ac24839b26da7ee008e7d33c8d87ee536a8b555f90952ab3e6",
+"verbatim_sha256": "4c1a4a3b8d4469ac24839b26da7ee008e7d33c8d87ee536a8b555f90952ab3e6",
+"exists": true,
+"tags": [
+"web",
+"debug",
+"threads",
+"wasm32"
+]
+},
+{
+"name": "res://addons/sentry/bin/web/libsentry.web.release.wasm32.wasm",
+"sha256": "191a6fe2e1a8d81415cffe4bc26eeae78de979169cef36f74c872590cc407661",
+"verbatim_sha256": "191a6fe2e1a8d81415cffe4bc26eeae78de979169cef36f74c872590cc407661",
+"exists": true,
+"tags": [
+"web",
+"release",
+"threads",
+"wasm32"
+]
+}
+],
+"dependencies": [
+{
+"name": "res://addons/sentry/bin/linux/x86_64/crashpad_handler",
+"sha256": "b09029c2e7b375502dc410fda2dd9562c66b6bbfb0f94ab25a840b0e62feaadd",
+"verbatim_sha256": "b09029c2e7b375502dc410fda2dd9562c66b6bbfb0f94ab25a840b0e62feaadd",
+"exists": true,
+"tags": [
+"linux",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/x86_32/crashpad_handler",
+"sha256": "59f3dc4581169e1a92eb16ce2f4ef1a1c5203e33d2dd2825320112fad96d8e88",
+"verbatim_sha256": "59f3dc4581169e1a92eb16ce2f4ef1a1c5203e33d2dd2825320112fad96d8e88",
+"exists": true,
+"tags": [
+"linux",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/linux/arm64/crashpad_handler",
+"sha256": "d9cdd198e7b6897de4942033ae90b9cec413b58460138d1decee956be8c36459",
+"verbatim_sha256": "d9cdd198e7b6897de4942033ae90b9cec413b58460138d1decee956be8c36459",
+"exists": true,
+"tags": [
+"linux",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/crashpad_handler.exe",
+"sha256": "a5561aa532a6f41db0e24bdfcc9c565366739aa578087b26f2633c78efa0e3c5",
+"verbatim_sha256": "6d2e0063e64b701bed71ef5973daeaef32d061b186ec737395ee0654c70e6d4c",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_64/crashpad_wer.dll",
+"sha256": "8958b2166632f8fa02e15d0a99d13b85820a8ccb3f8ab4a8318a9066deb5c9d1",
+"verbatim_sha256": "bdbeee273791ad9c68b4ef198a5698cc7e6c0eaf4fdea6c1d762e1d79141d43a",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/crashpad_handler.exe",
+"sha256": "b8c04d964bfb1556c01b8202aaa6e37235166d731f678bb8833fdf4dcfd1b059",
+"verbatim_sha256": "c0110b6b536839a333ff20ed0c07ba3ce4719e1ad6bac2f8989e68d526c40dbe",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/x86_32/crashpad_wer.dll",
+"sha256": "41c4d61ce7b68fba9310d0fd1a57ba21c8b72c43eb68fad8aeeb67941d145e03",
+"verbatim_sha256": "48a02c281c7e2d666aa386064b3372e1086b9c3c84a389279161ff3a831f8369",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"x86_32"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/crashpad_handler.exe",
+"sha256": "06757c2eecd5f8c2914a75c0ecfb94d53c2f7d5e21878364d9f45e73065f9e1e",
+"verbatim_sha256": "87a9494ec00d4eeaca5e2f833a86e026477b53b527a7511558326ce9b7ebf52b",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/windows/arm64/crashpad_wer.dll",
+"sha256": "cf5d527dc1e40e4902c24507cec44bc60e378eee854664cf7b349c01d4cf4543",
+"verbatim_sha256": "f58de24a1d688cff0d110a6c82e37aac45365441ba4f2e1dae3199e86b5a1dcd",
+"exists": true,
+"bin_ver": "0.17.4",
+"tags": [
+"windows",
+"arm64"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libSentry.dylib",
+"sha256": "b93e6e0ca01b316e8d051ef0c4698088195a7f0c4aec46ce8db88e15ff02f46c",
+"verbatim_sha256": "b11c546352c51e4bf020662354f2cf71223c0867f751096cbe4d35e04ae889d5",
+"exists": true,
+"tags": [
+"macos",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/macos/libSentry.dylib",
+"sha256": "b93e6e0ca01b316e8d051ef0c4698088195a7f0c4aec46ce8db88e15ff02f46c",
+"verbatim_sha256": "b11c546352c51e4bf020662354f2cf71223c0867f751096cbe4d35e04ae889d5",
+"exists": true,
+"tags": [
+"macos",
+"release"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/Sentry.xcframework",
+"sha256": "47bbe1daaba039b0087f2a56a325231e4afa55cb65c2015c75f75e25e6a891f7",
+"verbatim_sha256": "54163c9ab7d1ae3227386ede7eb5734f078c17d90b8f68e0f0cf40ef40a13525",
+"exists": true,
+"bin_ver": "9.30.2",
+"tags": [
+"ios",
+"debug"
+]
+},
+{
+"name": "res://addons/sentry/bin/ios/Sentry.xcframework",
+"sha256": "47bbe1daaba039b0087f2a56a325231e4afa55cb65c2015c75f75e25e6a891f7",
+"verbatim_sha256": "54163c9ab7d1ae3227386ede7eb5734f078c17d90b8f68e0f0cf40ef40a13525",
+"exists": true,
+"bin_ver": "9.30.2",
+"tags": [
+"ios",
+"release"
 ]
 }
 ]
