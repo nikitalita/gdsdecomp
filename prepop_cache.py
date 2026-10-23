@@ -40,6 +40,7 @@ PLUGINS_TO_PREPOP = [
     "GameAnalytics",
     "twovoip",
     "twovoip_lipsync",
+    "zylann.hterrain",
 ]
 
 

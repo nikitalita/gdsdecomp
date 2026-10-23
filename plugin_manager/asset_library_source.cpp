@@ -24,6 +24,10 @@ HashMap<String, String> AssetLibrarySource::GODOT_VERSION_RELEASE_DATES = {
 	{ "4.5", "2025-09-15" },
 };
 
+static const HashMap<String, String> alternative_search_terms = {
+	{ "zylann.hterrain", "Heightmap terrain" },
+};
+
 Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Dictionary> &r_assets, int ver_major) {
 	{
 		MutexLock lock(cache_mutex);
@@ -46,11 +50,13 @@ Error AssetLibrarySource::search_for_assets(const String &plugin_name, Vector<Di
 	static const String URL_TEMPLATE = "https://godotengine.org/asset-library/api/asset?type=addon&filter={0}&godot_version={1}&max_results={2}&page={3}";
 	Array assets;
 
+	String filter = alternative_search_terms.has(plugin_name) ? alternative_search_terms[plugin_name] : plugin_name;
+
 	for (const auto &godot_version : godot_versions) {
 		int page = 0;
 		int pages = 1000;
 		for (page = 0; page < pages; page++) {
-			String request_url = URL_TEMPLATE.replace("{0}", plugin_name)
+			String request_url = URL_TEMPLATE.replace("{0}", filter.uri_encode())
 										 .replace("{1}", godot_version)
 										 .replace("{2}", "500")
 										 .replace("{3}", itos(page));
