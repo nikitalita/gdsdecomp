@@ -457,11 +457,9 @@ HashMap<String, Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 GDREConfig::GDREConfig() {
 	singleton = this;
 	default_settings = _init_default_settings();
-	load_config();
 }
 
 GDREConfig::~GDREConfig() {
-	save_config();
 	if (singleton == this) {
 		singleton = nullptr;
 	}

@@ -28,6 +28,7 @@ GDREMainLoop *GDREMainLoop::get_singleton() {
 void GDREMainLoop::initialize() {
 	// Stuff that can't happen in `register_types` because it requires the engine to be fully initialized first.
 	ResourceCompatLoader::_init();
+	GDREConfig::get_singleton()->load_config();
 	PluginManager::get_singleton()->start_load_cache();
 }
 
@@ -81,6 +82,8 @@ void GDREMainLoop::finalize() {
 		_process_next_process_calls();
 	}
 	ResourceCompatLoader::_deinit();
+	GDREConfig::get_singleton()->save_config();
+	PluginManager::get_singleton()->save_cache();
 }
 
 bool GDREMainLoop::wait_until_next_frame(int64_t p_time_usec) {

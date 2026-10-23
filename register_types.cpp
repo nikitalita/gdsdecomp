@@ -672,8 +672,6 @@ void uninitialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
 	}
 	deinit_exporters();
 	deinit_loaders();
-
-	plugin_manager->save_cache();
 	deinit_plugin_manager_sources();
 	if (plugin_manager != nullptr) {
 		memdelete(plugin_manager);
