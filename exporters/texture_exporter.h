@@ -30,3 +30,31 @@ public:
 
 	virtual Error recreate_missing_variants(const String &output_dir, Ref<ImportInfo> import_infos) const override;
 };
+
+class HTerrainPackedTextureExporter : public ResourceExporter {
+	GDCLASS(HTerrainPackedTextureExporter, ResourceExporter);
+
+public:
+	static constexpr const char *const EXPORTER_NAME = "HTerrainPackedTexture";
+	virtual Error export_file(const String &out_path, const String &res_path) override;
+	virtual Ref<ExportReport> export_resource(const String &output_dir, Ref<ImportInfo> import_infos) override;
+	virtual void get_handled_types(List<String> *out) const override;
+	virtual void get_handled_importers(List<String> *out) const override;
+	virtual String get_name() const override;
+	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
+};
+
+class HTerrainPackedTextureArrayExporter : public ResourceExporter {
+	GDCLASS(HTerrainPackedTextureArrayExporter, ResourceExporter);
+
+public:
+	static constexpr const char *const EXPORTER_NAME = "HTerrainPackedTextureArray";
+	virtual Error export_file(const String &out_path, const String &res_path) override;
+	virtual Ref<ExportReport> export_resource(const String &output_dir, Ref<ImportInfo> import_infos) override;
+	virtual void get_handled_types(List<String> *out) const override;
+	virtual void get_handled_importers(List<String> *out) const override;
+	virtual String get_name() const override;
+	virtual String get_default_export_extension(const String &res_path) const override;
+	virtual Vector<String> get_export_extensions(const String &res_path) const override;
+};

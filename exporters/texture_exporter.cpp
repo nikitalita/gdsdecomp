@@ -2,6 +2,7 @@
 
 #include "compat/resource_compat_binary.h"
 #include "compat/resource_loader_compat.h"
+#include "core/io/json.h"
 #include "core/variant/variant.h"
 #include "core/version_generated.gen.h"
 #include "gdre_test_macros.h"
@@ -388,26 +389,38 @@ Error decompress_and_set_tex_params(Ref<Image> p_img, Ref<ExportReport> p_report
 	return OK;
 }
 
-Error TextureExporter::_convert_tex(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
+static inline Error load_image_from_texture_2d(const String &p_path, String &r_image_format, Ref<Texture2D> &r_tex, Ref<Image> &r_img) {
 	Error err;
-	Ref<Texture2D> tex;
-	tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
+	r_tex = ResourceCompatLoader::non_global_load(p_path, "", &err);
 
 	if (err == ERR_UNAVAILABLE) {
 		// TODO: Not reporting here because we can't get the deprecated format type yet,
 		// implement functionality to pass it back
-		image_format = "Unknown deprecated image format";
-		print_line("Did not convert deprecated Texture resource " + p_path);
+		r_image_format = "Unknown deprecated image format";
 		return err;
 	}
 	if (err == ERR_FILE_EOF) {
 		return ERR_FILE_EOF;
 	}
-	ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + p_path);
+	ERR_FAIL_COND_V_MSG(err != OK || r_tex.is_null(), err, "Failed to load texture " + p_path);
 
-	Ref<Image> img = tex->get_image();
+	r_img = r_tex->get_image();
+	ERR_FAIL_COND_V_MSG(r_img.is_null(), ERR_PARSE_ERROR, "Failed to load image for texture " + p_path);
+	return OK;
+}
 
-	ERR_FAIL_COND_V_MSG(img.is_null(), ERR_PARSE_ERROR, "Failed to load image for texture " + p_path);
+Error TextureExporter::_convert_tex(const String &p_path, const String &dest_path, bool lossy, String &image_format, Ref<ExportReport> report) {
+	Ref<Image> img;
+	Ref<Texture2D> tex;
+	Error err = load_image_from_texture_2d(p_path, image_format, tex, img);
+	if (err) {
+		if (err == ERR_UNAVAILABLE && report.is_valid()) {
+			report->set_unsupported_format_type(image_format);
+			print_line("Did not convert deprecated Texture resource " + p_path);
+		}
+		return err;
+	}
+
 	image_format = Image::get_format_name(img->get_format());
 	auto info = ResourceInfo::get_info_from_resource(tex);
 	auto iinfo = report.is_valid() ? report->get_import_info() : nullptr;
@@ -1462,4 +1475,219 @@ Error TextureExporter::recreate_missing_variants(const String &output_dir, Ref<I
 		ERR_CONTINUE_MSG(err != OK, "Failed to save image to stex: " + E);
 	}
 	return OK;
+}
+
+static Error export_packed_texture(const String &output_dir, const String &texture_export_dest, const String &resource_export_dest, const String &res_path, bool lossy, Ref<ExportReport> report = nullptr) {
+	String image_format;
+	String texture_output_path = output_dir.is_empty() ? texture_export_dest : output_dir.path_join(texture_export_dest.trim_prefix("res://"));
+
+	Ref<Image> img;
+	Ref<Texture2D> tex;
+	Error err = load_image_from_texture_2d(res_path, image_format, tex, img);
+
+	if (err == OK) {
+		image_format = Image::get_format_name(img->get_format());
+		err = ImageSaver::decompress_image(img);
+	}
+	if (err != OK) {
+		if (report.is_valid()) {
+			report->set_error(err);
+			if (err == ERR_UNAVAILABLE) {
+				report->set_unsupported_format_type(image_format);
+			}
+		}
+		return err;
+	}
+	err = ImageSaver::save_image(texture_output_path, img, lossy, 1.0, false);
+	if (err == ERR_UNAVAILABLE) {
+		return err;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + texture_output_path + " from texture " + res_path);
+
+	// {
+	//  "resolution": 128,
+	// 	"contains_albedo": true,
+	// 	"src": {
+	//   "rgb": <path>
+	//   "a": <path>
+	//   "rgba": <path>
+	//   "normalmap_flip_y": false
+	//  }
+	// }
+	String base_name = res_path.get_file().get_slice(".", 0);
+	Dictionary json;
+	json["contains_albedo"] = !base_name.ends_with("normal_roughness");
+	json["resolution"] = img->get_width();
+	Dictionary src;
+	src["rgba"] = texture_export_dest;
+	// We never set this, so we don't need to set it here
+	// src["normalmap_flip_y"] = false;
+	json["src"] = src;
+	String output_path = output_dir.is_empty() ? resource_export_dest : output_dir.path_join(resource_export_dest.trim_prefix("res://"));
+	String json_string = JSON::stringify(json, "\t", true);
+	auto file = FileAccess::open(output_path, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to open file for writing: " + output_path);
+	file->store_string(json_string);
+	file->close();
+	return OK;
+}
+
+static Error export_packed_texture_array(const String &output_dir, const String &texture_export_dir, const String &resource_export_dest, const String &res_path, bool lossy, Ref<ExportReport> report = nullptr) {
+	Error err;
+	Ref<ImportInfo> iinfo;
+	if (report.is_valid()) {
+		iinfo = report->get_import_info();
+	}
+	Ref<TextureLayered> tex = ResourceCompatLoader::non_global_load(res_path, "", &err);
+
+	if (tex.is_null()) {
+		return ERR_FILE_NOT_FOUND;
+	}
+	if (err) {
+		if (report.is_valid()) {
+			report->set_error(err);
+			if (err == ERR_UNAVAILABLE) {
+				report->set_unsupported_format_type("Unknown deprecated image format");
+			}
+		}
+		print_line("Did not convert deprecated Texture resource " + res_path);
+		return err;
+	}
+	if (err == ERR_FILE_EOF) {
+		return ERR_FILE_EOF;
+	}
+	ERR_FAIL_COND_V_MSG(err != OK || tex.is_null(), err, "Failed to load texture " + res_path);
+
+	auto layer_count = tex->get_layers();
+	if (layer_count == 0) {
+		return ERR_PARSE_ERROR;
+	}
+	Vector<Ref<Image>> images;
+	for (int i = 0; i < layer_count; i++) {
+		images.push_back(tex->get_layer_data(i));
+	}
+	ERR_FAIL_COND_V_MSG(images.size() == 0, ERR_PARSE_ERROR, "No images to concat");
+
+	String base_name = res_path.get_file().get_slice(".", 0);
+	String suffix;
+	if (base_name.ends_with("normal_roughness")) {
+		suffix = "_normal_roughness";
+	} else if (base_name.ends_with("albedo_bump")) {
+		suffix = "_albedo_bump";
+	} else {
+		suffix = "";
+	}
+	Dictionary json;
+	json["contains_albedo"] = !base_name.ends_with("normal_roughness");
+	json["resolution"] = images[0]->get_width();
+	Array layers;
+
+	String prefix = base_name.trim_suffix(suffix);
+	String texture_output_dir = output_dir.path_join(texture_export_dir.trim_prefix("res://"));
+	for (int i = 0; i < layer_count; i++) {
+		String file = vformat("%s_slot%d%s.png", prefix, i, suffix);
+		String texture_export_dest = texture_export_dir.path_join(file);
+		String texture_output_path = texture_output_dir.path_join(file);
+
+		err = ImageSaver::save_image(texture_output_path, images[i], lossy, 1.0, false);
+		if (err == ERR_UNAVAILABLE) {
+			return err;
+		}
+		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to save image " + texture_output_path + " from texture " + res_path);
+		Dictionary src;
+		src["rgba"] = texture_export_dest;
+		layers.push_back(src);
+	}
+	json["layers"] = layers;
+	String output_path = output_dir.is_empty() ? resource_export_dest : output_dir.path_join(resource_export_dest.trim_prefix("res://"));
+	String json_string = JSON::stringify(json, "\t", true);
+	auto file = FileAccess::open(output_path, FileAccess::WRITE, &err);
+	ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to open file for writing: " + output_path);
+	file->store_string(json_string);
+	file->close();
+
+	return OK;
+}
+
+Error HTerrainPackedTextureExporter::export_file(const String &out_path, const String &res_path) {
+	return ERR_UNAVAILABLE;
+}
+
+Ref<ExportReport> HTerrainPackedTextureExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
+	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	String res_path;
+	if (get_extant_path_and_set_error(report, res_path) != OK) {
+		return report;
+	}
+	String export_dest = import_infos->get_export_dest();
+	String texture_dest = export_dest.get_basename() + ".png";
+	if (!texture_dest.trim_prefix("res://").begins_with(".assets/")) {
+		texture_dest = "res://.assets/" + texture_dest.trim_prefix("res://");
+	}
+	Error err = export_packed_texture(output_dir, texture_dest, export_dest, res_path, false, report);
+	report->set_error(err);
+	if (err == OK) {
+		report->set_saved_path(output_dir.path_join(import_infos->get_export_dest().trim_prefix("res://")));
+	}
+	return report;
+}
+
+void HTerrainPackedTextureExporter::get_handled_types(List<String> *out) const {
+}
+
+void HTerrainPackedTextureExporter::get_handled_importers(List<String> *out) const {
+	out->push_back("hterrain_packed_texture_importer");
+}
+
+String HTerrainPackedTextureExporter::get_name() const {
+	return EXPORTER_NAME;
+}
+
+String HTerrainPackedTextureExporter::get_default_export_extension(const String &res_path) const {
+	return "packed_tex";
+}
+
+Vector<String> HTerrainPackedTextureExporter::get_export_extensions(const String &res_path) const {
+	return { "packed_tex" };
+}
+
+Error HTerrainPackedTextureArrayExporter::export_file(const String &out_path, const String &res_path) {
+	return ERR_UNAVAILABLE;
+}
+
+Ref<ExportReport> HTerrainPackedTextureArrayExporter::export_resource(const String &output_dir, Ref<ImportInfo> import_infos) {
+	Ref<ExportReport> report = memnew(ExportReport(import_infos, get_name()));
+	String res_path;
+	if (get_extant_path_and_set_error(report, res_path) != OK) {
+		return report;
+	}
+	String export_dest = import_infos->get_export_dest();
+	String texture_dest = export_dest.get_base_dir();
+	if (!texture_dest.trim_prefix("res://").begins_with(".assets/")) {
+		texture_dest = "res://.assets/" + texture_dest.trim_prefix("res://");
+	}
+	Error err = export_packed_texture_array(output_dir, texture_dest, export_dest, res_path, false, report);
+	report->set_error(err);
+	if (err == OK) {
+		report->set_saved_path(output_dir.path_join(import_infos->get_export_dest().trim_prefix("res://")));
+	}
+	return report;
+}
+
+void HTerrainPackedTextureArrayExporter::get_handled_types(List<String> *out) const {
+}
+
+void HTerrainPackedTextureArrayExporter::get_handled_importers(List<String> *out) const {
+	out->push_back("hterrain_packed_texture_array_importer");
+}
+
+String HTerrainPackedTextureArrayExporter::get_name() const {
+	return EXPORTER_NAME;
+}
+
+String HTerrainPackedTextureArrayExporter::get_default_export_extension(const String &res_path) const {
+	return "packed_texarr";
+}
+Vector<String> HTerrainPackedTextureArrayExporter::get_export_extensions(const String &res_path) const {
+	return { "packed_texarr" };
 }

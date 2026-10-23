@@ -152,6 +152,8 @@ static Ref<ShaderFileExporter> shaderfile_exporter = nullptr;
 static Ref<SpineAtlasExporter> spine_atlas_exporter = nullptr;
 static Ref<SpineSkeletonExporter> spine_skeleton_exporter = nullptr;
 static Ref<TextureExporter> texture_exporter = nullptr;
+static Ref<HTerrainPackedTextureExporter> packed_texture_exporter = nullptr;
+static Ref<HTerrainPackedTextureArrayExporter> packed_texture_array_exporter = nullptr;
 static Ref<TranslationExporter> translation_exporter = nullptr;
 static Ref<ObjExporter> obj_exporter = nullptr;
 static GDREPackedData *gdre_packeddata_singleton = nullptr;
@@ -230,6 +232,8 @@ void init_exporters() {
 	oggstr_exporter = memnew(OggStrExporter);
 	sample_exporter = memnew(SampleExporter);
 	texture_exporter = memnew(TextureExporter);
+	packed_texture_exporter = memnew(HTerrainPackedTextureExporter);
+	packed_texture_array_exporter = memnew(HTerrainPackedTextureArrayExporter);
 	obj_exporter = memnew(ObjExporter);
 	translation_exporter = memnew(TranslationExporter);
 	scene_exporter = memnew(SceneExporter);
@@ -263,6 +267,8 @@ void init_exporters() {
 	Exporter::add_exporter(shaderfile_exporter);
 	Exporter::add_exporter(spine_atlas_exporter);
 	Exporter::add_exporter(spine_skeleton_exporter);
+	Exporter::add_exporter(packed_texture_exporter);
+	Exporter::add_exporter(packed_texture_array_exporter);
 }
 
 void init_plugin_manager_sources() {
@@ -354,6 +360,12 @@ void deinit_exporters() {
 	if (func_godot_wad_exporter.is_valid()) {
 		Exporter::remove_exporter(func_godot_wad_exporter);
 	}
+	if (packed_texture_exporter.is_valid()) {
+		Exporter::remove_exporter(packed_texture_exporter);
+	}
+	if (packed_texture_array_exporter.is_valid()) {
+		Exporter::remove_exporter(packed_texture_array_exporter);
+	}
 	auto_converted_exporter = nullptr;
 	fontfile_exporter = nullptr;
 	gdextension_exporter = nullptr;
@@ -373,6 +385,8 @@ void deinit_exporters() {
 	func_godot_lmp_exporter = nullptr;
 	func_godot_map_exporter = nullptr;
 	func_godot_wad_exporter = nullptr;
+	packed_texture_exporter = nullptr;
+	packed_texture_array_exporter = nullptr;
 }
 
 void deinit_loaders() {
