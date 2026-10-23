@@ -579,17 +579,6 @@ Ref<FileAccess> GDREPackedSource::get_bundled_file(const String &p_path, PackedD
 	return file;
 }
 
-namespace {
-static inline Ref<FileAccess> open_encrypted_packed_file(PackedData::PackedFile *p_file, const String &p_path, const Vector<uint8_t> &p_decryption_key) {
-	Ref<FileAccess> base = FileAccess::open(p_file->pack, FileAccess::READ);
-	ERR_FAIL_COND_V_MSG(base.is_null(), nullptr, vformat("Can't open pack-referenced file '%s'.", String(p_path)));
-	base->seek(p_file->offset);
-	Ref<FileAccess> fae = GDREPackedSource::open_encrypted_file(base, p_decryption_key, FileAccess::READ, false);
-	ERR_FAIL_COND_V_MSG(fae.is_null(), nullptr, vformat("Can't open encrypted pack-referenced file '%s'.", String(p_path)));
-	return fae;
-}
-} // namespace
-
 Ref<FileAccess> GDREPackedSource::get_file(const String &p_path, PackedData::PackedFile *p_file, const Vector<uint8_t> &p_decryption_key) {
 	// if we call the constructor for FileAccessPack if it's a bundle,
 	// it'll cause an infinite loop; we need to just create the thing ourselves
@@ -600,7 +589,10 @@ Ref<FileAccess> GDREPackedSource::get_file(const String &p_path, PackedData::Pac
 		ERR_FAIL_COND_V_MSG(file.is_null(), nullptr, vformat("Can't open bundled pack-referenced file '%s'.", String(p_path)));
 	} else {
 		if (p_file->encrypted) {
-			file = open_encrypted_packed_file(p_file, p_path, decryption_key);
+			Ref<FileAccess> base = FileAccess::open(p_file->pack, FileAccess::READ);
+			ERR_FAIL_COND_V_MSG(base.is_null(), nullptr, vformat("Can't open pack-referenced file '%s'.", String(p_path)));
+			base->seek(p_file->offset);
+			file = GDREPackedSource::open_encrypted_file(base, decryption_key, FileAccess::READ, false);
 			ERR_FAIL_COND_V_MSG(file.is_null(), nullptr, vformat("Can't open encrypted pack-referenced file '%s'.", String(p_path)));
 		} else {
 			// otherwise...
