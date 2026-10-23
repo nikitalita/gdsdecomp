@@ -686,14 +686,21 @@ Error ImportExporter::unzip_and_copy_addon(const Ref<ImportInfoGDExt> &iinfo, co
 	auto plugin_files = gdre::get_recursive_dir_list(tmp_dir, {}, false);
 	auto existing_files = gdre::vector_to_hashset(gdre::get_recursive_dir_list(output, {}, false));
 	auto decomp = GDScriptDecomp::create_decomp_for_commit(GDRESettings::get_singleton()->get_bytecode_revision());
-	static const HashSet<String> extensions_to_skip = {
+	HashSet<String> extensions_to_skip = {
 		"shader",
 		"gdshader",
 		"tscn",
 		"tres",
 		"res",
-		"scn"
+		"scn",
+		"cs",
+		"uid"
 	};
+	List<String> extensions;
+	ResourceCompatLoader::get_base_extensions(&extensions, get_ver_major());
+	for (auto &ext : extensions) {
+		extensions_to_skip.insert(ext);
+	}
 	for (auto &file : plugin_files) {
 		String plugin_path = tmp_dir.path_join(file);
 		String existing_path = output.path_join(file);
