@@ -2973,6 +2973,7 @@ Error GLBExporterInstance::_get_return_error(const String &p_dest_path) {
 	Ref<RegEx> animation_error_re = RegEx::create_from_string(ANIMATION_ERROR_PATTERN);
 
 	static const Vector<String> errors_to_ignore = {
+		"must be normalized in order to be casted to a Quaternion", // basis->get_rotation(), only shows up in debug builds, only happens when rotation == Quaternion() anyway
 		"Condition \"dst_ofs % 8 != 0\" is true.", // astcenc: ASTC decompression failed; it's not a problem
 		"Can't set_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
 		"Can't get_pixel() on compressed image, sorry", // GLTFDocument couldn't decompress image, but forgot to fail
@@ -4514,8 +4515,8 @@ struct BatchExportToken : public TaskRunnerStruct {
 			}
 		} else {
 			if (instance.had_script() && err == OK) {
-				report->set_message("Script has scripts, not saving to original path.");
 				if (!no_rename) {
+					report->set_message("Script has scripts, not saving to original path.");
 					move_output_to_dot_assets();
 				}
 			} else if (err == OK) {
