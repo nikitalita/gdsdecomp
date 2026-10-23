@@ -18,9 +18,6 @@ static const HashMap<String, Vector<String>> release_file_masks = {
 	{ "orchestrator", { "*plugin*" } },
 	{ "godot-rapier2d", { "godot-rapier-2d*", "godot-rapier2d*" } },
 	{ "godot-rapier3d", { "godot-rapier-3d*", "godot-rapier3d*" } },
-};
-
-static const HashMap<String, Vector<String>> release_file_include_masks = {
 	{ "twovoip_lipsync", { "*lipsync*", "*LipSync*" } },
 };
 
@@ -79,10 +76,6 @@ const HashMap<String, Vector<String>> &GitHubSource::get_plugin_tag_masks() {
 
 const HashMap<String, Vector<String>> &GitHubSource::get_plugin_release_file_masks() {
 	return release_file_masks;
-}
-
-const HashMap<String, Vector<String>> &GitHubSource::get_plugin_release_file_include_masks() {
-	return release_file_include_masks;
 }
 
 const HashMap<String, Vector<String>> &GitHubSource::get_plugin_release_file_exclude_masks() {
@@ -156,16 +149,6 @@ String normalize_release_date(const String &p_datetime) {
 
 bool GitHubSource::should_skip_release(const String &plugin_name, const String &release_url) {
 	if (release_url.is_empty()) {
-		return true;
-	}
-	if (get_plugin_release_file_include_masks().has(plugin_name)) {
-		const auto &masks = get_plugin_release_file_include_masks()[plugin_name];
-		String file_name = release_url.get_file().to_lower();
-		for (int i = 0; i < masks.size(); i++) {
-			if (file_name.matchn(masks[i])) {
-				return false;
-			}
-		}
 		return true;
 	}
 	if (get_plugin_release_file_exclude_masks().has(plugin_name)) {
