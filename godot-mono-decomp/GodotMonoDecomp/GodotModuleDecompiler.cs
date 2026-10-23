@@ -981,8 +981,9 @@ public class GodotModuleDecompiler
 			// we want to add enum values because you can convert an enum to a string and then use it as a translation key
 			strings.AddRange(
 				enums
-					.SelectMany(t => Common.GetEnumValueNames(t)
-					));
+					.SelectMany(t => Common.GetEnumValueNames(t).SelectMany(e => new string[] {e, t.Name + "." + e, t.Name + "_" + e}))
+			);
+			strings.AddRange(enums.Select(t => t.Name));
 
 			var visitor = new StringCollectorVisitor(strings);
 			decompiler.DecompileTypes(types).AcceptVisitor(visitor);
