@@ -185,12 +185,13 @@ PluginVersion PluginManager::_get_plugin_version_for_current_release_info(const 
 	return plugin_version;
 }
 
-PluginVersion PluginManager::get_plugin_info(const String &plugin_name, const Vector<String> &hashes) {
+PluginVersion PluginManager::get_plugin_info(const String &plugin_name, const Vector<String> &hashes, const Vector<String> &dep_hashes) {
 	ensure_cache_loaded();
 	Ref<PluginSource> source = get_source(plugin_name);
 	ERR_FAIL_COND_V_MSG(source.is_null(), PluginVersion::invalid(), "No source found for plugin: " + plugin_name);
 
-	PluginVersion found_version;
+	PluginVersion found_version = PluginVersion::invalid();
+	Vector<PluginVersion> possible_versions;
 	// First, check all cached PluginVersions for this plugin
 	{
 		MutexLock lock(plugin_version_cache_mutex);
@@ -209,8 +210,10 @@ PluginVersion PluginManager::get_plugin_info(const String &plugin_name, const Ve
 						replacement_version = known_bad_plugin_versions[plugin_name].second;
 						break;
 					}
-					found_version = cached_version;
-					break;
+					if (!found_version.is_valid()) {
+						found_version = cached_version;
+					}
+					possible_versions.push_back(cached_version);
 				}
 			}
 		}
@@ -223,6 +226,32 @@ PluginVersion PluginManager::get_plugin_info(const String &plugin_name, const Ve
 				}
 			}
 			ERR_FAIL_COND_V_MSG(!found_version.is_valid(), PluginVersion::invalid(), "!!!!!!!!!\nNO REPLACEMENT FOUND\n!!!!!!!!!!!");
+		}
+	}
+	// Only really here to handle zylann.htexture
+	if (possible_versions.size() > 1) {
+		if (hashes.size() > 1) {
+			for (int i = possible_versions.size() - 1; i >= 0; i--) {
+				if (!possible_versions[i].bin_hashes_match(hashes, true)) {
+					possible_versions.remove_at(i);
+				}
+			}
+		}
+		if (possible_versions.size() > 1 && !dep_hashes.is_empty()) {
+			for (int i = possible_versions.size() - 1; i >= 0; i--) {
+				if (!possible_versions[i].dep_bin_hashes_match(dep_hashes, true)) {
+					possible_versions.remove_at(i);
+				}
+			}
+		}
+		struct SortEarliestDate {
+			bool operator()(const PluginVersion &a, const PluginVersion &b) const {
+				return a.release_info.release_date > b.release_info.release_date; // latest version first
+			}
+		};
+		possible_versions.sort_custom<SortEarliestDate>();
+		if (possible_versions.size() >= 1) {
+			found_version = possible_versions[0];
 		}
 	}
 	if (found_version.is_valid()) {

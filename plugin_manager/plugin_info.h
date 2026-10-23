@@ -70,7 +70,8 @@ struct PluginVersion {
 	bool is_compatible(const Ref<GodotVer> &ver) const;
 	bool is_compatible(const String &godot_version) const;
 
-	bool bin_hashes_match(const Vector<String> &hashes) const;
+	bool bin_hashes_match(const Vector<String> &hashes, bool deep = false) const;
+	bool dep_bin_hashes_match(const Vector<String> &hashes, bool deep = false) const;
 
 	Dictionary to_json() const;
 	static PluginVersion from_json(Dictionary d);

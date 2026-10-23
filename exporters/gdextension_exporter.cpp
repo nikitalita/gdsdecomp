@@ -203,6 +203,7 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 	bool downloaded_plugin = false;
 	if (GDREConfig::get_singleton()->get_setting("download_plugins")) {
 		HashSet<String> hashes;
+		HashSet<String> dep_hashes;
 		HashSet<String> paths;
 		for (const auto &E : lib_paths) {
 			if (paths.has(E.value)) {
@@ -214,8 +215,18 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 				hashes.insert(md5);
 			}
 		}
+		for (const auto &E : dep_paths) {
+			if (paths.has(E.value)) {
+				continue;
+			}
+			paths.insert(E.value);
+			auto md5 = PluginSource::get_unsigned_sha256(E.value);
+			if (!md5.is_empty()) {
+				dep_hashes.insert(md5);
+			}
+		}
 		if (!hashes.is_empty()) {
-			PluginVersion version = PluginManager::get_singleton()->get_plugin_info(plugin_name, gdre::hashset_to_vector(hashes));
+			PluginVersion version = PluginManager::get_singleton()->get_plugin_info(plugin_name, gdre::hashset_to_vector(hashes), gdre::hashset_to_vector(dep_hashes));
 			if (TaskManager::get_singleton()->is_current_task_canceled()) {
 				report->set_error(ERR_SKIP);
 				return report;

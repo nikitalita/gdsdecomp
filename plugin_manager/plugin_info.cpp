@@ -170,11 +170,40 @@ bool PluginVersion::is_compatible(const String &godot_version) const {
 	return is_compatible(ver);
 }
 
-bool PluginVersion::bin_hashes_match(const Vector<String> &hashes) const {
+bool PluginVersion::bin_hashes_match(const Vector<String> &p_hashes, bool deep) const {
+	if (p_hashes.size() == 0) {
+		return false;
+	}
+	HashSet<String> hashes = gdre::vector_to_hashset(p_hashes);
 	for (const auto &gdext : gdexts) {
 		for (const auto &bin : gdext.bins) {
-			for (const auto &hash : hashes) {
-				if (bin.sha256 == hash) {
+			if (hashes.has(bin.sha256)) {
+				if (!deep) {
+					return true;
+				}
+				hashes.erase(bin.sha256);
+				if (hashes.size() == 0) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+bool PluginVersion::dep_bin_hashes_match(const Vector<String> &p_hashes, bool deep) const {
+	if (p_hashes.size() == 0) {
+		return false;
+	}
+	HashSet<String> hashes = gdre::vector_to_hashset(p_hashes);
+	for (const auto &gdext : gdexts) {
+		for (const auto &bin : gdext.dependencies) {
+			if (hashes.has(bin.sha256)) {
+				if (!deep) {
+					return true;
+				}
+				hashes.erase(bin.sha256);
+				if (hashes.size() == 0) {
 					return true;
 				}
 			}
