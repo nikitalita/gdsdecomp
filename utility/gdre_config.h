@@ -142,6 +142,25 @@ public:
 	virtual bool is_range_setting() const override;
 };
 
+class GDREConfigSettingEnumSpecial : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSettingEnumSpecial, GDREConfigSetting);
+
+public:
+	typedef Dictionary (*GetListOfPossibleValuesFunc)();
+	GDREConfigSettingEnumSpecial(
+			const String &p_full_name,
+			const String &p_brief,
+			const String &p_description,
+			const Variant &p_default_value,
+			GetListOfPossibleValuesFunc p_get_list_of_possible_values, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE);
+
+	virtual bool has_special_value() const override;
+	virtual Dictionary get_list_of_possible_values() const override;
+
+private:
+	GetListOfPossibleValuesFunc get_list_of_possible_values_func;
+};
+
 #define CONFIG_GET(p_setting, p_default_value) GDREConfig::get_singleton()->get_setting(p_setting, p_default_value)
 
 static inline void CONFIG_DEF(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
@@ -154,6 +173,10 @@ static inline void CONFIG_DEF_RANGE(const String &p_setting, const String &p_bri
 
 static inline void CONFIG_DEF_ENUM(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, const String &p_enum_values, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
 	GDREConfig::get_singleton()->add_default_setting(memnew(GDREConfigSettingEnum(p_setting, p_brief, p_description, p_default_value, p_enum_values, p_flags)));
+}
+
+static inline void CONFIG_DEF_ENUM_SPECIAL(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, GDREConfigSettingEnumSpecial::GetListOfPossibleValuesFunc p_get_list_of_possible_values, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
+	GDREConfig::get_singleton()->add_default_setting(memnew(GDREConfigSettingEnumSpecial(p_setting, p_brief, p_description, p_default_value, p_get_list_of_possible_values, p_flags)));
 }
 
 static inline void CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting> p_setting) {

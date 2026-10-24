@@ -164,42 +164,15 @@ public:
 	}
 };
 
-class GDREConfigSetting_MaxCoresToUse : public GDREConfigSetting {
-	GDSOFTCLASS(GDREConfigSetting_MaxCoresToUse, GDREConfigSetting);
-
-public:
-	GDREConfigSetting_MaxCoresToUse() :
-			GDREConfigSetting(
-					"max_cores_to_use",
-					"Max cores for threaded tasks",
-					"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
-					-1,
-					GDREConfig::SETTING_FLAG_NONE) {}
-
-	virtual bool has_special_value() const override { return true; }
-	virtual Dictionary get_list_of_possible_values() const override {
-		Dictionary ret;
-		ret[-1] = "Auto-detect";
-		// descending order
-		for (int i = WorkerThreadPool::get_singleton()->get_thread_count(); i > 0; i--) {
-			ret[i] = String::num_int64(i);
-		}
-		return ret;
+static Dictionary get_max_cores_to_use_list_of_possible_values() {
+	Dictionary ret;
+	ret[-1] = "Auto-detect";
+	// descending order
+	for (int i = WorkerThreadPool::get_singleton()->get_thread_count(); i > 0; i--) {
+		ret[i] = String::num_int64(i);
 	}
-};
-
-class GDREConfigSetting_DefaultParentFolderForRecovery : public GDREConfigSetting {
-	GDSOFTCLASS(GDREConfigSetting_DefaultParentFolderForRecovery, GDREConfigSetting);
-
-public:
-	GDREConfigSetting_DefaultParentFolderForRecovery() :
-			GDREConfigSetting(
-					"default_parent_folder_for_recovery",
-					"Default parent folder for recovery",
-					"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
-					OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP),
-					GDREConfig::SETTING_FLAG_DIRPICKER) {}
-};
+	return ret;
+}
 
 void GDREConfig::_init_default_settings() {
 	CONFIG_DEF(
@@ -223,8 +196,17 @@ void GDREConfig::_init_default_settings() {
 			"Delete auto-converted files",
 			"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
 			false);
-	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_DefaultParentFolderForRecovery)));
-	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_MaxCoresToUse)));
+	CONFIG_DEF("default_parent_folder_for_recovery",
+			"Default parent folder for recovery",
+			"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
+			OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP),
+			GDREConfig::SETTING_FLAG_DIRPICKER);
+	CONFIG_DEF_ENUM_SPECIAL("max_cores_to_use",
+			"Max cores for threaded tasks",
+			"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
+			-1,
+			&get_max_cores_to_use_list_of_possible_values,
+			GDREConfig::SETTING_FLAG_NONE);
 	CONFIG_DEF(
 			"force_single_threaded",
 			"Force single-threaded mode",
@@ -324,7 +306,12 @@ void GDREConfig::_init_default_settings() {
 			"Emit IL annotation comments",
 			"Emit ILInstruction annotations as comments for statement/expression nodes.\nIntended for debug verification of annotation propagation.",
 			false);
-	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_CSharpForceLanguageVersion())));
+	CONFIG_DEF_ENUM_SPECIAL("CSharp/force_language_version",
+			"Force C# Language Level",
+			"By default, the C# language level is selected based on the default language level of the target framework of the module.\nThis setting forces the C# language level to be the specified value.",
+			0,
+			&GodotMonoDecompWrapper::get_language_versions,
+			GDREConfig::SETTING_FLAG_NONE);
 	CONFIG_DEF(
 			"CSharp/automatically_search_workshop_dependencies",
 			"Automatically find search paths for Steam workshop modules",
@@ -614,6 +601,14 @@ Variant GDREConfigSetting::get_default_value() const {
 	return default_value;
 }
 
+bool GDREConfigSetting::is_hidden() const {
+	return hidden;
+}
+
+bool GDREConfigSetting::is_ephemeral() const {
+	return ephemeral;
+}
+
 Variant GDREConfigSetting::get_value() const {
 	return GDREConfig::get_singleton()->get_setting(full_name, default_value);
 }
@@ -732,6 +727,23 @@ Variant GDREConfigSettingRange::get_step_value() const {
 
 bool GDREConfigSettingRange::is_range_setting() const {
 	return true;
+}
+
+GDREConfigSettingEnumSpecial::GDREConfigSettingEnumSpecial(
+		const String &p_full_name,
+		const String &p_brief,
+		const String &p_description,
+		const Variant &p_default_value,
+		GetListOfPossibleValuesFunc p_get_list_of_possible_values, GDREConfig::SettingFlag p_flags) :
+		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_flags), get_list_of_possible_values_func(p_get_list_of_possible_values) {
+}
+
+bool GDREConfigSettingEnumSpecial::has_special_value() const {
+	return true;
+}
+
+Dictionary GDREConfigSettingEnumSpecial::get_list_of_possible_values() const {
+	return get_list_of_possible_values_func();
 }
 
 void GDREConfigSetting::_bind_methods() {
