@@ -96,6 +96,7 @@ public:
 	virtual bool is_range_setting() const override;
 };
 
+static inline void CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting> p_setting);
 class GDREConfig : public Object {
 	GDCLASS(GDREConfig, Object);
 
@@ -104,11 +105,17 @@ class GDREConfig : public Object {
 	HashMap<String, Ref<GDREConfigSetting>> default_settings;
 	ParallelFlatHashMap<String, Variant> ephemeral_settings;
 
-	static HashMap<String, Ref<GDREConfigSetting>> _init_default_settings();
+	static void _init_default_settings();
 
 	static String get_config_path();
 
 public:
+	enum SettingFlag {
+		SETTING_FLAG_NONE = 0,
+		SETTING_FLAG_HIDDEN = 1 << 0,
+		SETTING_FLAG_EPHEMERAL = 1 << 1,
+	};
+
 	static GDREConfig *get_singleton();
 
 	GDREConfig();
@@ -126,8 +133,35 @@ public:
 	bool is_ephemeral_setting(const String &p_setting) const;
 	void reset_ephemeral_settings();
 
+	void add_default_setting(Ref<GDREConfigSetting> p_setting);
+
 protected:
 	static void _bind_methods();
 };
 
 #define CONFIG_GET(p_setting, p_default_value) GDREConfig::get_singleton()->get_setting(p_setting, p_default_value)
+
+static inline Pair<bool, bool> _flags_get_hidden_ephemeral(GDREConfig::SettingFlag p_flags) {
+	return Pair<bool, bool>(
+			((int)p_flags & (int)GDREConfig::SettingFlag::SETTING_FLAG_HIDDEN) != 0,
+			((int)p_flags & (int)GDREConfig::SettingFlag::SETTING_FLAG_EPHEMERAL) != 0);
+}
+
+static inline void CONFIG_DEF(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
+	auto [hidden, ephemeral] = _flags_get_hidden_ephemeral(p_flags);
+	GDREConfig::get_singleton()->add_default_setting(memnew(GDREConfigSetting(p_setting, p_brief, p_description, p_default_value, hidden, ephemeral)));
+}
+
+static inline void CONFIG_DEF_RANGE(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, const String &p_range_string, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
+	auto [hidden, ephemeral] = _flags_get_hidden_ephemeral(p_flags);
+	GDREConfig::get_singleton()->add_default_setting(memnew(GDREConfigSettingRange(p_setting, p_brief, p_description, p_default_value, p_range_string, hidden, ephemeral)));
+}
+
+static inline void CONFIG_DEF_ENUM(const String &p_setting, const String &p_brief, const String &p_description, const Variant &p_default_value, const String &p_enum_values, GDREConfig::SettingFlag p_flags = GDREConfig::SETTING_FLAG_NONE) {
+	auto [hidden, ephemeral] = _flags_get_hidden_ephemeral(p_flags);
+	GDREConfig::get_singleton()->add_default_setting(memnew(GDREConfigSettingEnum(p_setting, p_brief, p_description, p_default_value, p_enum_values, hidden, ephemeral)));
+}
+
+static inline void CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting> p_setting) {
+	GDREConfig::get_singleton()->add_default_setting(p_setting);
+}

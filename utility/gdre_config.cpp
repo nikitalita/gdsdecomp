@@ -208,246 +208,228 @@ public:
 	virtual bool is_dirpicker() const override { return true; }
 };
 
-HashMap<String, Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
-	Vector<Ref<GDREConfigSetting>> settings = {
-		memnew(GDREConfigSetting(
-				"last_gdre_version_used",
-				"Last GDRE version used",
-				"",
-				"",
-				true,
-				false)),
-		memnew(GDREConfigSetting(
-				"download_plugins",
-				"Download plugins",
-				"Automatically detect binary plugin versions and download them from the asset library",
-				false)),
-		memnew(GDREConfigSetting(
-				"load_embedded_zips",
-				"Load embedded zips",
-				"Load embedded zips within the project pack as part of project loading/recovery",
-				true)),
-		memnew(GDREConfigSetting(
-				"delete_auto_converted_files",
-				"Delete auto-converted files",
-				"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
-				false)),
-		memnew(GDREConfigSetting_DefaultParentFolderForRecovery()),
-		memnew(GDREConfigSetting_MaxCoresToUse()),
-		memnew(GDREConfigSetting(
-				"force_single_threaded",
-				"Force single-threaded mode",
-				"Forces all tasks to run on the main thread",
-				false)),
-		memnew(GDREConfigSetting(
-				"write_json_report",
-				"Write JSON report",
-				"Write a JSON report to the output directory after exporting.",
-				false,
-				true)),
-		memnew(GDREConfigSetting(
-				"ask_for_download",
-				"Ask for download",
-				"",
-				true,
-				true)),
-		memnew(GDREConfigSetting(
-				"last_showed_disclaimer",
-				"Last showed disclaimer",
-				"",
-				"<NONE>",
-				true)),
-		memnew(GDREConfigSetting(
-				"execute_visual_shader_node_scripts",
-				"Execute VisualShaderNodeCustom scripts",
-				"Execute VisualShaderNodeCustom scripts when loading visual shaders.\nSetting this to `true` can fix errors occurring when exporting scenes that contain VisualShaders.\n\nWARNING: As this executes arbitrary code, this should be considered unsafe.\nEnsure that you trust the source code in this project before enabling this.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Preview/use_scene_view_by_default",
-				"Use scene view by default",
-				"Use scene view by default instead of the text preview.\nWARNING: Scene view is still experimental and certain scenes may cause the program to become unresponsive.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Recovery/clear_output_dir_except_git_before_full_recovery",
-				"Clear output directory except git before full recovery",
-				"Clear the output directory except for the .git directory before running a full recovery (i.e. no includes/excludes)",
-				false,
-				true)),
-		memnew(GDREConfigSetting(
-				"Recovery/git/create_git_repo",
-				"Create git repo in recovered project",
-				"Create a git repo in the output directory after exporting.\nRequires git to be installed on the system.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Recovery/git/add_imports_to_git_repo",
-				"Add imports to git repo",
-				"Add .godot/imported/ (or .import/ for Godot 3) to the git repo.",
-				false)),
-		memnew(GDREConfigSettingEnum(
-				"Script/Indent/type",
-				"Indent type",
-				"The type of indentation to use when decompiling and displaying scripts.",
-				0,
-				"Tabs,Spaces",
-				false,
-				false)),
-		memnew(GDREConfigSettingRange(
-				"Script/Indent/size",
-				"Tab size",
-				"The number of spaces to use when decompiling and displaying scripts.",
-				4,
-				"1,64,1",
-				false,
-				false)),
-		memnew(GDREConfigSetting_BytecodeForceBytecodeRevision()),
-		memnew(GDREConfigSetting_LoadCustomBytecode()),
+void GDREConfig::_init_default_settings() {
+	CONFIG_DEF(
+			"last_gdre_version_used",
+			"Last GDRE version used",
+			"",
+			"",
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"download_plugins",
+			"Download plugins",
+			"Automatically detect binary plugin versions and download them from the asset library",
+			false);
+	CONFIG_DEF(
+			"load_embedded_zips",
+			"Load embedded zips",
+			"Load embedded zips within the project pack as part of project loading/recovery",
+			true);
+	CONFIG_DEF(
+			"delete_auto_converted_files",
+			"Delete auto-converted files",
+			"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
+			false);
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_DefaultParentFolderForRecovery)));
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_MaxCoresToUse)));
+	CONFIG_DEF(
+			"force_single_threaded",
+			"Force single-threaded mode",
+			"Forces all tasks to run on the main thread",
+			false);
+	CONFIG_DEF(
+			"write_json_report",
+			"Write JSON report",
+			"Write a JSON report to the output directory after exporting.",
+			false,
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"ask_for_download",
+			"Ask for download",
+			"",
+			true,
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"last_showed_disclaimer",
+			"Last showed disclaimer",
+			"",
+			"<NONE>",
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"execute_visual_shader_node_scripts",
+			"Execute VisualShaderNodeCustom scripts",
+			"Execute VisualShaderNodeCustom scripts when loading visual shaders.\nSetting this to `true` can fix errors occurring when exporting scenes that contain VisualShaders.\n\nWARNING: As this executes arbitrary code, this should be considered unsafe.\nEnsure that you trust the source code in this project before enabling this.",
+			false);
+	CONFIG_DEF(
+			"Preview/use_scene_view_by_default",
+			"Use scene view by default",
+			"Use scene view by default instead of the text preview.\nWARNING: Scene view is still experimental and certain scenes may cause the program to become unresponsive.",
+			false);
+	CONFIG_DEF(
+			"Recovery/clear_output_dir_except_git_before_full_recovery",
+			"Clear output directory except git before full recovery",
+			"Clear the output directory except for the .git directory before running a full recovery (i.e. no includes/excludes)",
+			false,
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"Recovery/git/create_git_repo",
+			"Create git repo in recovered project",
+			"Create a git repo in the output directory after exporting.\nRequires git to be installed on the system.",
+			false);
+	CONFIG_DEF(
+			"Recovery/git/add_imports_to_git_repo",
+			"Add imports to git repo",
+			"Add .godot/imported/ (or .import/ for Godot 3) to the git repo.",
+			false);
+	CONFIG_DEF_ENUM(
+			"Script/Indent/type",
+			"Indent type",
+			"The type of indentation to use when decompiling and displaying scripts.",
+			0,
+			"Tabs,Spaces");
+	CONFIG_DEF_ENUM(
+			"Script/Indent/size",
+			"Tab size",
+			"The number of spaces to use when decompiling and displaying scripts.",
+			4,
+			"1,64,1");
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_BytecodeForceBytecodeRevision)));
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_LoadCustomBytecode)));
 #if !GODOT_MONO_DECOMP_DISABLED
-		memnew(GDREConfigSetting(
-				"CSharp/write_nuget_package_references",
-				"Write NuGet package references",
-				"Detect and write NuGet package references to the project file instead of assembly references.",
-				true)),
-		memnew(GDREConfigSetting(
-				"CSharp/copy_out_of_tree_references",
-				"Copy referenced assemblies",
-				"Copy referenced assemblies to the project directory.",
-				true)),
-		memnew(GDREConfigSetting(
-				"CSharp/verify_nuget_package_is_from_nuget_org",
-				"Verify NuGet package is from NuGet.org",
-				"Verify that the NuGet package is from NuGet.org before writing it to the project file.\nWARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.",
-				false)),
-		memnew(GDREConfigSetting(
-				"CSharp/create_additional_projects_for_project_references",
-				"Create additional projects for project references",
-				"If a project reference is detected, create an additional project and add it to the solution.",
-				true)),
-		memnew(GDREConfigSetting(
-				"CSharp/remove_generated_json_context_body",
-				"Remove generated Json context body",
-				"Remove the body of generated JsonSourceGeneration context classes.",
-				false)),
-		memnew(GDREConfigSetting(
-				"CSharp/enable_collection_initializer_lifting",
-				"Enable collection initializer lifting",
-				"Enable the LiftCollectionInitializers transform.\nIf disabled, the legacy RemoveBogusBaseConstructorCalls transform is used.",
-				true)),
-		memnew(GDREConfigSetting(
-				"CSharp/emit_il_annotation_comments",
-				"Emit IL annotation comments",
-				"Emit ILInstruction annotations as comments for statement/expression nodes.\nIntended for debug verification of annotation propagation.",
-				false)),
-		memnew(GDREConfigSetting_CSharpForceLanguageVersion()),
-		memnew(GDREConfigSetting(
-				"CSharp/automatically_search_workshop_dependencies",
-				"Automatically find search paths for Steam workshop modules",
-				"Automatically find additional assembly search paths for Steam workshop modules.",
-				true,
-				false)),
-		memnew(GDREConfigSetting(
-				"CSharp/additional_assembly_search_paths",
-				"Additional assembly search paths",
-				"Additional assembly search paths to use for resolving assembly references.\nThis is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.",
-				Vector<String>(),
-				false,
-				false)),
-		memnew(GDREConfigSetting(
-				"CSharp/compile_after_decompile",
-				"Compile after decompile",
-				"Compile the C# project after decompiling.\nThis is done to prevent editor errors when first opening the project in the editor.\nThis requires that you have the dotnet sdk installed.",
-				true,
-				false)),
+	CONFIG_DEF(
+			"CSharp/write_nuget_package_references",
+			"Write NuGet package references",
+			"Detect and write NuGet package references to the project file instead of assembly references.",
+			true);
+	CONFIG_DEF(
+			"CSharp/copy_out_of_tree_references",
+			"Copy referenced assemblies",
+			"Copy referenced assemblies to the project directory.",
+			true);
+	CONFIG_DEF(
+			"CSharp/verify_nuget_package_is_from_nuget_org",
+			"Verify NuGet package is from NuGet.org",
+			"Verify that the NuGet package is from NuGet.org before writing it to the project file.\nWARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.",
+			false);
+	CONFIG_DEF(
+			"CSharp/create_additional_projects_for_project_references",
+			"Create additional projects for project references",
+			"If a project reference is detected, create an additional project and add it to the solution.",
+			true);
+	CONFIG_DEF(
+			"CSharp/remove_generated_json_context_body",
+			"Remove generated Json context body",
+			"Remove the body of generated JsonSourceGeneration context classes.",
+			false);
+	CONFIG_DEF(
+			"CSharp/enable_collection_initializer_lifting",
+			"Enable collection initializer lifting",
+			"Enable the LiftCollectionInitializers transform.\nIf disabled, the legacy RemoveBogusBaseConstructorCalls transform is used.",
+			true);
+	CONFIG_DEF(
+			"CSharp/emit_il_annotation_comments",
+			"Emit IL annotation comments",
+			"Emit ILInstruction annotations as comments for statement/expression nodes.\nIntended for debug verification of annotation propagation.",
+			false);
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_CSharpForceLanguageVersion())));
+	CONFIG_DEF(
+			"CSharp/automatically_search_workshop_dependencies",
+			"Automatically find search paths for Steam workshop modules",
+			"Automatically find additional assembly search paths for Steam workshop modules.",
+			true);
+	CONFIG_DEF(
+			"CSharp/additional_assembly_search_paths",
+			"Additional assembly search paths",
+			"Additional assembly search paths to use for resolving assembly references.\nThis is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.",
+			Vector<String>());
+	CONFIG_DEF(
+			"CSharp/compile_after_decompile",
+			"Compile after decompile",
+			"Compile the C# project after decompiling.\nThis is done to prevent editor errors when first opening the project in the editor.\nThis requires that you have the dotnet sdk installed.",
+			true);
 #endif
-		memnew(GDREConfigSetting(
-				"Exporter/GDExtension/make_editor_copy",
-				"Copy template_release plugins to editor plugin",
-				"If the plugin was not downloaded, copy the template_release plugin (the library distributed with the game) to the editor plugin path (required for using the plugin in the editor).",
-				true)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/force_lossless_images",
-				"Force lossless images",
-				"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
-				false)),
-		// TODO: This isn't viable yet, as the gltf document converter doesn't write double precision values
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/use_double_precision",
-				"Use double precision",
-				"Uses double precision for all floating-point values in the GLTF document",
-				false,
-				true)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/force_export_multi_root",
-				"Force export multi root",
-				"Forces the export to export in multi-root mode, even if the scene is a single root",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
-				"Force require KHR_node_visibility extension",
-				"By default, the exporter will only set KHR_node_visibility as an optional extension.\nThis setting forces the exporter to require the extension regardless of engine version.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/ignore_missing_dependencies",
-				"Ignore missing dependencies",
-				"Ignore missing dependencies when exporting the scene.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/remove_physics_bodies",
-				"Remove physics bodies",
-				"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/replace_shader_materials",
-				"Replace shader materials",
-				"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Scene/GLTF/debug_copies",
-				"Create debug copies",
-				"For development.",
-				false,
-				true)),
-		memnew(GDREConfigSetting(
-				"Exporter/Texture/create_lossless_copy",
-				"Create lossless copy",
-				"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
-				false)),
-		memnew(GDREConfigSetting(
-				"Exporter/Translation/disable_key_recovery",
-				"Disable translation key recovery",
-				"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
-				false)),
-		memnew(GDREConfigSettingEnum(
-				// Name unchanged for backwards compatibility (bool `true` -> `1` == `Very Thorough`)
-				"Exporter/Translation/more_thorough_recovery",
-				"Key recovery mode",
-				"Sets the key recovery mode.\n"
-				"* Default: Balanced, runs most stages of key recovery with reduced working set size\n"
-				"* Very Thorough: runs all stages of key recovery with full working set size\n"
-				"    WARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.\n"
-				"* Only resource strings: Only runs first stage of key recovery, fastest option",
-				0,
-				"Default,Very Thorough,Only resource strings")),
-		memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile()),
-		memnew(GDREConfigSetting(
-				"Exporter/Translation/skip_loading_resource_strings",
-				"Skip loading resource strings",
-				"Skip loading resource strings from all resources during translation recovery.\nDon't enable this without a key hint file.",
-				false,
-				false,
-				true)),
-		memnew(GDREConfigSetting(
-				"Exporter/Translation/dump_resource_strings",
-				"Dump resource strings",
-				"Dumps collected resource strings to '<OUTPUT_DIR>/.assets/resource_strings.stringdump'",
-				false,
-				false,
-				true)),
-	};
-	HashMap<String, Ref<GDREConfigSetting>> default_settings;
-	for (const auto &setting : settings) {
-		default_settings[setting->full_name] = setting;
-	}
-	return default_settings;
+	CONFIG_DEF(
+			"Exporter/GDExtension/make_editor_copy",
+			"Copy template_release plugins to editor plugin",
+			"If the plugin was not downloaded, copy the template_release plugin (the library distributed with the game) to the editor plugin path (required for using the plugin in the editor).",
+			true);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_lossless_images",
+			"Force lossless images",
+			"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
+			false);
+	// TODO: This isn't viable yet, as the gltf document converter doesn't write double precision values
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/use_double_precision",
+			"Use double precision",
+			"Uses double precision for all floating-point values in the GLTF document",
+			false,
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_export_multi_root",
+			"Force export multi root",
+			"Forces the export to export in multi-root mode, even if the scene is a single root",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
+			"Force require KHR_node_visibility extension",
+			"By default, the exporter will only set KHR_node_visibility as an optional extension.\nThis setting forces the exporter to require the extension regardless of engine version.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/ignore_missing_dependencies",
+			"Ignore missing dependencies",
+			"Ignore missing dependencies when exporting the scene.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/remove_physics_bodies",
+			"Remove physics bodies",
+			"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/replace_shader_materials",
+			"Replace shader materials",
+			"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/debug_copies",
+			"Create debug copies",
+			"For development.",
+			false,
+			SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"Exporter/Texture/create_lossless_copy",
+			"Create lossless copy",
+			"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
+			false);
+	CONFIG_DEF(
+			"Exporter/Translation/disable_key_recovery",
+			"Disable translation key recovery",
+			"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
+			false);
+	CONFIG_DEF_ENUM(
+			// Name unchanged for backwards compatibility (bool `true` -> `1` == `Very Thorough`)
+			"Exporter/Translation/more_thorough_recovery",
+			"Key recovery mode",
+			"Sets the key recovery mode.\n"
+			"* Default: Balanced, runs most stages of key recovery with reduced working set size\n"
+			"* Very Thorough: runs all stages of key recovery with full working set size\n"
+			"    WARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.\n"
+			"* Only resource strings: Only runs first stage of key recovery, fastest option",
+			0,
+			"Default,Very Thorough,Only resource strings");
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile())));
+	CONFIG_DEF(
+			"Exporter/Translation/skip_loading_resource_strings",
+			"Skip loading resource strings",
+			"Skip loading resource strings from all resources during translation recovery.\nDon't enable this without a key hint file.",
+			false,
+			SETTING_FLAG_EPHEMERAL);
+	CONFIG_DEF(
+			"Exporter/Translation/dump_resource_strings",
+			"Dump resource strings",
+			"Dumps collected resource strings to '<OUTPUT_DIR>/.assets/resource_strings.stringdump'",
+			false,
+			SETTING_FLAG_EPHEMERAL);
 }
 
 // static const HashMap<String, String> deprecated_setting_mappings = {
@@ -456,7 +438,7 @@ HashMap<String, Ref<GDREConfigSetting>> GDREConfig::_init_default_settings() {
 
 GDREConfig::GDREConfig() {
 	singleton = this;
-	default_settings = _init_default_settings();
+	_init_default_settings();
 }
 
 GDREConfig::~GDREConfig() {
@@ -592,6 +574,13 @@ void GDREConfig::reset_ephemeral_settings() {
 			ephemeral_settings.try_emplace_l(setting->get_full_name(), [=](auto &v) { v.second = default_value; }, default_value);
 		}
 	}
+}
+
+void GDREConfig::add_default_setting(Ref<GDREConfigSetting> p_setting) {
+	if (default_settings.has(p_setting->get_full_name())) {
+		WARN_PRINT("Setting already exists, overwriting: " + p_setting->get_full_name());
+	}
+	default_settings[p_setting->get_full_name()] = p_setting;
 }
 
 GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden, bool p_ephemeral) {
