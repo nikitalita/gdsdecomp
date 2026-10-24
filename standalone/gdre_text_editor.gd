@@ -438,7 +438,7 @@ func set_common_code_viewer_props(is_code: bool):
 	CODE_VIEWER.gutters_draw_fold_gutter = is_code
 	CODE_VIEWER.gutters_draw_line_numbers = is_code
 	CODE_VIEWER.auto_brace_completion_highlight_matching = is_code
-	CODE_VIEWER.set_tab_size(GDREConfig.get_setting("Script/Indent/size"))
+	CODE_VIEWER.set_tab_size(GDREConfig.get_setting("Script/Indent/size", 4))
 
 
 func set_shader_viewer_props():
