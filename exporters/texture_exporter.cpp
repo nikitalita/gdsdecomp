@@ -1477,6 +1477,14 @@ Error TextureExporter::recreate_missing_variants(const String &output_dir, Ref<I
 	return OK;
 }
 
+void TextureExporter::initialize_config_options() {
+	CONFIG_DEF(
+			"Exporter/Texture/create_lossless_copy",
+			"Create lossless copy",
+			"Creates a lossless copy of the texture when exporting.",
+			false);
+}
+
 static Error export_packed_texture(const String &output_dir, const String &texture_export_dest, const String &resource_export_dest, const String &res_path, bool lossy, Ref<ExportReport> report = nullptr) {
 	String image_format;
 	String texture_output_path = output_dir.is_empty() ? texture_export_dest : output_dir.path_join(texture_export_dest.trim_prefix("res://"));

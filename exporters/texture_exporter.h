@@ -29,6 +29,7 @@ public:
 	virtual Error test_export(const Ref<ExportReport> &export_report, const String &original_project_dir) const override;
 
 	virtual Error recreate_missing_variants(const String &output_dir, Ref<ImportInfo> import_infos) const override;
+	virtual void initialize_config_options() override;
 };
 
 class HTerrainPackedTextureExporter : public ResourceExporter {

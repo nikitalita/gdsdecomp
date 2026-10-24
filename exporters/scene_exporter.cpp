@@ -4719,16 +4719,6 @@ void SceneExporter::initialize_config_options() {
 			"For development.",
 			false,
 			GDREConfig::SETTING_FLAG_HIDDEN);
-	CONFIG_DEF(
-			"Exporter/Texture/create_lossless_copy",
-			"Create lossless copy",
-			"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
-			false);
-	CONFIG_DEF(
-			"Exporter/Translation/disable_key_recovery",
-			"Disable translation key recovery",
-			"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
-			false);
 }
 
 void SceneExporter::_bind_methods() {
