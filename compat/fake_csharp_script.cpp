@@ -9,7 +9,7 @@
 #include "core/object/object.h"
 #include "core/string/regex.h"
 #include "core/string/ustring.h"
-#include "utility/godot_mono_decomp_wrapper.h"
+#include "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
 

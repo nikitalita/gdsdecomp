@@ -15,15 +15,13 @@
 #include "exporters/scene_exporter.h"
 #include "exporters/translation_exporter.h"
 #include "gdre_logger.h"
+#include "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.h"
 #include "plugin_manager/plugin_manager.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
 #include "utility/gdre_version.gen.h"
 #include "utility/glob.h"
-#include "utility/godot_mono_decomp_wrapper.h"
-
-#include "godot_mono_decomp_wrapper.h"
 
 #include "core/io/config_file.h"
 #include "core/io/dir_access.h"

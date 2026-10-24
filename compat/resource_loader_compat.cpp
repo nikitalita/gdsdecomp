@@ -7,11 +7,11 @@
 #include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
 #include "core/version_generated.gen.h"
+#include "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.h"
 #include "scene/resources/text_file.h"
 #include "utility/common.h"
 #include "utility/file_access_string.h"
 #include "utility/gdre_settings.h"
-#include "utility/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 
 Ref<CompatFormatLoader> ResourceCompatLoader::loaders[ResourceCompatLoader::MAX_LOADERS];

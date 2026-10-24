@@ -11,7 +11,7 @@
 #include "gdre_logger.h"
 #include "gdre_settings.h"
 #include "gdre_version.gen.h"
-#include "godot_mono_decomp_wrapper.h"
+#include "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
 
