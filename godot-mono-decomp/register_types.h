@@ -1,0 +1,6 @@
+#pragma once
+
+#include "modules/register_module_types.h"
+
+void initialize_gdsdecomp_godot_mono_decomp_submodule(ModuleInitializationLevel p_level);
+void uninitialize_gdsdecomp_godot_mono_decomp_submodule(ModuleInitializationLevel p_level);

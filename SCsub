@@ -159,6 +159,7 @@ common_sources = [
     "external/tinygltf/tiny_gltf.cc",
     "module_etc_decompress/*.cpp",
     "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.cpp",
+    "godot-mono-decomp/register_types.cpp",
     f"{UNSIGNED_HASH_SRC_DIR}/*.cpp",
     f"{UNSIGNED_HASH_SRC_DIR}/*.c",
 ]
