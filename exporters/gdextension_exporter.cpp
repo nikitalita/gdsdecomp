@@ -401,3 +401,11 @@ Vector<String> GDExtensionExporter::get_export_extensions(const String &res_path
 	extensions.push_back("gdext");
 	return extensions;
 }
+
+void GDExtensionExporter::initialize_config_options() {
+	CONFIG_DEF(
+			"Exporter/GDExtension/make_editor_copy",
+			"Copy template_release plugins to editor plugin",
+			"If the plugin was not downloaded, copy the template_release plugin (the library distributed with the game) to the editor plugin path (required for using the plugin in the editor).",
+			true);
+}

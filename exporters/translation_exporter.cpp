@@ -18,6 +18,40 @@
 #include "utility/pcfg_loader.h"
 #include <cstdio>
 
+class GDREConfigSetting_TranslationExporter_LoadKeyHintFile : public GDREConfigSetting {
+	GDSOFTCLASS(GDREConfigSetting_TranslationExporter_LoadKeyHintFile, GDREConfigSetting);
+
+public:
+	GDREConfigSetting_TranslationExporter_LoadKeyHintFile() :
+			GDREConfigSetting(
+					"Exporter/Translation/load_key_hint_file",
+					"Load key hint file",
+					"Load a key hint file to use for the translation exporter",
+					"",
+					GDREConfig::SETTING_FLAG_FILEPICKER) {}
+	String error_message;
+
+	virtual bool is_virtual_setting() const override { return true; }
+	virtual String get_error_message() const override { return error_message; }
+	virtual void clear_error_message() override { error_message = ""; }
+	virtual Variant get_value() const override {
+		return "";
+	}
+	virtual void set_value(const Variant &p_value, bool p_force_ephemeral = false) override {
+		String path = p_value;
+		if (path.is_empty()) {
+			return;
+		}
+		Error err = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->load_translation_key_hint_file(path) : ERR_UNAVAILABLE;
+		if (err != OK) {
+			WARN_PRINT("Failed to load key hint file: " + path);
+			error_message = "Failed to load key hint file: " + path;
+			return;
+		}
+		error_message = "";
+	}
+};
+
 Error TranslationExporter::export_file(const String &out_path, const String &res_path) {
 	// Implementation for exporting translation files
 	String iinfo_path = res_path.get_basename().get_basename() + ".csv.import";
@@ -2709,6 +2743,38 @@ void TranslationExporter::prebatch_export() {
 
 void TranslationExporter::postbatch_export() {
 	all_keys_found.clear();
+}
+
+void TranslationExporter::initialize_config_options() {
+	CONFIG_DEF(
+			"Exporter/Translation/disable_key_recovery",
+			"Disable translation key recovery",
+			"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
+			false);
+	CONFIG_DEF_ENUM(
+			// Name unchanged for backwards compatibility (bool `true` -> `1` == `Very Thorough`)
+			"Exporter/Translation/more_thorough_recovery",
+			"Key recovery mode",
+			"Sets the key recovery mode.\n"
+			"* Default: Balanced, runs most stages of key recovery with reduced working set size\n"
+			"* Very Thorough: runs all stages of key recovery with full working set size\n"
+			"    WARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.\n"
+			"* Only resource strings: Only runs first stage of key recovery, fastest option",
+			0,
+			"Default,Very Thorough,Only resource strings");
+	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile())));
+	CONFIG_DEF(
+			"Exporter/Translation/skip_loading_resource_strings",
+			"Skip loading resource strings",
+			"Skip loading resource strings from all resources during translation recovery.\nDon't enable this without a key hint file.",
+			false,
+			GDREConfig::SETTING_FLAG_EPHEMERAL);
+	CONFIG_DEF(
+			"Exporter/Translation/dump_resource_strings",
+			"Dump resource strings",
+			"Dumps collected resource strings to '<OUTPUT_DIR>/.assets/resource_strings.stringdump'",
+			false,
+			GDREConfig::SETTING_FLAG_EPHEMERAL);
 }
 
 Error TranslationExporter::parse_csv(const String &csv_path, HashMap<String, Vector<String>> &new_messages, int64_t &missing_keys, bool &has_non_empty_lines_without_key, int64_t &non_empty_line_count) {

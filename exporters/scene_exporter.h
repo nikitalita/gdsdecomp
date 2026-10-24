@@ -63,6 +63,7 @@ public:
 	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 	virtual void prebatch_export() override;
 	virtual void postbatch_export() override;
+	virtual void initialize_config_options() override;
 
 	static Ref<ExportReport> export_file_with_options(const String &out_path, const String &res_path, const Dictionary &options);
 

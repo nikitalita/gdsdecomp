@@ -27,6 +27,7 @@ public:
 	virtual void prebatch_export();
 	virtual void postbatch_export();
 	virtual Error recreate_missing_variants(const String &output_dir, Ref<ImportInfo> import_infos) const;
+	virtual void initialize_config_options();
 
 	static Ref<ExportReport> _check_for_existing_resources(const Ref<ImportInfo> &iinfo);
 };

@@ -38,6 +38,7 @@ public:
 	virtual Vector<String> get_export_extensions(const String &res_path) const override;
 	virtual void prebatch_export() override;
 	virtual void postbatch_export() override;
+	virtual void initialize_config_options() override;
 
 	static TypedDictionary<String, Vector<String>> get_messages_from_translation(Ref<ImportInfo> translation_info);
 	static TypedDictionary<String, Vector<String>> get_csv_messages(const String &csv_path, Dictionary ret_info);

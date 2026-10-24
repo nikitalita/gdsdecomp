@@ -18,9 +18,6 @@
 #include "texture_exporter.h"
 #include "translation_exporter.h"
 
-#include "utility/gdre_config.h"
-#include "utility/gdre_settings.h"
-
 //exporters
 static Ref<AutoConvertedExporter> auto_converted_exporter = nullptr;
 static Ref<CSharpExporter> csharp_exporter = nullptr;
@@ -77,11 +74,11 @@ void init_exporters() {
 	Exporter::add_exporter(func_godot_lmp_exporter);
 	Exporter::add_exporter(func_godot_map_exporter);
 	Exporter::add_exporter(func_godot_wad_exporter);
-	Exporter::add_exporter(translation_exporter);
+	Exporter::add_exporter(gdextension_exporter);
 	Exporter::add_exporter(scene_exporter);
+	Exporter::add_exporter(translation_exporter);
 	Exporter::add_exporter(gdscript_exporter);
 	Exporter::add_exporter(csharp_exporter);
-	Exporter::add_exporter(gdextension_exporter);
 	Exporter::add_exporter(shaderfile_exporter);
 	Exporter::add_exporter(spine_atlas_exporter);
 	Exporter::add_exporter(spine_skeleton_exporter);
@@ -176,125 +173,6 @@ void deinit_exporters() {
 	packed_texture_array_exporter = nullptr;
 }
 
-class GDREConfigSetting_TranslationExporter_LoadKeyHintFile : public GDREConfigSetting {
-	GDSOFTCLASS(GDREConfigSetting_TranslationExporter_LoadKeyHintFile, GDREConfigSetting);
-
-public:
-	GDREConfigSetting_TranslationExporter_LoadKeyHintFile() :
-			GDREConfigSetting(
-					"Exporter/Translation/load_key_hint_file",
-					"Load key hint file",
-					"Load a key hint file to use for the translation exporter",
-					"",
-					GDREConfig::SETTING_FLAG_FILEPICKER) {}
-	String error_message;
-
-	virtual bool is_virtual_setting() const override { return true; }
-	virtual String get_error_message() const override { return error_message; }
-	virtual void clear_error_message() override { error_message = ""; }
-	virtual Variant get_value() const override {
-		return "";
-	}
-	virtual void set_value(const Variant &p_value, bool p_force_ephemeral = false) override {
-		String path = p_value;
-		if (path.is_empty()) {
-			return;
-		}
-		Error err = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->load_translation_key_hint_file(path) : ERR_UNAVAILABLE;
-		if (err != OK) {
-			WARN_PRINT("Failed to load key hint file: " + path);
-			error_message = "Failed to load key hint file: " + path;
-			return;
-		}
-		error_message = "";
-	}
-};
-
-static inline void initialize_config_options() {
-	CONFIG_DEF(
-			"Exporter/GDExtension/make_editor_copy",
-			"Copy template_release plugins to editor plugin",
-			"If the plugin was not downloaded, copy the template_release plugin (the library distributed with the game) to the editor plugin path (required for using the plugin in the editor).",
-			true);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/force_lossless_images",
-			"Force lossless images",
-			"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
-			false);
-	// TODO: This isn't viable yet, as the gltf document converter doesn't write double precision values
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/use_double_precision",
-			"Use double precision",
-			"Uses double precision for all floating-point values in the GLTF document",
-			false,
-			GDREConfig::SETTING_FLAG_HIDDEN);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/force_export_multi_root",
-			"Force export multi root",
-			"Forces the export to export in multi-root mode, even if the scene is a single root",
-			false);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
-			"Force require KHR_node_visibility extension",
-			"By default, the exporter will only set KHR_node_visibility as an optional extension.\nThis setting forces the exporter to require the extension regardless of engine version.",
-			false);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/ignore_missing_dependencies",
-			"Ignore missing dependencies",
-			"Ignore missing dependencies when exporting the scene.",
-			false);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/remove_physics_bodies",
-			"Remove physics bodies",
-			"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
-			false);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/replace_shader_materials",
-			"Replace shader materials",
-			"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",
-			false);
-	CONFIG_DEF(
-			"Exporter/Scene/GLTF/debug_copies",
-			"Create debug copies",
-			"For development.",
-			false,
-			GDREConfig::SETTING_FLAG_HIDDEN);
-	CONFIG_DEF(
-			"Exporter/Texture/create_lossless_copy",
-			"Create lossless copy",
-			"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
-			false);
-	CONFIG_DEF(
-			"Exporter/Translation/disable_key_recovery",
-			"Disable translation key recovery",
-			"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
-			false);
-	CONFIG_DEF_ENUM(
-			// Name unchanged for backwards compatibility (bool `true` -> `1` == `Very Thorough`)
-			"Exporter/Translation/more_thorough_recovery",
-			"Key recovery mode",
-			"Sets the key recovery mode.\n"
-			"* Default: Balanced, runs most stages of key recovery with reduced working set size\n"
-			"* Very Thorough: runs all stages of key recovery with full working set size\n"
-			"    WARNING: this is not guaranteed to find all the keys in the translation file and may massively increase the time it takes to run.\n"
-			"* Only resource strings: Only runs first stage of key recovery, fastest option",
-			0,
-			"Default,Very Thorough,Only resource strings");
-	CONFIG_DEF_CUSTOM(Ref<GDREConfigSetting>(memnew(GDREConfigSetting_TranslationExporter_LoadKeyHintFile())));
-	CONFIG_DEF(
-			"Exporter/Translation/skip_loading_resource_strings",
-			"Skip loading resource strings",
-			"Skip loading resource strings from all resources during translation recovery.\nDon't enable this without a key hint file.",
-			false,
-			GDREConfig::SETTING_FLAG_EPHEMERAL);
-	CONFIG_DEF(
-			"Exporter/Translation/dump_resource_strings",
-			"Dump resource strings",
-			"Dumps collected resource strings to '<OUTPUT_DIR>/.assets/resource_strings.stringdump'",
-			false,
-			GDREConfig::SETTING_FLAG_EPHEMERAL);
-}
-
 void initialize_gdsdecomp_exporters_submodule(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
@@ -327,7 +205,6 @@ void initialize_gdsdecomp_exporters_submodule(ModuleInitializationLevel p_level)
 	ClassDB::register_class<FuncGodotMapExporter>();
 	ClassDB::register_class<FuncGodotWADExporter>();
 	init_exporters();
-	initialize_config_options();
 }
 
 void uninitialize_gdsdecomp_exporters_submodule(ModuleInitializationLevel p_level) {

@@ -102,6 +102,9 @@ Error ResourceExporter::recreate_missing_variants(const String &output_dir, Ref<
 	return ERR_UNAVAILABLE;
 }
 
+void ResourceExporter::initialize_config_options() {
+}
+
 void ResourceExporter::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_name"), &ResourceExporter::get_name);
 	ClassDB::bind_method(D_METHOD("supports_nonpack_export"), &ResourceExporter::supports_nonpack_export);
@@ -148,6 +151,7 @@ void Exporter::add_exporter(Ref<ResourceExporter> exporter, bool at_front) {
 			exporters[exporter_count] = exporter;
 		}
 		exporter_count++;
+		exporter->initialize_config_options();
 	}
 }
 

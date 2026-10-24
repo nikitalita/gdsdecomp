@@ -4675,6 +4675,62 @@ Vector<String> SceneExporter::get_export_extensions(const String &res_path) cons
 	return { "glb", "gltf", "obj", "escn", "tscn" };
 }
 
+void SceneExporter::initialize_config_options() {
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_lossless_images",
+			"Force lossless images",
+			"Forces images to be saved as lossless PNGs when exporting to GLTF, regardless of the original image format",
+			false);
+	// TODO: This isn't viable yet, as the gltf document converter doesn't write double precision values
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/use_double_precision",
+			"Use double precision",
+			"Uses double precision for all floating-point values in the GLTF document",
+			false,
+			GDREConfig::SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_export_multi_root",
+			"Force export multi root",
+			"Forces the export to export in multi-root mode, even if the scene is a single root",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/force_require_KHR_node_visibility",
+			"Force require KHR_node_visibility extension",
+			"By default, the exporter will only set KHR_node_visibility as an optional extension.\nThis setting forces the exporter to require the extension regardless of engine version.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/ignore_missing_dependencies",
+			"Ignore missing dependencies",
+			"Ignore missing dependencies when exporting the scene.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/remove_physics_bodies",
+			"Remove physics bodies",
+			"Removes physics bodies (CollisionShape3D, CollisionObject3D, etc.) from the scene when exporting to GLTF",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/replace_shader_materials",
+			"Replace shader materials",
+			"Replaces shader materials with generated standard materials when exporting the scene.\nSolves issues with exported scenes not having any textures.\nWARNING: This is experimental and may result in inaccurate exports.",
+			false);
+	CONFIG_DEF(
+			"Exporter/Scene/GLTF/debug_copies",
+			"Create debug copies",
+			"For development.",
+			false,
+			GDREConfig::SETTING_FLAG_HIDDEN);
+	CONFIG_DEF(
+			"Exporter/Texture/create_lossless_copy",
+			"Create lossless copy",
+			"Create a lossless .png copy of exported textures in '<OUTPUT_DIR>/.assets' if the texture is stored in a lossy format (e.g. jpeg)",
+			false);
+	CONFIG_DEF(
+			"Exporter/Translation/disable_key_recovery",
+			"Disable translation key recovery",
+			"Disable translation key recovery.\nThis will skip the translation key recovery process entirely.",
+			false);
+}
+
 void SceneExporter::_bind_methods() {
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("export_file_with_options", "out_path", "res_path", "options"), &SceneExporter::export_file_with_options);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("get_minimum_godot_ver_supported"), &SceneExporter::get_minimum_godot_ver_supported);
