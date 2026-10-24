@@ -31,11 +31,9 @@ public:
 					"Load Custom Bytecode",
 					"Load a custom bytecode file.",
 					"",
-					false,
-					false) {
+					GDREConfig::SETTING_FLAG_FILEPICKER) {
 	}
 
-	virtual bool is_filepicker() const override { return true; }
 	virtual bool is_virtual_setting() const override { return true; }
 	virtual String get_error_message() const override { return error_message; }
 	virtual void clear_error_message() override { error_message = ""; }
@@ -87,8 +85,7 @@ public:
 					"Force Bytecode Revision",
 					"Forces the bytecode revision to be the specified value.",
 					0,
-					false,
-					true) {}
+					GDREConfig::SETTING_FLAG_NONE) {}
 
 	virtual bool has_special_value() const override { return true; }
 	virtual Dictionary get_list_of_possible_values() const override {
@@ -124,8 +121,7 @@ public:
 					"Force C# Language Level",
 					"By default, the C# language level is selected based on the default language level of the target framework of the module.\nThis setting forces the C# language level to be the specified value.",
 					0,
-					false,
-					false) {}
+					GDREConfig::SETTING_FLAG_NONE) {}
 
 	virtual bool has_special_value() const override { return true; }
 	virtual Dictionary get_list_of_possible_values() const override {
@@ -144,11 +140,9 @@ public:
 					"Load key hint file",
 					"Load a key hint file to use for the translation exporter",
 					"",
-					false,
-					false) {}
+					GDREConfig::SETTING_FLAG_FILEPICKER) {}
 	String error_message;
 
-	virtual bool is_filepicker() const override { return true; }
 	virtual bool is_virtual_setting() const override { return true; }
 	virtual String get_error_message() const override { return error_message; }
 	virtual void clear_error_message() override { error_message = ""; }
@@ -180,8 +174,7 @@ public:
 					"Max cores for threaded tasks",
 					"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
 					-1,
-					false,
-					false) {}
+					GDREConfig::SETTING_FLAG_NONE) {}
 
 	virtual bool has_special_value() const override { return true; }
 	virtual Dictionary get_list_of_possible_values() const override {
@@ -204,8 +197,8 @@ public:
 					"default_parent_folder_for_recovery",
 					"Default parent folder for recovery",
 					"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
-					OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP)) {}
-	virtual bool is_dirpicker() const override { return true; }
+					OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP),
+					GDREConfig::SETTING_FLAG_DIRPICKER) {}
 };
 
 void GDREConfig::_init_default_settings() {
@@ -583,13 +576,15 @@ void GDREConfig::add_default_setting(Ref<GDREConfigSetting> p_setting) {
 	default_settings[p_setting->get_full_name()] = p_setting;
 }
 
-GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, bool p_hidden, bool p_ephemeral) {
+GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, GDREConfig::SettingFlag p_flags) {
 	full_name = ::get_full_name(p_full_name);
 	brief_description = p_brief;
 	description = p_description;
 	default_value = p_default_value;
-	hidden = p_hidden;
-	ephemeral = p_ephemeral;
+	hidden = (p_flags & GDREConfig::SETTING_FLAG_HIDDEN) != 0;
+	ephemeral = (p_flags & GDREConfig::SETTING_FLAG_EPHEMERAL) != 0;
+	dirpicker = (p_flags & GDREConfig::SETTING_FLAG_DIRPICKER) != 0;
+	filepicker = (p_flags & GDREConfig::SETTING_FLAG_FILEPICKER) != 0;
 }
 
 String GDREConfigSetting::get_full_name() const {
@@ -670,12 +665,12 @@ Variant GDREConfigSetting::get_step_value() const {
 	}
 }
 
-bool GDREConfigSetting::is_hidden() const {
-	return hidden;
+bool GDREConfigSetting::is_filepicker() const {
+	return filepicker;
 }
 
-bool GDREConfigSetting::is_ephemeral() const {
-	return ephemeral;
+bool GDREConfigSetting::is_dirpicker() const {
+	return dirpicker;
 }
 
 GDREConfigSettingEnum::GDREConfigSettingEnum(
@@ -684,9 +679,8 @@ GDREConfigSettingEnum::GDREConfigSettingEnum(
 		const String &p_description,
 		const int &p_default_value,
 		const String &p_enum_values,
-		bool p_hidden,
-		bool p_ephemeral) :
-		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_hidden, p_ephemeral) {
+		GDREConfig::SettingFlag p_flags) :
+		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_flags) {
 	enum_values = p_enum_values.split(",");
 }
 
@@ -707,8 +701,8 @@ GDREConfigSettingRange::GDREConfigSettingRange(
 		const String &p_brief,
 		const String &p_description,
 		const Variant &p_default_value,
-		const String &p_range_string, bool p_hidden, bool p_ephemeral) :
-		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_hidden, p_ephemeral) {
+		const String &p_range_string, GDREConfig::SettingFlag p_flags) :
+		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_flags) {
 	auto parts = p_range_string.split(",");
 	ERR_FAIL_COND_MSG(parts.size() != 3, "Invalid range string: " + p_range_string);
 	if (p_default_value.get_type() == Variant::Type::INT) {
