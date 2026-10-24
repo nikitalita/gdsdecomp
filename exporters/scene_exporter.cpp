@@ -30,11 +30,11 @@
 #include "scene/resources/bone_map.h"
 #include "scene/resources/surface_tool.h"
 #include "scene/resources/texture.h"
+#include "scene/shader_material_converter.h"
 #include "utility/common.h"
 #include "utility/gdre_config.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
-#include "utility/shader_material_converter.h"
 
 #include "core/crypto/crypto_core.h"
 #include "core/error/error_list.h"

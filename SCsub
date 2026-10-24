@@ -149,6 +149,7 @@ common_sources = [
     "compat/*.cpp",
     "crypto/*.cpp",
     "exporters/*.cpp",
+    "exporters/scene/*.cpp",
     "gui/*.cpp",
     "main/*.cpp",
     "plugin_manager/*.cpp",
