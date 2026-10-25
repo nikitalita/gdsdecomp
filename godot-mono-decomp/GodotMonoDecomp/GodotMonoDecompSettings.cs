@@ -316,8 +316,12 @@ public class GodotMonoDecompSettings : DecompilerSettings
 
 	private static void WriteSettingEntry(Utf8JsonWriter writer, string name, ReflectedProperty prop, object defaults, string? group_prefix = null)
 	{
-		writer.WriteStartObject();
 		var group = (prop.GetCustomAttribute<CategoryAttribute>()?.Category.Replace('/', '-'))?.Replace("DecompilerSettings.", "") ?? "";
+		// Skip `ProjectExport` group, we override all of its settings
+		if (group == "ProjectExport")
+		{
+			return;
+		}
 		if (group_prefix != null)
 		{
 			if (group != "")
@@ -329,6 +333,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 				group = group_prefix;
 			}
 		}
+		writer.WriteStartObject();
 		writer.WriteString("name", string.IsNullOrEmpty(group) ? name : group + "/" + name);
 		writer.WriteString("brief", PascalCaseWordBoundary.Replace(prop.Name, " ").Replace("Nu Get", "NuGet"));
 		writer.WriteString("description", prop.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "");
