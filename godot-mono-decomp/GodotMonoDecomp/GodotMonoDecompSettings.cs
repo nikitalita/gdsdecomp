@@ -37,7 +37,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// Whether to check the hash of the NuGet package against the hash on nuget.org before writing project references.
 	/// WARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.
 	/// </summary>
-	[Description("Whether to check the hash of the NuGet package against the hash on nuget.org before writing project references. WARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.")]
+	[Description("Whether to check the hash of the NuGet package against the hash on nuget.org before writing project references.\nWARNING: This involves downloading the package from nuget.org and checking the hash of the downloaded package.")]
 	[JsonPropertyName("verify_nuget_package_is_from_nuget_org")]
 	public bool VerifyNuGetPackageIsFromNugetOrg { get; set; } = false;
 
@@ -45,7 +45,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// Whether to copy out-of-tree references (i.e. references that
 	/// are not within the same directory structure as the project file) to the project file.
 	/// </summary>
-	[Description("Whether to copy out-of-tree references (i.e. references that are not within the same directory structure as the project file) to the project file.")]
+	[Description("Whether to copy out-of-tree references \n(i.e. references that are not within the same directory structure as the project file) to the project file.")]
 	[JsonPropertyName("copy_out_of_tree_references")]
 	public bool CopyOutOfTreeReferences { get; set; } = true;
 
@@ -75,7 +75,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// Whether to run LiftCollectionInitializers.
 	/// If false, the legacy RemoveBogusBaseConstructorCalls transform is used instead.
 	/// </summary>
-	[Description("Whether to run LiftCollectionInitializers. If false, the legacy RemoveBogusBaseConstructorCalls transform is used instead.")]
+	[Description("Whether to run LiftCollectionInitializers.\nIf false, the legacy RemoveBogusBaseConstructorCalls transform is used instead.")]
 	[JsonPropertyName("enable_collection_initializer_lifting")]
 	public bool EnableCollectionInitializerLifting { get; set; } = true;
 
@@ -83,7 +83,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	/// Emit ILInstruction annotations as comments for statement/expression nodes.
 	/// Intended for debug verification of annotation propagation.
 	/// </summary>
-	[Description("Emit ILInstruction annotations as comments for statement/expression nodes. Intended for debug verification of annotation propagation.")]
+	[Description("Emit ILInstruction annotations as comments for statement/expression nodes.\nIntended for debug verification of annotation propagation.")]
 	[JsonPropertyName("emit_il_annotation_comments")]
 	public bool EmitILAnnotationComments { get; set; } = false;
 
