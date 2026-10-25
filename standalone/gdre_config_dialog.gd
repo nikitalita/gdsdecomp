@@ -53,23 +53,32 @@ func create_new_section(parent: VBoxContainer, text: String) -> VBoxContainer:
 	return section
 
 func create_new_subsection(text: String, section: VBoxContainer) -> VBoxContainer:
-	var subsection: VBoxContainer = VBoxContainer.new()
+	var subsection = FoldableContainer.new()
+	subsection.title = text
+	subsection.title_alignment = 1
+	subsection.add_theme_font_size_override("font_size", SUBSECTION_LABEL_SETTINGS.font_size)
+
 	if section.get_child_count() != 2: # including the label and h_separator
 		section.add_child(create_h_separator())
 	section.add_child(subsection)
-	subsection.add_child(create_subsection_label(text))
-	subsection.add_child(create_h_separator())
-	return subsection
+	var vbox: VBoxContainer = VBoxContainer.new()
+	vbox.add_child(create_h_separator())
+	subsection.add_child(vbox)
+	if text.begins_with("ILSpy"):
+		subsection.folded = true
+	return vbox
 
-func create_new_subsubsection(text: String, subsection: VBoxContainer) -> VBoxContainer:
+func create_new_subsubsection(text: String, subsection: VBoxContainer, subsubsection_key: String = "") -> VBoxContainer:
 	var subsubsection: FoldableContainer = FoldableContainer.new()
 	subsubsection.title = text
 	subsubsection.title_alignment = 1
-	if subsection.get_child_count() != 2: # including the label and h_separator
+	if subsection.get_child_count() != 1: # including the h_separator
 		subsection.add_child(create_h_separator())
 	subsection.add_child(subsubsection)
 	var vbox: VBoxContainer = VBoxContainer.new()
 	subsubsection.add_child(vbox)
+	if subsubsection_key.contains("ILSpy/"):
+		subsubsection.folded = true
 	return vbox
 
 var section_map: Dictionary = {}
@@ -155,7 +164,10 @@ func reset_callback(setting: GDREConfigSetting, control: Control, reset_button: 
 	elif control is SpinBox:
 		control.value = default_val
 	elif control is LineEdit:
-		control.text = default_val
+		if setting.get_type() == TYPE_PACKED_STRING_ARRAY:
+			control.text = ";".join(default_val)
+		else:
+			control.text = default_val
 	set_setting_value(setting, default_val)
 
 func make_reset_button(setting: GDREConfigSetting, parent: Control) -> Button:
@@ -200,6 +212,8 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 	var control: Control = null
 	var button = null
 	var value = setting_value_map.get(setting, setting.get_value())
+
+	var description: String = setting.get_description()
 	if setting.is_filepicker() or setting.is_dirpicker():
 		button = Button.new()
 		if setting.is_virtual_setting():
@@ -224,7 +238,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 			button.set_item_metadata(idx, val)
 
 		var label: Label = make_button_label(setting.get_brief_description())
-		label.tooltip_text = setting.get_description()
+		label.tooltip_text = description
 		control = make_button_hbox(setting, button, label)
 		button.item_selected.connect(
 			func(idx):
@@ -246,7 +260,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		button.max_value = setting.get_max_value()
 		button.step = setting.get_step_value()
 		var label: Label = make_button_label(setting.get_brief_description())
-		label.tooltip_text = setting.get_description()
+		label.tooltip_text = description
 		control = make_button_hbox(setting, button, label)
 		button.value_changed.connect(func(val): setting_callback(setting, val, control))
 	elif setting.get_type() == TYPE_FLOAT:
@@ -256,7 +270,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		button.max_value = setting.get_max_value()
 		button.step = setting.get_step_value()
 		var label: Label = make_button_label(setting.get_brief_description())
-		label.tooltip_text = setting.get_description()
+		label.tooltip_text = description
 		control = make_button_hbox(setting, button, label)
 		button.value_changed.connect(func(val): setting_callback(setting, val, control))
 	elif setting.get_type() == TYPE_STRING:
@@ -265,7 +279,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		button.custom_minimum_size = Vector2i(80,0)
 		button.text = value
 		var label: Label = make_button_label(setting.get_brief_description())
-		label.tooltip_text = setting.get_description()
+		label.tooltip_text = description
 		control = make_button_hbox(setting, button, label)
 		button.text_changed.connect(func(val): setting_callback(setting, val, control))
 	elif setting.get_type() == TYPE_PACKED_STRING_ARRAY: # TODO: better handling of this, right now we require the user to input a semicolon-separated list of items
@@ -274,12 +288,13 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		button.custom_minimum_size = Vector2i(80,0)
 		button.text = ';'.join(value)
 		var label: Label = make_button_label(setting.get_brief_description())
-		label.tooltip_text = 'Seperate items with a semicolon (;).\n' + setting.get_description()
+		description = 'Seperate items with a semicolon (;).\n' + description
+		label.tooltip_text = description
 		control = make_button_hbox(setting, button, label)
-		button.text_changed.connect(func(val): setting_callback(setting, val.split(";"), control))
+		button.text_changed.connect(func(val): setting_callback(setting, val.split(";", false), control))
 
-	button.tooltip_text = setting.get_description()
-	control.tooltip_text = setting.get_description()
+	button.tooltip_text = description
+	control.tooltip_text = description
 
 	setting_button_map[setting] = button
 	return control
@@ -335,7 +350,7 @@ func _render_settings():
 				var subsection = "/".join(parts.slice(0, 2))
 				var subsubsection = "/".join(parts.slice(0, 3))
 				if not section_map.has(subsubsection):
-					section_map[subsubsection] = create_new_subsubsection(parts[2], section_map[subsection])
+					section_map[subsubsection] = create_new_subsubsection(parts[2], section_map[subsection], subsubsection)
 				toAdd = section_map[subsubsection]
 		if toAdd:
 			toAdd.add_child(create_setting_button(setting))
