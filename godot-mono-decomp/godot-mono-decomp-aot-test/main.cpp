@@ -45,7 +45,7 @@ int main(int argc, char* argv[]) {
     const char* assemblyPathPtr = assemblyPath.c_str();
     const char* outputProjectPathPtr = outputProjectPath.c_str();
     const char* projectPathPtr = outputDir.c_str();
-    
+
     // Prepare reference paths
     const char** referenceDirs = new const char*[referencePaths.size()];
     for (int i = 0; i < referencePaths.size(); i++) {
@@ -70,12 +70,12 @@ int main(int argc, char* argv[]) {
     // Check the result
     if (result == 0) {
         std::cout << "SUCCESS: Decompilation completed successfully!" << std::endl;
-        
+
         // Check if output files were created
         if (std::filesystem::exists(outputProjectPath)) {
             std::cout << "Output project file created: " << outputProjectPath << std::endl;
         }
-        
+
         // List created files
         std::cout << "Files in output directory:" << std::endl;
         for (const auto& entry : std::filesystem::directory_iterator(outputDir)) {
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
     } else {
         std::cerr << "ERROR: Decompilation failed with return code: " << result << std::endl;
     }
-    
+
     std::cout << "Test completed." << std::endl;
     return result;
-} 
+}

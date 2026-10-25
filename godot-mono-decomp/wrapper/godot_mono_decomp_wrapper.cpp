@@ -40,15 +40,6 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 	}
 	CharString assembly_path_chrstr = p_assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
-	Vector<String> assembly_search_paths = CONFIG_GET("CSharp/additional_assembly_search_paths", Vector<String>());
-	const char **assembly_search_paths_c_array = new const char *[assembly_search_paths.size()];
-	Vector<CharString> assembly_search_paths_chrstrs;
-	assembly_search_paths_chrstrs.resize(assembly_search_paths.size());
-	for (int i = 0; i < assembly_search_paths.size(); i++) {
-		// to keep them from being freed
-		assembly_search_paths_chrstrs.write[i] = assembly_search_paths[i].utf8();
-		assembly_search_paths_c_array[i] = assembly_search_paths_chrstrs[i].get_data();
-	}
 
 	String version_string = GDRESettings::get_singleton()->get_version_string();
 	CharString godotVersionOverride_chrstr = version_string.is_empty() ? "" : version_string.utf8();
@@ -71,12 +62,9 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 			assembly_path_c,
 			originalProjectFiles_c_array,
 			p_original_project_files.size(),
-			assembly_search_paths_c_array,
-			assembly_search_paths.size(),
 			godotVersionOverride_c,
 			settings_json_c);
 	delete[] originalProjectFiles_c_array;
-	delete[] assembly_search_paths_c_array;
 	if (new_decompiler_handle == nullptr) {
 		return ERR_CANT_CREATE;
 	}
@@ -249,6 +237,13 @@ static inline void _ensure_settings_int(Dictionary &p_dict){
 	for (const auto &[key, value] : p_dict) {
 		if (value.get_type() == Variant::Type::FLOAT) {
 			p_dict[key] = (int)round(value.operator double());
+		} else if (value.get_type() == Variant::Type::ARRAY) {
+			TypedArray<String> array = value;
+			PackedStringArray packed_array;
+			for (int i = 0; i < array.size(); i++) {
+				packed_array.push_back(array[i]);
+			}
+			p_dict[key] = packed_array;
 		} else if (value.get_type() == Variant::Type::DICTIONARY) {
 			Dictionary dict = value;
 			_ensure_settings_int(dict);
@@ -271,7 +266,10 @@ bool GodotMonoDecompWrapper::reload_settings() {
 	Dictionary new_settings = _get_settings_from_config();
 	bool changed = false;
 	for (const auto &[key, value] : new_settings) {
-		if (!settings.has(key) || settings[key] != value) {
+		if (settings.has(key) && settings[key] != value) {
+			if (settings[key].get_type() == Variant::Type::NIL && value.get_type() == Variant::Type::INT && value.operator int() == 0){
+				continue;
+			}
 			changed = true;
 			settings[key] = value;
 		}
@@ -304,6 +302,13 @@ static inline void _add_setting(Dictionary dict){
 	Variant default_value = dict.get("default_value", 0);
 	if (default_value.get_type() == Variant::Type::FLOAT) {
 		default_value = (int)round(default_value.operator double());
+	} else if (default_value.get_type() == Variant::Type::ARRAY) {
+		TypedArray<String> array = default_value;
+		PackedStringArray packed_array;
+		for (int i = 0; i < array.size(); i++) {
+			packed_array.push_back(array[i]);
+		}
+		default_value = packed_array;
 	}
 	Dictionary enum_values = dict.get("enum_values", Dictionary());
 	if (enum_values.size() > 0) {
@@ -313,7 +318,11 @@ static inline void _add_setting(Dictionary dict){
 			if (key_str.begins_with("CSharp")){
 				key_str = "C# " + key_str.trim_prefix("CSharp").replace("_", ".");
 			}
-			fixed_enum_values[value] = key_str;
+			if (value.get_type() == Variant::Type::FLOAT) {
+				fixed_enum_values[(int)round(value.operator double())] = key_str;
+			} else {
+				fixed_enum_values[value] = key_str;
+			}
 		}
 		enum_values = fixed_enum_values;
 		CONFIG_DEF_ENUM_DICT(name, brief, description, default_value, enum_values);
@@ -336,11 +345,6 @@ void GodotMonoDecompWrapper::add_default_config_settings() {
 		_add_setting(dict);
 	}
 
-	CONFIG_DEF(
-		"CSharp/additional_assembly_search_paths",
-		"Additional assembly search paths",
-		"Additional assembly search paths to use for resolving assembly references.\nThis is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.",
-		Vector<String>());
 	CONFIG_DEF(
 		"CSharp/compile_after_decompile",
 		"Compile after decompile",

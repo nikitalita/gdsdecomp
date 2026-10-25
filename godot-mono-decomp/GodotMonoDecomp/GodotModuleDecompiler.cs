@@ -32,7 +32,7 @@ public class GodotModule
 
 	private DecompilerTypeSystem TypeSystem;
 
-	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo, string? subdir, GodotMonoDecompSettings p_settings, UniversalAssemblyResolver assemblyResolver)
+	public GodotModule(PEFile module, DotNetCoreDepInfo? depInfo, string? subdir, GodotMonoDecompSettings p_settings, UniversalAssemblyResolver assemblyResolver, Version? godotVersionOverride)
 	{
 		fileMap = [];
 		SubDirectory = subdir;
@@ -59,7 +59,7 @@ public class GodotModule
 		// generate a UUID for the module based on its name
 		moduleGuid = Common.GenerateDeterministicGuidFromString(Module.FileName);
 
-		ProjectDecompiler = new GodotProjectDecompiler(moduleSettings, moduleGuid, assemblyResolver, assemblyResolver, debugInfoProvider);
+		ProjectDecompiler = new GodotProjectDecompiler(moduleSettings, moduleGuid, assemblyResolver, assemblyResolver, debugInfoProvider, godotVersionOverride);
 		TypeSystem = ProjectDecompiler.CreateTypeSystem(Module);
 	}
 
@@ -88,7 +88,7 @@ public class GodotModuleDecompiler
 	public readonly UniversalAssemblyResolver AssemblyResolver;
 	public readonly GodotMonoDecompSettings Settings;
 	public readonly List<string> originalProjectFiles;
-	public readonly Version godotVersion;
+	public readonly Version? godotVersion;
 	public readonly Dictionary<string, GodotScriptMetadata>? godot3xMetadata;
 	public bool CustomVersionDetected { get; private set; }
 
@@ -133,7 +133,7 @@ public class GodotModuleDecompiler
 	private bool DetectCustomVersionFromPrerelease(DotNetCoreDepInfo? mainDepInfo)
 	{
 		var versionText = GodotStuff.GetGodotSharpPackageDep(mainDepInfo)?.Version
-		                  ?? Settings.GodotVersionOverride?.ToString();
+		                  ?? godotVersion?.ToString() ?? "0.0.0";
 		var prereleaseLabel = GetPreReleaseLabel(versionText);
 		return prereleaseLabel != null && !IsAllowedGodotPreReleaseLabel(prereleaseLabel);
 	}
@@ -193,14 +193,15 @@ public class GodotModuleDecompiler
 					subdir = "_" + subdir;
 				}
 
-				AdditionalModules.Add(new GodotModule(module, dep, subdir, Settings, AssemblyResolver));
+				AdditionalModules.Add(new GodotModule(module, dep, subdir, Settings, AssemblyResolver, godotVersion));
 			}
 
 			AddSubProjects(assemblyPath, dep, names, mainModuleSubDirs, otherSubDirs);
 		}
 	}
 
-	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles, string[]? ReferencePaths = null,
+	public GodotModuleDecompiler(string assemblyPath, string[]? originalProjectFiles,
+		Version? godotVersionOverride = null,
 		GodotMonoDecompSettings? settings = default(GodotMonoDecompSettings))
 	{
 		packageHashTasks = [];
@@ -216,22 +217,22 @@ public class GodotModuleDecompiler
 		var _mainDepInfo = DotNetCoreDepInfo.LoadDepInfoFromFile(DotNetCoreDepInfo.GetDepPath(assemblyPath), mod.Name);
 		Settings = settings ?? new GodotMonoDecompSettings();
 		AssemblyResolver = new UniversalAssemblyResolver(assemblyPath, false, mod.Metadata.DetectTargetFrameworkId());
-		foreach (var path in (ReferencePaths ?? System.Array.Empty<string>()))
+		foreach (var path in Settings.AdditionalAssemblySearchPaths)
 		{
 			AssemblyResolver.AddSearchDirectory(path);
 		}
 		if (settings!.AutomaticallySearchWorkshopDependencies && SteamHelpers.IsAssemblyPathInWorkshopFolder(assemblyPath))
 		{
-			foreach (var path in SteamHelpers.GetAdditionalAssemblySearchPathsForWorkshopModule(mod, ReferencePaths ?? []))
+			foreach (var path in SteamHelpers.GetAdditionalAssemblySearchPathsForWorkshopModule(mod, Settings.AdditionalAssemblySearchPaths))
 			{
 				AssemblyResolver.AddSearchDirectory(path);
 			}
 		}
-		MainModule = new GodotModule(mod, _mainDepInfo, null, Settings, AssemblyResolver);
+		godotVersion = godotVersionOverride ?? GodotStuff.GetGodotVersion(mod);
+		MainModule = new GodotModule(mod, _mainDepInfo, null, Settings, AssemblyResolver, godotVersion);
 		CustomVersionDetected = DetectCustomVersionFromPrerelease(_mainDepInfo);
 
-		godotVersion = Settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(MainModule.Module) ?? new Version(0, 0, 0, 0);
-		if (godotVersion.Major <= 3)
+		if (godotVersion?.Major <= 3)
 		{
 			// check for "script_metadata.{release,debug}" files
 			var godot3xMetadataFile = GodotScriptMetadataLoader.FindGodotScriptMetadataFile(assemblyPath);

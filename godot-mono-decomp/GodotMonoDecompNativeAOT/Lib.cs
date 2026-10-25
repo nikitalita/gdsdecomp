@@ -43,7 +43,9 @@ static public class Lib
         string outputPathStr = Marshal.PtrToStringUTF8(outputCSProjectPath) ?? string.Empty;
         string  projectFileNameStr = Marshal.PtrToStringUTF8(projectPath) ?? string.Empty;
         string[]? referencePathsStrs = GetStringArray(AssemblyReferenceDirs, referencePathsCount);
-        return GodotMonoDecomp.Lib.DecompileProject(assemblyFileNameStr, outputPathStr,projectFileNameStr, referencePathsStrs);
+		GodotMonoDecompSettings settings = new GodotMonoDecompSettings();
+		settings.AdditionalAssemblySearchPaths = referencePathsStrs ?? [];
+        return GodotMonoDecomp.Lib.DecompileProject(assemblyFileNameStr, outputPathStr,projectFileNameStr, settings);
     }
 
 
@@ -60,20 +62,16 @@ static public class Lib
 		IntPtr assemblyPath,
 		IntPtr originalProjectFiles,
 		int originalProjectFilesCount,
-		IntPtr referencePaths,
-		int referencePathsCount,
 		IntPtr GodotVersionOverride,
 		IntPtr settingsJSON
 	)
 	{
 		string assemblyFileNameStr = Marshal.PtrToStringUTF8(assemblyPath) ?? string.Empty;
 		var originalProjectFilesStrs = GetStringArray(originalProjectFiles, originalProjectFilesCount);
-		var referencePathsStrs = GetStringArray(referencePaths, referencePathsCount);
 		var godotVersionOverride = GodotVersionOverride == IntPtr.Zero ? null : GodotStuff.ParseGodotVersionFromString(Marshal.PtrToStringUTF8(GodotVersionOverride) ?? string.Empty) ?? null;
 		var settings = GodotMonoDecompSettings.FromJson(Marshal.PtrToStringUTF8(settingsJSON) ?? string.Empty);
-		settings.GodotVersionOverride = godotVersionOverride;
 		try {
-			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs, settings);
+			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, godotVersionOverride, settings);
 			var handle = GCHandle.Alloc(decompiler);
 			return GCHandle.ToIntPtr(handle);
 		}

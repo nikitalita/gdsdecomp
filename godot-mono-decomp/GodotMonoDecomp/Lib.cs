@@ -9,12 +9,12 @@ namespace GodotMonoDecomp
 {
     public static class Lib
     {
-        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, string[]? ReferencePaths = null, GodotMonoDecompSettings? settings = default)
+        public static int DecompileProject(string assemblyPath, string outputCSProjectPath, string projectPath, GodotMonoDecompSettings? settings = default, Version? godotVersionOverride = null)
         {
             try
             {
                 var files = Common.ListCSharpFiles(projectPath, false);
-				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], ReferencePaths, settings);
+				GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], godotVersionOverride, settings);
                 return decompiler.DecompileModule(outputCSProjectPath);
             }
             catch (Exception e)

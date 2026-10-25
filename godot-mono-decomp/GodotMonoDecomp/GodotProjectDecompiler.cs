@@ -117,6 +117,8 @@ namespace GodotMonoDecomp
 
 		public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
+		public Version? GodotVersionOverride { get; set; }
+
 
 
 		public IProgress<DecompilationProgress>? ProgressIndicator { get; set; }
@@ -126,8 +128,9 @@ namespace GodotMonoDecomp
 			GodotMonoDecompSettings settings,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider? debugInfoProvider)
-			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider)
+			IDebugInfoProvider? debugInfoProvider,
+			Version? godotVersionOverride)
+			: this(settings, Guid.NewGuid(), assemblyResolver, assemblyReferenceClassifier, debugInfoProvider, godotVersionOverride)
 		{
 		}
 
@@ -136,7 +139,8 @@ namespace GodotMonoDecomp
 			Guid projectGuid,
 			IAssemblyResolver assemblyResolver,
 			AssemblyReferenceClassifier assemblyReferenceClassifier,
-			IDebugInfoProvider? debugInfoProvider)
+			IDebugInfoProvider? debugInfoProvider,
+			Version? godotVersionOverride)
 		{
 			TargetDirectory = "";
 			Settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -145,6 +149,7 @@ namespace GodotMonoDecomp
 			AssemblyReferenceClassifier = assemblyReferenceClassifier ?? new AssemblyReferenceClassifier();
 			DebugInfoProvider = debugInfoProvider;
 			Settings.UseNestedDirectoriesForNamespaces = true;
+			GodotVersionOverride = godotVersionOverride;
 		}
 
 		// per-run members
@@ -323,7 +328,7 @@ namespace GodotMonoDecomp
 			{
 				decompiler.AstTransforms.Add(new RemoveJsonSourceGenerationClassBody());
 			}
-			if (Settings.GodotVersionOverride?.Major == 3)
+			if (GodotVersionOverride?.Major == 3)
 			{
 				decompiler.AstTransforms.Add(new RemoveMathF3x());
 			}

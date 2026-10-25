@@ -48,8 +48,6 @@ void* GodotMonoDecomp_CreateGodotModuleDecompiler(
     const char* assemblyPath,
     const char** originalProjectFiles,
     int originalProjectFilesCount,
-    const char** referencePaths,
-    int referencePathsCount,
 	const char* godotVersionOverride,
 	const char* settingsJSON
 );

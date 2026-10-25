@@ -64,15 +64,6 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	[JsonConverter(typeof(JsonStringEnumConverter<LanguageVersion>))]
 	public LanguageVersion? OverrideLanguageVersion { get; set; } = null;
 
-	// TODO: move this out of settings and into the project decompiler
-	/// <summary>
-	/// Godot version override for writing the SDK string in the project file.
-	/// </summary>
-	[EditorBrowsable(EditorBrowsableState.Never)]
-	[Description("Godot version override for writing the SDK string in the project file.")]
-	[JsonPropertyName("godot_version_override")]
-	public Version? GodotVersionOverride { get; set; } = null;
-
 	/// <summary>
 	/// Whether to remove the body of the generated JsonSourceGeneration context classes.
 	/// </summary>
@@ -97,6 +88,14 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	public bool EmitILAnnotationComments { get; set; } = false;
 
 	/// <summary>
+	/// Additional assembly search paths to use for resolving assembly references.
+	/// This is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.
+	/// </summary>
+	[Description("Additional assembly search paths to use for resolving assembly references.\nThis is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.")]
+	[JsonPropertyName("additional_assembly_search_paths")]
+	public string[] AdditionalAssemblySearchPaths { get; set; } = Array.Empty<string>();
+
+	/// <summary>
 	/// Whether to automatically search for additional assembly search paths for Steam workshop modules.
 	/// </summary>
 	[Description("Whether to automatically search for additional assembly search paths for Steam workshop modules.")]
@@ -110,9 +109,16 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	{
 		TypeInfoResolver = GodotMonoDecompSettingsSrcGenContext.Default.WithAddedModifier(typeInfo =>
 		{
-			if (typeInfo.Type == typeof(CSharpFormattingOptions))
+			if (typeInfo.Type != typeof(GodotMonoDecompSettings))
 			{
-				typeInfo.CreateObject = () => new GodotMonoDecompSettings().CSharpFormattingOptions;
+				return;
+			}
+			for (int i = typeInfo.Properties.Count - 1; i >= 0; i--)
+			{
+				if (typeInfo.Properties[i].Name == nameof(DecompilerSettings.CSharpFormattingOptions))
+				{
+					typeInfo.Properties.RemoveAt(i);
+				}
 			}
 		}),
 	};
@@ -146,10 +152,11 @@ public class GodotMonoDecompSettings : DecompilerSettings
 		settings.CopyOutOfTreeReferences = CopyOutOfTreeReferences;
 		settings.CreateAdditionalProjectsForProjectReferences = CreateAdditionalProjectsForProjectReferences;
 		settings.OverrideLanguageVersion = OverrideLanguageVersion;
-		settings.GodotVersionOverride = GodotVersionOverride;
 		settings.RemoveGeneratedJsonContextBody = RemoveGeneratedJsonContextBody;
 		settings.EnableCollectionInitializerLifting = EnableCollectionInitializerLifting;
 		settings.EmitILAnnotationComments = EmitILAnnotationComments;
+		settings.AutomaticallySearchWorkshopDependencies = AutomaticallySearchWorkshopDependencies;
+		settings.AdditionalAssemblySearchPaths = AdditionalAssemblySearchPaths;
 		settings.AutomaticallySearchWorkshopDependencies = AutomaticallySearchWorkshopDependencies;
 		return settings;
 	}
@@ -268,7 +275,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 			return false;
 		}
 		var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-		return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(decimal) || type == typeof(Version);
+		return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(string[]) || type == typeof(decimal) || type == typeof(Version);
 	}
 
 	private static bool ValueIsNumber(object? value)
@@ -390,6 +397,14 @@ public class GodotMonoDecompSettings : DecompilerSettings
 				break;
 			case decimal m:
 				writer.WriteNumberValue(m);
+				break;
+			case string[] strings:
+				writer.WriteStartArray();
+				foreach (var str in strings)
+				{
+					writer.WriteStringValue(str);
+				}
+				writer.WriteEndArray();
 				break;
 			case Enum e:
 				// Written as the literal underlying value; names are provided separately via "enum_values".

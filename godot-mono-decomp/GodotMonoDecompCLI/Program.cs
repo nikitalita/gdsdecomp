@@ -42,16 +42,17 @@ int Main(string[] args)
 	settings.CopyOutOfTreeReferences = !result.Value.NoCopyOutOfTreeReferences;
 	settings.CreateAdditionalProjectsForProjectReferences = !result.Value.NoCreateAdditionalProjectsForProjectReferences;
 	settings.VerifyNuGetPackageIsFromNugetOrg = result.Value.VerifyNuGetPackages;
-	settings.GodotVersionOverride = result.Value.GodotVersion == null ? null : GodotStuff.ParseGodotVersionFromString(result.Value.GodotVersion);
+	var GodotVersionOverride = result.Value.GodotVersion == null ? null : GodotStuff.ParseGodotVersionFromString(result.Value.GodotVersion);
 	settings.EnableCollectionInitializerLifting = !result.Value.DisableCollectionInitializerLifting || result.Value.EnableCollectionInitializerLifting;
 	settings.EmitILAnnotationComments = result.Value.EmitILAnnotationComments;
+	settings.AdditionalAssemblySearchPaths = referencePaths;
 	// get the current time
 	var startTime = DateTime.Now;
 	// call the DecompileProject function
+	var files = Common.ListCSharpFiles(projectPath, false).ToList();
+	GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], GodotVersionOverride, settings);
 	if (result.Value.DumpStrings || result.Value.WriteScriptInfo)
 	{
-		var files = Common.ListCSharpFiles(projectPath, false).ToList();
-		GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], referencePaths, settings);
 		Common.EnsureDir(outputDir);
 
 		if (result.Value.DumpStrings)
@@ -66,7 +67,7 @@ int Main(string[] args)
 			decompiler.WriteWholeScriptInfo(outputJson);
 		}
 	}
-    int resultCode = Lib.DecompileProject(assemblyPath, outputCSProj, projectPath, referencePaths, settings);
+    int resultCode = decompiler.DecompileModule(outputCSProj);
     var timeTaken = DateTime.Now - startTime;
     Console.WriteLine($"Decompilation completed in {timeTaken.TotalSeconds} seconds.");
     return resultCode;

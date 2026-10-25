@@ -41,6 +41,8 @@ public interface IGodotProjectWithSettingsProvider : IProjectInfoProvider
 
 	public bool CustomVersionDetected { get; }
 
+	Version? GodotVersionOverride { get; }
+
 }
 
 namespace GodotMonoDecomp
@@ -123,7 +125,7 @@ namespace GodotMonoDecomp
 			var sdkString = GetSdkString(projectType);
 			if (projectType == ProjectType.Godot)
 			{
-				var gdver = settings.GodotVersionOverride ?? GodotStuff.GetGodotVersion(module);
+				var gdver = project.GodotVersionOverride ?? GodotStuff.GetGodotVersion(module);
 				if (gdver == null)
 				{
 					Console.Error.WriteLine($"Could not determine Godot version for module {module.FileName}, assuming 3.0");
