@@ -113,7 +113,7 @@ void GDREConfig::_init_default_settings() {
 			"The type of indentation to use when decompiling and displaying scripts.",
 			0,
 			"Tabs,Spaces");
-	CONFIG_DEF_ENUM(
+	CONFIG_DEF_RANGE(
 			"Script/Indent/size",
 			"Tab size",
 			"The number of spaces to use when decompiling and displaying scripts.",
