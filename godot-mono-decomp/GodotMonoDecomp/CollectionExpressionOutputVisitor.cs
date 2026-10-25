@@ -158,7 +158,7 @@ public class GodotCSharpOutputVisitor : CSharpOutputVisitor
 	private readonly Dictionary<(MetadataFile Module, MethodDefinitionHandle MethodHandle, string SequenceKey), string[]> disassemblyLineCache = [];
 
 	public GodotCSharpOutputVisitor(TextWriter w, GodotMonoDecompSettings settings, bool emitILAnnotationComments = false, CSharpDecompiler? decompiler = null)
-		: this(new TextWriterTokenWriter(w), settings, emitILAnnotationComments, decompiler)
+		: this(new TextWriterTokenWriter(w) { IndentationString = settings.CSharpFormattingOptions.IndentationString }, settings, emitILAnnotationComments, decompiler)
 	{
 	}
 

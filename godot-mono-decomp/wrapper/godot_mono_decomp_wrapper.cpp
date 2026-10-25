@@ -22,6 +22,16 @@ Dictionary GodotMonoDecompWrapper::_get_settings_from_config() {
 		}
 		ret[key_str] = value;
 	}
+	String indentation_string = "\t";
+	bool use_spaces = GDREConfig::get_singleton()->get_setting("Script/Indent/type", 0).operator int() == 1;
+	if (use_spaces) {
+		int tab_size = GDREConfig::get_singleton()->get_setting("Script/Indent/size", 4).operator int();
+		indentation_string.clear();
+		for (int i = 0; i < tab_size; i++) {
+			indentation_string += " ";
+		}
+	}
+	ret["indentation_string"] = indentation_string;
 	return ret;
 
 }

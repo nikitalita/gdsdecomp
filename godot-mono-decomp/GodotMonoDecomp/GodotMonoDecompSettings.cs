@@ -102,6 +102,24 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	[JsonPropertyName("automatically_search_workshop_dependencies")]
 	public bool AutomaticallySearchWorkshopDependencies { get; set; } = true;
 
+	/// <summary>
+	/// Indent string for the decompiled project file.
+	/// </summary>
+	[EditorBrowsable(EditorBrowsableState.Never)]
+	[Description("Indent string for the decompiled project file.")]
+	[JsonPropertyName("indentation_string")]
+	public string IndentationString
+	{
+		get
+		{
+			return CSharpFormattingOptions.IndentationString;
+		}
+		set
+		{
+			CSharpFormattingOptions.IndentationString = value;
+		}
+	}
+
 	// CSharpFormattingOptions only has an internal constructor, so the serializer can't instantiate it on its
 	// own. Supply a factory that starts from the decompiler's default formatting; properties present in the JSON
 	// then override those defaults, and properties that are absent keep them.
@@ -158,6 +176,7 @@ public class GodotMonoDecompSettings : DecompilerSettings
 		settings.AutomaticallySearchWorkshopDependencies = AutomaticallySearchWorkshopDependencies;
 		settings.AdditionalAssemblySearchPaths = AdditionalAssemblySearchPaths;
 		settings.AutomaticallySearchWorkshopDependencies = AutomaticallySearchWorkshopDependencies;
+		settings.IndentationString = IndentationString;
 		return settings;
 	}
 
