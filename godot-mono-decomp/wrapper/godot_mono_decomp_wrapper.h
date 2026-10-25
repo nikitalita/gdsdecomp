@@ -51,5 +51,6 @@ private:
 
 	String assembly_path;
 	void *decompilerHandle = nullptr;
+	Dictionary default_settings;
 	Vector<String> originalProjectFiles;
 };

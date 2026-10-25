@@ -48,6 +48,14 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
 		decompilerHandle = nullptr;
 	}
+
+	default_settings.clear();
+	Array arr = get_default_settings();
+	for (int i = 0; i < arr.size(); i++) {
+		Dictionary dict = arr[i];
+		default_settings[dict.get("name", "").operator String()] = dict;
+	}
+
 	CharString assembly_path_chrstr = p_assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
 
@@ -243,11 +251,15 @@ bool GodotMonoDecompWrapper::is_handle_valid() const {
 	return decompilerHandle != nullptr;
 }
 
-static inline void _ensure_settings_int(Dictionary &p_dict){
+static inline void _ensure_settings_int(Dictionary &p_dict, const Dictionary &p_default_settings){
 	for (const auto &[key, value] : p_dict) {
-		if (value.get_type() == Variant::Type::FLOAT) {
+		String type = "int";
+		if (p_default_settings.has(key)) {
+			type = p_default_settings[key].operator Dictionary().get("type", "");
+		}
+		if (type == "int" && value.get_type() == Variant::Type::FLOAT) {
 			p_dict[key] = (int)round(value.operator double());
-		} else if (value.get_type() == Variant::Type::ARRAY) {
+		} else if (type == "PackedStringArray" && value.get_type() == Variant::Type::ARRAY) {
 			TypedArray<String> array = value;
 			PackedStringArray packed_array;
 			for (int i = 0; i < array.size(); i++) {
@@ -256,7 +268,7 @@ static inline void _ensure_settings_int(Dictionary &p_dict){
 			p_dict[key] = packed_array;
 		} else if (value.get_type() == Variant::Type::DICTIONARY) {
 			Dictionary dict = value;
-			_ensure_settings_int(dict);
+			_ensure_settings_int(dict, p_default_settings);
 			p_dict[key] = dict;
 		}
 	}
@@ -267,7 +279,7 @@ Dictionary GodotMonoDecompWrapper::get_settings() const {
 	String result = String::utf8(json);
 	GodotMonoDecomp_FreeString((void *)json);
 	Dictionary dict = JSON::parse_string(result);
-	_ensure_settings_int(dict);
+	_ensure_settings_int(dict, default_settings);
 	return dict;
 }
 
@@ -306,13 +318,18 @@ Array GodotMonoDecompWrapper::get_default_settings() {
 }
 
 static inline void _add_setting(Dictionary dict){
-	String name = "CSharp/" + dict.get("name", "").operator String();
+	String name = "CSharp/";
+	if (!dict.get("group", "").operator String().is_empty()) {
+		name += dict.get("group", "").operator String() + "/";
+	}
+	name += dict.get("name", "").operator String();
 	String brief = dict.get("brief", "").operator String();
 	String description = dict.get("description", "").operator String();
 	Variant default_value = dict.get("default_value", 0);
-	if (default_value.get_type() == Variant::Type::FLOAT) {
-		default_value = (int)round(default_value.operator double());
-	} else if (default_value.get_type() == Variant::Type::ARRAY) {
+	String type = dict.get("type", "").operator String();
+	if (type == "int" && default_value.get_type() == Variant::Type::FLOAT) {
+		default_value = default_value.operator int();
+	} else if (type == "PackedStringArray" && default_value.get_type() == Variant::Type::ARRAY) {
 		TypedArray<String> array = default_value;
 		PackedStringArray packed_array;
 		for (int i = 0; i < array.size(); i++) {
@@ -348,7 +365,7 @@ void GodotMonoDecompWrapper::add_default_config_settings() {
 	Vector<Dictionary> ILSpySettings;
 	for (int i = 0; i < default_settings.size(); i++) {
 		Dictionary dict = default_settings[i];
-		if (dict.get("name", "").operator String().begins_with("ILSpy/")) {
+		if (dict.get("group", "").operator String().begins_with("ILSpy")) {
 			ILSpySettings.push_back(dict);
 			continue;
 		}
@@ -362,15 +379,8 @@ void GodotMonoDecompWrapper::add_default_config_settings() {
 		true);
 
 	struct _ILSpySettingsSort {
-		static inline String get_prefix(const String &name){
-			int idx = name.rfind("/");
-			if (idx == -1) {
-				return name;
-			}
-			return name.substr(0, idx);
-		}
 		bool operator()(const Dictionary &a, const Dictionary &b) const {
-			return get_prefix(a.get("name", "")) < get_prefix(b.get("name", ""));
+			return a.get("group", "").operator String() < b.get("group", "").operator String();
 		}
 	};
 	ILSpySettings.sort_custom<_ILSpySettingsSort>();

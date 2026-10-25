@@ -314,6 +314,43 @@ public class GodotMonoDecompSettings : DecompilerSettings
 		return false;
 	}
 
+	private static string GetPropertyTypeName(Type propertyType)
+	{
+		propertyType = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
+		if (propertyType == typeof(bool))
+		{
+			return "bool";
+		}
+		else if (propertyType == typeof(int))
+		{
+			return "int";
+		}
+		else if (propertyType == typeof(string))
+		{
+			return "String";
+		}
+		else if (propertyType == typeof(string[]))
+		{
+			return "PackedStringArray";
+		}
+		else if (propertyType == typeof(decimal) || propertyType == typeof(float) || propertyType == typeof(double))
+		{
+			return "float";
+		}
+		else if (propertyType.IsEnum)
+		{
+			return GetPropertyTypeName(Enum.GetUnderlyingType(propertyType));
+		}
+		else if (propertyType.IsArray)
+		{
+			return "Array";
+		}
+		else
+		{
+			return "Variant";
+		}
+	}
+
 	private static void WriteSettingEntry(Utf8JsonWriter writer, string name, ReflectedProperty prop, object defaults, string? group_prefix = null)
 	{
 		var group = (prop.GetCustomAttribute<CategoryAttribute>()?.Category.Replace('/', '-'))?.Replace("DecompilerSettings.", "") ?? "";
@@ -334,13 +371,16 @@ public class GodotMonoDecompSettings : DecompilerSettings
 			}
 		}
 		writer.WriteStartObject();
-		writer.WriteString("name", string.IsNullOrEmpty(group) ? name : group + "/" + name);
+		writer.WriteString("name", name);
 		writer.WriteString("brief", PascalCaseWordBoundary.Replace(prop.Name, " ").Replace("Nu Get", "NuGet"));
 		writer.WriteString("description", prop.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "");
-		var enumType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+		writer.WriteString("group", group);
+		writer.WriteString("type", GetPropertyTypeName(prop.PropertyType));
+
 		writer.WritePropertyName("default_value");
 		var defaultValue = prop.GetValue(defaults);
 
+		var enumType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
 		if (enumType.IsEnum)
 		{
 			Array values = Enum.GetValuesAsUnderlyingType(enumType);
