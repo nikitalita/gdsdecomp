@@ -14,6 +14,7 @@ protected:
 	friend struct DecompileModuleTaskData;
 	static Array get_default_settings();
 
+	static Dictionary _get_settings_from_config();
 public:
 #if !GODOT_MONO_DECOMP_DISABLED
 	static constexpr bool godot_mono_decomp_enabled = true;
@@ -25,28 +26,9 @@ public:
 		return godot_mono_decomp_enabled;
 	}
 
-	struct GodotMonoDecompSettings {
-		bool WriteNuGetPackageReferences = true;
-		bool VerifyNuGetPackageIsFromNugetOrg = false;
-		bool CopyOutOfTreeReferences = true;
-		bool CreateAdditionalProjectsForProjectReferences = true;
-		bool RemoveGeneratedJsonContextBody = false;
-		bool EnableCollectionInitializerLifting = true;
-		bool EmitILAnnotationComments = false;
-		int OverrideLanguageVersion = 0;
-		bool AutomaticallySearchWorkshopDependencies = true;
-		Vector<String> AdditionalAssemblySearchPaths;
-		String GodotVersionOverride;
-		static GodotMonoDecompSettings get_default_settings();
-		// override operator ==
-		bool operator==(const GodotMonoDecompSettings &p_other) const;
-		bool operator!=(const GodotMonoDecompSettings &p_other) const;
-	};
+	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles);
 
-	static Ref<GodotMonoDecompWrapper> create(const String &assemblyPath, const Vector<String> &originalProjectFiles, const GodotMonoDecompSettings &settings);
-	static Dictionary get_language_versions();
-
-	bool is_valid() const;
+	bool is_handle_valid() const;
 
 	Error decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles);
 	String decompile_individual_file(const String &file);
@@ -57,17 +39,16 @@ public:
 	Vector<String> get_all_strings_in_module();
 	Vector<String> get_global_class_files();
 
-	GodotMonoDecompSettings get_settings() const;
-	Error set_settings(const GodotMonoDecompSettings &p_settings);
+	Dictionary get_settings() const;
+	bool reload_settings();
 
 	static bool is_file_assembly(const String &file);
 	static void add_default_config_settings();
 	~GodotMonoDecompWrapper();
 
 private:
-	Error _load(const String &assemblyPath, const Vector<String> &originalProjectFiles, const GodotMonoDecompSettings &settings);
+	Error _load(const String &assemblyPath, const Vector<String> &originalProjectFiles, const Dictionary &settings);
 
-	GodotMonoDecompSettings settings;
 	String assembly_path;
 	void *decompilerHandle = nullptr;
 	Vector<String> originalProjectFiles;

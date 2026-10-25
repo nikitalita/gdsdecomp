@@ -3008,9 +3008,7 @@ Error GDRESettings::reload_dotnet_assembly(const String &p_path) {
 		ERR_FAIL_COND_V_MSG(!FileAccess::exists(current_project->assembly_path), ERR_FILE_NOT_FOUND, "Assembly file does not exist");
 	}
 	Vector<String> originalProjectFiles = get_file_list({ "*.cs" });
-	GodotMonoDecompWrapper::GodotMonoDecompSettings settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
-	settings.GodotVersionOverride = current_project->version.is_valid() ? current_project->version->as_text() : "";
-	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles, settings);
+	Ref<GodotMonoDecompWrapper> decompiler = GodotMonoDecompWrapper::create(current_project->assembly_path, originalProjectFiles);
 	ERR_FAIL_COND_V_MSG(decompiler.is_null(), ERR_CANT_CREATE, "Failed to load assembly " + current_project->assembly_path + " (Not a valid .NET assembly?)");
 	current_project->decompiler = decompiler;
 	current_project->loaded_assembly_name = p_path.get_file().get_basename();
@@ -3196,9 +3194,8 @@ void GDRESettings::update_from_ephemeral_settings() {
 		}
 	}
 	if (current_project->decompiler.is_valid()) {
-		auto new_settings = GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings();
-		needs_recache = needs_recache || new_settings != current_project->decompiler->get_settings();
-		if (current_project->decompiler->set_settings(new_settings) != OK) {
+		needs_recache = current_project->decompiler->reload_settings() || needs_recache;
+		if (!current_project->decompiler->is_handle_valid()) {
 			ERR_PRINT("Failed to update decompiler settings, decompiler will be reset");
 			current_project->decompiler = Ref<GodotMonoDecompWrapper>();
 			reload_dotnet_assembly(current_project->assembly_path);

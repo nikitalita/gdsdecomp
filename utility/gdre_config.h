@@ -47,6 +47,8 @@ public:
 	bool is_ephemeral_setting(const String &p_setting) const;
 	void reset_ephemeral_settings();
 
+	Dictionary get_section_settings(const String &p_section) const;
+
 	void add_default_setting(Ref<GDREConfigSetting> p_setting);
 
 protected:
@@ -71,7 +73,6 @@ protected:
 public:
 	String get_full_name() const;
 	String get_name() const;
-	String get_section() const;
 	String get_brief_description() const;
 	String get_description() const;
 	virtual Variant get_value() const;

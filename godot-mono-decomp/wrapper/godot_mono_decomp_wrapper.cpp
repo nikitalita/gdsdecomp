@@ -11,17 +11,36 @@
 #if !GODOT_MONO_DECOMP_DISABLED
 #include "godot_mono_decomp.h"
 
-Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const GodotMonoDecompSettings &settings) {
+Dictionary GodotMonoDecompWrapper::_get_settings_from_config() {
+	Dictionary dict = GDREConfig::get_singleton()->get_section_settings("CSharp");
+	Dictionary ret;
+	for (const auto &[key, value] : dict) {
+		String key_str = key;
+		int idx = key_str.rfind("/");
+		if (idx != -1) {
+			key_str = key_str.substr(idx + 1);
+		}
+		ret[key_str] = value;
+	}
+	return ret;
+
+}
+
+Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles) {
 	Ref<GodotMonoDecompWrapper> wrapper = memnew(GodotMonoDecompWrapper);
-	Error err = wrapper->_load(assembly_path, originalProjectFiles, settings);
+	Error err = wrapper->_load(assembly_path, originalProjectFiles, _get_settings_from_config());
 	ERR_FAIL_COND_V_MSG(err != OK, Ref<GodotMonoDecompWrapper>(), "Failed to load assembly " + assembly_path + " (Not a valid .NET assembly?)");
 	return wrapper;
 }
 
-Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<String> &p_original_project_files, const GodotMonoDecompSettings &p_settings) {
+Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<String> &p_original_project_files, const Dictionary &p_settings) {
+	if (decompilerHandle != nullptr) {
+		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
+		decompilerHandle = nullptr;
+	}
 	CharString assembly_path_chrstr = p_assembly_path.utf8();
 	const char *assembly_path_c = assembly_path_chrstr.get_data();
-	Vector<String> assembly_search_paths = p_settings.AdditionalAssemblySearchPaths;
+	Vector<String> assembly_search_paths = CONFIG_GET("CSharp/additional_assembly_search_paths", Vector<String>());
 	const char **assembly_search_paths_c_array = new const char *[assembly_search_paths.size()];
 	Vector<CharString> assembly_search_paths_chrstrs;
 	assembly_search_paths_chrstrs.resize(assembly_search_paths.size());
@@ -31,8 +50,9 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 		assembly_search_paths_c_array[i] = assembly_search_paths_chrstrs[i].get_data();
 	}
 
-	CharString godotVersionOverride_chrstr = p_settings.GodotVersionOverride.is_empty() ? "" : p_settings.GodotVersionOverride.utf8();
-	const char *godotVersionOverride_c = p_settings.GodotVersionOverride.is_empty() ? nullptr : godotVersionOverride_chrstr.get_data();
+	String version_string = GDRESettings::get_singleton()->get_version_string();
+	CharString godotVersionOverride_chrstr = version_string.is_empty() ? "" : version_string.utf8();
+	const char *godotVersionOverride_c = version_string.is_empty() ? nullptr : godotVersionOverride_chrstr.get_data();
 
 	const char **originalProjectFiles_c_array = new const char *[p_original_project_files.size()];
 	Vector<CharString> originalProjectFiles_chrstrs;
@@ -43,6 +63,10 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 		originalProjectFiles_c_array[i] = originalProjectFiles_chrstrs[i].get_data();
 	}
 
+	String settings_json = JSON::stringify(p_settings);
+	CharString settings_json_chrstr = settings_json.utf8();
+	const char *settings_json_c = settings_json_chrstr.get_data();
+
 	auto new_decompiler_handle = GodotMonoDecomp_CreateGodotModuleDecompiler(
 			assembly_path_c,
 			originalProjectFiles_c_array,
@@ -50,15 +74,7 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 			assembly_search_paths_c_array,
 			assembly_search_paths.size(),
 			godotVersionOverride_c,
-			p_settings.WriteNuGetPackageReferences,
-			p_settings.VerifyNuGetPackageIsFromNugetOrg,
-			p_settings.CopyOutOfTreeReferences,
-			p_settings.CreateAdditionalProjectsForProjectReferences,
-			p_settings.RemoveGeneratedJsonContextBody,
-			p_settings.EnableCollectionInitializerLifting,
-			p_settings.EmitILAnnotationComments,
-			p_settings.AutomaticallySearchWorkshopDependencies,
-			(LanguageVersion)p_settings.OverrideLanguageVersion);
+			settings_json_c);
 	delete[] originalProjectFiles_c_array;
 	delete[] assembly_search_paths_c_array;
 	if (new_decompiler_handle == nullptr) {
@@ -67,7 +83,6 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 	this->decompilerHandle = new_decompiler_handle;
 	this->assembly_path = p_assembly_path;
 	this->originalProjectFiles = p_original_project_files;
-	this->settings = p_settings;
 	return OK;
 }
 
@@ -145,6 +160,7 @@ struct DecompileModuleTaskData : public TaskRunnerStruct {
 };
 
 Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
+	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, ERR_CANT_CREATE, "Decompiler handle is null");
 	int total_steps = GodotMonoDecomp_GetNumberOfFilesInFileMap(decompilerHandle);
 	auto taskData = std::make_shared<DecompileModuleTaskData>(outputCSProjectPath, excludeFiles, total_steps);
 	TaskManager::get_singleton()->run_task(taskData, this, "Decompiling C# scripts...", total_steps, true, true);
@@ -225,35 +241,46 @@ Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 	return strings_strs;
 }
 
-Dictionary GodotMonoDecompWrapper::get_language_versions() {
-	int num_versions = 0;
-	int *versions = GodotMonoDecomp_GetLanguageVersions(&num_versions);
-	Dictionary ret = { { 0, "Auto-detect" } };
-	for (int i = 0; i < num_versions; i++) {
-		if (ret.has(versions[i])) {
-			continue;
-		}
-		int ver = versions[i];
-		if (ver < 100) {
-			ret[ver] = "C# " + String::num_int64(ver) + ".0";
-		} else if (ver == INT_MAX) {
-			ret[ver] = "Latest";
-		} else {
-			int ver_major = ver / 100;
-			int ver_minor = ver % 100;
-			ret[ver] = "C# " + String::num_int64(ver_major) + "." + String::num_int64(ver_minor);
-		}
-	}
-	return ret;
+bool GodotMonoDecompWrapper::is_handle_valid() const {
+	return decompilerHandle != nullptr;
 }
 
-Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
-	if (p_settings != settings) {
-		Error err = _load(assembly_path, originalProjectFiles, p_settings);
-		ERR_FAIL_COND_V_MSG(err != OK, err, "Failed to reload assembly " + assembly_path + " (Not a valid .NET assembly?)");
+static inline void _ensure_settings_int(Dictionary &p_dict){
+	for (const auto &[key, value] : p_dict) {
+		if (value.get_type() == Variant::Type::FLOAT) {
+			p_dict[key] = (int)round(value.operator double());
+		} else if (value.get_type() == Variant::Type::DICTIONARY) {
+			Dictionary dict = value;
+			_ensure_settings_int(dict);
+			p_dict[key] = dict;
+		}
 	}
-	settings = p_settings;
-	return OK;
+}
+
+Dictionary GodotMonoDecompWrapper::get_settings() const {
+	const char *json = GodotMonoDecomp_GetSettingsJSON(decompilerHandle);
+	String result = String::utf8(json);
+	GodotMonoDecomp_FreeString((void *)json);
+	Dictionary dict = JSON::parse_string(result);
+	_ensure_settings_int(dict);
+	return dict;
+}
+
+bool GodotMonoDecompWrapper::reload_settings() {
+	Dictionary settings = get_settings();
+	Dictionary new_settings = _get_settings_from_config();
+	bool changed = false;
+	for (const auto &[key, value] : new_settings) {
+		if (!settings.has(key) || settings[key] != value) {
+			changed = true;
+			settings[key] = value;
+		}
+	}
+	if (changed) {
+		Error err = _load(assembly_path, originalProjectFiles, settings);
+		ERR_FAIL_COND_V_MSG(err != OK, false, "Failed to reload assembly " + assembly_path + " (Not a valid .NET assembly?)");
+	}
+	return changed;
 }
 
 bool GodotMonoDecompWrapper::is_file_assembly(const String &file) {
@@ -282,7 +309,11 @@ static inline void _add_setting(Dictionary dict){
 	if (enum_values.size() > 0) {
 		Dictionary fixed_enum_values;
 		for (auto &[key, value] : enum_values) {
-			fixed_enum_values[value] = key;
+			String key_str = key;
+			if (key_str.begins_with("CSharp")){
+				key_str = "C# " + key_str.trim_prefix("CSharp").replace("_", ".");
+			}
+			fixed_enum_values[value] = key_str;
 		}
 		enum_values = fixed_enum_values;
 		CONFIG_DEF_ENUM_DICT(name, brief, description, default_value, enum_values);
@@ -383,9 +414,6 @@ bool GodotMonoDecompWrapper::is_custom_version_detected() const {
 Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
-Dictionary GodotMonoDecompWrapper::get_language_versions() {
-	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
-}
 Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
 	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
@@ -397,47 +425,6 @@ Vector<String> GodotMonoDecompWrapper::get_global_class_files() {
 }
 GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {}
 #endif
-
-GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::get_settings() const {
-	return settings;
-}
-
-GodotMonoDecompWrapper::GodotMonoDecompSettings GodotMonoDecompWrapper::GodotMonoDecompSettings::get_default_settings() {
-	auto settings = GodotMonoDecompSettings();
-	settings.GodotVersionOverride = GDRESettings::get_singleton() ? GDRESettings::get_singleton()->get_version_string() : "";
-	if (!GDREConfig::get_singleton()) {
-		return settings;
-	}
-	settings.WriteNuGetPackageReferences = GDREConfig::get_singleton()->get_setting("CSharp/write_nuget_package_references", true);
-	settings.VerifyNuGetPackageIsFromNugetOrg = GDREConfig::get_singleton()->get_setting("CSharp/verify_nuget_package_is_from_nuget_org", false);
-	settings.CopyOutOfTreeReferences = GDREConfig::get_singleton()->get_setting("CSharp/copy_out_of_tree_references", true);
-	settings.CreateAdditionalProjectsForProjectReferences = GDREConfig::get_singleton()->get_setting("CSharp/create_additional_projects_for_project_references", true);
-	settings.RemoveGeneratedJsonContextBody = GDREConfig::get_singleton()->get_setting("CSharp/remove_generated_json_context_body", false);
-	settings.EnableCollectionInitializerLifting = GDREConfig::get_singleton()->get_setting("CSharp/enable_collection_initializer_lifting", true);
-	settings.EmitILAnnotationComments = GDREConfig::get_singleton()->get_setting("CSharp/emit_il_annotation_comments", false);
-	settings.OverrideLanguageVersion = GDREConfig::get_singleton()->get_setting("CSharp/force_language_version", 0);
-	settings.AutomaticallySearchWorkshopDependencies = GDREConfig::get_singleton()->get_setting("CSharp/automatically_search_workshop_dependencies", true);
-	settings.AdditionalAssemblySearchPaths = GDREConfig::get_singleton()->get_setting("CSharp/additional_assembly_search_paths", Vector<String>());
-	return settings;
-}
-
-bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator==(const GodotMonoDecompSettings &p_other) const {
-	return WriteNuGetPackageReferences == p_other.WriteNuGetPackageReferences &&
-			VerifyNuGetPackageIsFromNugetOrg == p_other.VerifyNuGetPackageIsFromNugetOrg &&
-			CopyOutOfTreeReferences == p_other.CopyOutOfTreeReferences &&
-			CreateAdditionalProjectsForProjectReferences == p_other.CreateAdditionalProjectsForProjectReferences &&
-			RemoveGeneratedJsonContextBody == p_other.RemoveGeneratedJsonContextBody &&
-			EnableCollectionInitializerLifting == p_other.EnableCollectionInitializerLifting &&
-			EmitILAnnotationComments == p_other.EmitILAnnotationComments &&
-			AutomaticallySearchWorkshopDependencies == p_other.AutomaticallySearchWorkshopDependencies &&
-			OverrideLanguageVersion == p_other.OverrideLanguageVersion &&
-			GodotVersionOverride == p_other.GodotVersionOverride &&
-			AdditionalAssemblySearchPaths == p_other.AdditionalAssemblySearchPaths;
-}
-
-bool GodotMonoDecompWrapper::GodotMonoDecompSettings::operator!=(const GodotMonoDecompSettings &p_other) const {
-	return !(*this == p_other);
-}
 
 GodotMonoDecompWrapper::GodotMonoDecompWrapper() {}
 

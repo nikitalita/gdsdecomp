@@ -51,15 +51,7 @@ void* GodotMonoDecomp_CreateGodotModuleDecompiler(
     const char** referencePaths,
     int referencePathsCount,
 	const char* godotVersionOverride,
-	bool writeNuGetPackageReferences,
-	bool verifyNuGetPackageIsFromNugetOrg,
-	bool copyOutOfTreeReferences,
-	bool createAdditionalProjectsForProjectReferences,
-	bool removeGeneratedJsonContextBody,
-	bool enableCollectionInitializerLifting,
-	bool emitILAnnotationComments,
-	bool automaticallySearchWorkshopDependencies,
-	LanguageVersion OverrideLanguageVersion
+	const char* settingsJSON
 );
 
 int GodotMonoDecomp_DecompileModule(

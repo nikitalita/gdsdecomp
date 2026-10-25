@@ -63,34 +63,15 @@ static public class Lib
 		IntPtr referencePaths,
 		int referencePathsCount,
 		IntPtr GodotVersionOverride,
-		bool writeNuGetPackageReferences,
-		bool verifyNuGetPackageIsFromNugetOrg,
-		bool copyOutOfTreeReferences,
-		bool createAdditionalProjectsForProjectReferences,
-		bool removeGeneratedJsonContextBody,
-		bool enableCollectionInitializerLifting,
-		bool emitILAnnotationComments,
-		bool automaticallySearchWorkshopDependencies,
-		int OverrideLanguageVersion
+		IntPtr settingsJSON
 	)
 	{
 		string assemblyFileNameStr = Marshal.PtrToStringUTF8(assemblyPath) ?? string.Empty;
 		var originalProjectFilesStrs = GetStringArray(originalProjectFiles, originalProjectFilesCount);
 		var referencePathsStrs = GetStringArray(referencePaths, referencePathsCount);
-		var godotVersionOverrideStr = GodotVersionOverride == IntPtr.Zero ? null : Marshal.PtrToStringUTF8(GodotVersionOverride) ?? null;
-		var settings = new GodotMonoDecompSettings
-		{
-			WriteNuGetPackageReferences = writeNuGetPackageReferences,
-			VerifyNuGetPackageIsFromNugetOrg = verifyNuGetPackageIsFromNugetOrg,
-			CopyOutOfTreeReferences = copyOutOfTreeReferences,
-			CreateAdditionalProjectsForProjectReferences = createAdditionalProjectsForProjectReferences,
-			RemoveGeneratedJsonContextBody = removeGeneratedJsonContextBody,
-			EnableCollectionInitializerLifting = enableCollectionInitializerLifting,
-			EmitILAnnotationComments = emitILAnnotationComments,
-			AutomaticallySearchWorkshopDependencies = automaticallySearchWorkshopDependencies,
-			OverrideLanguageVersion = OverrideLanguageVersion == 0 ? null : (LanguageVersion)OverrideLanguageVersion,
-			GodotVersionOverride = godotVersionOverrideStr == null ? null : GodotStuff.ParseGodotVersionFromString(godotVersionOverrideStr)
-		};
+		var godotVersionOverride = GodotVersionOverride == IntPtr.Zero ? null : GodotStuff.ParseGodotVersionFromString(Marshal.PtrToStringUTF8(GodotVersionOverride) ?? string.Empty) ?? null;
+		var settings = GodotMonoDecompSettings.FromJson(Marshal.PtrToStringUTF8(settingsJSON) ?? string.Empty);
+		settings.GodotVersionOverride = godotVersionOverride;
 		try {
 			var decompiler = new GodotModuleDecompiler(assemblyFileNameStr, originalProjectFilesStrs, referencePathsStrs, settings);
 			var handle = GCHandle.Alloc(decompiler);

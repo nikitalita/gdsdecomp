@@ -265,6 +265,17 @@ void GDREConfig::reset_ephemeral_settings() {
 	}
 }
 
+Dictionary GDREConfig::get_section_settings(const String &p_section) const {
+	Dictionary ret;
+	String section = p_section.trim_suffix("/") + "/";
+	settings.for_each([&](const auto &v) {
+		if (v.first.begins_with(section)) {
+			ret[v.first.trim_prefix(section)] = v.second;
+		}
+	});
+	return ret;
+}
+
 void GDREConfig::add_default_setting(Ref<GDREConfigSetting> p_setting) {
 	if (default_settings.has(p_setting->get_full_name())) {
 		WARN_PRINT("Setting already exists, overwriting: " + p_setting->get_full_name());

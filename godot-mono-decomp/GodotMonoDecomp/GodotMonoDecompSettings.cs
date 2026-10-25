@@ -110,7 +110,6 @@ public class GodotMonoDecompSettings : DecompilerSettings
 	{
 		TypeInfoResolver = GodotMonoDecompSettingsSrcGenContext.Default.WithAddedModifier(typeInfo =>
 		{
-			Console.WriteLine("Creating object for type " + typeInfo.Type.Name);
 			if (typeInfo.Type == typeof(CSharpFormattingOptions))
 			{
 				typeInfo.CreateObject = () => new GodotMonoDecompSettings().CSharpFormattingOptions;
