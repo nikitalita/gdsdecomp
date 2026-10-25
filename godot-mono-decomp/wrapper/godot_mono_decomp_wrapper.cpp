@@ -262,6 +262,81 @@ bool GodotMonoDecompWrapper::is_file_assembly(const String &file) {
 	return GodotMonoDecomp_CheckFileIsAssembly(file_c) != 0;
 }
 
+Array GodotMonoDecompWrapper::get_default_settings() {
+	const char *json = GodotMonoDecomp_GetDefaultSettingsJSON();
+	String result = String::utf8(json);
+	GodotMonoDecomp_FreeString((void *)json);
+	Array dict = JSON::parse_string(result);
+	return dict;
+}
+
+static inline void _add_setting(Dictionary dict){
+	String name = "CSharp/" + dict.get("name", "").operator String();
+	String brief = dict.get("brief", "").operator String();
+	String description = dict.get("description", "").operator String();
+	Variant default_value = dict.get("default_value", 0);
+	if (default_value.get_type() == Variant::Type::FLOAT) {
+		default_value = (int)round(default_value.operator double());
+	}
+	Dictionary enum_values = dict.get("enum_values", Dictionary());
+	if (enum_values.size() > 0) {
+		Dictionary fixed_enum_values;
+		for (auto &[key, value] : enum_values) {
+			fixed_enum_values[value] = key;
+		}
+		enum_values = fixed_enum_values;
+		CONFIG_DEF_ENUM_DICT(name, brief, description, default_value, enum_values);
+	} else {
+		CONFIG_DEF(name, brief, description, default_value);
+	}
+
+}
+
+void GodotMonoDecompWrapper::add_default_config_settings() {
+
+	auto default_settings = get_default_settings();
+	Vector<Dictionary> ILSpySettings;
+	for (int i = 0; i < default_settings.size(); i++) {
+		Dictionary dict = default_settings[i];
+		if (dict.get("name", "").operator String().begins_with("ILSpy/")) {
+			ILSpySettings.push_back(dict);
+			continue;
+		}
+		_add_setting(dict);
+	}
+
+	CONFIG_DEF(
+		"CSharp/additional_assembly_search_paths",
+		"Additional assembly search paths",
+		"Additional assembly search paths to use for resolving assembly references.\nThis is useful for resolving assembly references in Steam workshop modules that rely on additional assemblies.",
+		Vector<String>());
+	CONFIG_DEF(
+		"CSharp/compile_after_decompile",
+		"Compile after decompile",
+		"Compile the C# project after decompiling.\nThis is done to prevent editor errors when first opening the project in the editor.\nThis requires that you have the dotnet sdk installed.",
+		true);
+
+	struct _ILSpySettingsSort {
+		static inline String get_prefix(const String &name){
+			int idx = name.rfind("/");
+			if (idx == -1) {
+				return name;
+			}
+			return name.substr(0, idx);
+		}
+		bool operator()(const Dictionary &a, const Dictionary &b) const {
+			return get_prefix(a.get("name", "")) < get_prefix(b.get("name", ""));
+		}
+	};
+	ILSpySettings.sort_custom<_ILSpySettingsSort>();
+
+	for (int i = 0; i < ILSpySettings.size(); i++) {
+		Dictionary dict = ILSpySettings[i];
+		_add_setting(dict);
+	}
+
+}
+
 Vector<String> GodotMonoDecompWrapper::get_global_class_files() {
 	ERR_FAIL_COND_V_MSG(decompilerHandle == nullptr, Vector<String>(), "Decompiler handle is null");
 	int num_files = 0;

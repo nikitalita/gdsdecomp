@@ -140,6 +140,10 @@ bool GodotMonoDecomp_CheckFileIsAssembly(const char* file);
 
 const char** GodotMonoDecomp_GetGlobalClassFiles(void* decompilerHandle, int* r_num_files);
 
+const char* GodotMonoDecomp_GetDefaultSettingsJSON();
+
+const char* GodotMonoDecomp_GetSettingsJSON(void* decompilerHandle);
+
 #ifdef __cplusplus
 }
 #endif

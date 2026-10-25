@@ -402,4 +402,23 @@ static public class Lib
 		}
 		return arrayPtr;
 	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetDefaultSettingsJSON")]
+	public static IntPtr AOTGetDefaultSettingsJSON()
+	{
+		return StringToHGlobalUtf8(GodotMonoDecompSettings.GetDefaultSettingsJSON());
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetSettingsJSON")]
+	public static IntPtr AOTGetSettingsJSON(
+		IntPtr decompilerHandle
+	)
+	{
+		var decompiler = GCHandle.FromIntPtr(decompilerHandle).Target as GodotModuleDecompiler;
+		if (decompiler == null)
+		{
+			return IntPtr.Zero;
+		}
+		return StringToHGlobalUtf8(decompiler.Settings.ToJson(false));
+	}
 }

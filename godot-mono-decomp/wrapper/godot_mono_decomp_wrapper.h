@@ -12,6 +12,7 @@ protected:
 	static void _bind_methods();
 	GodotMonoDecompWrapper();
 	friend struct DecompileModuleTaskData;
+	static Array get_default_settings();
 
 public:
 #if !GODOT_MONO_DECOMP_DISABLED
@@ -60,6 +61,7 @@ public:
 	Error set_settings(const GodotMonoDecompSettings &p_settings);
 
 	static bool is_file_assembly(const String &file);
+	static void add_default_config_settings();
 	~GodotMonoDecompWrapper();
 
 private:

@@ -400,6 +400,24 @@ Dictionary GDREConfigSettingEnum::get_list_of_possible_values() const {
 	return ret;
 }
 
+GDREConfigSettingEnumDict::GDREConfigSettingEnumDict(
+		const String &p_full_name,
+		const String &p_brief,
+		const String &p_description,
+		const Variant &p_default_value,
+		const Dictionary &p_enum_values,
+		GDREConfig::SettingFlag p_flags) :
+		GDREConfigSetting(p_full_name, p_brief, p_description, p_default_value, p_flags), enum_values(p_enum_values) {
+}
+
+bool GDREConfigSettingEnumDict::has_special_value() const {
+	return true;
+}
+
+Dictionary GDREConfigSettingEnumDict::get_list_of_possible_values() const {
+	return enum_values;
+}
+
 GDREConfigSettingRange::GDREConfigSettingRange(
 		const String &p_full_name,
 		const String &p_brief,
