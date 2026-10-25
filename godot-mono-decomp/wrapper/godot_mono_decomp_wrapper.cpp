@@ -401,11 +401,17 @@ GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
 }
 #else
 constexpr const char *GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE = "GodotMonoDecompWrapper is not enabled in this build of GDRE Tools";
+Dictionary GodotMonoDecompWrapper::_get_settings_from_config() {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
 Ref<GodotMonoDecompWrapper> GodotMonoDecompWrapper::create(const String &assembly_path, const Vector<String> &originalProjectFiles, const GodotMonoDecompSettings &settings) {
 	ERR_FAIL_V_MSG(Ref<GodotMonoDecompWrapper>(), GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
 Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<String> &p_original_project_files, const GodotMonoDecompSettings &p_settings) {
 	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+bool GodotMonoDecompWrapper::is_handle_valid() const {
+	ERR_FAIL_V_MSG(false, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
 Error GodotMonoDecompWrapper::decompile_module(const String &outputCSProjectPath, const Vector<String> &excludeFiles) {
 	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
@@ -428,14 +434,20 @@ bool GodotMonoDecompWrapper::is_custom_version_detected() const {
 Vector<String> GodotMonoDecompWrapper::get_all_strings_in_module() {
 	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
-Error GodotMonoDecompWrapper::set_settings(const GodotMonoDecompSettings &p_settings) {
-	ERR_FAIL_V_MSG(ERR_UNAVAILABLE, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
-}
 bool GodotMonoDecompWrapper::is_file_assembly(const String &file) const {
 	ERR_FAIL_V_MSG(false, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
 Vector<String> GodotMonoDecompWrapper::get_global_class_files() {
 	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+Dictionary GodotMonoDecompWrapper::get_settings() const {
+	ERR_FAIL_V_MSG({}, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+bool GodotMonoDecompWrapper::reload_settings() {
+	ERR_FAIL_V_MSG(false, GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
+}
+void GodotMonoDecompWrapper::add_default_config_settings() {
+	ERR_FAIL_MSG(GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
 GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {}
 #endif
