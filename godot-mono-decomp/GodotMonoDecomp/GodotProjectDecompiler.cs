@@ -191,7 +191,7 @@ namespace GodotMonoDecomp
 				}
 				else
 				{
-					Console.WriteLine("Warning: projectFileWriter is not a StreamWriter, cannot determine .csproj path. Using default name.");
+					Logging.Warn("projectFileWriter is not a StreamWriter, cannot determine .csproj path. Using default name.");
 					ProjectCSProjPath = Path.Join(targetDirectory, file.Name + ".csproj");
 				}
 				projectId = DecompileProject(file, targetDirectory, projectFileWriter, cancellationToken);

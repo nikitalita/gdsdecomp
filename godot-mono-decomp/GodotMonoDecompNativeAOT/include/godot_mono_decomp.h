@@ -134,6 +134,39 @@ const char* GodotMonoDecomp_GetDefaultSettingsJSON();
 
 const char* GodotMonoDecomp_GetSettingsJSON(void* decompilerHandle);
 
+typedef enum {
+GODOT_MONO_DECOMP_LOG_DEFAULT = -1, // resets to the default log level
+GODOT_MONO_DECOMP_LOG_VERBOSE = 0,
+GODOT_MONO_DECOMP_LOG_DEBUG = 1,
+GODOT_MONO_DECOMP_LOG_INFO = 2,
+GODOT_MONO_DECOMP_LOG_WARNING = 3,
+GODOT_MONO_DECOMP_LOG_ERROR = 4
+} GodotMonoDecompLogLevel;
+
+// userdata, log level (GodotMonoDecompLogLevel), null-terminated UTF-8 message,
+// function (method name of the call site), file (repo-relative path of the call site), line
+typedef void (*logCallbackFunc_t)(void*, int, const char*, const char*, const char*, int);
+
+/**
+ * @brief Set the callback that receives all log messages from the library.
+ *
+ * By default, messages are written to stdout (debug/info) and stderr (warning/error).
+ * Passing a null callback restores the default behavior.
+ *
+ * The callback may be invoked from any thread, including worker threads, so it must be thread-safe.
+ * The message, function and file pointers are only valid for the duration of the call; copy them if you need to keep them.
+ * The function, file and line describe where in the C# library the message was logged (like __FUNCTION__, __FILE__
+ * and __LINE__). They are only provided for GODOT_MONO_DECOMP_LOG_WARNING and GODOT_MONO_DECOMP_LOG_ERROR;
+ * for lower levels, function and file are NULL and line is 0.
+ * The callback must not throw/longjmp across the call, and must not be freed while it is registered
+ * (unregister it by passing null first).
+ *
+ * @param callback The log callback (a function pointer that takes in a void* (userdata), an int (log level), a const char* (message), a const char* (function), a const char* (file), and an int (line))
+ * @param userData The user data to pass to the log callback
+ * @param includeCallSiteForNonWarningMessages Whether to include the call site for non-warning messages
+ */
+void GodotMonoDecomp_SetLogCallback(logCallbackFunc_t callback, void* userData, GodotMonoDecompLogLevel logLevel, bool includeCallSiteForNonWarningMessages);
+
 #ifdef __cplusplus
 }
 #endif

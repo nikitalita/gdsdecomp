@@ -180,8 +180,8 @@ public class GodotModuleDecompiler
 
 			if (reference == null)
 			{
-				Console.Error.WriteLine(
-					$"Warning: Could not resolve project reference '{dep.Name}' for assembly '{MainModule.Name}'.");
+				Logging.Warn(
+					$"Could not resolve project reference '{dep.Name}' for assembly '{MainModule.Name}'.");
 				continue;
 			}
 
@@ -326,11 +326,11 @@ public class GodotModuleDecompiler
 
 			if (module.fileMap.Count == 0)
 			{
-				Console.Error.WriteLine($"Warning: Module '{moduleName}' has no files to decompile. It may not be a Godot module or it may not contain any scripts.");
+				Logging.Warn($"Module '{moduleName}' has no files to decompile. It may not be a Godot module or it may not contain any scripts.");
 			}
 			else
 			{
-				Console.WriteLine($"Module '{moduleName}' has {module.fileMap.Count} files to decompile.");
+				Logging.Info($"Module '{moduleName}' has {module.fileMap.Count} files to decompile.");
 			}
 		}
 
@@ -346,7 +346,7 @@ public class GodotModuleDecompiler
 			}
 			catch (Exception e)
 			{
-				Console.Error.WriteLine($"Error: Failed to delete existing file {path}: {e.Message}");
+				Logging.Error($"Failed to delete existing file {path}: {e.Message}");
 			}
 		}
 
@@ -366,9 +366,9 @@ public class GodotModuleDecompiler
 							packageHashTaskCancelSrc.Cancel();
 						}
 					}, token);
-				Console.WriteLine("Waiting for package hash tasks to complete...");
+				Logging.Debug("Waiting for package hash tasks to complete...");
 				Task.WaitAll([waitTask], token);
-				Console.WriteLine("Package hash tasks completed.");
+				Logging.Debug("Package hash tasks completed.");
 				CustomVersionDetected = CustomVersionDetected || DetectCustomVersionFromPackageHash();
 				packageHashTasks.Clear();
 			}
@@ -384,7 +384,7 @@ public class GodotModuleDecompiler
 			var targetDirectory = Path.GetDirectoryName(outputCSProjectPath);
 			if (string.IsNullOrEmpty(targetDirectory))
 			{
-				Console.Error.WriteLine("Error: Output path is invalid.");
+				Logging.Error("Output path is invalid.");
 				return -1;
 			}
 			Common.EnsureDir(targetDirectory);
@@ -453,9 +453,7 @@ public class GodotModuleDecompiler
 		}
 		catch (Exception e)
 		{
-			Console.Error.WriteLine($"Decompilation failed: {e.Message}");
-			// print stacktrace
-			Console.Error.WriteLine(e.StackTrace);
+			Logging.Error("Decompilation failed", e);
 			return -1;
 
 		}
@@ -713,7 +711,7 @@ public class GodotModuleDecompiler
 		}
 		if (scriptInfos.Count == 0)
 		{
-			Console.WriteLine("// No script info found.");
+			Logging.Warn("No script info found.");
 			return;
 		}
 
@@ -986,7 +984,7 @@ public class GodotModuleDecompiler
 				writer.WriteLine(str);
 			}
 		}
-		Console.WriteLine($"Dumped {strings.Count} strings to {outputFile}");
+		Logging.Info($"Dumped {strings.Count} strings to {outputFile}");
 	}
 
 	public string[] GetGlobalClassFiles()

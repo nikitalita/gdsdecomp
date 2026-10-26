@@ -4,7 +4,24 @@
 #include <filesystem>
 #include "godot_mono_decomp.h"
 
+static void _godot_mono_decomp_log_callback(void *p_userdata, int p_level, const char *p_message, const char *p_function, const char *p_file, int p_line) {
+    switch (p_level) {
+        case GODOT_MONO_DECOMP_LOG_WARNING:
+            std::cout << "WARNING: " << p_message << std::endl;
+            std::cout << "     at: " << p_function << " (" << p_file << ":" << p_line << ")" << std::endl;
+            break;
+        case GODOT_MONO_DECOMP_LOG_ERROR:
+            std::cout << "ERROR: " << p_message << std::endl;
+            std::cout << "     at: " << p_function << " (" << p_file << ":" << p_line << ")" << std::endl;
+            break;
+        default:
+            std::cout << p_message << std::endl;
+            break;
+    }
+}
+
 int main(int argc, char* argv[]) {
+	GodotMonoDecomp_SetLogCallback(&_godot_mono_decomp_log_callback, nullptr, GODOT_MONO_DECOMP_LOG_INFO, false);
     std::cout << "Godot Mono Decompiler AOT Test (Static Linking)" << std::endl;
     std::cout << "================================================" << std::endl;
 

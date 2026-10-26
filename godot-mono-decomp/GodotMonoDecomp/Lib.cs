@@ -19,7 +19,7 @@ namespace GodotMonoDecomp
             }
             catch (Exception e)
             {
-                Console.WriteLine("Decompilation failed: " + e.Message);
+                Logging.Error("Decompilation failed: " + e.Message);
                 return -1;
             }
         }

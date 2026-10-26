@@ -128,7 +128,7 @@ namespace GodotMonoDecomp
 				var gdver = project.GodotVersionOverride ?? GodotStuff.GetGodotVersion(module);
 				if (gdver == null)
 				{
-					Console.Error.WriteLine($"Could not determine Godot version for module {module.FileName}, assuming 3.0");
+					Logging.Warn($"Could not determine Godot version for module {module.FileName}, assuming 3.0");
 					gdver = new Version(3, 0, 0);
 				}
 				var godotVersion = gdver?.ToString(3);
@@ -687,7 +687,7 @@ namespace GodotMonoDecomp
 				}
 				else
 				{
-					Console.WriteLine($"Reference '{reference.Name}' is not a package reference, project reference, or GodotSharp reference.");
+					Logging.Debug($"Reference '{reference.Name}' is not a package reference, project reference, or GodotSharp reference.");
 				}
 
 				var referenceDep = deps?.GetDep(reference, true);
@@ -807,7 +807,7 @@ namespace GodotMonoDecomp
 				}
 				catch (Exception e)
 				{
-					Console.Error.WriteLine($"Error creating directory {Path.GetDirectoryName(outputPath)}: {e.Message}");
+					Logging.Error($"Error creating directory {Path.GetDirectoryName(outputPath)}: {e.Message}");
 				}
 				// copy the file to the output directory
 				try
@@ -816,7 +816,7 @@ namespace GodotMonoDecomp
 				}
 				catch (Exception e)
 				{
-					Console.Error.WriteLine($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
+					Logging.Error($"Error copying file {asembly.FileName} to {outputPath}: {e.Message}");
 				}
 
 				// create an empty file named ".gdignore" in the mono directory
@@ -832,7 +832,7 @@ namespace GodotMonoDecomp
 					}
 					catch (Exception e)
 					{
-						Console.Error.WriteLine($"Error creating .gdignore file in {copyToDir}: {e.Message}");
+						Logging.Error($"Error creating .gdignore file in {copyToDir}: {e.Message}");
 					}
 				}
 
@@ -849,7 +849,7 @@ namespace GodotMonoDecomp
 					}
 					catch (Exception e)
 					{
-						Console.Error.WriteLine($"Error copying pdb file {pdbPath} to {pdbOutputPath}: {e.Message}");
+						Logging.Error($"Error copying pdb file {pdbPath} to {pdbOutputPath}: {e.Message}");
 					}
 				}
 				// we need to copy the dependencies too

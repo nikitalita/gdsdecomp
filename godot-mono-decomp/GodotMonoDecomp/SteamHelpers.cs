@@ -86,7 +86,7 @@ public static partial class SteamHelpers
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
-			Console.Error.WriteLine($"Failed to list the data directories of '{gameDir}': {e.Message}");
+			Logging.Error($"Failed to list the data directories of '{gameDir}': {e.Message}");
 			return [];
 		}
 	}
@@ -180,7 +180,7 @@ public static partial class SteamHelpers
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
-			Console.Error.WriteLine($"Failed to list the data directories of '{gameDir}': {e.Message}");
+			Logging.Error($"Failed to list the data directories of '{gameDir}': {e.Message}");
 			return [];
 		}
 	}
@@ -206,7 +206,7 @@ public static partial class SteamHelpers
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
-			Console.Error.WriteLine($"Failed to read the Steam app manifest '{manifestPath}': {e.Message}");
+			Logging.Error($"Failed to read the Steam app manifest '{manifestPath}': {e.Message}");
 		}
 
 		return null;

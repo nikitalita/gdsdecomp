@@ -49,6 +49,59 @@ static public class Lib
     }
 
 
+	// Returns the null-terminated UTF-8 encoding of a string.
+	static byte[] ToNullTerminatedUtf8(string? value)
+	{
+		value ??= string.Empty;
+		// +1 for the null terminator; the array is zero-initialized, so the last byte is already 0
+		byte[] buffer = new byte[Encoding.UTF8.GetByteCount(value) + 1];
+		Encoding.UTF8.GetBytes(value, 0, value.Length, buffer, 0);
+		return buffer;
+	}
+
+	// Forwards log messages to a native callback:
+	// void (*)(void* userData, int level, const char* message, const char* function, const char* file, int line).
+	// The string pointers are only valid for the duration of the call.
+	// The call site (function, file, line) is only passed for warnings and errors; for lower levels,
+	// function and file are NULL and line is 0, and the call site is not encoded at all.
+	sealed unsafe class NativeLogSink
+	{
+		private readonly delegate* unmanaged[Cdecl]<IntPtr, int, byte*, byte*, byte*, int, void> callback;
+		private readonly IntPtr userData;
+
+		public NativeLogSink(IntPtr callback, IntPtr userData)
+		{
+			this.callback = (delegate* unmanaged[Cdecl]<IntPtr, int, byte*, byte*, byte*, int, void>)callback;
+			this.userData = userData;
+		}
+
+		public void Write(LogRecord record)
+		{
+			byte[] message = ToNullTerminatedUtf8(record.Message);
+			byte[] function = ToNullTerminatedUtf8(record.Function);
+			byte[] file = ToNullTerminatedUtf8(record.File);
+			fixed (byte* messagePtr = message)
+			fixed (byte* functionPtr = function)
+			fixed (byte* filePtr = file)
+			{
+				callback(userData, (int)record.Level, messagePtr, functionPtr, filePtr, record.Line);
+			}
+		}
+	}
+
+	// Installs (or, if callback is null, removes) a native log callback.
+	// The callback may be invoked from any thread.
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_SetLogCallback")]
+	public static void AOTSetLogCallback(IntPtr callback, IntPtr userData, LogLevel	logLevel, bool includeCallSiteForNonWarningMessages)
+	{
+		if (callback == IntPtr.Zero)
+		{
+			Logging.SetSink(null, logLevel, includeCallSiteForNonWarningMessages);
+			return;
+		}
+		Logging.SetSink(new NativeLogSink(callback, userData).Write, logLevel, includeCallSiteForNonWarningMessages);
+	}
+
 	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_FreeObjectHandle")]
 	public static void FreeObjectHandle(IntPtr v)
 	{
@@ -78,7 +131,7 @@ static public class Lib
 
 		catch (Exception e)
 		{
-			Console.Error.WriteLine("Failed to create GodotModuleDecompiler: " + e.Message);
+			Logging.Error("Failed to create GodotModuleDecompiler", e);
 			return IntPtr.Zero;
 		}
 	}
@@ -134,7 +187,7 @@ static public class Lib
 				}
 				catch (Exception e)
 				{
-					Console.Error.WriteLine("Failed to cancel decompilation: " + e.Message);
+					Logging.Error("Failed to cancel decompilation", e);
 				}
 			}
 			// free the string after calling the function

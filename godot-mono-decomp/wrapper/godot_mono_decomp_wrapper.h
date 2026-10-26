@@ -56,6 +56,11 @@ public:
 
 	static bool is_file_assembly(const String &file);
 	static void add_default_config_settings();
+
+	// Routes all log messages from the .NET library into Godot's logging (print_line/WARN_PRINT/ERR_PRINT).
+	static void register_log_callback();
+	// Restores the default (stdout/stderr) logging in the .NET library.
+	static void unregister_log_callback();
 	~GodotMonoDecompWrapper();
 
 private:

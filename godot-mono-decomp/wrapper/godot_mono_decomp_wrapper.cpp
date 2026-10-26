@@ -2,9 +2,11 @@
 
 #include "core/io/json.h"
 #include "core/object/class_db.h"
+#include "core/string/print_string.h"
 #include "core/templates/vector.h"
 
 #include "utility/gd_parallel_queue.h"
+#include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
 #include "utility/task_manager.h"
 
@@ -370,6 +372,53 @@ Vector<String> GodotMonoDecompWrapper::get_global_class_files() {
 	return files_strs;
 }
 
+// May be called from any thread (e.g. the .NET thread pool).
+// p_function, p_file and p_line describe the call site in the C# library (like __FUNCTION__, __FILE__ and __LINE__),
+// so we call _err_print_error directly instead of the WARN_PRINT/ERR_PRINT macros, which would report this function.
+static void _godot_mono_decomp_log_callback(void *p_userdata, int p_level, const char *p_message, const char *p_function, const char *p_file, int p_line) {
+	String message = String::utf8(p_message);
+	switch (p_level) {
+		case GODOT_MONO_DECOMP_LOG_WARNING:
+			_err_print_error(p_function, p_file, p_line, message, false, ERR_HANDLER_WARNING);
+			break;
+		case GODOT_MONO_DECOMP_LOG_ERROR:
+			_err_print_error(p_function, p_file, p_line, message, false, ERR_HANDLER_ERROR);
+			break;
+		default:
+			print_line(message);
+			break;
+	}
+#if 0 // Only for initial debugging
+	switch (p_level) {
+		case GODOT_MONO_DECOMP_LOG_VERBOSE:
+		case GODOT_MONO_DECOMP_LOG_DEBUG:
+		case GODOT_MONO_DECOMP_LOG_INFO:
+			if (is_print_verbose_enabled()) {
+				print_line(vformat("    at: %s (%s:%d)", p_function, p_file, p_line));
+			}
+			break;
+	}
+#endif
+}
+
+
+void GodotMonoDecompWrapper::register_log_callback() {
+	#ifdef DEBUG_ENABLED
+	static constexpr bool is_debug_build = true;
+#else
+	static constexpr bool is_debug_build = false;
+#endif
+	GodotMonoDecompLogLevel logLevel = is_debug_build ? GODOT_MONO_DECOMP_LOG_DEBUG : GODOT_MONO_DECOMP_LOG_INFO;
+	if (is_print_verbose_enabled()) {
+		logLevel = GODOT_MONO_DECOMP_LOG_VERBOSE;
+	}
+	GodotMonoDecomp_SetLogCallback(&_godot_mono_decomp_log_callback, nullptr, logLevel, false);
+}
+
+void GodotMonoDecompWrapper::unregister_log_callback() {
+	GodotMonoDecomp_SetLogCallback(nullptr, nullptr, GODOT_MONO_DECOMP_LOG_DEFAULT, false);
+}
+
 GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {
 	if (decompilerHandle != nullptr) {
 		GodotMonoDecomp_FreeObjectHandle(decompilerHandle);
@@ -425,6 +474,8 @@ bool GodotMonoDecompWrapper::reload_settings() {
 void GodotMonoDecompWrapper::add_default_config_settings() {
 	ERR_FAIL_MSG(GODOT_MONO_DECOMP_DISABLED_ERROR_MESSAGE);
 }
+void GodotMonoDecompWrapper::register_log_callback() {}
+void GodotMonoDecompWrapper::unregister_log_callback() {}
 GodotMonoDecompWrapper::~GodotMonoDecompWrapper() {}
 #endif
 

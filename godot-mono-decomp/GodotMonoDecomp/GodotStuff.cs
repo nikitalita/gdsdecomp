@@ -484,7 +484,7 @@ public static class GodotStuff
 				bool anyExistingCanonical = existingGlobals.Any(canonicalHandles.Contains);
 				if (incomingIsCanonical && anyExistingCanonical)
 				{
-					Console.Error.WriteLine(
+					Logging.Error(
 						$"Multiple canonical Godot class types map to '{path}'. Canonical collisions are not allowed.");
 					// just add it anyway
 					AddHandleToPath(path, h);

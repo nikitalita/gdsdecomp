@@ -76,7 +76,7 @@ public static class NugetDetails
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Error downloading package {name}.{version}: {e.Message}");
+            Logging.Error($"Error downloading package {name}.{version}: {e.Message}");
         }
 
         if (p == null)
@@ -90,20 +90,20 @@ public static class NugetDetails
     {
         if (string.IsNullOrEmpty(path))
         {
-            Console.WriteLine("Path is null or empty.");
+            Logging.Warn("Path is null or empty.");
             return null;
         }
         var file = Path.GetFileName(path);
         var package = new PackageArchiveReader(path);
         if (package == null)
         {
-            Console.WriteLine($"Failed to read package {file}");
+            Logging.Error($"Failed to read package {file}");
             return null;
         }
         var hash = package.GetContentHash(default);
         if (string.IsNullOrEmpty(hash))
         {
-            Console.WriteLine($"Failed to read content hash for package {file}");
+            Logging.Error($"Failed to read content hash for package {file}");
             return null;
         }
         return $"sha512-{hash}";
@@ -124,7 +124,7 @@ public static class NugetDetails
         }
         catch (HttpRequestException e)
         {
-            Console.WriteLine($"Error fetching data from NuGet: {e.Message}");
+            Logging.Error($"Error fetching data from NuGet: {e.Message}");
             return ("", "");
         }
 
@@ -162,7 +162,7 @@ public static class NugetDetails
             Directory.CreateDirectory(outputPath);
         }
 
-        // Console.WriteLine($"Downloading package {name}.{version} to {p}");
+        // Logging.Debug($"Downloading package {name}.{version} to {p}");
 
         using var client = new HttpClient(new HttpClientHandler
         {
@@ -176,7 +176,7 @@ public static class NugetDetails
         }
 		catch (OperationCanceledException)
 		{
-			Console.WriteLine($"Download of package {name}.{version} was cancelled.");
+			Logging.Info($"Download of package {name}.{version} was cancelled.");
 			return null;
 		}
         catch (HttpRequestException e)
@@ -185,11 +185,11 @@ public static class NugetDetails
 			{
 				throw;
 			}
-			Console.WriteLine($"Error downloading package: {e.Message}");
+			Logging.Error($"Error downloading package: {e.Message}");
 			// check the inner exception for more details
 			if (e.InnerException != null)
 			{
-				Console.WriteLine($"Inner exception: {e.InnerException.Message}");
+				Logging.Error($"Inner exception: {e.InnerException.Message}");
 			}
 			return null;
 		}
