@@ -6,6 +6,8 @@
 
 #include "fake_script.h"
 
+#include "godot-mono-decomp/wrapper/csharp_script_info.h"
+
 class FakeCSharpScript : public FakeScript {
 	GDCLASS(FakeCSharpScript, FakeScript);
 	bool tool = false;
@@ -38,7 +40,7 @@ class FakeCSharpScript : public FakeScript {
 	Vector<String> base_type_paths;
 	StringName local_name; // Inner class identifier or `class_name`.
 	StringName global_name; // `class_name`.
-	Dictionary script_info;
+	CSharpScriptInfo script_info;
 
 	int ver_major = 0;
 	HashMap<StringName, Pair<int, int>> subclasses;

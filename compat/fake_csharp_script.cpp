@@ -2,13 +2,11 @@
 
 #include "compat/fake_script.h"
 #include "compat/resource_loader_compat.h"
-#include "compat/variant_writer_compat.h"
 #include "core/error/error_list.h"
-#include "core/math/expression.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
-#include "core/string/regex.h"
 #include "core/string/ustring.h"
+#include "godot-mono-decomp/wrapper/csharp_script_info.h"
 #include "godot-mono-decomp/wrapper/godot_mono_decomp_wrapper.h"
 #include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
@@ -44,12 +42,13 @@ Error FakeCSharpScript::_reload_from_file() {
 		error_message = "No dotnet decompiler loaded";
 		return ERR_CANT_RESOLVE;
 	}
-	script_info = decompiler->get_script_info(script_path);
-	if (script_info.is_empty()) {
+	auto script_info_dict = decompiler->get_script_info(script_path);
+	if (script_info_dict.is_empty()) {
 		error_message = "No script info found";
 		return ERR_CANT_ACQUIRE_RESOURCE;
 	}
-	source = script_info.get("script_text", "");
+	script_info = CSharpScriptInfo::from_dict(script_info_dict);
+	source = script_info.script_text;
 	if (source.is_empty()) {
 		error_message = "Failed to decompile script";
 		return ERR_CANT_ACQUIRE_RESOURCE;
@@ -100,273 +99,6 @@ PlaceHolderScriptInstance *FakeCSharpScript::placeholder_instance_create(Object 
 	return si;
 }
 
-PropertyHint string_to_property_hint(const String &p_string) {
-	String name = p_string.to_upper();
-	if (name == "NONE") {
-		return PROPERTY_HINT_NONE; ///< no hint provided.
-	}
-	if (name == "RANGE") {
-		return PROPERTY_HINT_RANGE; ///< hint_text = "min,max[,step][,or_greater][,or_less][,hide_slider][,radians_as_degrees][,degrees][,exp][,suffix:<keyword>] range.
-	}
-	if (name == "ENUM") {
-		return PROPERTY_HINT_ENUM; ///< hint_text= "val1,val2,val3,etc"
-	}
-	if (name == "ENUM_SUGGESTION") {
-		return PROPERTY_HINT_ENUM_SUGGESTION; ///< hint_text= "val1,val2,val3,etc"
-	}
-	if (name == "EXP_EASING") {
-		return PROPERTY_HINT_EXP_EASING; /// exponential easing function (Math::ease) use "attenuation" hint string to revert (flip h), "positive_only" to exclude in-out and out-in. (ie: "attenuation,positive_only")
-	}
-	if (name == "LINK") {
-		return PROPERTY_HINT_LINK;
-	}
-	if (name == "FLAGS") {
-		return PROPERTY_HINT_FLAGS; ///< hint_text= "flag1,flag2,etc" (as bit flags)
-	}
-	if (name == "LAYERS_2D_RENDER") {
-		return PROPERTY_HINT_LAYERS_2D_RENDER;
-	}
-	if (name == "LAYERS_2D_PHYSICS") {
-		return PROPERTY_HINT_LAYERS_2D_PHYSICS;
-	}
-	if (name == "LAYERS_2D_NAVIGATION") {
-		return PROPERTY_HINT_LAYERS_2D_NAVIGATION;
-	}
-	if (name == "LAYERS_3D_RENDER") {
-		return PROPERTY_HINT_LAYERS_3D_RENDER;
-	}
-	if (name == "LAYERS_3D_PHYSICS") {
-		return PROPERTY_HINT_LAYERS_3D_PHYSICS;
-	}
-	if (name == "LAYERS_3D_NAVIGATION") {
-		return PROPERTY_HINT_LAYERS_3D_NAVIGATION;
-	}
-	if (name == "FILE") {
-		return PROPERTY_HINT_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
-	}
-	if (name == "DIR") {
-		return PROPERTY_HINT_DIR; ///< a directory path must be passed
-	}
-	if (name == "GLOBAL_FILE") {
-		return PROPERTY_HINT_GLOBAL_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,"
-	}
-	if (name == "GLOBAL_DIR") {
-		return PROPERTY_HINT_GLOBAL_DIR; ///< a directory path must be passed
-	}
-	if (name == "RESOURCE_TYPE") {
-		return PROPERTY_HINT_RESOURCE_TYPE; ///< a comma-separated resource object type, e.g. "NoiseTexture,GradientTexture2D". Subclasses can be excluded with a "-" prefix if placed *after* the base class, e.g. "Texture2D,-MeshTexture".
-	}
-	if (name == "MULTILINE_TEXT") {
-		return PROPERTY_HINT_MULTILINE_TEXT; ///< used for string properties that can contain multiple lines
-	}
-	if (name == "EXPRESSION") {
-		return PROPERTY_HINT_EXPRESSION; ///< used for string properties that can contain multiple lines
-	}
-	if (name == "PLACEHOLDER_TEXT") {
-		return PROPERTY_HINT_PLACEHOLDER_TEXT; ///< used to set a placeholder text for string properties
-	}
-	if (name == "COLOR_NO_ALPHA") {
-		return PROPERTY_HINT_COLOR_NO_ALPHA; ///< used for ignoring alpha component when editing a color
-	}
-	if (name == "OBJECT_ID") {
-		return PROPERTY_HINT_OBJECT_ID;
-	}
-	if (name == "TYPE_STRING") {
-		return PROPERTY_HINT_TYPE_STRING; ///< a type string, the hint is the base type to choose
-	}
-	if (name == "NODE_PATH_TO_EDITED_NODE") {
-		return PROPERTY_HINT_NODE_PATH_TO_EDITED_NODE; // Deprecated.
-	}
-	if (name == "OBJECT_TOO_BIG") {
-		return PROPERTY_HINT_OBJECT_TOO_BIG; ///< object is too big to send
-	}
-	if (name == "NODE_PATH_VALID_TYPES") {
-		return PROPERTY_HINT_NODE_PATH_VALID_TYPES;
-	}
-	if (name == "SAVE_FILE") {
-		return PROPERTY_HINT_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
-	}
-	if (name == "GLOBAL_SAVE_FILE") {
-		return PROPERTY_HINT_GLOBAL_SAVE_FILE; ///< a file path must be passed, hint_text (optionally) is a filter "*.png,*.wav,*.doc,". This opens a save dialog
-	}
-	if (name == "INT_IS_OBJECTID") {
-		return PROPERTY_HINT_INT_IS_OBJECTID; // Deprecated.
-	}
-	if (name == "INT_IS_POINTER") {
-		return PROPERTY_HINT_INT_IS_POINTER;
-	}
-	if (name == "ARRAY_TYPE") {
-		return PROPERTY_HINT_ARRAY_TYPE;
-	}
-	if (name == "LOCALE_ID") {
-		return PROPERTY_HINT_LOCALE_ID;
-	}
-	if (name == "LOCALIZABLE_STRING") {
-		return PROPERTY_HINT_LOCALIZABLE_STRING;
-	}
-	if (name == "NODE_TYPE") {
-		return PROPERTY_HINT_NODE_TYPE; ///< a node object type
-	}
-	if (name == "HIDE_QUATERNION_EDIT") {
-		return PROPERTY_HINT_HIDE_QUATERNION_EDIT; /// Only Node3D::transform should hide the quaternion editor.
-	}
-	if (name == "PASSWORD") {
-		return PROPERTY_HINT_PASSWORD;
-	}
-	if (name == "LAYERS_AVOIDANCE") {
-		return PROPERTY_HINT_LAYERS_AVOIDANCE;
-	}
-	if (name == "DICTIONARY_TYPE") {
-		return PROPERTY_HINT_DICTIONARY_TYPE;
-	}
-	if (name == "TOOL_BUTTON") {
-		return PROPERTY_HINT_TOOL_BUTTON;
-	}
-	if (name == "ONESHOT") {
-		return PROPERTY_HINT_ONESHOT; ///< the property will be changed by self after setting, such as AudioStreamPlayer.playing, Particles.emitting.
-	}
-	if (name == "NO_NODEPATH") {
-		return PROPERTY_HINT_NO_NODEPATH; /// < this property will not contain a NodePath, regardless of type (Array, Dictionary, List, etc.). Needed for SceneTreeDock.
-	}
-	if (name == "GROUP_ENABLE") {
-		return PROPERTY_HINT_GROUP_ENABLE; ///< used to make the property's group checkable. Only use for boolean types.
-	}
-	if (name == "INPUT_NAME") {
-		return PROPERTY_HINT_INPUT_NAME;
-	}
-	if (name == "FILE_PATH") {
-		return PROPERTY_HINT_FILE_PATH;
-	}
-	if (name == "MAX") {
-		return PROPERTY_HINT_MAX;
-	}
-	return PROPERTY_HINT_NONE;
-}
-
-Variant::Type string_to_variant_type(const String &name) {
-	if (name == "Variant") {
-		return Variant::NIL;
-	}
-	if (name == "Nil" || name == "null" || name == "None" || name == "void") {
-		return Variant::NIL;
-	}
-	auto tp = Variant::get_type_by_name(name);
-	if (tp == Variant::VARIANT_MAX) {
-		if (name.begins_with("Array")) {
-			return Variant::ARRAY;
-		}
-		if (name.begins_with("Dictionary")) {
-			return Variant::DICTIONARY;
-		}
-	}
-	return tp;
-}
-
-String parasable_class_or_none(const String &p_type) {
-	if (p_type.is_empty()) {
-		return "";
-	}
-	if (p_type.contains("<") || !p_type.is_valid_identifier()) {
-		return "";
-	}
-	return p_type;
-}
-
-PropertyInfo get_pi_from_type(const String &p_type, const String &p_name = {}) {
-	Variant::Type return_type = string_to_variant_type(p_type);
-	PropertyInfo info;
-	if (return_type == Variant::VARIANT_MAX) {
-		String tp = parasable_class_or_none(p_type);
-		if (!tp.is_empty()) {
-			info.class_name = tp;
-			info.type = Variant::OBJECT;
-		} else {
-			info.type = Variant::NIL;
-		}
-		info.name = p_name;
-		return info;
-	}
-	info.type = return_type;
-	info.name = p_name;
-	return info;
-}
-
-MethodInfo dict_to_method_info(const Dictionary &p_dict) {
-	MethodInfo info;
-	info.name = p_dict["name"];
-	String type = p_dict.get("return_type", "void");
-	info.return_val = get_pi_from_type(type);
-	Vector<String> parameter_names = p_dict.get("parameter_names", Vector<String>());
-	Vector<String> parameter_types = p_dict.get("parameter_types", Vector<String>());
-	for (int i = 0; i < parameter_names.size(); i++) {
-		info.arguments.push_back(get_pi_from_type(parameter_types[i], parameter_names[i]));
-	}
-	if (p_dict.get("is_static", false)) {
-		info.flags |= METHOD_FLAG_STATIC;
-	}
-	if (p_dict.get("is_abstract", false)) {
-		info.flags |= METHOD_FLAG_VIRTUAL_REQUIRED;
-	}
-	// if (p_dict.get("is_virtual", false)) {
-	// 	info.flags |= METHOD_FLAG_VIRTUAL;
-	// }
-	return info;
-}
-
-PropertyInfo dict_to_property_info(const Dictionary &p_dict) {
-	PropertyInfo info = get_pi_from_type(p_dict.get("type", "void"), p_dict.get("name", ""));
-	info.hint = string_to_property_hint(p_dict.get("property_hint", "NONE"));
-	info.hint_string = p_dict.get("property_hint_string", "");
-	return info;
-}
-
-String replace_variant_constants(const String &p_string) {
-	String new_string = p_string;
-	Ref<RegEx> re = memnew(RegEx());
-	re->compile("\\b([A-Za-z_][A-Za-z0-9_]+)\\.([A-Za-z_][A-Za-z0-9_]+)\\b");
-	Ref<RegExMatch> match = re->search(new_string);
-	while (match.is_valid()) {
-		auto start = match->get_start(0);
-		auto end = match->get_end(0);
-		String type_name = match->get_string(1);
-		Variant::Type type = string_to_variant_type(type_name);
-		if (type == Variant::VARIANT_MAX) {
-			match = re->search(new_string, end);
-			continue;
-		}
-		String constant_name = match->get_string(2);
-		if (!Variant::has_constant(type, constant_name)) {
-			match = re->search(new_string, end);
-			continue;
-		}
-		Variant constant = Variant::get_constant_value(type, constant_name);
-		if (constant == Variant()) {
-			match = re->search(new_string, end);
-			continue;
-		}
-		String old_string = new_string;
-		new_string = new_string.substr(0, start) + constant.get_construct_string() + new_string.substr(end);
-		if (new_string == old_string) {
-			match = re->search(new_string, end);
-			continue;
-		}
-		match = re->search(new_string);
-	}
-	return new_string;
-}
-
-bool parse_expression(const String &p_expression, Variant &r_value) {
-	Ref<Expression> expr = Ref<Expression>(memnew(Expression()));
-	Error err = expr->parse(p_expression);
-	if (err == OK) {
-		r_value = expr->execute(Array(), nullptr, false, true);
-		if (!expr->has_execute_failed()) {
-			return true;
-		}
-	}
-	return false;
-}
-
 Ref<Script> FakeCSharpScript::load_base_script() const {
 	if (base_type_paths.size() > 0 && !base_type_paths[0].is_empty()) {
 		return ResourceCompatLoader::custom_load(base_type_paths[0], "", load_type);
@@ -379,88 +111,45 @@ Error FakeCSharpScript::reload(bool p_keep_state) {
 	valid = false;
 	loaded = false;
 
-	if (script_info.is_empty()) {
+	if (script_info.path.is_empty()) {
 		error_message = "Script info is empty";
 		return ERR_INVALID_DATA;
 	}
 
 	// String ns = script_info.get("namespace", "");
-	local_name = script_info.get("class_name", "");
-	base_classes = script_info.get("base_classes", Vector<String>());
-	base_type_paths = script_info.get("base_type_paths", Vector<String>());
-	icon_path = script_info.get("icon_path", "");
-	globally_available = script_info.get("is_global_class", false);
+	local_name = script_info.class_name;
+	base_classes = script_info.base_classes;
+	base_type_paths = script_info.base_type_paths;
+	icon_path = script_info.icon_path;
+	globally_available = script_info.is_global_class;
 	global_name = globally_available ? local_name : "";
-	base_type = script_info.get("godot_sharp_base_type", base_classes.size() > 0 ? base_classes[0] : "RefCounted");
-	tool = script_info.get("is_tool", false);
-	abstract = script_info.get("is_abstract", false);
-	TypedArray<Dictionary> script_properties = script_info.get("properties", TypedArray<Dictionary>());
-	TypedArray<Dictionary> signals = script_info.get("signals", TypedArray<Dictionary>());
-	TypedArray<Dictionary> methods = script_info.get("methods", TypedArray<Dictionary>());
+	base_type = script_info.godot_sharp_base_type;
+	tool = script_info.is_tool;
+	abstract = script_info.is_abstract;
 
 	members.clear();
 	_signals.clear();
 	_methods.clear();
-	for (int i = 0; i < script_properties.size(); i++) {
-		Dictionary property = script_properties[i];
-		String prop_name = property.get("name", "");
-		if (prop_name.is_empty()) {
+	for (auto &property : script_info.properties) {
+		if (property.info.name.is_empty()) {
 			continue;
 		}
-		members.insert(prop_name, dict_to_property_info(property));
-		String default_value = property.get("default_value", "");
-		if (!default_value.is_empty()) {
-			// quick hack for Color() with 3 arguments
-			if (default_value.begins_with("Color(") && default_value.ends_with(")")) {
-				if (default_value.count(",") == 2) {
-					default_value = default_value.trim_suffix(")") + ",1.0)";
-				}
-			}
-			VariantParser::StreamString ss;
-			ss.s = default_value;
-			Variant v;
-			String err_string;
-			int line = 0;
-			Error err = VariantParserCompat::parse(&ss, v, err_string, line);
-			if (err == OK) {
-				member_default_values.insert(prop_name, v);
-			} else {
-				if (parse_expression(default_value, v)) {
-					member_default_values.insert(prop_name, v);
-				} else {
-					default_value = replace_variant_constants(default_value);
-					if (parse_expression(default_value, v)) {
-						member_default_values.insert(prop_name, v);
-					}
-#ifdef DEBUG_ENABLED
-					else {
-						print_line(vformat("%s: Failed to parse expression for property %s with value %s", script_path, prop_name, default_value));
-					}
-#endif
-				}
-			}
-			if (!member_default_values.has(prop_name)) {
-				member_default_values.insert(prop_name, Variant());
-			}
-		}
+		members.insert(property.info.name, property.info);
+		member_default_values.insert(property.info.name, property.default_value);
 	}
 
-	for (int i = 0; i < signals.size(); i++) {
-		Dictionary signal = signals[i];
-		String signal_name = signal.get("name", "");
-		if (signal_name.is_empty()) {
+	for (auto &signal : script_info.signals) {
+		if (signal.name.is_empty()) {
 			continue;
 		}
-		_signals.insert(signal_name, dict_to_method_info(signal));
+		_signals.insert(signal.name, signal);
 	}
 
-	for (int i = 0; i < methods.size(); i++) {
-		Dictionary method = methods[i];
-		String method_name = method.get("name", "");
-		if (method_name.is_empty()) {
+	for (auto &method : script_info.signals) {
+		if (method.name.is_empty()) {
 			continue;
 		}
-		_methods.insert(method_name, dict_to_method_info(method));
+		_methods.insert(method.name, method);
 	}
 
 	bool is_real_load = get_load_type() == ResourceInfo::LoadType::REAL_LOAD || get_load_type() == ResourceInfo::LoadType::GLTF_LOAD;

@@ -255,17 +255,18 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 	public override void VisitMemberType(MemberType memberType)
 	{
 		StartNode(memberType);
-		memberType.Target.AcceptVisitor(this);
-		if (memberType.IsDoubleColon)
-		{
-			WriteToken(Tokens.DoubleColon);
-		}
-		else
-		{
-			WriteToken(Tokens.Dot);
-		}
-		WriteIdentifier(memberType.MemberNameToken);
-		WriteTypeArguments(memberType.TypeArguments);
+		// memberType.Target.AcceptVisitor(this);
+		// if (memberType.IsDoubleColon)
+		// {
+		// 	WriteToken(Tokens.DoubleColon);
+		// }
+		// else
+		// {
+		// 	WriteToken(Tokens.Dot);
+		// }
+		// WriteIdentifier(memberType.MemberNameToken);
+		// WriteTypeArguments(memberType.TypeArguments);
+		WriteKeyword(GodotStuff.CSharpTypeToGodotType(memberType.ToString()));
 		EndNode(memberType);
 	}
 
@@ -287,7 +288,6 @@ public class GodotExpressionOutputVisitor : CSharpOutputVisitor
 	public override void VisitObjectCreateExpression(ObjectCreateExpression objectCreateExpression)
 	{
 		StartNode(objectCreateExpression);
-		WriteKeyword(ObjectCreateExpression.NewKeyword);
 		var typename = GodotStuff.CSharpTypeToGodotType(objectCreateExpression.Type.ToString());
 		var initializer = objectCreateExpression.Initializer;
 

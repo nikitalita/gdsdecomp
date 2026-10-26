@@ -133,7 +133,7 @@ public class GodotModuleDecompiler
 	private bool DetectCustomVersionFromPrerelease(DotNetCoreDepInfo? mainDepInfo)
 	{
 		var versionText = GodotStuff.GetGodotSharpPackageDep(mainDepInfo)?.Version
-		                  ?? godotVersion?.ToString() ?? "0.0.0";
+						  ?? godotVersion?.ToString() ?? "0.0.0";
 		var prereleaseLabel = GetPreReleaseLabel(versionText);
 		return prereleaseLabel != null && !IsAllowedGodotPreReleaseLabel(prereleaseLabel);
 	}
@@ -163,7 +163,7 @@ public class GodotModuleDecompiler
 	public void AddSubProjects(string assemblyPath, DotNetCoreDepInfo depInfo, List<string> names, HashSet<string> mainModuleSubDirs, HashSet<string> otherSubDirs)
 	{
 		foreach (var dep in depInfo.deps.Where(d => d is { Type: "project" })
-			         .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
+					 .OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase))
 		{
 
 			if (names.Contains(dep.Name)) // already added
@@ -509,20 +509,26 @@ public class GodotModuleDecompiler
 		return stringWriter.ToString();
 	}
 
-	private string GetPathForType(ITypeDefinition? typeDef){
-		if (typeDef == null || typeDef.ParentModule == null){
+	private string GetPathForType(ITypeDefinition? typeDef)
+	{
+		if (typeDef == null || typeDef.ParentModule == null)
+		{
 			return "";
 		}
-		if (typeDef.ParentModule.AssemblyName == MainModule.Name){
+		if (typeDef.ParentModule.AssemblyName == MainModule.Name)
+		{
 			return MainModule.fileMap.FirstOrDefault(pair => pair.Value.Contains((TypeDefinitionHandle)typeDef.MetadataToken)).Key;
 		}
-		foreach (var module in AdditionalModules){
-			if (module.Name == typeDef.ParentModule.AssemblyName){
+		foreach (var module in AdditionalModules)
+		{
+			if (module.Name == typeDef.ParentModule.AssemblyName)
+			{
 				return module.fileMap.FirstOrDefault(pair => pair.Value.Contains((TypeDefinitionHandle)typeDef.MetadataToken)).Key;
 			}
 		}
 		return "";
 	}
+
 
 	public GodotScriptInfo? GetScriptInfo(string file)
 	{
@@ -562,86 +568,32 @@ public class GodotModuleDecompiler
 		var syntaxTree = decompiler.DecompileTypes([type]);
 		var isTool = typeDef.GetAttributes().FirstOrDefault(a => a.AttributeType.Name == "ToolAttribute") != null;
 
-		List<PropertyInfo> propsInfos = [];
+		List<PropertyInfoWithDefault> propsInfos = props.Select(p => PropertyInfoWithDefault.FromSymbolOrType(p, syntaxTree, projectDecompiler)).ToList();
 		List<MethodInfo> signalsInfo = [];
 		List<MethodInfo> methodsInfo = [];
-		foreach (var prop in props)
-		{
-			// No need, Export attribute guarantees that the member is public.
-			// if (CSharpDecompiler.MemberIsHidden(prop.ParentModule.MetadataFile, prop.MetadataToken,
-			// 	    projectDecompiler.Settings))
-			// {
-			// 	continue;
-			// }
-
-			var exportAttr = prop.GetAttributes().FirstOrDefault(a => a.AttributeType.Name == "ExportAttribute");
-			string propHint = "";
-			string propUsage = "";
-			if (exportAttr?.FixedArguments.Length >= 2)
-			{
-				long hintValue = 0;
-				if (exportAttr.FixedArguments[0].Value != null)
-				{
-					if (exportAttr.FixedArguments[0].Value is int intVal)
-					{
-						hintValue = intVal;
-					}
-					else if (exportAttr.FixedArguments[0].Value is long longVal)
-					{
-						hintValue = longVal;
-					}
-				}
-				propHint = Common.GetEnumValueName(exportAttr.FixedArguments[0].Type, hintValue, "None");
-				propUsage = exportAttr.FixedArguments[1].Value?.ToString() ?? "";
-			}
-
-			string defaultValue = "";
-			// Godot nodes and resources set to instances of CSharp scripts do not have properties set in the scene/resource files if it is set to a default value;
-			// As such, we need to get the default value of the property from the CSharp script.
-			// This is primarily being done to allow for scenes with CSharp scripts to be instanced for scene export.
-			GetFieldInitializerValueVisitor? visitor = null;
-			visitor = new GetFieldInitializerValueVisitor(prop, projectDecompiler);
-			syntaxTree.AcceptVisitor(visitor);
-
-			if (visitor == null)
-			{
-				defaultValue = "";
-			}
-			else if (string.IsNullOrEmpty(visitor.strVal))
-			{
-				defaultValue = "";
-			}
-			else
-			{
-				defaultValue = visitor.strVal;
-			}
-
-			propsInfos.Add(new PropertyInfo(prop.Name, prop.ReturnType.Name, defaultValue, propHint, propUsage ?? ""));
-		}
 
 		foreach (var signal in signals)
 		{
 			var invokeMethod = signal.GetMethods().FirstOrDefault(m => m.Name == "Invoke");
-			string[] args = [];
-			string[] argTypes = [];
+			List<PropertyInfoWithDefault> args = [];
 			if (invokeMethod != null)
 			{
-				args = invokeMethod.Parameters.Select(p => p.Name).ToArray();
-				argTypes = invokeMethod.Parameters.Select(p => p.Type.Name).ToArray();
+				args = invokeMethod.Parameters.Select(p => PropertyInfoWithDefault.FromSymbolOrType(p, syntaxTree, projectDecompiler)).ToList();
 			}
 			var name = signal.Name;
-			 // 4.x signal delegate name requires the suffix, 3.x signals delegate name is the same as the signal name
+			// 4.x signal delegate name requires the suffix, 3.x signals delegate name is the same as the signal name
 			if (signal.Name.EndsWith(GodotStuff.SIGNAL_DELEGATE_SUFFIX))
 			{
 				name = name.Substring(0, name.Length - GodotStuff.SIGNAL_DELEGATE_SUFFIX.Length);
 			}
-			signalsInfo.Add(new MethodInfo(name, "void", args, argTypes, false, false, false));
+
+			signalsInfo.Add(new MethodInfo(name, PropertyInfoWithDefault.VoidProp(), args, false, false, false));
 		}
 
 		foreach (var method in typeDef.Methods)
 		{
 			if (CSharpDecompiler.MemberIsHidden(method.ParentModule?.MetadataFile, method.MetadataToken,
-				    projectDecompiler.Settings))
+					projectDecompiler.Settings))
 			{
 				continue;
 			}
@@ -655,6 +607,8 @@ public class GodotModuleDecompiler
 						continue;
 					}
 				}
+				var returnType = PropertyInfoWithDefault.FromSymbolOrType(method, syntaxTree, projectDecompiler);
+				var args = method.Parameters.Select(p => PropertyInfoWithDefault.FromSymbolOrType(p, syntaxTree, projectDecompiler)).ToList();
 				// _process, _ready, etc.
 				if (name.StartsWith("_"))
 				{
@@ -662,9 +616,8 @@ public class GodotModuleDecompiler
 				}
 				methodsInfo.Add(new MethodInfo(
 					name,
-					method.ReturnType.Name,
-					method.Parameters.Select(p => p.Name).ToArray(),
-					method.Parameters.Select(p => p.Type.Name).ToArray(),
+					returnType,
+					args,
 					method.IsStatic,
 					method.IsAbstract,
 					method.IsVirtual
@@ -682,17 +635,21 @@ public class GodotModuleDecompiler
 			p => string.IsNullOrEmpty(p) ? "" : "res://" + p
 		).ToArray();
 
-		ITypeDefinition? GetDirectBaseType(List<IType> baseTypes){
+		ITypeDefinition? GetDirectBaseType(List<IType> baseTypes)
+		{
 			ITypeDefinition? godotSharpBaseType = null;
 			foreach (var baseType in baseTypes)
 			{
 				var baseTypeDef = baseType.GetDefinition();
 				if (baseTypeDef != null && GodotStuff.IsGodotClass(baseTypeDef))
 				{
-					if (baseTypeDef.GetAttributes().Any(a => a.AttributeType.Name == "GlobalClassAttribute") || baseTypeDef.ParentModule?.AssemblyName == "GodotSharp"){
+					if (baseTypeDef.GetAttributes().Any(a => a.AttributeType.Name == "GlobalClassAttribute") || baseTypeDef.ParentModule?.AssemblyName == "GodotSharp")
+					{
 						godotSharpBaseType = baseTypeDef;
 						break;
-					} else {
+					}
+					else
+					{
 						return GetDirectBaseType(baseTypeDef.DirectBaseTypes.ToList());
 					}
 				}
@@ -706,7 +663,8 @@ public class GodotModuleDecompiler
 		if (typeDef.GetAttributes().Any(a => a.AttributeType.Name == "IconAttribute"))
 		{
 			var attr = typeDef.GetAttributes().First(a => a.AttributeType.Name == "IconAttribute");
-			if (attr.FixedArguments.Length > 0) {
+			if (attr.FixedArguments.Length > 0)
+			{
 				iconPath = attr.FixedArguments[0].Value as string ?? "";
 			}
 		}
@@ -715,8 +673,8 @@ public class GodotModuleDecompiler
 		{
 			syntaxTree = decompiler.DecompileTypes(types);
 		}
-        StringWriter stringWriter = new StringWriter();
-        syntaxTree.AcceptVisitor(new GodotCSharpOutputVisitor(stringWriter, Settings, Settings.EmitILAnnotationComments, decompiler));
+		StringWriter stringWriter = new StringWriter();
+		syntaxTree.AcceptVisitor(new GodotCSharpOutputVisitor(stringWriter, Settings, Settings.EmitILAnnotationComments, decompiler));
 		var scriptText = stringWriter.ToString();
 
 		var scriptInfo = new GodotScriptInfo(
@@ -738,11 +696,15 @@ public class GodotModuleDecompiler
 		return scriptInfo;
 	}
 
-	public void WriteWholeScriptInfo(string file)
+	public void WriteWholeScriptInfo(string file, string[]? include_only_files = null)
 	{
 		Dictionary<string, GodotScriptInfo> scriptInfos = [];
 		foreach (var path in GetFilesInFileMap())
 		{
+			if (include_only_files != null && !include_only_files.Contains(path))
+			{
+				continue;
+			}
 			var scriptInfo = GetScriptInfo(path);
 			if (scriptInfo != null)
 			{
@@ -982,7 +944,7 @@ public class GodotModuleDecompiler
 			// we want to add enum values because you can convert an enum to a string and then use it as a translation key
 			strings.AddRange(
 				enums
-					.SelectMany(t => Common.GetEnumValueNames(t).SelectMany(e => new string[] {e, t.Name + "." + e, t.Name + "_" + e}))
+					.SelectMany(t => Common.GetEnumValueNames(t).SelectMany(e => new string[] { e, t.Name + "." + e, t.Name + "_" + e }))
 			);
 			strings.AddRange(enums.Select(t => t.Name));
 
@@ -1027,17 +989,21 @@ public class GodotModuleDecompiler
 		Console.WriteLine($"Dumped {strings.Count} strings to {outputFile}");
 	}
 
-	public string[] GetGlobalClassFiles() {
+	public string[] GetGlobalClassFiles()
+	{
 		var godotObjectFiles = new List<string>();
 		List<GodotModule> list = [MainModule];
 		foreach (var module in list.Concat(AdditionalModules))
 		{
 			var decompiler = module.CreateCSharpDecompilerWithPartials(module.fileMap.SelectMany(kv => kv.Value).ToHashSet());
-			foreach (var kv in module.fileMap){
-				if (kv.Value.Any(type => {
+			foreach (var kv in module.fileMap)
+			{
+				if (kv.Value.Any(type =>
+				{
 					var typeDef = decompiler.TypeSystem.MainModule.GetDefinition(type);
 					return typeDef != null && GodotStuff.IsGodotClass(typeDef) && typeDef.GetAttributes().Any(a => a.AttributeType.Name == "GlobalClassAttribute");
-					})){
+				}))
+				{
 					godotObjectFiles.Add(kv.Key);
 				}
 			}

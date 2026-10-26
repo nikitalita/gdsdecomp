@@ -51,7 +51,13 @@ int Main(string[] args)
 	// call the DecompileProject function
 	var files = Common.ListCSharpFiles(projectPath, false).ToList();
 	GodotModuleDecompiler decompiler = new GodotModuleDecompiler(assemblyPath, [.. files], GodotVersionOverride, settings);
-	if (result.Value.DumpStrings || result.Value.WriteScriptInfo)
+
+	string[]? include_only_files = result.Value.Include?.ToArray();
+	if (include_only_files.Length == 0)
+	{
+		include_only_files = null;
+	}
+	if (result.Value.DumpStrings || result.Value.WriteScriptInfo || result.Value.WriteScriptInfoOnly)
 	{
 		Common.EnsureDir(outputDir);
 
@@ -64,8 +70,12 @@ int Main(string[] args)
 		else
 		{
 			var outputJson = Path.Join(outputDir, "godot_script_info.json");
-			decompiler.WriteWholeScriptInfo(outputJson);
+			decompiler.WriteWholeScriptInfo(outputJson, include_only_files);
 		}
+	}
+	if (result.Value.WriteScriptInfoOnly)
+	{
+		return 0;
 	}
     int resultCode = decompiler.DecompileModule(outputCSProj);
     var timeTaken = DateTime.Now - startTime;
@@ -120,6 +130,9 @@ public class Options
 
 	[Option("write-script-info", Required = false, HelpText = "Write script info to a JSON file in the output directory.")]
 	public bool WriteScriptInfo { get; set; }
+
+	[Option("write-script-info-only", Required = false, HelpText = "Write script info to a JSON file in the output directory and exit.")]
+	public bool WriteScriptInfoOnly { get; set; }
 	// dump strings option
 	[Option("dump-strings", Required = false, HelpText = "Dump all strings in the assembly to a text file in the output directory.")]
 	public bool DumpStrings { get; set; }
@@ -129,6 +142,9 @@ public class Options
 
 	[Option("help", Required = false, HelpText = "Show this help message and exit.")]
 	public bool Help { get; set; }
+
+	[Option("include", Required = false, HelpText = "Only include the specified files in the script info.")]
+	public IEnumerable<string>? Include { get; set; }
 
 
 }

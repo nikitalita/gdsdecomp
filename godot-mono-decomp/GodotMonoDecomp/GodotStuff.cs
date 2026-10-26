@@ -136,7 +136,7 @@ public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 				else
 				{
 					var sr = GodotExpressionOutputVisitor.GetString(oce, godotDecompiler);
-					value = Common.TrimPrefix(sr, "new").Trim();
+					value = Common.TrimPrefix(Common.TrimPrefix(sr, "new").Trim(), "Godot.Collections.");
 				}
 			}
 			else
@@ -1225,7 +1225,7 @@ public static class GodotStuff
 
 	public static bool IsGodotVariantType(string type)
 	{
-		type = type.Trim().TrimEnd(']').TrimEnd('[');
+		type = Common.TrimPrefix(type.Trim().TrimEnd(']').TrimEnd('['), "Godot.Collections.");
 		switch (type)
 		{
 			case "Variant":
@@ -1292,7 +1292,7 @@ public static class GodotStuff
 
 	public static string CSharpTypeToGodotType(string _type)
 	{
-		var csharpType = Common.TrimPrefix(_type.Trim().Replace("&", "").Trim(), "System.");
+		var csharpType = Common.TrimPrefix(Common.TrimPrefix(_type.Trim().Replace("&", "").Trim(), "System."), "Godot.Collections.");
 		var subCSharpType = csharpType;
 		var newType = csharpType;
 		var subType = csharpType;
@@ -1408,6 +1408,9 @@ public static class GodotStuff
 				case "Single":
 					newType = "PackedFloat32Array";
 					break;
+				case "Double":
+					newType = "PackedFloat64Array";
+					break;
 				case "Color":
 					newType = "PackedColorArray";
 					break;
@@ -1433,6 +1436,16 @@ public static class GodotStuff
 			newType = subType;
 		}
 		return newType;
+	}
+
+	public static string CSharpTypeToVariantType(string _type)
+	{
+		string type = CSharpTypeToGodotType(_type).Split('[')[0].Split('<')[0].Trim();
+		if (!IsGodotVariantType(type))
+		{
+			return "Object";
+		}
+		return type;
 	}
 
 	public static string? ReplaceMemberReference(MemberReferenceExpression memberReferenceExpression, GodotProjectDecompiler? godotDecompiler = null)
