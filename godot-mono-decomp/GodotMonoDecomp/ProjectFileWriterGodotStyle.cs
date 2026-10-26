@@ -316,7 +316,7 @@ namespace GodotMonoDecomp
 		static TargetFramework GetActualTargetFramework(MetadataFile module, IProjectInfoProvider project)
 		{
 			var targetFramework = TargetServices.DetectTargetFramework(module);
-			if (GetProjectType(module) == ProjectType.Godot)
+			if (GetProjectType(module) == ProjectType.Godot && targetFramework.VersionNumber < 500)
 			{
 				return new TargetFramework(".NETFramework", targetFramework.VersionNumber, targetFramework.Profile);
 			}
