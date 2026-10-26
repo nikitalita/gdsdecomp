@@ -294,6 +294,10 @@ def build_godot_mono_decomp(
         "collection_examples",
         "GodotMonoDecompCLI",
         "godot-mono-decomp-aot-test",
+        "wrapper/",
+        "wrapper\\",
+        "register_types.cpp",
+        "register_types.h",
     ]
 
     def _builder_action(target, source, env):
