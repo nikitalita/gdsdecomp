@@ -201,11 +201,6 @@ void addCompatibilityClasses() {
 }
 
 GDRESettings::GDRESettings() {
-#ifdef TOOLS_ENABLED
-	if (RenderingServer::get_singleton()) {
-		RenderingServer::get_singleton()->set_warn_on_surface_upgrade(false);
-	}
-#endif
 	singleton = this;
 	addCompatibilityClasses();
 #ifdef TOOLS_ENABLED

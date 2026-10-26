@@ -188,11 +188,6 @@ void deinit_loaders() {
 	visual_shader_node_custom_converter = nullptr;
 }
 void initialize_gdsdecomp_compat_submodule(ModuleInitializationLevel p_level) {
-	// We rely on MissingResource to be available for "fake" loading (primarily used during text conversion)
-	ResourceLoader::set_create_missing_resources_if_class_unavailable(true);
-	// Do not abort on missing resources (in case of circular dependencies or other issues that would not impede resource export)
-	ResourceLoader::set_abort_on_missing_resources(false);
-
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}

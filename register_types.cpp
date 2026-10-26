@@ -3,9 +3,13 @@
 /*************************************************************************/
 
 #include "register_types.h"
+#include "core/io/resource_loader.h"
 #include "core/object/class_db.h"
+#include "core/string/print_string.h"
 #include "core/string/regex.h"
 #include "modules/register_module_types.h"
+#include "servers/rendering/rendering_server.h"
+
 #include "utility/app_version_getter.h"
 #include "utility/file_access_gdre.h"
 #include "utility/file_access_patched_gdre.h"
@@ -57,14 +61,30 @@ void free_ver_regex() {
 	Glob::escapere = Ref<RegEx>();
 }
 
-void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
-	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
-		return;
-	}
+static inline void set_global_settings() {
+	// Set auto-scale
 	if (!Engine::get_singleton()->is_editor_hint()) {
 		float scale = GDRESettings::get_auto_display_scale();
 		ProjectSettings::get_singleton()->set_setting("display/window/stretch/scale", scale);
 	}
+	// We rely on MissingResource to be available for "fake" loading (primarily used during text conversion)
+	ResourceLoader::set_create_missing_resources_if_class_unavailable(true);
+	// Do not abort on missing resources (in case of circular dependencies or other issues that would not impede resource export)
+	ResourceLoader::set_abort_on_missing_resources(false);
+#ifdef TOOLS_ENABLED
+	// Spams the logs with warnings when loading a scene that was exported with a lower verison of Godot.
+	if (RenderingServer::get_singleton()) {
+		RenderingServer::get_singleton()->set_warn_on_surface_upgrade(false);
+	}
+#else
+#endif
+}
+
+void initialize_gdsdecomp_module(ModuleInitializationLevel p_level) {
+	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
+		return;
+	}
+	set_global_settings();
 
 	ClassDB::register_class<SemVer>();
 	ClassDB::register_class<GodotVer>();
