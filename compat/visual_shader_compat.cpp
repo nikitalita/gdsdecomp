@@ -48,8 +48,8 @@ Ref<Resource> VisualShaderNodeCustomConverterCompat::convert(const Ref<MissingRe
 		// We don't support loading real scripts on anything other than real load.
 		return get_real_from_missing_resource(res, p_type);
 	}
-	if (!GDREConfig::get_singleton()->get_setting("execute_visual_shader_node_scripts")) {
-		WARN_PRINT("Skipping VisualShaderNodeCustom script execution due to user setting; loading this shader will probably fail. To enable this, set the 'execute_visual_shader_node_scripts' setting to true in the GDRE Tools configuration.");
+	if (!GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS)) {
+		WARN_PRINT(vformat("Skipping VisualShaderNodeCustom script execution due to user setting; loading this shader will probably fail. To enable this, set the '%s' setting to true in the GDRE Tools configuration.", CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS));
 		return get_real_from_missing_resource(res, p_type);
 	}
 	Ref<VisualShaderNodeCustom> visual_shader_node_custom = memnew(VisualShaderNodeCustom());

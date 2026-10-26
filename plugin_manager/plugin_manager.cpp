@@ -440,7 +440,7 @@ void PluginManager::do_prepop_task(uint32_t index, PrePopToken *tokens) {
 
 Error PluginManager::prepop_cache(const Vector<String> &plugin_names, const String &output_path) {
 	ensure_cache_loaded();
-	bool multithread = !GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+	bool multithread = !GDREConfig::get_singleton()->get_setting(CoreSettings::FORCE_SINGLE_THREADED, false);
 	prepopping = true;
 	String plugin_names_str = String(", ").join(plugin_names);
 	print_line("Prepopulating cache for " + plugin_names_str);

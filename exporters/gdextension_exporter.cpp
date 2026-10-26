@@ -201,7 +201,7 @@ Ref<ExportReport> GDExtensionExporter::export_resource(const String &output_dir,
 		err = OK;
 	}
 	bool downloaded_plugin = false;
-	if (GDREConfig::get_singleton()->get_setting("download_plugins")) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_DOWNLOAD_PLUGINS)) {
 		HashSet<String> hashes;
 		HashSet<String> dep_hashes;
 		HashSet<String> paths;

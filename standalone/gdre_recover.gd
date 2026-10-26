@@ -468,7 +468,7 @@ func setup_extract_resources_dir_dialog():
 	%ExtractResDirDialog.connect("dir_selected", self._on_extract_resources_dir_selected)
 
 func get_default_dir() -> String:
-	return GDREConfig.get_setting("default_parent_folder_for_recovery", OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP))
+	return GDREConfig.get_setting("Recovery/default_parent_folder_for_recovery", OS.get_system_dir(OS.SystemDir.SYSTEM_DIR_DESKTOP))
 
 func _ready():
 	FILE_TREE =      %FileTree
@@ -634,12 +634,12 @@ func _on_show_resource_preview_toggled(toggled_on: bool) -> void:
 
 func _on_download_confirm_dialog_canceled() -> void:
 	GDREConfig.set_setting("ask_for_download", not %DontAskAgainCheck.is_pressed())
-	GDREConfig.set_setting("download_plugins", false)
+	GDREConfig.set_setting("Recovery/download_plugins", false)
 	_go()
 
 func _on_download_confirm_dialog_confirmed() -> void:
 	GDREConfig.set_setting("ask_for_download", not %DontAskAgainCheck.is_pressed())
-	GDREConfig.set_setting("download_plugins", true)
+	GDREConfig.set_setting("Recovery/download_plugins", true)
 	_go()
 
 func set_assembly_good(good: bool) -> void:

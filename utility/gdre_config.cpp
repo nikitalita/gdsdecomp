@@ -27,94 +27,100 @@ static Dictionary get_max_cores_to_use_list_of_possible_values() {
 
 void GDREConfig::_init_default_settings() {
 	CONFIG_DEF(
-			"last_gdre_version_used",
+			CoreSettings::LAST_GDRE_VERSION_USED,
 			"Last GDRE version used",
 			"",
 			"",
 			SETTING_FLAG_HIDDEN);
-	CONFIG_DEF(
-			"download_plugins",
-			"Download plugins",
-			"Automatically detect binary plugin versions and download them from the asset library",
-			false);
-	CONFIG_DEF(
-			"load_embedded_zips",
-			"Load embedded zips",
-			"Load embedded zips within the project pack as part of project loading/recovery",
-			true);
-	CONFIG_DEF(
-			"delete_auto_converted_files",
-			"Delete auto-converted files",
-			"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
-			false);
-	CONFIG_DEF("default_parent_folder_for_recovery",
-			"Default parent folder for recovery",
-			"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
-			OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP),
-			GDREConfig::SETTING_FLAG_DIRPICKER);
-	CONFIG_DEF_ENUM_SPECIAL("max_cores_to_use",
+	CONFIG_DEF_ENUM_SPECIAL(CoreSettings::MAX_CORES_TO_USE,
 			"Max cores for threaded tasks",
 			"The maximum number of cores to use for threaded tasks (Extract, project recovery, etc.)",
 			-1,
 			&get_max_cores_to_use_list_of_possible_values,
 			GDREConfig::SETTING_FLAG_NONE);
 	CONFIG_DEF(
-			"force_single_threaded",
+			CoreSettings::FORCE_SINGLE_THREADED,
 			"Force single-threaded mode",
 			"Forces all tasks to run on the main thread",
 			false);
 	CONFIG_DEF(
-			"write_json_report",
-			"Write JSON report",
-			"Write a JSON report to the output directory after exporting.",
-			false,
-			SETTING_FLAG_HIDDEN);
-	CONFIG_DEF(
-			"ask_for_download",
+			CoreSettings::ASK_FOR_DOWNLOAD,
 			"Ask for download",
 			"",
 			true,
 			SETTING_FLAG_HIDDEN);
 	CONFIG_DEF(
-			"last_showed_disclaimer",
+			CoreSettings::LAST_SHOWED_DISCLAIMER,
 			"Last showed disclaimer",
 			"",
 			"<NONE>",
 			SETTING_FLAG_HIDDEN);
 	CONFIG_DEF(
-			"execute_visual_shader_node_scripts",
-			"Execute VisualShaderNodeCustom scripts",
-			"Execute VisualShaderNodeCustom scripts when loading visual shaders.\nSetting this to `true` can fix errors occurring when exporting scenes that contain VisualShaders.\n\nWARNING: As this executes arbitrary code, this should be considered unsafe.\nEnsure that you trust the source code in this project before enabling this.",
-			false);
-	CONFIG_DEF(
-			"Preview/use_scene_view_by_default",
+			CoreSettings::PREVIEW_USE_SCENE_VIEW_BY_DEFAULT,
 			"Use scene view by default",
 			"Use scene view by default instead of the text preview.\nWARNING: Scene view is still experimental and certain scenes may cause the program to become unresponsive.",
 			false);
 	CONFIG_DEF(
-			"Recovery/clear_output_dir_except_git_before_full_recovery",
+			CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS,
+			"Load embedded zips",
+			"Load embedded zips within the project pack as part of project loading/recovery",
+			true);
+	GDREConfig::get_singleton()->add_compatibility_alias("load_embedded_zips", CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS);
+	CONFIG_DEF(CoreSettings::RECOVERY_DEFAULT_PARENT_FOLDER_FOR_RECOVERY,
+			"Default parent folder for recovery",
+			"The default parent folder to use for recovery.\nIf not set, the user's Desktop directory will be used.",
+			OS::get_singleton()->get_system_dir(OS::SYSTEM_DIR_DESKTOP),
+			GDREConfig::SETTING_FLAG_DIRPICKER);
+	GDREConfig::get_singleton()->add_compatibility_alias("default_parent_folder_for_recovery", CoreSettings::RECOVERY_DEFAULT_PARENT_FOLDER_FOR_RECOVERY);
+	CONFIG_DEF(
+			CoreSettings::RECOVERY_DELETE_AUTO_CONVERTED_FILES,
+			"Delete auto-converted files",
+			"Delete auto-converted files (*.gdc, etc.) after exporting. If disabled, the files will be moved to the `.autoconverted` folder.",
+			false);
+	GDREConfig::get_singleton()->add_compatibility_alias("delete_auto_converted_files", CoreSettings::RECOVERY_DELETE_AUTO_CONVERTED_FILES);
+	CONFIG_DEF(
+			CoreSettings::RECOVERY_DOWNLOAD_PLUGINS,
+			"Download plugins",
+			"Automatically detect binary plugin versions and download them from the asset library",
+			false);
+	GDREConfig::get_singleton()->add_compatibility_alias("download_plugins", CoreSettings::RECOVERY_DOWNLOAD_PLUGINS);
+	CONFIG_DEF(
+			CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS,
+			"Execute VisualShaderNodeCustom scripts",
+			"Execute VisualShaderNodeCustom scripts when loading visual shaders.\nSetting this to `true` can fix errors occurring when exporting scenes that contain VisualShaders.\n\nWARNING: As this executes arbitrary code, this should be considered unsafe.\nEnsure that you trust the source code in this project before enabling this.",
+			false);
+	GDREConfig::get_singleton()->add_compatibility_alias("execute_visual_shader_node_scripts", CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS);
+	CONFIG_DEF(
+			CoreSettings::RECOVERY_CLEAR_OUTPUT_DIR_EXCEPT_GIT_BEFORE_FULL_RECOVERY,
 			"Clear output directory except git before full recovery",
 			"Clear the output directory except for the .git directory before running a full recovery (i.e. no includes/excludes)",
 			false,
 			SETTING_FLAG_HIDDEN);
 	CONFIG_DEF(
-			"Recovery/git/create_git_repo",
+			CoreSettings::RECOVERY_WRITE_JSON_REPORT,
+			"Write JSON report",
+			"Write a JSON report to the output directory after exporting.",
+			false,
+			SETTING_FLAG_HIDDEN);
+	GDREConfig::get_singleton()->add_compatibility_alias("write_json_report", CoreSettings::RECOVERY_WRITE_JSON_REPORT);
+	CONFIG_DEF(
+			CoreSettings::RECOVERY_GIT_CREATE_GIT_REPO,
 			"Create git repo in recovered project",
 			"Create a git repo in the output directory after exporting.\nRequires git to be installed on the system.",
 			false);
 	CONFIG_DEF(
-			"Recovery/git/add_imports_to_git_repo",
+			CoreSettings::RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO,
 			"Add imports to git repo",
 			"Add .godot/imported/ (or .import/ for Godot 3) to the git repo.",
 			false);
 	CONFIG_DEF_ENUM(
-			"Script/Indent/type",
+			CoreSettings::SCRIPT_INDENT_TYPE,
 			"Indent type",
 			"The type of indentation to use when decompiling and displaying scripts.",
 			0,
 			"Tabs,Spaces");
 	CONFIG_DEF_RANGE(
-			"Script/Indent/size",
+			CoreSettings::SCRIPT_INDENT_SIZE,
 			"Tab size",
 			"The number of spaces to use when decompiling and displaying scripts.",
 			4,
@@ -165,8 +171,8 @@ void GDREConfig::load_config() {
 		if (err != OK) {
 			WARN_PRINT("Failed to load config file: " + cfg_path);
 		}
-		for (auto &section : config->get_sections()) {
-			for (auto &key : config->get_section_keys(section)) {
+		for (const String &section : config->get_sections()) {
+			for (const String &key : config->get_section_keys(section)) {
 				set_setting(section + "/" + key, config->get_value(section, key));
 			}
 		}
@@ -190,7 +196,7 @@ void GDREConfig::save_config() {
 			config->set_value(get_section_from_key(key), name, value);
 		}
 	}
-	config->set_value("General", "last_gdre_version_used", GDRE_VERSION);
+	config->set_value(get_section_from_key(CoreSettings::LAST_GDRE_VERSION_USED), get_name_from_key(CoreSettings::LAST_GDRE_VERSION_USED), GDRE_VERSION);
 	gdre::ensure_dir(cfg_path.get_base_dir());
 	Error err = config->save(cfg_path);
 	if (err != OK) {
@@ -207,6 +213,9 @@ String get_full_name(const String &p_setting) {
 
 void GDREConfig::set_setting(const String &p_setting, const Variant &p_value, bool p_force_ephemeral) {
 	String full_name = get_full_name(p_setting);
+	if (compatibility_aliases.has(full_name)) {
+		full_name = compatibility_aliases[full_name];
+	}
 	Variant value = p_value;
 	if (default_settings.has(full_name) && default_settings[full_name]->get_type() != Variant::Type::NIL) {
 		value = VariantUtilityFunctions::type_convert(p_value, default_settings[full_name]->get_type());
@@ -219,15 +228,17 @@ void GDREConfig::set_setting(const String &p_setting, const Variant &p_value, bo
 }
 
 bool GDREConfig::has_setting(const String &p_setting) const {
-	return settings.contains(get_full_name(p_setting)) || ephemeral_settings.contains(get_full_name(p_setting));
+	String full_name = get_full_name(p_setting);
+	return settings.contains(full_name) || ephemeral_settings.contains(full_name);
 }
 
 Variant GDREConfig::get_setting(const String &p_setting, const Variant &p_default_value) const {
 	Variant ret = p_default_value;
-	if (ephemeral_settings.if_contains(get_full_name(p_setting), [&](const auto &v) { ret = v.second; })) {
+	String full_name = get_full_name(p_setting);
+	if (ephemeral_settings.if_contains(full_name, [&](const auto &v) { ret = v.second; })) {
 		return ret;
 	}
-	settings.if_contains(get_full_name(p_setting), [&](const auto &v) { ret = v.second; });
+	settings.if_contains(full_name, [&](const auto &v) { ret = v.second; });
 	return ret;
 }
 
@@ -281,6 +292,10 @@ void GDREConfig::add_default_setting(Ref<GDREConfigSetting> p_setting) {
 		WARN_PRINT("Setting already exists, overwriting: " + p_setting->get_full_name());
 	}
 	default_settings[p_setting->get_full_name()] = p_setting;
+}
+
+void GDREConfig::add_compatibility_alias(const String &p_old_setting, const String &p_new_setting) {
+	compatibility_aliases[get_full_name(p_old_setting)] = get_full_name(p_new_setting);
 }
 
 GDREConfigSetting::GDREConfigSetting(const String &p_full_name, const String &p_brief, const String &p_description, const Variant &p_default_value, GDREConfig::SettingFlag p_flags) {

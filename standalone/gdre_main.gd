@@ -1523,7 +1523,7 @@ func handle_cli(args: PackedStringArray) -> bool:
 			GDREConfig.set_setting("force_single_threaded", val, true)
 			set_setting = true
 		elif arg.begins_with("--enable-experimental-plugin-downloading"):
-			GDREConfig.set_setting("download_plugins", true, true)
+			GDREConfig.set_setting("Recovery/download_plugins", true, true)
 			set_setting = true
 		elif arg.begins_with("--load-custom-bytecode"):
 			custom_bytecode_file = get_cli_abs_path(get_arg_value(arg))

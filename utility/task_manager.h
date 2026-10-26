@@ -478,9 +478,9 @@ public:
 			int p_progress_start = 0,
 			bool p_show_progress = true) {
 		ERR_FAIL_COND_V_MSG(p_elements == 0, -1, "Task has 0 elements, this is not allowed!");
-		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting(CoreSettings::FORCE_SINGLE_THREADED, false);
 		if (p_tasks <= 0) {
-			p_tasks = (int)GDREConfig::get_singleton()->get_setting("max_cores_to_use", -1);
+			p_tasks = (int)GDREConfig::get_singleton()->get_setting(CoreSettings::MAX_CORES_TO_USE, -1);
 			if (p_tasks <= 0) {
 				p_tasks = MAX(1, get_max_thread_count() - 1);
 			}
@@ -572,7 +572,7 @@ public:
 			bool p_can_cancel = false,
 			bool p_high_priority = false,
 			bool p_progress_enabled = true) {
-		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+		bool is_singlethreaded = GDREConfig::get_singleton()->get_setting(CoreSettings::FORCE_SINGLE_THREADED, false);
 		auto task_id = add_task(p_task_runner, p_userdata, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, is_singlethreaded);
 		return wait_for_task_completion(task_id);
 	}

@@ -9,6 +9,35 @@
 class GDREConfig;
 class GDREConfigSetting;
 
+// Full names of the settings that are registered by GDREConfig itself.
+class CoreSettings {
+public:
+	// General
+	static constexpr const char *const LAST_GDRE_VERSION_USED = "General/last_gdre_version_used";
+	static constexpr const char *const MAX_CORES_TO_USE = "General/max_cores_to_use";
+	static constexpr const char *const FORCE_SINGLE_THREADED = "General/force_single_threaded";
+	static constexpr const char *const ASK_FOR_DOWNLOAD = "General/ask_for_download";
+	static constexpr const char *const LAST_SHOWED_DISCLAIMER = "General/last_showed_disclaimer";
+
+	// Preview
+	static constexpr const char *const PREVIEW_USE_SCENE_VIEW_BY_DEFAULT = "Preview/use_scene_view_by_default";
+
+	// Recovery
+	static constexpr const char *const RECOVERY_LOAD_EMBEDDED_ZIPS = "Recovery/load_embedded_zips";
+	static constexpr const char *const RECOVERY_DEFAULT_PARENT_FOLDER_FOR_RECOVERY = "Recovery/default_parent_folder_for_recovery";
+	static constexpr const char *const RECOVERY_DELETE_AUTO_CONVERTED_FILES = "Recovery/delete_auto_converted_files";
+	static constexpr const char *const RECOVERY_DOWNLOAD_PLUGINS = "Recovery/download_plugins";
+	static constexpr const char *const RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS = "Recovery/execute_visual_shader_node_scripts";
+	static constexpr const char *const RECOVERY_CLEAR_OUTPUT_DIR_EXCEPT_GIT_BEFORE_FULL_RECOVERY = "Recovery/clear_output_dir_except_git_before_full_recovery";
+	static constexpr const char *const RECOVERY_WRITE_JSON_REPORT = "Recovery/write_json_report";
+	static constexpr const char *const RECOVERY_GIT_CREATE_GIT_REPO = "Recovery/git/create_git_repo";
+	static constexpr const char *const RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO = "Recovery/git/add_imports_to_git_repo";
+
+	// Script
+	static constexpr const char *const SCRIPT_INDENT_TYPE = "Script/Indent/type";
+	static constexpr const char *const SCRIPT_INDENT_SIZE = "Script/Indent/size";
+};
+
 class GDREConfig : public Object {
 	GDCLASS(GDREConfig, Object);
 
@@ -16,6 +45,7 @@ class GDREConfig : public Object {
 	static GDREConfig *singleton;
 	HashMap<String, Ref<GDREConfigSetting>> default_settings;
 	ParallelFlatHashMap<String, Variant> ephemeral_settings;
+	HashMap<String, String> compatibility_aliases;
 
 	static void _init_default_settings();
 
@@ -50,6 +80,7 @@ public:
 	Dictionary get_section_settings(const String &p_section) const;
 
 	void add_default_setting(Ref<GDREConfigSetting> p_setting);
+	void add_compatibility_alias(const String &p_old_setting, const String &p_new_setting);
 
 protected:
 	static void _bind_methods();

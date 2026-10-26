@@ -97,7 +97,7 @@ Error ImportExporter::handle_auto_converted_file(const String &autoconverted_fil
 	if (!prefix.begins_with(".")) {
 		String old_path = output_dir.path_join(prefix);
 		if (FileAccess::exists(old_path)) {
-			if (CONFIG_GET("delete_auto_converted_files", false)) {
+			if (CONFIG_GET(CoreSettings::RECOVERY_DELETE_AUTO_CONVERTED_FILES, false)) {
 				return gdre::rimraf(old_path);
 			}
 			String new_path = output_dir.path_join(".autoconverted").path_join(prefix);
@@ -1076,7 +1076,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	Vector<ExportToken> scene_tokens;
 	HashMap<String, Vector<Ref<ImportInfo>>> export_dest_to_iinfo;
 	HashSet<String> dupes;
-	bool force_single_threaded = GDREConfig::get_singleton()->get_setting("force_single_threaded", false);
+	bool force_single_threaded = GDREConfig::get_singleton()->get_setting(CoreSettings::FORCE_SINGLE_THREADED, false);
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
 		if (partial_export && !hashset_intersects_vector(files_to_export_set, iinfo->get_dest_files())) {
@@ -1509,8 +1509,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		if ((get_ver_major() > 4 || (get_ver_major() == 4 && get_ver_minor() >= 5))) {
 			// if we're at v4.5 or higher (<4.5 doesn't support editor_overrides), we want to set "editor_overrides/text_editor/behavior/indent/type" to the user defined value
 			// This avoids editor churn on the scripts when they're resaved by the editor
-			get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/type", GDREConfig::get_singleton()->get_setting("Script/Indent/type", 0));
-			get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/size", GDREConfig::get_singleton()->get_setting("Script/Indent/size", 4));
+			get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/type", GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_TYPE, 0));
+			get_settings()->set_project_setting("editor_overrides/text_editor/behavior/indent/size", GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_SIZE, 4));
 		}
 		if (get_settings()->save_project_config(output_dir) != OK) {
 			print_line("ERROR: Failed to save project config!");
@@ -1613,13 +1613,13 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	pr = nullptr;
 	reset_before_return(false);
 	report->print_report();
-	if (GDREConfig::get_singleton()->get_setting("write_json_report", false)) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_WRITE_JSON_REPORT, false)) {
 		String json_file = output_dir.path_join("gdre_export.json");
 		Ref<FileAccess> f = FileAccess::open(json_file, FileAccess::WRITE, &err);
 		ERR_FAIL_COND_V_MSG(err || f.is_null(), ERR_FILE_CANT_WRITE, "can't open report.json for writing");
 		f->store_string(JSON::stringify(report->to_json(), "\t", false, true));
 	}
-	if (GDREConfig::get_singleton()->get_setting("Recovery/git/create_git_repo", false)) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_GIT_CREATE_GIT_REPO, false)) {
 		make_git_repo();
 	}
 	return OK;
@@ -1805,7 +1805,7 @@ void ImportExporter::make_git_repo() {
 		".mono/",
 		".godot/*",
 	};
-	bool include_imports = GDREConfig::get_singleton()->get_setting("Recovery/git/add_imports_to_git_repo", true);
+	bool include_imports = GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO, false);
 	String game_version = get_settings()->get_game_app_version();
 	int ver_major = get_ver_major();
 	if (!include_imports && ver_major == 3) {
@@ -2034,7 +2034,7 @@ Dictionary ImportExporterReport::get_session_notes() {
 		Dictionary failed_gdnative;
 		failed_gdnative["title"] = "Missing GDExtension Libraries";
 		String message = "The following GDExtension addons could not be";
-		if (GDREConfig::get_singleton()->get_setting("download_plugins")) {
+		if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_DOWNLOAD_PLUGINS)) {
 			message += " detected and downloaded.\n";
 		} else {
 			message += " found for your platform.\n";
@@ -2925,7 +2925,7 @@ Error ImportExporter::test_exported_project(const String &p_original_project_dir
 		print_line(vformat("==============================================================================="));
 	}
 	rimraf_tmp_dir();
-	if (GDREConfig::get_singleton()->get_setting("write_json_report", false)) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_WRITE_JSON_REPORT, false)) {
 		String json_file = output_dir.path_join("gdre_export.json");
 		Ref<FileAccess> f = FileAccess::open(json_file, FileAccess::WRITE);
 		ERR_FAIL_COND_V_MSG(f.is_null(), ERR_FILE_CANT_WRITE, "can't open report.json for writing");

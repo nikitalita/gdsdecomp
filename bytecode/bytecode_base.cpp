@@ -633,8 +633,8 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 		current = tokenizer->scan();
 	}
 
-	bool use_spaces = (IndentType)GDREConfig::get_singleton()->get_setting("Script/Indent/type", 0) == INDENT_TYPE_SPACES;
-	int tab_size = GDREConfig::get_singleton()->get_setting("Script/Indent/size", 4).operator int();
+	bool use_spaces = (IndentType)GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_TYPE, 0) == INDENT_TYPE_SPACES;
+	int tab_size = GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_SIZE, 4).operator int();
 	bool first_line = true;
 	int version = s.bytecode_version;
 	int bytecode_version = get_bytecode_version();

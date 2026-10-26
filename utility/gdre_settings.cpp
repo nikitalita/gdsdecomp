@@ -757,7 +757,7 @@ Error GDRESettings::load_project(const Vector<String> &p_paths, bool _cmd_line_e
 Error GDRESettings::_project_post_load(bool initial_load, const String &csharp_assembly_override) {
 	Error err = OK;
 	// Load any embedded zips within the pck
-	if (GDREConfig::get_singleton()->get_setting("load_embedded_zips", true)) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, true)) {
 		err = _load_embedded_zips();
 		if (err == ERR_UNAVAILABLE) {
 			err = OK;
@@ -3196,7 +3196,7 @@ void GDRESettings::update_from_ephemeral_settings() {
 			reload_dotnet_assembly(current_project->assembly_path);
 		}
 	}
-	if (GDREConfig::get_singleton()->get_setting("load_embedded_zips", true)) {
+	if (GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, true)) {
 		Error err = _load_embedded_zips();
 		needs_recache = needs_recache || err == OK;
 	}
