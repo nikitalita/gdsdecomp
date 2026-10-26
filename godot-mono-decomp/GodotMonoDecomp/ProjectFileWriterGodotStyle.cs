@@ -250,7 +250,7 @@ namespace GodotMonoDecomp
 				}
 				includedDeps.Add(dep);
 			}
-			includedDeps.AddRange(depsToAdd.Where(d => !includedDeps.Any(d2 => d2.HasDep(d.AssemblyRef, "package", settings.CreateAdditionalProjectsForProjectReferences))));
+			includedDeps.AddRange(depsToAdd.Where(d => !includedDeps.Any(d2 => d2.HasServicableDep(d.AssemblyRef, "package", !settings.CreateAdditionalProjectsForProjectReferences))));
 
 			void WritePackageRef(XmlTextWriter xml, DotNetCoreDepInfo dep)
 			{
@@ -663,7 +663,7 @@ namespace GodotMonoDecomp
 
 				if (ImplicitGodotReferences.Contains(reference.Name))
 				{
-					if (project.CustomVersionDetected){
+					if (project.CustomVersionDetected) {
 						xml.WriteComment($"Implicitly-included assembly '{reference.Name}' is force-included because a custom version is detected");
 					} else {
 						godotSharpRefs.Add(reference);
@@ -680,8 +680,17 @@ namespace GodotMonoDecomp
 					projectReferences.Add(reference);
 					continue;
 				}
+				else if (IsProjectPackageReference(reference))
+				{
+					projectReferences.Add(reference);
+					continue;
+				}
+				else
+				{
+					Console.WriteLine($"Reference '{reference.Name}' is not a package reference, project reference, or GodotSharp reference.");
+				}
 
-				var referenceDep = deps?.GetDep(reference);
+				var referenceDep = deps?.GetDep(reference, true);
 				if (referenceDep?.HasNoRuntimeComponent ?? false) {
 					xml.WriteComment($"Reference '{reference.Name}' has no runtime components, but the assembly makes a reference to it. This may be a source generator package.");
 				}
@@ -741,27 +750,36 @@ namespace GodotMonoDecomp
 
 			bool IsProjectReference(IAssemblyReference reference)
 			{
-				return settings.CreateAdditionalProjectsForProjectReferences && deps != null && deps.HasDep(reference, "project", false);
+				return settings.CreateAdditionalProjectsForProjectReferences && deps != null && deps.HasAnyDep(reference, "project", true);
+			}
+
+			bool IsProjectPackageReference(IAssemblyReference reference)
+			{
+				if (!settings.CreateAdditionalProjectsForProjectReferences || deps == null || deps.HasAnyDep(reference, null, false))
+				{
+					return false;
+				}
+				return deps.GetAllDeps(true, "project").Any(d => d.HasAnyDep(reference, null, true));
 			}
 
 			bool DepExistsInPackages(IAssemblyReference reference)
 			{
-				return writtenPackageDeps.Any(d2 => d2.Matches(reference));
+				return writtenPackageDeps.Any(d2 => d2.Matches(reference) || d2.HasServicableDep(reference, "package", true));
 			}
 
 			HashSet<IAssemblyReference> GetAdditionalRefsToWrite(DotNetCoreDepInfo? deps){
 				if (deps == null){
 					return [];
 				}
-				var depsToWrite = deps?.deps.Where(d => module.AssemblyReferences.Any(r => d.Matches(r))).ToHashSet() ?? [];
+				var DepsMatchingAssemblyReferences = deps?.deps.Where(d => module.AssemblyReferences.Any(r => d.Matches(r))).ToHashSet() ?? [];
 				bool ShouldNotFilter(DotNetCoreDepInfo d){
 					return !(
 							DepExistsInPackages(d.AssemblyRef) ||
 							IsProjectReference(d.AssemblyRef) ||
 							IsImplicitReference(d.Name) ||
 							d.HasNoRuntimeComponent ||
-							depsToWrite.Contains(d) ||
-							depsToWrite.Any(d2 => d2.HasDep(d.AssemblyRef, null)));
+							DepsMatchingAssemblyReferences.Contains(d) ||
+							DepsMatchingAssemblyReferences.Any(d2 => d2.HasAnyDep(d.AssemblyRef, null, true)));
 				}
 				return deps?.deps
 					.Where(ShouldNotFilter)

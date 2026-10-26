@@ -333,30 +333,28 @@ public class DotNetCoreDepInfo : IEquatable<DotNetCoreDepInfo>
 			&& (ThisRuntimeComponent?.Equals(other.ThisRuntimeComponent) ?? other.ThisRuntimeComponent == null);
 	}
 
-	private List<DotNetCoreDepInfo> GetAllDeps(bool followProjectReferences, HashSet<DotNetCoreDepInfo>? seen)
+	private List<DotNetCoreDepInfo> GetAllDeps(bool followProjectReferences, string? type, HashSet<DotNetCoreDepInfo>? seen)
 	{
 		var result = new HashSet<DotNetCoreDepInfo>();
-		result.AddRange(deps);
+
+		result.AddRange(string.IsNullOrEmpty(type) ? deps : deps.Where(d => d.Type == type));
 		var unseenDeps = deps.Where(d => !seen?.Contains(d) ?? true);
-		if (seen == null)
-		{
-			seen = [this, .. deps];
-		}
+		seen ??= [this, .. deps];
 		foreach (var dep in unseenDeps)
 		{
 			if (!followProjectReferences && dep.Type == "project")
 			{
 				continue;
 			}
-			var found = dep.GetAllDeps(followProjectReferences, seen);
+			var found = dep.GetAllDeps(followProjectReferences, type, seen);
 			result.AddRange(found);
 			seen.AddRange(found);
 		}
 		return result.ToList();
 	}
 
-	public List<DotNetCoreDepInfo> GetAllDeps(bool followProjectReferences = false) {
-		return GetAllDeps(followProjectReferences, null);
+	public List<DotNetCoreDepInfo> GetAllDeps(bool followProjectReferences, string? type = null) {
+		return GetAllDeps(followProjectReferences, type, null);
 	}
 
 
@@ -365,7 +363,7 @@ public class DotNetCoreDepInfo : IEquatable<DotNetCoreDepInfo>
 		return reference != null && reference.Name == Name && reference.Version == AssemblyVersion;
 	}
 
-	public bool HasDep(IAssemblyReference reference, string? type, bool serviceableAndNuGetOnly = false, bool dontFollowProjectReferences = false)
+	private bool HasDepInternal(IAssemblyReference reference, string? type, bool serviceableAndNuGetOnly, bool followProjectReferences)
 	{
 		bool ShouldFilter(DotNetCoreDepInfo dep) => !((string.IsNullOrEmpty(type) || dep.Type == type) && (!serviceableAndNuGetOnly || dep.IsAvailableOnNuget));
 		if (runtimeComponents.Any(c => c.Matches(reference) && !c.Equals(ThisRuntimeComponent)) && !ShouldFilter(this))
@@ -375,13 +373,23 @@ public class DotNetCoreDepInfo : IEquatable<DotNetCoreDepInfo>
 		return deps.Any(
 			d => !ShouldFilter(d) &&
 				(d.Matches(reference) ||
-					((!dontFollowProjectReferences || d.Type != "project")
-						&& d.HasDep(reference, type, serviceableAndNuGetOnly, dontFollowProjectReferences))));
+					((followProjectReferences || d.Type != "project")
+						&& d.HasDepInternal(reference, type, serviceableAndNuGetOnly, followProjectReferences))));
 	}
 
-	public DotNetCoreDepInfo? GetDep(IAssemblyReference reference)
+	public bool HasAnyDep(IAssemblyReference reference, string? type, bool followProjectReferences)
 	{
-		return GetAllDeps().FirstOrDefault(d => d.Matches(reference));
+		return HasDepInternal(reference, type, false, followProjectReferences);
+	}
+
+	public bool HasServicableDep(IAssemblyReference reference, string? type, bool followProjectReferences)
+	{
+		return HasDepInternal(reference, type, true, followProjectReferences);
+	}
+
+	public DotNetCoreDepInfo? GetDep(IAssemblyReference reference, bool followProjectReferences)
+	{
+		return GetAllDeps(followProjectReferences).FirstOrDefault(d => d.Matches(reference));
 	}
 
 	public static string GetDepPath(string assemblyPath)
