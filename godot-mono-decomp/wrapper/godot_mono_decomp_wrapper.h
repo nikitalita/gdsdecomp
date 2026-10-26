@@ -3,8 +3,20 @@
 
 #include "core/object/ref_counted.h"
 #include "core/string/ustring.h"
+#include "godot-mono-decomp/wrapper/csharp_script_info.h"
 
 struct DecompileModuleTaskData;
+
+struct GodotMonoDecompSettingsDescription : PropertyInfoWithDefault {
+	String brief;
+	String description;
+	String group;
+	Dictionary enum_values;
+
+	String get_setting_name() const;
+
+	static GodotMonoDecompSettingsDescription from_dict(const Dictionary &dict);
+};
 class GodotMonoDecompWrapper : public RefCounted {
 	GDCLASS(GodotMonoDecompWrapper, RefCounted);
 
@@ -51,6 +63,6 @@ private:
 
 	String assembly_path;
 	void *decompilerHandle = nullptr;
-	Dictionary default_settings;
+	HashMap<String, GodotMonoDecompSettingsDescription> default_settings;
 	Vector<String> originalProjectFiles;
 };

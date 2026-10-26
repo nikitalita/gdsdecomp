@@ -382,7 +382,7 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 	if ((version == PACK_FORMAT_VERSION_V4) || (version == PACK_FORMAT_VERSION_V3) || (version == PACK_FORMAT_VERSION_V2 && rel_filebase)) {
 		file_base += pck_start_pos;
 	}
-
+	uint64_t dir_offset = 0;
 #define DEBUG_PCK_INFO()                                                                             \
 	String("PCK version: ") + itos(version) +                                                        \
 			", engine version: " + itos(ver_major) + "." + itos(ver_minor) + "." + itos(ver_patch) + \
@@ -393,7 +393,7 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 
 	if (version == PACK_FORMAT_VERSION_V3 || version == PACK_FORMAT_VERSION_V4) {
 		// V3/v4: Read directory offset and skip reserved part of the header.
-		uint64_t dir_offset = f->get_64() + pck_start_pos;
+		dir_offset = f->get_64() + pck_start_pos;
 		if (sparse_bundle && enc_directory && version == PACK_FORMAT_VERSION_V4) {
 			// V4: Read encrypted directory salt.
 			Vector<uint8_t> salt_data = f->get_buffer(32);
@@ -408,6 +408,7 @@ bool GDREPackedSource::try_open_pack(const String &p_path, bool p_replace_files,
 		for (int i = 0; i < 16; i++) {
 			f->get_32(); // Reserved.
 		}
+		dir_offset = f->get_position();
 	}
 #undef DEBUG_PCK_INFO
 

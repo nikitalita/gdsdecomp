@@ -10,6 +10,7 @@
 
 #if !GODOT_MONO_DECOMP_DISABLED
 #include "godot_mono_decomp.h"
+#include "core/variant/variant_utility.h"
 
 Dictionary GodotMonoDecompWrapper::_get_settings_from_config() {
 	Dictionary dict = GDREConfig::get_singleton()->get_section_settings("CSharp");
@@ -51,9 +52,10 @@ Error GodotMonoDecompWrapper::_load(const String &p_assembly_path, const Vector<
 
 	default_settings.clear();
 	Array arr = get_default_settings();
+	default_settings.reserve(arr.size());
 	for (int i = 0; i < arr.size(); i++) {
 		Dictionary dict = arr[i];
-		default_settings[dict.get("name", "").operator String()] = dict;
+		default_settings[dict.get("name", "").operator String()] = GodotMonoDecompSettingsDescription::from_dict(dict);
 	}
 
 	CharString assembly_path_chrstr = p_assembly_path.utf8();
@@ -251,26 +253,23 @@ bool GodotMonoDecompWrapper::is_handle_valid() const {
 	return decompilerHandle != nullptr;
 }
 
-static inline void _ensure_settings_int(Dictionary &p_dict, const Dictionary &p_default_settings){
+static inline Variant ensure_type(const Variant &p_value, const Variant::Type &p_type) {
+	if (p_type != Variant::NIL) {
+		if (p_type == Variant::STRING && p_value == Variant()) {
+			return String();
+		}
+		return VariantUtilityFunctions::type_convert(p_value, p_type);
+	}
+	return p_value;
+}
+
+static inline void _ensure_settings_int(Dictionary &p_dict, const HashMap<String, GodotMonoDecompSettingsDescription> &p_default_settings){
 	for (const auto &[key, value] : p_dict) {
-		String type = "int";
+		Variant::Type type = Variant::Type::NIL;
 		if (p_default_settings.has(key)) {
-			type = p_default_settings[key].operator Dictionary().get("type", "");
+			type = p_default_settings[key].info.type;
 		}
-		if (type == "int" && value.get_type() == Variant::Type::FLOAT) {
-			p_dict[key] = (int)round(value.operator double());
-		} else if (type == "PackedStringArray" && value.get_type() == Variant::Type::ARRAY) {
-			TypedArray<String> array = value;
-			PackedStringArray packed_array;
-			for (int i = 0; i < array.size(); i++) {
-				packed_array.push_back(array[i]);
-			}
-			p_dict[key] = packed_array;
-		} else if (value.get_type() == Variant::Type::DICTIONARY) {
-			Dictionary dict = value;
-			_ensure_settings_int(dict, p_default_settings);
-			p_dict[key] = dict;
-		}
+		p_dict[key] = ensure_type(value, type);
 	}
 }
 
@@ -317,44 +316,12 @@ Array GodotMonoDecompWrapper::get_default_settings() {
 	return dict;
 }
 
-static inline void _add_setting(Dictionary dict){
-	String name = "CSharp/";
-	if (!dict.get("group", "").operator String().is_empty()) {
-		name += dict.get("group", "").operator String() + "/";
-	}
-	name += dict.get("name", "").operator String();
-	String brief = dict.get("brief", "").operator String();
-	String description = dict.get("description", "").operator String();
-	Variant default_value = dict.get("default_value", 0);
-	String type = dict.get("type", "").operator String();
-	if (type == "int" && default_value.get_type() == Variant::Type::FLOAT) {
-		default_value = default_value.operator int();
-	} else if (type == "PackedStringArray" && default_value.get_type() == Variant::Type::ARRAY) {
-		TypedArray<String> array = default_value;
-		PackedStringArray packed_array;
-		for (int i = 0; i < array.size(); i++) {
-			packed_array.push_back(array[i]);
-		}
-		default_value = packed_array;
-	}
-	Dictionary enum_values = dict.get("enum_values", Dictionary());
-	if (enum_values.size() > 0) {
-		Dictionary fixed_enum_values;
-		for (auto &[key, value] : enum_values) {
-			String key_str = key;
-			if (key_str.begins_with("CSharp")){
-				key_str = "C# " + key_str.trim_prefix("CSharp").replace("_", ".");
-			}
-			if (value.get_type() == Variant::Type::FLOAT) {
-				fixed_enum_values[(int)round(value.operator double())] = key_str;
-			} else {
-				fixed_enum_values[value] = key_str;
-			}
-		}
-		enum_values = fixed_enum_values;
-		CONFIG_DEF_ENUM_DICT(name, brief, description, default_value, enum_values);
+
+static inline void _add_setting(const GodotMonoDecompSettingsDescription &info){
+	if (info.enum_values.size() > 0) {
+		CONFIG_DEF_ENUM_DICT(info.get_setting_name(), info.brief, info.description, info.default_value, info.enum_values);
 	} else {
-		CONFIG_DEF(name, brief, description, default_value);
+		CONFIG_DEF(info.get_setting_name(), info.brief, info.description, info.default_value);
 	}
 
 }
@@ -369,7 +336,7 @@ void GodotMonoDecompWrapper::add_default_config_settings() {
 			ILSpySettings.push_back(dict);
 			continue;
 		}
-		_add_setting(dict);
+		_add_setting(GodotMonoDecompSettingsDescription::from_dict(dict));
 	}
 
 	CONFIG_DEF(
@@ -386,8 +353,7 @@ void GodotMonoDecompWrapper::add_default_config_settings() {
 	ILSpySettings.sort_custom<_ILSpySettingsSort>();
 
 	for (int i = 0; i < ILSpySettings.size(); i++) {
-		Dictionary dict = ILSpySettings[i];
-		_add_setting(dict);
+		_add_setting(GodotMonoDecompSettingsDescription::from_dict(ILSpySettings[i]));
 	}
 
 }
@@ -474,4 +440,38 @@ void GodotMonoDecompWrapper::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_custom_version_detected"), &GodotMonoDecompWrapper::is_custom_version_detected);
 	ClassDB::bind_method(D_METHOD("get_global_class_files"), &GodotMonoDecompWrapper::get_global_class_files);
 	ClassDB::bind_static_method(get_class_static(), D_METHOD("is_file_assembly", "file"), &GodotMonoDecompWrapper::is_file_assembly);
+}
+
+String GodotMonoDecompSettingsDescription::get_setting_name() const {
+	String n = "CSharp/";
+	if (!group.is_empty()) {
+		n += group + "/";
+	}
+	n += info.name;
+	return n;
+}
+
+GodotMonoDecompSettingsDescription GodotMonoDecompSettingsDescription::from_dict(const Dictionary &dict){
+	GodotMonoDecompSettingsDescription info;
+	info._piwd_from_dict(dict, nullptr);
+	info.brief = dict.get("brief", "").operator String();
+	info.description = dict.get("description", "").operator String();
+	info.group = dict.get("group", "").operator String();
+	Dictionary enum_values = dict.get("enum_values", Dictionary());
+	if (enum_values.size() > 0) {
+		Dictionary fixed_enum_values;
+		for (auto &[key, value] : enum_values) {
+			String key_str = key;
+			if (key_str.begins_with("CSharp")){
+				key_str = "C# " + key_str.trim_prefix("CSharp").replace("_", ".");
+			}
+			if (value.get_type() == Variant::Type::FLOAT) {
+				fixed_enum_values[(int)round(value.operator double())] = key_str;
+			} else {
+				fixed_enum_values[value] = key_str;
+			}
+		}
+		info.enum_values = fixed_enum_values;
+	}
+	return info;
 }

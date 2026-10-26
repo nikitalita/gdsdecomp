@@ -64,21 +64,22 @@ public class PropertyInfoWithDefault
 	public const string PROP_HINT_NONE = "None";
 
 	[JsonPropertyName("name")]
-	public string Name { get; set; }
+	public string Name { get; set; } = "";
 	[JsonPropertyName("type")]
-	public string Type { get; set; }
+	public string Type { get; set; } = "Nil";
+
 	[JsonPropertyName("class_name")]
-	public string ClassName { get; set; }
+	public string ClassName { get; set; } = "";
 
 	[JsonPropertyName("hint")]
 	public string PropertyHint { get; set; } = PROP_HINT_NONE;
 	[JsonPropertyName("hint_string")]
-	public string PropertyHintString { get; set; }
+	public string PropertyHintString { get; set; } = "";
 	[JsonPropertyName("usage")]
 	public PropertyUsageFlags PropertyUsage { get; set; }
 
 	[JsonPropertyName("default_value")]
-	public string DefaultValue { get; set; }
+	public string DefaultValue { get; set; } = "";
 
 	public PropertyInfoWithDefault(string name, string type, string class_name, string propertyHint, string propertyHintString, PropertyUsageFlags propertyUsage, string defaultValue)
 	{
@@ -89,6 +90,10 @@ public class PropertyInfoWithDefault
 		PropertyHint = string.IsNullOrEmpty(propertyHint) ? PROP_HINT_NONE : Common.CamelCaseToSnakeCase(propertyHint).ToUpper();
 		PropertyHintString = propertyHintString;
 		PropertyUsage = propertyUsage;
+	}
+
+	protected PropertyInfoWithDefault()
+	{
 	}
 
 	public static PropertyInfoWithDefault VoidProp()

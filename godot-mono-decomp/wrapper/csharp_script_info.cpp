@@ -338,9 +338,14 @@ static inline Vector<MethodInfo> _get_methods_from_arr(const Array &p_dict) {
 }
 
 PropertyInfoWithDefault PropertyInfoWithDefault::from_dict(const Dictionary &p_dict, VariantParser::ResourceParser *p_res_parser) {
-	auto info = get_pi_from_dict(p_dict);
-	auto default_value = ensure_type(get_default_value_from_string(p_dict.get("default_value", ""), p_res_parser), info.type);
-	return PropertyInfoWithDefault{info, default_value};
+	PropertyInfoWithDefault info;
+	info._piwd_from_dict(p_dict, p_res_parser);
+	return info;
+}
+
+void PropertyInfoWithDefault::_piwd_from_dict(const Dictionary &p_dict, VariantParser::ResourceParser *p_res_parser) {
+	info = get_pi_from_dict(p_dict);
+	default_value = ensure_type(get_default_value_from_string(p_dict.get("default_value", ""), p_res_parser), info.type);
 }
 
 CSharpScriptInfo CSharpScriptInfo::from_dict(const Dictionary &p_dict, VariantParser::ResourceParser *p_res_parser) {

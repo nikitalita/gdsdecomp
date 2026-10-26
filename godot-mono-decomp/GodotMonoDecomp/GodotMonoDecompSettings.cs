@@ -19,6 +19,9 @@ namespace GodotMonoDecomp;
 
 [JsonSerializable(typeof(GodotMonoDecompSettings))]
 [JsonSerializable(typeof(CSharpFormattingOptions))]
+[JsonSerializable(typeof(GodotMonoDecompSettingsDescription))]
+[JsonSerializable(typeof(List<GodotMonoDecompSettingsDescription>))]
+[JsonSerializable(typeof(OrderedDictionary<string, object?>))]
 internal partial class GodotMonoDecompSettingsSrcGenContext : JsonSerializerContext
 {
 }
@@ -235,44 +238,31 @@ public class GodotMonoDecompSettings : DecompilerSettings
 			Indented = false,
 			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 		};
-		using (var writer = new Utf8JsonWriter(buf, opts))
+		List<GodotMonoDecompSettingsDescription> descriptions = new();
+
+		foreach (var prop in typeof(GodotMonoDecompSettings).GetProperties(flags | BindingFlags.DeclaredOnly))
 		{
-			writer.WriteStartArray();
-
-			foreach (var prop in typeof(GodotMonoDecompSettings).GetProperties(flags | BindingFlags.DeclaredOnly))
+			var jsonName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name;
+			if (jsonName == null || !IsSettingProperty(prop) || prop.GetCustomAttribute<EditorBrowsableAttribute>()?.State == EditorBrowsableState.Never)
 			{
-				var jsonName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name;
-				if (jsonName == null || !IsSettingProperty(prop) || prop.GetCustomAttribute<EditorBrowsableAttribute>()?.State == EditorBrowsableState.Never)
-				{
-					continue;
-				}
-				WriteSettingEntry(writer, jsonName, prop, godotMonoDecompSettings);
+				continue;
 			}
-
-			foreach (var prop in typeof(DecompilerSettings).GetProperties(flags))
-			{
-				if (!IsSettingProperty(prop))
-				{
-					continue;
-				}
-				WriteSettingEntry(writer, prop.Name, prop, godotMonoDecompSettings, ILSpyPrefix);
-			}
-
-			// Don't do this right now
-			// const string CSharpFormattingOptionsPrefix = "ILSpy/CSharpFormattingOptions";
-
-			// foreach (var prop in typeof(CSharpFormattingOptions).GetProperties(flags))
-			// {
-			// 	if (!IsSettingProperty(prop))
-			// 	{
-			// 		continue;
-			// 	}
-			// 	WriteSettingEntry(writer, prop.Name, prop, formattingOptions, CSharpFormattingOptionsPrefix);
-			// }
-
-			writer.WriteEndArray();
+			descriptions.Add(new GodotMonoDecompSettingsDescription(prop, godotMonoDecompSettings));
 		}
-		var str = System.Text.Encoding.UTF8.GetString(buf.ToArray());
+
+		foreach (var prop in typeof(DecompilerSettings).GetProperties(flags))
+		{
+			if (!IsSettingProperty(prop) || prop.GetCustomAttribute<CategoryAttribute>()?.Category.Replace("DecompilerSettings.", "") == "ProjectExport")
+			{
+				continue;
+			}
+			descriptions.Add(new GodotMonoDecompSettingsDescription(prop, godotMonoDecompSettings, ILSpyPrefix));
+		}
+		var strWriter = new Utf8JsonWriter(buf, opts);
+		JsonSerializer.Serialize(strWriter, descriptions, GodotMonoDecompSettingsSrcGenContext.Default.ListGodotMonoDecompSettingsDescription);
+		strWriter.Flush();
+		var arr = buf.ToArray();
+		var str = System.Text.Encoding.UTF8.GetString(arr);
 		buf.Dispose();
 		return str;
 	}
@@ -297,6 +287,87 @@ public class GodotMonoDecompSettings : DecompilerSettings
 		return type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(string[]) || type == typeof(decimal) || type == typeof(Version);
 	}
 
+
+	public static string GetDefaultSettingsJSON()
+	{
+		var settings = new GodotMonoDecompSettings();
+		var formattingOptions = settings.CSharpFormattingOptions;
+		return _GetDefaultSettingsJSON(new GodotMonoDecompSettings(), new DecompilerSettings(), formattingOptions);
+	}
+}
+
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+class GodotMonoDecompSettingsDescription : PropertyInfoWithDefault
+{
+	[JsonPropertyName("brief")]
+	public string Brief { get; set; } = "";
+	[JsonPropertyName("description")]
+	public string Description { get; set; } = "";
+	[JsonPropertyName("group")]
+	public string Group { get; set; } = "";
+
+	[JsonPropertyName("enum_values")]
+	public OrderedDictionary<string, object?>? EnumValues { get; set; }
+
+	[JsonIgnore]
+	private static readonly Regex PascalCaseWordBoundaryRegex = new("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.Compiled);
+
+	private static string GetJSONString(object? value)
+	{
+		JsonTypeInfo? typeInfo = null;
+		switch (value)
+		{
+			case null:
+				return "null";
+			case bool b:
+				return b ? "true" : "false";
+			case int i:
+				return i.ToString();
+			case uint ui:
+				return ui.ToString();
+			case long l:
+				return l.ToString();
+			case ulong ul:
+				return ul.ToString();
+			case float f:
+				return f.ToString();
+			case double d:
+				return d.ToString();
+			case decimal m:
+				return m.ToString();
+			case string s:
+				typeInfo = GodotMonoDecompSettingsSrcGenContext.Default.String;
+				break;
+			case string[] strings:
+				typeInfo = GodotMonoDecompSettingsSrcGenContext.Default.StringArray;
+				break;
+			case Enum e:
+				var underlying = Convert.ChangeType(e, Enum.GetUnderlyingType(e.GetType()), CultureInfo.InvariantCulture);
+				if (underlying is ulong enumUlong)
+				{
+					return enumUlong.ToString();
+				}
+				else
+				{
+					return Convert.ToInt64(underlying, CultureInfo.InvariantCulture).ToString();
+				}
+			default:
+				return Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+		}
+		var opts = new JsonWriterOptions
+		{
+			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+		};
+		var buf = new MemoryStream();
+		var strWriter = new Utf8JsonWriter(buf, opts);
+		JsonSerializer.Serialize(strWriter, value, typeInfo);
+		strWriter.Flush();
+		var arr = buf.ToArray();
+		var str = System.Text.Encoding.UTF8.GetString(arr);
+		buf.Dispose();
+		return str;
+	}
+
 	private static bool ValueIsNumber(object? value)
 	{
 		return value is int || value is uint || value is long || value is ulong || value is float || value is double || value is decimal;
@@ -313,46 +384,9 @@ public class GodotMonoDecompSettings : DecompilerSettings
 		}
 		return false;
 	}
-
-	private static string GetPropertyTypeName(Type propertyType)
+	public GodotMonoDecompSettingsDescription(ReflectedProperty prop, GodotMonoDecompSettings default_settings, string? group_prefix = null)
 	{
-		propertyType = Nullable.GetUnderlyingType(propertyType) ?? propertyType;
-		if (propertyType == typeof(bool))
-		{
-			return "bool";
-		}
-		else if (propertyType == typeof(int))
-		{
-			return "int";
-		}
-		else if (propertyType == typeof(string))
-		{
-			return "String";
-		}
-		else if (propertyType == typeof(string[]))
-		{
-			return "PackedStringArray";
-		}
-		else if (propertyType == typeof(decimal) || propertyType == typeof(float) || propertyType == typeof(double))
-		{
-			return "float";
-		}
-		else if (propertyType.IsEnum)
-		{
-			return GetPropertyTypeName(Enum.GetUnderlyingType(propertyType));
-		}
-		else if (propertyType.IsArray)
-		{
-			return "Array";
-		}
-		else
-		{
-			return "Variant";
-		}
-	}
-
-	private static void WriteSettingEntry(Utf8JsonWriter writer, string name, ReflectedProperty prop, object defaults, string? group_prefix = null)
-	{
+		var jsonName = prop.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? prop.Name;
 		var group = (prop.GetCustomAttribute<CategoryAttribute>()?.Category.Replace('/', '-'))?.Replace("DecompilerSettings.", "") ?? "";
 		// Skip `ProjectExport` group, we override all of its settings
 		if (group == "ProjectExport")
@@ -370,133 +404,79 @@ public class GodotMonoDecompSettings : DecompilerSettings
 				group = group_prefix;
 			}
 		}
-		writer.WriteStartObject();
-		writer.WriteString("name", name);
-		writer.WriteString("brief", PascalCaseWordBoundary.Replace(prop.Name, " ").Replace("Nu Get", "NuGet"));
-		writer.WriteString("description", prop.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "");
-		writer.WriteString("group", group);
-		writer.WriteString("type", GetPropertyTypeName(prop.PropertyType));
 
-		writer.WritePropertyName("default_value");
-		var defaultValue = prop.GetValue(defaults);
-
-		var enumType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
-		if (enumType.IsEnum)
+		var usage = PropertyUsageFlags.PROPERTY_USAGE_NONE;
+		var className = "";
+		var propHint = PROP_HINT_NONE;
+		var propHintString = "";
+		var variantType = "";
+		var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+		var defaultValue = prop.GetValue(default_settings);
+		if (type.IsEnum)
 		{
-			Array values = Enum.GetValuesAsUnderlyingType(enumType);
-			if (values.Length == 0)
+			EnumValues = new OrderedDictionary<string, object?>();
+			variantType = GodotStuff.CSharpTypeToVariantType(type.GetEnumUnderlyingType().Name);
+			className = type.Name;
+			usage |= PropertyUsageFlags.PROPERTY_USAGE_CLASS_IS_ENUM;
+			if (propHint == PROP_HINT_NONE)
 			{
-				WriteJsonValue(writer, defaultValue);
-				writer.WriteEndObject();
-				return;
+				propHint = "ENUM";
 			}
 
-			var hasNullDefaultValue = defaultValue is null;
-			var realDefaultValue = defaultValue;
-			// if defaultValue is null and the underlying type is a number, and the values don't contain 0, then write 0 as the default value
-			if (ValueIsNumber(values.GetValue(0)) && hasNullDefaultValue)
+			Array values = Enum.GetValuesAsUnderlyingType(type);
+			if (values.Length != 0)
 			{
-				if (!ArrayContains(values, 0))
+				var hasNullDefaultValue = defaultValue is null;
+				// if defaultValue is null and the underlying type is a number, and the values don't contain 0, then write 0 as the default value
+				if (ValueIsNumber(values.GetValue(0)) && hasNullDefaultValue)
 				{
-					realDefaultValue = 0;
+					if (!ArrayContains(values, 0))
+					{
+						defaultValue = 0;
+					}
+					else if (!ArrayContains(values, -1))
+					{
+						defaultValue = -1;
+					}
 				}
-				else if (!ArrayContains(values, -1))
+				if (hasNullDefaultValue)
 				{
-					realDefaultValue = -1;
+					EnumValues.Add("Auto-detect", defaultValue);
 				}
-			}
-			WriteJsonValue(writer, realDefaultValue);
-			// Maps each underlying value (as a JSON string key) to its name.
-			writer.WriteStartObject("enum_values");
-			if (hasNullDefaultValue)
-			{
-				writer.WritePropertyName("Auto-detect");
-				WriteJsonValue(writer, realDefaultValue);
-			}
-			foreach (var enumValue in Enum.GetValuesAsUnderlyingType(enumType))
-			{
-				var enumName = Enum.GetName(enumType, enumValue);
-				if (enumName != null)
+				foreach (var enumValue in values)
 				{
-					writer.WritePropertyName(enumName);
-					WriteJsonValue(writer, enumValue);
+					var enumName = Enum.GetName(type, enumValue);
+					if (enumName != null)
+					{
+						EnumValues.TryAdd(enumName, enumValue);
+					}
 				}
 			}
-			writer.WriteEndObject();
 		}
 		else
 		{
-			WriteJsonValue(writer, defaultValue);
+			// there are no usage annotations on C# properties in Godot
+			variantType = GodotStuff.CSharpTypeToVariantType(type.Name);
+			if (variantType == "Object" && string.IsNullOrEmpty(className))
+			{
+				className = GodotStuff.CSharpTypeToGodotType(type.Name);
+			}
+			if ((variantType == "Array" || variantType == "Dictionary") && string.IsNullOrEmpty(propHintString) && propHint == PROP_HINT_NONE)
+			{
+				propHint = variantType.ToUpper();
+				propHintString = GodotStuff.CSharpTypeToGodotType(type.Name);
+			}
 		}
-		writer.WriteEndObject();
+
+		Brief = PascalCaseWordBoundaryRegex.Replace(prop.Name, " ").Replace("Nu Get", "NuGet") ?? "";
+		Description = prop.GetCustomAttribute<DescriptionAttribute>()?.Description ?? "";
+		Group = group;
+		Name = jsonName;
+		Type = variantType;
+		ClassName = className;
+		PropertyHint = propHint;
+		PropertyHintString = propHintString;
+		PropertyUsage = usage;
+		DefaultValue = GetJSONString(defaultValue);
 	}
-
-	private static void WriteJsonValue(Utf8JsonWriter writer, object? value)
-	{
-		switch (value)
-		{
-			case null:
-				writer.WriteNullValue();
-				break;
-			case bool b:
-				writer.WriteBooleanValue(b);
-				break;
-			case int i:
-				writer.WriteNumberValue(i);
-				break;
-			case uint ui:
-				writer.WriteNumberValue(ui);
-				break;
-			case long l:
-				writer.WriteNumberValue(l);
-				break;
-			case ulong ul:
-				writer.WriteNumberValue(ul);
-				break;
-			case float f:
-				writer.WriteNumberValue(f);
-				break;
-			case double d:
-				writer.WriteNumberValue(d);
-				break;
-			case decimal m:
-				writer.WriteNumberValue(m);
-				break;
-			case string[] strings:
-				writer.WriteStartArray();
-				foreach (var str in strings)
-				{
-					writer.WriteStringValue(str);
-				}
-				writer.WriteEndArray();
-				break;
-			case Enum e:
-				// Written as the literal underlying value; names are provided separately via "enum_values".
-				var underlying = Convert.ChangeType(e, Enum.GetUnderlyingType(e.GetType()), CultureInfo.InvariantCulture);
-				if (underlying is ulong enumUlong)
-				{
-					writer.WriteNumberValue(enumUlong);
-				}
-				else
-				{
-					writer.WriteNumberValue(Convert.ToInt64(underlying, CultureInfo.InvariantCulture));
-				}
-				break;
-			default:
-				// Strings, versions, and any other primitive.
-				writer.WriteStringValue(Convert.ToString(value, CultureInfo.InvariantCulture));
-				break;
-		}
-	}
-
-	private static readonly Regex PascalCaseWordBoundary = new("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])", RegexOptions.Compiled);
-
-	public static string GetDefaultSettingsJSON()
-	{
-		var settings = new GodotMonoDecompSettings();
-		var formattingOptions = settings.CSharpFormattingOptions;
-		return _GetDefaultSettingsJSON(new GodotMonoDecompSettings(), new DecompilerSettings(), formattingOptions);
-	}
-
-
 }
