@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Metadata;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
@@ -8,8 +9,149 @@ using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.Semantics;
 using ICSharpCode.Decompiler.TypeSystem;
 using ICSharpCode.Decompiler.Util;
-
+using NuGet.Common;
 namespace GodotMonoDecomp;
+
+// TODO: It's going to be a maintenance burden to keep these enums in sync, figure something out.
+public enum PropertyHint {
+	PROPERTY_HINT_NONE,
+	PROPERTY_HINT_RANGE,
+	PROPERTY_HINT_ENUM,
+	PROPERTY_HINT_ENUM_SUGGESTION,
+	PROPERTY_HINT_EXP_EASING,
+	PROPERTY_HINT_LINK,
+	PROPERTY_HINT_FLAGS,
+	PROPERTY_HINT_LAYERS_2D_RENDER,
+	PROPERTY_HINT_LAYERS_2D_PHYSICS,
+	PROPERTY_HINT_LAYERS_2D_NAVIGATION,
+	PROPERTY_HINT_LAYERS_3D_RENDER,
+	PROPERTY_HINT_LAYERS_3D_PHYSICS,
+	PROPERTY_HINT_LAYERS_3D_NAVIGATION,
+	PROPERTY_HINT_FILE,
+	PROPERTY_HINT_DIR,
+	PROPERTY_HINT_GLOBAL_FILE,
+	PROPERTY_HINT_GLOBAL_DIR,
+	PROPERTY_HINT_RESOURCE_TYPE,
+	PROPERTY_HINT_MULTILINE_TEXT,
+	PROPERTY_HINT_EXPRESSION,
+	PROPERTY_HINT_PLACEHOLDER_TEXT,
+	PROPERTY_HINT_COLOR_NO_ALPHA,
+	PROPERTY_HINT_OBJECT_ID,
+	PROPERTY_HINT_TYPE_STRING,
+	PROPERTY_HINT_NODE_PATH_TO_EDITED_NODE,
+	PROPERTY_HINT_OBJECT_TOO_BIG,
+	PROPERTY_HINT_NODE_PATH_VALID_TYPES,
+	PROPERTY_HINT_SAVE_FILE,
+	PROPERTY_HINT_GLOBAL_SAVE_FILE,
+	PROPERTY_HINT_INT_IS_OBJECTID,
+	PROPERTY_HINT_INT_IS_POINTER,
+	PROPERTY_HINT_ARRAY_TYPE,
+	PROPERTY_HINT_LOCALE_ID,
+	PROPERTY_HINT_LOCALIZABLE_STRING,
+	PROPERTY_HINT_NODE_TYPE,
+	PROPERTY_HINT_HIDE_QUATERNION_EDIT,
+	PROPERTY_HINT_PASSWORD,
+	PROPERTY_HINT_LAYERS_AVOIDANCE,
+	PROPERTY_HINT_DICTIONARY_TYPE,
+	PROPERTY_HINT_TOOL_BUTTON,
+	PROPERTY_HINT_ONESHOT,
+	PROPERTY_HINT_NO_NODEPATH,
+	PROPERTY_HINT_GROUP_ENABLE,
+	PROPERTY_HINT_INPUT_NAME,
+	PROPERTY_HINT_FILE_PATH,
+	PROPERTY_HINT_AUDIO_BUS,
+	PROPERTY_HINT_MAX
+};
+
+public enum PropertyUsageFlags
+{
+	PROPERTY_USAGE_NONE = 0,
+	// 1 << 0
+	PROPERTY_USAGE_STORAGE = 1 << 1,
+	PROPERTY_USAGE_EDITOR = 1 << 2,
+	PROPERTY_USAGE_INTERNAL = 1 << 3,
+	PROPERTY_USAGE_CHECKABLE = 1 << 4,
+	PROPERTY_USAGE_CHECKED = 1 << 5,
+	PROPERTY_USAGE_GROUP = 1 << 6,
+	PROPERTY_USAGE_CATEGORY = 1 << 7,
+	PROPERTY_USAGE_SUBGROUP = 1 << 8,
+	PROPERTY_USAGE_CLASS_IS_BITFIELD = 1 << 9,
+	PROPERTY_USAGE_NO_INSTANCE_STATE = 1 << 10,
+	PROPERTY_USAGE_RESTART_IF_CHANGED = 1 << 11,
+	PROPERTY_USAGE_SCRIPT_VARIABLE = 1 << 12,
+	PROPERTY_USAGE_STORE_IF_NULL = 1 << 13,
+	PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED = 1 << 14,
+	PROPERTY_USAGE_SCRIPT_DEFAULT_VALUE = 1 << 15,
+	PROPERTY_USAGE_CLASS_IS_ENUM = 1 << 16,
+	PROPERTY_USAGE_NIL_IS_VARIANT = 1 << 17,
+	PROPERTY_USAGE_ARRAY = 1 << 18,
+	PROPERTY_USAGE_ALWAYS_DUPLICATE = 1 << 19,
+	PROPERTY_USAGE_NEVER_DUPLICATE = 1 << 20,
+	PROPERTY_USAGE_HIGH_END_GFX = 1 << 21,
+	PROPERTY_USAGE_NODE_PATH_FROM_SCENE_ROOT = 1 << 22,
+	PROPERTY_USAGE_RESOURCE_NOT_PERSISTENT = 1 << 23,
+	PROPERTY_USAGE_KEYING_INCREMENTS = 1 << 24,
+	PROPERTY_USAGE_DEFERRED_SET_RESOURCE = 1 << 25,
+	PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT = 1 << 26,
+	PROPERTY_USAGE_EDITOR_BASIC_SETTING = 1 << 27,
+	PROPERTY_USAGE_READ_ONLY = 1 << 28,
+	PROPERTY_USAGE_SECRET = 1 << 29,
+
+	PROPERTY_USAGE_DEFAULT = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR,
+	PROPERTY_USAGE_NO_EDITOR = PROPERTY_USAGE_STORAGE,
+};
+
+public enum VariantType {
+	NIL,
+
+	// atomic types
+	BOOL,
+	INT,
+	FLOAT,
+	STRING,
+
+	// math types
+	VECTOR2,
+	VECTOR2I,
+	RECT2,
+	RECT2I,
+	VECTOR3,
+	VECTOR3I,
+	TRANSFORM2D,
+	VECTOR4,
+	VECTOR4I,
+	PLANE,
+	QUATERNION,
+	AABB,
+	BASIS,
+	TRANSFORM3D,
+	PROJECTION,
+
+	// misc types
+	COLOR,
+	STRING_NAME,
+	NODE_PATH,
+	RID,
+	OBJECT,
+	CALLABLE,
+	SIGNAL,
+	DICTIONARY,
+	ARRAY,
+
+	// typed arrays
+	PACKED_BYTE_ARRAY,
+	PACKED_INT32_ARRAY,
+	PACKED_INT64_ARRAY,
+	PACKED_FLOAT32_ARRAY,
+	PACKED_FLOAT64_ARRAY,
+	PACKED_STRING_ARRAY,
+	PACKED_VECTOR2_ARRAY,
+	PACKED_VECTOR3_ARRAY,
+	PACKED_COLOR_ARRAY,
+	PACKED_VECTOR4_ARRAY,
+	VARIANT_MAX
+};
+
 
 public class GetFieldInitializerValueVisitor : DepthFirstAstVisitor
 {
@@ -1225,7 +1367,8 @@ public static class GodotStuff
 
 	public static bool IsGodotVariantType(string type)
 	{
-		type = Common.TrimPrefix(type.Trim().TrimEnd(']').TrimEnd('['), "Godot.Collections.");
+
+		type = type.Trim().TrimEnd(']').TrimEnd('[');
 		switch (type)
 		{
 			case "Variant":
@@ -1233,6 +1376,7 @@ public static class GodotStuff
 			case "bool":
 			case "int":
 			case "float":
+			case "string":
 			case "String":
 			case "Vector2":
 			case "Vector2i":
@@ -1357,6 +1501,7 @@ public static class GodotStuff
 			case "Double":
 				subType = "float";
 				break;
+			case "String":
 			case "string":
 				subType = "String";
 				break;
@@ -1438,15 +1583,98 @@ public static class GodotStuff
 		return newType;
 	}
 
-	public static string CSharpTypeToVariantType(string _type)
+	public static string CSharpTypeToVariantTypeString(string type)
 	{
-		string type = CSharpTypeToGodotType(_type).Split('[')[0].Split('<')[0].Trim();
+		type = CSharpTypeToGodotType(Common.RemoveNamespaceFromTypeName(type)).Split('[')[0].Split('<')[0].Trim();
 		if (!IsGodotVariantType(type))
 		{
 			return "Object";
 		}
 		return type;
 	}
+
+	public static VariantType CSharpTypeToVariantType(string type)
+	{
+		type = CSharpTypeToGodotType(Common.RemoveNamespaceFromTypeName(type)).Split('[')[0].Split('<')[0].Trim();
+		switch (type)
+		{
+			case "Void":
+			case "void":
+			case "Variant":
+				return VariantType.NIL;
+			case "PackedByteArray":
+				return VariantType.PACKED_BYTE_ARRAY;
+			case "PackedInt32Array":
+				return VariantType.PACKED_INT32_ARRAY;
+			case "PackedInt64Array":
+				return VariantType.PACKED_INT64_ARRAY;
+			case "PackedFloat32Array":
+				return VariantType.PACKED_FLOAT32_ARRAY;
+			case "PackedFloat64Array":
+				return VariantType.PACKED_FLOAT64_ARRAY;
+			case "PackedStringArray":
+				return VariantType.PACKED_STRING_ARRAY;
+			case "PackedVector2Array":
+				return VariantType.PACKED_VECTOR2_ARRAY;
+			case "PackedVector3Array":
+				return VariantType.PACKED_VECTOR3_ARRAY;
+			case "PackedColorArray":
+				return VariantType.PACKED_COLOR_ARRAY;
+			case "PackedVector4Array":
+				return VariantType.PACKED_VECTOR4_ARRAY;
+			default:
+				break;
+		}
+		if (!IsGodotVariantType(type))
+		{
+			return VariantType.OBJECT;
+		}
+		try{
+			return (VariantType)Enum.Parse(typeof(VariantType), Common.CamelCaseToSnakeCase(type).ToUpper());
+		}
+		catch
+		{
+			Logging.Debug($"Failed to parse variant type: {type}");
+			return VariantType.NIL;
+		}
+	}
+	public static PropertyHint StringToPropertyHint(string hint)
+	{
+		hint = Common.CamelCaseToSnakeCase(hint).ToUpper();
+		if (!hint.StartsWith("PROPERTY_HINT_"))
+		{
+			hint = "PROPERTY_HINT_" + hint;
+		}
+		try
+		{
+			return (PropertyHint)Enum.Parse(typeof(PropertyHint), hint);
+		}
+		catch
+		{
+			Logging.Debug($"Failed to parse property hint: {hint}");
+			return PropertyHint.PROPERTY_HINT_NONE;
+		}
+	}
+
+	// Mostly for testing purposes
+	public static PropertyUsageFlags StringToPropertyUsage(string usage)
+	{
+		usage = Common.CamelCaseToSnakeCase(usage).ToUpper();
+		if (!usage.StartsWith("PROPERTY_USAGE_"))
+		{
+			usage = "PROPERTY_USAGE_" + usage;
+		}
+		try
+		{
+			return (PropertyUsageFlags)Enum.Parse(typeof(PropertyUsageFlags), usage);
+		}
+		catch
+		{
+			Logging.Debug($"Failed to parse property usage: {usage}");
+			return PropertyUsageFlags.PROPERTY_USAGE_NONE;
+		}
+	}
+
 
 	public static string? ReplaceMemberReference(MemberReferenceExpression memberReferenceExpression, GodotProjectDecompiler? godotDecompiler = null)
 	{

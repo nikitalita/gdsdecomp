@@ -215,20 +215,42 @@ public static class Common
 		}
 	}
 
+	public static string RemoveNamespaceFromTypeName(string input)
+	{
+		if (string.IsNullOrEmpty(input))
+		{
+			return input;
+		}
+		if (input.Contains("::"))
+		{
+			input = input.Substring(input.LastIndexOf("::") + 2);
+		}
+		if (input.Contains("."))
+		{
+			input = input.Substring(input.LastIndexOf(".") + 1);
+		}
+		return input;
+	}
+
 	public static string CamelCaseToSnakeCase(string input)
 	{
 		if (string.IsNullOrEmpty(input))
 			return input;
 
 		StringBuilder sb = new StringBuilder();
-		for (int i = 0; i < input.Length; i++)
+		sb.Append(char.ToLowerInvariant(input[0]));
+		for (int i = 1; i < input.Length - 1; i++) // Don't add an underscore if the first or last character is uppercase
 		{
 			char c = input[i];
-			if (char.IsUpper(c) && i > 0 && char.IsLower(input[i - 1]))
+			if (char.IsUpper(c) && char.IsLower(input[i - 1]))
 			{
 				sb.Append('_');
 			}
 			sb.Append(char.ToLowerInvariant(c));
+		}
+		if (input.Length > 1)
+		{
+			sb.Append(char.ToLowerInvariant(input[input.Length - 1]));
 		}
 		return sb.ToString();
 	}

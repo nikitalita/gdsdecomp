@@ -453,4 +453,60 @@ static public class Lib
 		}
 		return StringToHGlobalUtf8(decompiler.Settings.ToJson(false));
 	}
+
+	// for testing purposes
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyHintMax")]
+	public static int AOTGetPropertyHintMax()
+	{
+		return (int)PropertyHint.PROPERTY_HINT_MAX;
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyHintValue")]
+	public static int AOTGetPropertyHintValue(IntPtr hintName)
+	{
+		return (int)GodotStuff.StringToPropertyHint(Marshal.PtrToStringUTF8(hintName) ?? string.Empty);
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyHintString")]
+	public static IntPtr AOTGetPropertyHintString(int hint)
+	{
+		return StringToHGlobalUtf8(Enum.GetName(typeof(PropertyHint), (PropertyHint)hint) ?? string.Empty);
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetVariantTypeMax")]
+	public static int AOTGetVariantTypeMax()
+	{
+		return (int)VariantType.VARIANT_MAX;
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetVariantTypeString")]
+	public static IntPtr AOTGetVariantTypeName(int variantType)
+	{
+		return StringToHGlobalUtf8(Enum.GetName(typeof(VariantType), (VariantType)variantType) ?? string.Empty);
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetVariantTypeValue")]
+	public static int AOTGetVariantTypeValue(IntPtr variantTypeName)
+	{
+		return (int)GodotStuff.CSharpTypeToVariantType(Marshal.PtrToStringUTF8(variantTypeName) ?? string.Empty);
+	}
+
+	// Property Usage
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyUsageDefault")]
+	public static int AOTGetPropertyUsageDefault()
+	{
+		return (int)PropertyUsageFlags.PROPERTY_USAGE_DEFAULT;
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyUsageValue")]
+	public static int AOTGetPropertyUsageValue(IntPtr usageName)
+	{
+		return (int)GodotStuff.StringToPropertyUsage(Marshal.PtrToStringUTF8(usageName) ?? string.Empty);
+	}
+
+	[UnmanagedCallersOnly(EntryPoint = "GodotMonoDecomp_GetPropertyUsageString")]
+	public static IntPtr AOTGetPropertyUsageString(int usage)
+	{
+		return StringToHGlobalUtf8(Enum.GetName(typeof(PropertyUsageFlags), (PropertyUsageFlags)usage) ?? string.Empty);
+	}
 }

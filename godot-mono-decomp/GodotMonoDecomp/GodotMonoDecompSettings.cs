@@ -407,9 +407,9 @@ class GodotMonoDecompSettingsDescription : PropertyInfoWithDefault
 
 		var usage = PropertyUsageFlags.PROPERTY_USAGE_NONE;
 		var className = "";
-		var propHint = PROP_HINT_NONE;
+		var propHint = PropertyHint.PROPERTY_HINT_NONE;
 		var propHintString = "";
-		var variantType = "";
+		var variantType = VariantType.NIL;
 		var type = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
 		var defaultValue = prop.GetValue(default_settings);
 		if (type.IsEnum)
@@ -418,9 +418,9 @@ class GodotMonoDecompSettingsDescription : PropertyInfoWithDefault
 			variantType = GodotStuff.CSharpTypeToVariantType(type.GetEnumUnderlyingType().Name);
 			className = type.Name;
 			usage |= PropertyUsageFlags.PROPERTY_USAGE_CLASS_IS_ENUM;
-			if (propHint == PROP_HINT_NONE)
+			if (propHint == PropertyHint.PROPERTY_HINT_NONE)
 			{
-				propHint = "ENUM";
+				propHint = PropertyHint.PROPERTY_HINT_ENUM;
 			}
 
 			Array values = Enum.GetValuesAsUnderlyingType(type);
@@ -457,14 +457,21 @@ class GodotMonoDecompSettingsDescription : PropertyInfoWithDefault
 		{
 			// there are no usage annotations on C# properties in Godot
 			variantType = GodotStuff.CSharpTypeToVariantType(type.Name);
-			if (variantType == "Object" && string.IsNullOrEmpty(className))
+			if (variantType == VariantType.OBJECT && string.IsNullOrEmpty(className))
 			{
 				className = GodotStuff.CSharpTypeToGodotType(type.Name);
+				if (propHint == PropertyHint.PROPERTY_HINT_NONE) {
+					propHint = PropertyHint.PROPERTY_HINT_RESOURCE_TYPE;
+					propHintString = type.Name;
+				}
 			}
-			if ((variantType == "Array" || variantType == "Dictionary") && string.IsNullOrEmpty(propHintString) && propHint == PROP_HINT_NONE)
+			if (variantType == VariantType.ARRAY || variantType == VariantType.DICTIONARY)
 			{
-				propHint = variantType.ToUpper();
-				propHintString = GodotStuff.CSharpTypeToGodotType(type.Name);
+				usage |= variantType == VariantType.ARRAY ? PropertyUsageFlags.PROPERTY_USAGE_ARRAY : 0;
+				if (propHint == PropertyHint.PROPERTY_HINT_NONE) {
+					propHint = variantType == VariantType.ARRAY ? PropertyHint.PROPERTY_HINT_ARRAY_TYPE : PropertyHint.PROPERTY_HINT_DICTIONARY_TYPE;
+					propHintString = GodotStuff.CSharpTypeToGodotType(type.Name);
+				}
 			}
 		}
 
@@ -474,9 +481,9 @@ class GodotMonoDecompSettingsDescription : PropertyInfoWithDefault
 		Name = jsonName;
 		Type = variantType;
 		ClassName = className;
-		PropertyHint = propHint;
-		PropertyHintString = propHintString;
-		PropertyUsage = usage;
+		Hint = propHint;
+		HintString = propHintString;
+		Usage = usage;
 		DefaultValue = GetJSONString(defaultValue);
 	}
 }

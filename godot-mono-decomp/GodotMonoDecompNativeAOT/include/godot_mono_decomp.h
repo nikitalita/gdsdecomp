@@ -167,6 +167,19 @@ typedef void (*logCallbackFunc_t)(void*, int, const char*, const char*, const ch
  */
 void GodotMonoDecomp_SetLogCallback(logCallbackFunc_t callback, void* userData, GodotMonoDecompLogLevel logLevel, bool includeCallSiteForNonWarningMessages);
 
+#ifdef TESTS_ENABLED
+// for testing
+int GodotMonoDecomp_GetPropertyHintMax();
+int GodotMonoDecomp_GetPropertyHintValue(const char* hintName);
+const char* GodotMonoDecomp_GetPropertyHintString(int hint);
+int GodotMonoDecomp_GetVariantTypeMax();
+int GodotMonoDecomp_GetVariantTypeValue(const char* variantTypeName);
+const char* GodotMonoDecomp_GetVariantTypeString(int variantType);
+int GodotMonoDecomp_GetPropertyUsageDefault();
+int GodotMonoDecomp_GetPropertyUsageValue(const char* usageName);
+const char* GodotMonoDecomp_GetPropertyUsageString(int usage);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

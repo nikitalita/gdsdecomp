@@ -20,76 +20,36 @@ internal partial class SISrcGenContext : JsonSerializerContext
 {
 }
 
-public enum PropertyUsageFlags
-{
-	PROPERTY_USAGE_NONE = 0,
-	// 1 << 0
-	PROPERTY_USAGE_STORAGE = 1 << 1,
-	PROPERTY_USAGE_EDITOR = 1 << 2,
-	PROPERTY_USAGE_INTERNAL = 1 << 3,
-	PROPERTY_USAGE_CHECKABLE = 1 << 4,
-	PROPERTY_USAGE_CHECKED = 1 << 5,
-	PROPERTY_USAGE_GROUP = 1 << 6,
-	PROPERTY_USAGE_CATEGORY = 1 << 7,
-	PROPERTY_USAGE_SUBGROUP = 1 << 8,
-	PROPERTY_USAGE_CLASS_IS_BITFIELD = 1 << 9,
-	PROPERTY_USAGE_NO_INSTANCE_STATE = 1 << 10,
-	PROPERTY_USAGE_RESTART_IF_CHANGED = 1 << 11,
-	PROPERTY_USAGE_SCRIPT_VARIABLE = 1 << 12,
-	PROPERTY_USAGE_STORE_IF_NULL = 1 << 13,
-	PROPERTY_USAGE_UPDATE_ALL_IF_MODIFIED = 1 << 14,
-	PROPERTY_USAGE_SCRIPT_DEFAULT_VALUE = 1 << 15,
-	PROPERTY_USAGE_CLASS_IS_ENUM = 1 << 16,
-	PROPERTY_USAGE_NIL_IS_VARIANT = 1 << 17,
-	PROPERTY_USAGE_ARRAY = 1 << 18,
-	PROPERTY_USAGE_ALWAYS_DUPLICATE = 1 << 19,
-	PROPERTY_USAGE_NEVER_DUPLICATE = 1 << 20,
-	PROPERTY_USAGE_HIGH_END_GFX = 1 << 21,
-	PROPERTY_USAGE_NODE_PATH_FROM_SCENE_ROOT = 1 << 22,
-	PROPERTY_USAGE_RESOURCE_NOT_PERSISTENT = 1 << 23,
-	PROPERTY_USAGE_KEYING_INCREMENTS = 1 << 24,
-	PROPERTY_USAGE_DEFERRED_SET_RESOURCE = 1 << 25,
-	PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT = 1 << 26,
-	PROPERTY_USAGE_EDITOR_BASIC_SETTING = 1 << 27,
-	PROPERTY_USAGE_READ_ONLY = 1 << 28,
-	PROPERTY_USAGE_SECRET = 1 << 29,
-
-	PROPERTY_USAGE_DEFAULT = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR,
-	PROPERTY_USAGE_NO_EDITOR = PROPERTY_USAGE_STORAGE,
-};
 
 public class PropertyInfoWithDefault
 {
-	[JsonIgnore]
-	public const string PROP_HINT_NONE = "None";
-
 	[JsonPropertyName("name")]
 	public string Name { get; set; } = "";
 	[JsonPropertyName("type")]
-	public string Type { get; set; } = "Nil";
+	public VariantType Type { get; set; } = VariantType.NIL;
 
 	[JsonPropertyName("class_name")]
 	public string ClassName { get; set; } = "";
 
 	[JsonPropertyName("hint")]
-	public string PropertyHint { get; set; } = PROP_HINT_NONE;
+	public PropertyHint Hint { get; set; } = PropertyHint.PROPERTY_HINT_NONE;
 	[JsonPropertyName("hint_string")]
-	public string PropertyHintString { get; set; } = "";
+	public string HintString { get; set; } = "";
 	[JsonPropertyName("usage")]
-	public PropertyUsageFlags PropertyUsage { get; set; }
+	public PropertyUsageFlags Usage { get; set; }
 
 	[JsonPropertyName("default_value")]
 	public string DefaultValue { get; set; } = "";
 
-	public PropertyInfoWithDefault(string name, string type, string class_name, string propertyHint, string propertyHintString, PropertyUsageFlags propertyUsage, string defaultValue)
+	public PropertyInfoWithDefault(string name, VariantType type, string class_name, PropertyHint propertyHint, string propertyHintString, PropertyUsageFlags propertyUsage, string defaultValue)
 	{
 		Name = name;
 		Type = type;
 		ClassName = class_name;
 		DefaultValue = defaultValue;
-		PropertyHint = string.IsNullOrEmpty(propertyHint) ? PROP_HINT_NONE : Common.CamelCaseToSnakeCase(propertyHint).ToUpper();
-		PropertyHintString = propertyHintString;
-		PropertyUsage = propertyUsage;
+		Hint = propertyHint;
+		HintString = propertyHintString;
+		Usage = propertyUsage;
 	}
 
 	protected PropertyInfoWithDefault()
@@ -98,12 +58,12 @@ public class PropertyInfoWithDefault
 
 	public static PropertyInfoWithDefault VoidProp()
 	{
-		return new PropertyInfoWithDefault("", "Nil", "", "", "", PropertyUsageFlags.PROPERTY_USAGE_NONE, "");
+		return new PropertyInfoWithDefault("", VariantType.NIL, "", PropertyHint.PROPERTY_HINT_NONE, "", PropertyUsageFlags.PROPERTY_USAGE_NONE, "");
 	}
 
 	public static PropertyInfoWithDefault FromSymbolOrType(object entity, SyntaxTree syntaxTree, GodotProjectDecompiler projectDecompiler)
 	{
-		string propHint = PROP_HINT_NONE;
+		PropertyHint propHint = PropertyHint.PROPERTY_HINT_NONE;
 		string propHintString = "";
 		string defaultValue = "";
 		IType? retType = null;
@@ -133,7 +93,7 @@ public class PropertyInfoWithDefault
 						hintValue = longVal;
 					}
 				}
-				propHint = Common.GetEnumValueName(exportAttr.FixedArguments[0].Type, hintValue, PROP_HINT_NONE);
+				propHint = GodotStuff.StringToPropertyHint(Common.GetEnumValueName(exportAttr.FixedArguments[0].Type, hintValue, "NONE"));
 				propHintString = exportAttr.FixedArguments[1].Value?.ToString() ?? "";
 			}
 
@@ -197,21 +157,27 @@ public class PropertyInfoWithDefault
 		if (isEnum)
 		{
 			usage |= PropertyUsageFlags.PROPERTY_USAGE_CLASS_IS_ENUM;
-			if (propHint == PROP_HINT_NONE)
+			if (propHint == PropertyHint.PROPERTY_HINT_NONE)
 			{
-				propHint = "ENUM";
+				propHint = PropertyHint.PROPERTY_HINT_ENUM;
 			}
 		}
-		// there are no usage annotations on C# properties in Godot
 		var variantType = GodotStuff.CSharpTypeToVariantType(retTypeName);
-		if (variantType == "Object" && string.IsNullOrEmpty(className))
+		if (variantType == VariantType.OBJECT && string.IsNullOrEmpty(className))
 		{
 			className = GodotStuff.CSharpTypeToGodotType(retTypeName);
+			if (propHint == PropertyHint.PROPERTY_HINT_NONE) {
+				propHint = PropertyHint.PROPERTY_HINT_RESOURCE_TYPE;
+				propHintString = retTypeName;
+			}
 		}
-		if ((variantType == "Array" || variantType == "Dictionary") && string.IsNullOrEmpty(propHintString) && propHint == PROP_HINT_NONE)
+		if (variantType == VariantType.ARRAY || variantType == VariantType.DICTIONARY)
 		{
-			propHint = variantType.ToUpper();
-			propHintString = GodotStuff.CSharpTypeToGodotType(retTypeName);
+			usage |= variantType == VariantType.ARRAY ? PropertyUsageFlags.PROPERTY_USAGE_ARRAY : 0;
+			if (string.IsNullOrEmpty(propHintString) && propHint == PropertyHint.PROPERTY_HINT_NONE) {
+				propHint = variantType == VariantType.ARRAY ? PropertyHint.PROPERTY_HINT_ARRAY_TYPE : PropertyHint.PROPERTY_HINT_DICTIONARY_TYPE;
+				propHintString = GodotStuff.CSharpTypeToGodotType(retTypeName);
+			}
 		}
 
 		return new PropertyInfoWithDefault(name, variantType, className, propHint, propHintString, usage, defaultValue);
