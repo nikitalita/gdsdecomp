@@ -10,6 +10,7 @@
 #include "gdre_version.gen.h"
 
 GDREConfig *GDREConfig::singleton = nullptr;
+String GDREConfig::config_path_override;
 
 GDREConfig *GDREConfig::get_singleton() {
 	return singleton;
@@ -154,15 +155,21 @@ TypedArray<GDREConfigSetting> GDREConfig::get_all_settings() const {
 	return settings;
 }
 
-void GDREConfig::load_config() {
-	settings.clear();
-
+void GDREConfig::reset_all_settings(bool p_clear) {
+	if (p_clear) {
+		settings.clear();
+		ephemeral_settings.clear();
+	}
 	for (const auto &[key, setting] : default_settings) {
 		if (setting->is_virtual_setting()) {
 			continue;
 		}
 		set_setting(setting->get_full_name(), setting->get_default_value(), setting->is_ephemeral());
 	}
+}
+
+void GDREConfig::load_config() {
+	reset_all_settings(false);
 
 	auto cfg_path = get_config_path();
 	if (FileAccess::exists(cfg_path)) {
@@ -179,7 +186,14 @@ void GDREConfig::load_config() {
 	}
 }
 
+void GDREConfig::set_config_path_override(const String &p_path) {
+	config_path_override = p_path;
+}
+
 String GDREConfig::get_config_path() {
+	if (!config_path_override.is_empty()) {
+		return config_path_override;
+	}
 	return GDRESettings::get_gdre_user_path().path_join("gdre_settings.cfg");
 }
 
@@ -230,6 +244,10 @@ void GDREConfig::set_setting(const String &p_setting, const Variant &p_value, bo
 bool GDREConfig::has_setting(const String &p_setting) const {
 	String full_name = get_full_name(p_setting);
 	return settings.contains(full_name) || ephemeral_settings.contains(full_name);
+}
+
+bool GDREConfig::is_ephemeral_setting(const String &p_setting) const {
+	return ephemeral_settings.contains(get_full_name(p_setting));
 }
 
 Variant GDREConfig::get_setting(const String &p_setting, const Variant &p_default_value) const {
@@ -528,6 +546,7 @@ void GDREConfig::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_all_settings"), &GDREConfig::get_all_settings);
 	ClassDB::bind_method(D_METHOD("load_config"), &GDREConfig::load_config);
 	ClassDB::bind_method(D_METHOD("save_config"), &GDREConfig::save_config);
+	ClassDB::bind_method(D_METHOD("reset_all_settings"), &GDREConfig::reset_all_settings);
 	ClassDB::bind_method(D_METHOD("set_setting", "setting", "value", "force_ephemeral"), &GDREConfig::set_setting, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("has_setting", "setting"), &GDREConfig::has_setting);
 	ClassDB::bind_method(D_METHOD("get_setting", "setting", "default_value"), &GDREConfig::get_setting, DEFVAL(Variant()));

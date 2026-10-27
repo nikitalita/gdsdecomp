@@ -3,9 +3,17 @@
 #include "core/io/resource_importer.h"
 #include "modules/vorbis/audio_stream_ogg_vorbis.h"
 #include "test_common.h"
+#include "test_config_helpers.inc"
 #include "tests/test_macros.h"
 #include "utility/common.h"
+#include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
+#include "bytecode/bytecode_versions.h"
+#include "compat/fake_gdscript.h"
+#include "compat/visual_shader_compat.h"
+#include "core/io/missing_resource.h"
+#include "core/version_generated.gen.h"
+#include "modules/gdscript/gdscript.h"
 #include <compat/resource_compat_text.h>
 #include <compat/resource_loader_compat.h>
 #include <core/object/class_db.h>
@@ -282,6 +290,68 @@ TEST_CASE("[GDSDecomp][ResourceExport] Export bmfont") {
 		SUBCASE(vformat("%s: Test export bmfont", version).utf8().get_data()) {
 			test_export_bmfont(version);
 		}
+	}
+}
+
+TEST_CASE("[GDSDecomp][ResourceExport][ConfigTest] Recovery/execute_visual_shader_node_scripts") {
+	{
+		// Real scripts can only be created if the GDScript language is up; otherwise there is nothing to test.
+		Ref<GDScript> probe;
+		probe.instantiate();
+		probe->set_source_code("extends RefCounted\n");
+		if (probe->reload() != OK) {
+			MESSAGE("GDScript can't compile scripts in this environment, skipping");
+			return;
+		}
+	}
+	static const char *script_source = "@tool\nextends VisualShaderNodeCustom\n\nfunc _get_name():\n\treturn \"ConfigTestNode\"\n";
+
+	Ref<FakeGDScript> fake_script;
+	fake_script.instantiate();
+	fake_script->set_override_bytecode_revision(GDScriptDecompVersion::LATEST_GDSCRIPT_COMMIT);
+	fake_script->set_source_code(script_source);
+	REQUIRE(fake_script->is_loaded());
+
+	Ref<MissingResource> missing;
+	missing.instantiate();
+	missing->set_original_class("VisualShaderNodeCustom");
+	missing->set_recording_properties(true);
+	missing->set_script(fake_script);
+
+	Ref<VisualShaderNodeCustomConverterCompat> converter;
+	converter.instantiate();
+	REQUIRE(converter->handles_type("VisualShaderNodeCustom", GODOT_VERSION_MAJOR));
+
+	auto get_real_script = [](const Ref<Resource> &p_res) -> Ref<GDScript> {
+		return p_res->get_script();
+	};
+
+	SUBCASE("Disabled by default: the script is not executed") {
+		CHECK_FALSE(bool(GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS)));
+		ERR_PRINT_OFF;
+		Error err = OK;
+		Ref<Resource> converted = converter->convert(missing, ResourceInfo::REAL_LOAD, GODOT_VERSION_MAJOR, &err);
+		ERR_PRINT_ON;
+		REQUIRE(converted.is_valid());
+		CHECK(Object::cast_to<VisualShaderNodeCustom>(converted.ptr()) != nullptr);
+		CHECK(get_real_script(converted).is_null());
+	}
+	SUBCASE("Enabled: the script is compiled and attached") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS, true);
+		Error err = OK;
+		Ref<Resource> converted = converter->convert(missing, ResourceInfo::REAL_LOAD, GODOT_VERSION_MAJOR, &err);
+		REQUIRE(converted.is_valid());
+		CHECK(Object::cast_to<VisualShaderNodeCustom>(converted.ptr()) != nullptr);
+		Ref<GDScript> real_script = get_real_script(converted);
+		REQUIRE(real_script.is_valid());
+		CHECK(real_script->get_source_code().contains("ConfigTestNode"));
+	}
+	SUBCASE("Enabled, but not a real load: the script is still not executed") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_EXECUTE_VISUAL_SHADER_NODE_SCRIPTS, true);
+		Error err = OK;
+		Ref<Resource> converted = converter->convert(missing, ResourceInfo::FAKE_LOAD, GODOT_VERSION_MAJOR, &err);
+		REQUIRE(converted.is_valid());
+		CHECK(get_real_script(converted).is_null());
 	}
 }
 

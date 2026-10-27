@@ -1,10 +1,14 @@
 #include "test_common.h"
 #include "tests/test_macros.h"
 
+#include "core/io/dir_access.h"
+#include "core/io/file_access.h"
 #include "core/os/main_loop.h"
 #include "main/gdre_main_loop.h"
 #include "servers/audio/audio_driver.h"
 #include "servers/audio/audio_server.h"
+#include <utility/common.h>
+#include <utility/gdre_config.h>
 #include <utility/gdre_settings.h>
 
 TEST_FORCE_LINK(test_common)
@@ -16,6 +20,10 @@ String get_gdsdecomp_path() {
 
 String get_tmp_path() {
 	return get_gdsdecomp_path().path_join(".tmp");
+}
+
+String get_config_test_path() {
+	return get_tmp_path().path_join("config_tests").path_join("gdre_settings_test.cfg");
 }
 
 String get_test_resources_path() {
@@ -152,6 +160,33 @@ struct GDRETestListener : public doctest::IReporter {
 	XRServer *xr_server = nullptr;
 #endif // XR_DISABLED
 	// SignalWatcher *signal_watcher = nullptr;
+	bool is_config_test = false;
+
+	static bool is_config_test_name(const doctest::TestCaseData &p_in) {
+		return String(p_in.m_name).contains("[ConfigTest]");
+	}
+
+	// Puts GDREConfig into a pristine state: the config file is redirected to a temp path (so that the user's
+	// real config is never read or written), and every setting is reset to its default.
+	static void begin_config_test() {
+		String path = get_config_test_path();
+		gdre::ensure_dir(path.get_base_dir());
+		if (FileAccess::exists(path)) {
+			DirAccess::remove_absolute(path);
+		}
+		GDREConfig::set_config_path_override(path);
+		GDREConfig::get_singleton()->reset_all_settings(true);
+	}
+
+	static void end_config_test() {
+		String path = get_config_test_path();
+		GDREConfig::get_singleton()->reset_all_settings(true);
+		GDREConfig::set_config_path_override(String());
+		if (FileAccess::exists(path)) {
+			DirAccess::remove_absolute(path);
+		}
+	}
+
 public:
 	GDRETestListener(const doctest::ContextOptions &p_in) {}
 
@@ -162,6 +197,11 @@ public:
 
 	void test_case_start(const doctest::TestCaseData &p_in) override {
 		GDREMainLoop::set_is_testing(true);
+		// This has to come first; the recovery setup below returns early.
+		is_config_test = is_config_test_name(p_in);
+		if (is_config_test) {
+			begin_config_test();
+		}
 		String name = String(p_in.m_name);
 		[[maybe_unused]] String suite_name = String(p_in.m_test_suite);
 		if (name.contains("[ProjectRecovery]") || name.contains("[FakeScript]")) {
@@ -184,6 +224,10 @@ public:
 	}
 
 	void test_case_end(const doctest::CurrentTestCaseStats &) override {
+		if (is_config_test) {
+			end_config_test();
+			is_config_test = false;
+		}
 #ifndef XR_DISABLED
 		if (XRServer::get_singleton() && XRServer::get_singleton() == xr_server) {
 			memdelete(xr_server);
@@ -214,8 +258,13 @@ public:
 		// memdelete(signal_watcher);
 	}
 
-	void test_case_reenter(const doctest::TestCaseData &) override {
+	void test_case_reenter(const doctest::TestCaseData &p_in) override {
 		reinitialize();
+		// doctest re-enters the test case once per subcase, don't let settings leak between them.
+		if (is_config_test_name(p_in)) {
+			is_config_test = true;
+			begin_config_test();
+		}
 	}
 
 	void subcase_start(const doctest::SubcaseSignature &) override {

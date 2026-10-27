@@ -2,10 +2,13 @@
 #include "tests/test_macros.h"
 
 #include "bytecode/bytecode_base.h"
+#include "test_config_helpers.inc"
 #include "utility/common.h"
+#include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
 
 #include <core/io/pck_packer.h>
+#include <modules/zip/zip_packer.h>
 #include <core/io/resource_format_binary.h>
 #include <modules/gdscript/gdscript_tokenizer_buffer.h>
 #include <scene/resources/resource_format_text.h>
@@ -266,6 +269,84 @@ TEST_CASE("[GDSDecomp][ProjectLoading] Check opening PCK with custom pack source
 	gdre::rimraf(tmp_test_file);
 	gdre::rimraf(tmp_pck_path);
 }
+// Creates a PCK that contains a project config and an embedded zip pack (which has `embedded_only.txt` in it).
+static Error create_pck_with_embedded_zip(const String &p_pck_path, const String &p_tmp_dir) {
+	ERR_FAIL_COND_V(gdre::ensure_dir(p_tmp_dir) != OK, ERR_FILE_CANT_WRITE);
+	String tmp_project_path = p_tmp_dir.path_join("project.binary");
+	ERR_FAIL_NULL_V(ProjectSettings::get_singleton(), ERR_UNCONFIGURED);
+	ProjectSettings::get_singleton()->save_custom(tmp_project_path);
+
+	String tmp_zip_path = p_tmp_dir.path_join("embedded.zip");
+	{
+		Ref<ZIPPacker> zip;
+		zip.instantiate();
+		ERR_FAIL_COND_V(zip->open(tmp_zip_path, ZIPPacker::APPEND_CREATE) != OK, ERR_FILE_CANT_WRITE);
+		// is_zip_file_pack() recognizes zips as packs if they have a project config or a `.godot/` dir
+		const char *contents = "embedded";
+		PackedByteArray data;
+		data.resize(strlen(contents));
+		memcpy(data.ptrw(), contents, strlen(contents));
+		for (const String &name : Vector<String>{ ".godot/embedded_marker.txt", "embedded_only.txt" }) {
+			ERR_FAIL_COND_V(zip->start_file(name) != OK, ERR_FILE_CANT_WRITE);
+			ERR_FAIL_COND_V(zip->write_file(data) != OK, ERR_FILE_CANT_WRITE);
+			ERR_FAIL_COND_V(zip->close_file() != OK, ERR_FILE_CANT_WRITE);
+		}
+		ERR_FAIL_COND_V(zip->close() != OK, ERR_FILE_CANT_WRITE);
+	}
+
+	HashMap<String, String> files = {
+		{ "res://project.binary", tmp_project_path },
+		{ "res://embedded/embedded.zip", tmp_zip_path },
+	};
+	return create_test_pck(p_pck_path, files);
+}
+
+TEST_CASE("[GDSDecomp][ProjectLoading][ConfigTest] Recovery/load_embedded_zips controls loading of embedded zips") {
+	GDRESettings *settings = GDRESettings::get_singleton();
+	REQUIRE(settings);
+	const String tmp_dir = get_tmp_path().path_join("embedded_zip_test");
+	const String pck_path = tmp_dir.path_join("embedded_zip_test.pck");
+	REQUIRE_EQ(create_pck_with_embedded_zip(pck_path, tmp_dir), OK);
+	static constexpr const char *embedded_file = "res://embedded_only.txt";
+
+	SUBCASE("Default: embedded zips are loaded") {
+		CHECK(bool(GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS)));
+		REQUIRE_EQ(settings->load_project({ pck_path }, false), OK);
+		CHECK(settings->has_path_loaded("res://embedded/embedded.zip"));
+		CHECK(settings->has_path_loaded(embedded_file));
+		CHECK_EQ(settings->unload_project(), OK);
+	}
+	SUBCASE("Enabled: embedded zips are loaded") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, true);
+		REQUIRE_EQ(settings->load_project({ pck_path }, false), OK);
+		CHECK(settings->has_path_loaded(embedded_file));
+		CHECK_EQ(settings->unload_project(), OK);
+	}
+	SUBCASE("Disabled: embedded zips are not loaded") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, false);
+		REQUIRE_EQ(settings->load_project({ pck_path }, false), OK);
+		// The zip itself is in the pck, but its contents were not mounted
+		CHECK(settings->has_path_loaded("res://embedded/embedded.zip"));
+		CHECK_FALSE(settings->has_path_loaded(embedded_file));
+		CHECK_EQ(settings->unload_project(), OK);
+	}
+	SUBCASE("Embedded zips are loaded when the setting is enabled after the project has been loaded") {
+		{
+			TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, false);
+			REQUIRE_EQ(settings->load_project({ pck_path }, false), OK);
+			CHECK_FALSE(settings->has_path_loaded(embedded_file));
+			// still disabled; updating must not load them
+			settings->update_from_ephemeral_settings();
+			CHECK_FALSE(settings->has_path_loaded(embedded_file));
+		}
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_LOAD_EMBEDDED_ZIPS, true);
+		settings->update_from_ephemeral_settings();
+		CHECK(settings->has_path_loaded(embedded_file));
+		CHECK_EQ(settings->unload_project(), OK);
+	}
+	gdre::rimraf(tmp_dir);
+}
+
 // Disabling this for now; fragile and kind of redundant.
 #if 0
 static constexpr const char *const export_presets =

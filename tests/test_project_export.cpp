@@ -1,11 +1,14 @@
 #include "tests/test_macros.h"
 
 #include "test_common.h"
+#include "test_config_helpers.inc"
 
 #include "core/io/json.h"
+#include "core/os/os.h"
 
 #include "exporters/export_report.h"
 #include "utility/common.h"
+#include "utility/gdre_config.h"
 #include "utility/gdre_settings.h"
 #include "utility/import_exporter.h"
 #include "utility/pck_dumper.h"
@@ -128,5 +131,231 @@ TEST_CASE("[GDSDecomp][ProjectRecovery] ([SceneTree]) Recover projects ") {
 		}
 	}
 }
+
+
+// ---------------------------------------------------------------------------------------------------------------
+// Tests for the settings that affect recovery (see CoreSettings in utility/gdre_config.h).
+// The [ConfigTest] tag makes the test listener reset GDREConfig before and after each test case.
+// ---------------------------------------------------------------------------------------------------------------
+
+static constexpr const char *CONFIG_TEST_SUB_PROJECT = "2d/platformer/platformer.pck";
+static constexpr const char *CONFIG_TEST_V3 = "3.5.3";
+static constexpr const char *CONFIG_TEST_V4 = "4.5.1";
+static constexpr const char *CONFIG_TEST_PRE_4_5 = "4.3.0";
+
+// Loads the exported test project, dumps the pck, runs the full export, and unloads the project again.
+static Error recover_to_dir(const String &p_version, const String &p_out_dir, Ref<ImportExporterReport> *r_report = nullptr) {
+	String pck_path = get_test_projects_path().path_join("exported").path_join(p_version).path_join(CONFIG_TEST_SUB_PROJECT);
+	ERR_FAIL_COND_V_MSG(!FileAccess::exists(pck_path), ERR_FILE_NOT_FOUND, "Test project not found: " + pck_path);
+	gdre::rimraf(p_out_dir);
+
+	Error err = GDRESettings::get_singleton()->load_project({ pck_path }, false);
+	ERR_FAIL_COND_V(err != OK, err);
+	{
+		PckDumper dumper;
+		err = dumper.pck_dump_to_dir(p_out_dir, {});
+		if (err == OK) {
+			ImportExporter import_exporter;
+			err = import_exporter.export_imports(p_out_dir, {});
+			if (r_report) {
+				*r_report = import_exporter.get_report();
+			}
+		}
+	}
+	GDRESettings::get_singleton()->close_log_file();
+	GDRESettings::get_singleton()->unload_project();
+	return err;
+}
+
+static String get_config_test_out_dir(const String &p_name) {
+	return get_tmp_path().path_join("config_recovery").path_join(p_name);
+}
+
+static int count_files_recursive(const String &p_dir) {
+	Ref<DirAccess> da = DirAccess::open(p_dir);
+	if (da.is_null()) {
+		return 0;
+	}
+	da->set_include_hidden(true);
+	int count = da->get_files().size();
+	for (const String &dir : da->get_directories()) {
+		count += count_files_recursive(p_dir.path_join(dir));
+	}
+	return count;
+}
+
+static bool git_is_available() {
+	int exit_code = -1;
+	return OS::get_singleton()->execute("git", { "--version" }, nullptr, &exit_code, true) == OK && exit_code == 0;
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Recovery/write_json_report") {
+	const String out_dir = get_config_test_out_dir("json_report");
+	const String json_path = out_dir.path_join("gdre_export.json");
+	Ref<ImportExporterReport> report;
+
+	SUBCASE("Disabled by default") {
+		CHECK_FALSE(bool(GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_WRITE_JSON_REPORT)));
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir, &report), OK);
+		CHECK_FALSE(FileAccess::exists(json_path));
+	}
+	SUBCASE("Enabled") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_WRITE_JSON_REPORT, true);
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir, &report), OK);
+		REQUIRE(FileAccess::exists(json_path));
+		REQUIRE(report.is_valid());
+		Variant parsed = JSON::parse_string(FileAccess::get_file_as_string(json_path));
+		REQUIRE_EQ(parsed.get_type(), Variant::DICTIONARY);
+		Dictionary parsed_dict = parsed;
+		Dictionary expected = report->to_json();
+		CHECK_GT(parsed_dict.size(), 0);
+		for (const Variant &key : expected.keys()) {
+			INFO(String(key));
+			CHECK(parsed_dict.has(key));
+		}
+	}
+	SUBCASE("Disabled explicitly") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_WRITE_JSON_REPORT, false);
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir, &report), OK);
+		CHECK_FALSE(FileAccess::exists(json_path));
+	}
+	gdre::rimraf(out_dir);
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Recovery/delete_auto_converted_files") {
+	// Godot 3 projects have the most remapped (auto-converted) files
+	const String out_dir = get_config_test_out_dir("auto_converted");
+	const String autoconverted_dir = out_dir.path_join(".autoconverted");
+
+	int moved_files = 0;
+	{
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_DELETE_AUTO_CONVERTED_FILES, false);
+		REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V3, out_dir), OK);
+		moved_files = count_files_recursive(autoconverted_dir);
+	}
+	// Without the setting, the auto-converted files are kept; with it, they're deleted.
+	if (moved_files == 0) {
+		WARN_MESSAGE(false, "No auto-converted files in the test project; the 'kept' half of this test did not check anything");
+	}
+	{
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_DELETE_AUTO_CONVERTED_FILES, true);
+		REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V3, out_dir), OK);
+		CHECK_EQ(count_files_recursive(autoconverted_dir), 0);
+	}
+	gdre::rimraf(out_dir);
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Recovery/git/create_git_repo") {
+	if (!git_is_available()) {
+		MESSAGE("git is not installed, skipping");
+		return;
+	}
+	const String out_dir = get_config_test_out_dir("git_repo");
+
+	SUBCASE("Disabled by default") {
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+		CHECK_FALSE(DirAccess::dir_exists_absolute(out_dir.path_join(".git")));
+		CHECK_FALSE(FileAccess::exists(out_dir.path_join(".gitignore")));
+	}
+	SUBCASE("Enabled") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_GIT_CREATE_GIT_REPO, true);
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+		CHECK(DirAccess::dir_exists_absolute(out_dir.path_join(".git")));
+		CHECK(FileAccess::exists(out_dir.path_join(".gitignore")));
+	}
+	gdre::rimraf(out_dir);
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Recovery/git/add_imports_to_git_repo") {
+	if (!git_is_available()) {
+		MESSAGE("git is not installed, skipping");
+		return;
+	}
+	const String out_dir = get_config_test_out_dir("git_imports");
+	TestConfigHelpers::ScopedSetting create_repo(CoreSettings::RECOVERY_GIT_CREATE_GIT_REPO, true);
+
+	auto read_gitignore_lines = [&]() {
+		return FileAccess::get_file_as_string(out_dir.path_join(".gitignore")).split("\n", false);
+	};
+
+	SUBCASE("Godot 3: imports are ignored unless enabled") {
+		SUBCASE("Disabled (default)") {
+			CHECK_FALSE(bool(GDREConfig::get_singleton()->get_setting(CoreSettings::RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO)));
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V3, out_dir), OK);
+			CHECK(read_gitignore_lines().has(".import/"));
+		}
+		SUBCASE("Enabled") {
+			TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO, true);
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V3, out_dir), OK);
+			CHECK_FALSE(read_gitignore_lines().has(".import/"));
+		}
+	}
+	SUBCASE("Godot 4: imports are un-ignored only when enabled") {
+		SUBCASE("Disabled (default)") {
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+			CHECK_FALSE(read_gitignore_lines().has("!.godot/imported/"));
+		}
+		SUBCASE("Enabled") {
+			TestConfigHelpers::ScopedSetting scoped(CoreSettings::RECOVERY_GIT_ADD_IMPORTS_TO_GIT_REPO, true);
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+			CHECK(read_gitignore_lines().has("!.godot/imported/"));
+		}
+	}
+	gdre::rimraf(out_dir);
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Script/Indent settings are written to the recovered project") {
+	const String out_dir = get_config_test_out_dir("indent");
+	const String project_path = out_dir.path_join("project.godot");
+
+	SUBCASE("Godot 4.5+: editor_overrides use the configured indentation") {
+		SUBCASE("Defaults") {
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+			String text = FileAccess::get_file_as_string(project_path);
+			CHECK(text.contains("text_editor/behavior/indent/type=0"));
+			CHECK(text.contains("text_editor/behavior/indent/size=4"));
+		}
+		SUBCASE("Spaces, size 2") {
+			TestConfigHelpers::ScopedSetting type(CoreSettings::SCRIPT_INDENT_TYPE, 1);
+			TestConfigHelpers::ScopedSetting size(CoreSettings::SCRIPT_INDENT_SIZE, 2);
+			REQUIRE_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir), OK);
+			String text = FileAccess::get_file_as_string(project_path);
+			CHECK(text.contains("text_editor/behavior/indent/type=1"));
+			CHECK(text.contains("text_editor/behavior/indent/size=2"));
+		}
+	}
+	SUBCASE("Before Godot 4.5: no editor_overrides are written") {
+		TestConfigHelpers::ScopedSetting type(CoreSettings::SCRIPT_INDENT_TYPE, 1);
+		TestConfigHelpers::ScopedSetting size(CoreSettings::SCRIPT_INDENT_SIZE, 2);
+		REQUIRE_EQ(recover_to_dir(CONFIG_TEST_PRE_4_5, out_dir), OK);
+		String text = FileAccess::get_file_as_string(project_path);
+		CHECK_FALSE(text.contains("text_editor/behavior/indent/"));
+	}
+	gdre::rimraf(out_dir);
+}
+
+TEST_CASE("[GDSDecomp][ProjectRecovery][ConfigTest] ([SceneTree]) Recovery works with threading settings") {
+	const String out_dir = get_config_test_out_dir("threading");
+	Ref<ImportExporterReport> report;
+
+	SUBCASE("General/force_single_threaded") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::FORCE_SINGLE_THREADED, true);
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir, &report), OK);
+		REQUIRE(report.is_valid());
+		CHECK_EQ(report->get_failed().size(), 0);
+		CHECK_GT(report->get_successes().size(), 0);
+	}
+	SUBCASE("General/max_cores_to_use") {
+		TestConfigHelpers::ScopedSetting scoped(CoreSettings::MAX_CORES_TO_USE, 1);
+		CHECK_EQ(recover_to_dir(CONFIG_TEST_V4, out_dir, &report), OK);
+		REQUIRE(report.is_valid());
+		CHECK_EQ(report->get_failed().size(), 0);
+		CHECK_GT(report->get_successes().size(), 0);
+	}
+	gdre::rimraf(out_dir);
+}
+
+// Note: Recovery/download_plugins is covered by the config-level tests in test_gdre_config.cpp.
+// Testing its effect on recovery would need a project with a missing GDExtension and network access.
 
 } //namespace TestProjectExport

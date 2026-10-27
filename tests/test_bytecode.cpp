@@ -11,6 +11,8 @@
 #include "modules/gdscript/gdscript_tokenizer.h"
 #include "modules/gdscript/tests/gdscript_test_runner.h"
 #include "test_common.h"
+#include "test_config_helpers.inc"
+#include "utility/gdre_config.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
 #include "utility/text_diff.h"
@@ -400,6 +402,81 @@ TEST_CASE("[GDSDecomp][Bytecode][GDScript2.0] Test multi-line strings") {
 
 TEST_CASE("[GDSDecomp][Bytecode] Test indenting") {
 	test_script_text("test_indent", test_indent, 0xa7aad78, false, false, true);
+}
+
+// Compiles the text, then decompiles it with the given indentation settings.
+static String decompile_with_indent(const String &p_script_text, int p_revision, int p_indent_type, int p_indent_size, bool *r_recompiled_ok = nullptr) {
+	auto decomp = GDScriptDecomp::create_decomp_for_commit(p_revision);
+	REQUIRE(decomp.is_valid());
+	auto bytecode = decomp->compile_code_string(p_script_text);
+	REQUIRE_EQ(decomp->get_error_message(), String());
+	REQUIRE_GT(bytecode.size(), 0);
+
+	TestConfigHelpers::ScopedSetting type(CoreSettings::SCRIPT_INDENT_TYPE, p_indent_type);
+	TestConfigHelpers::ScopedSetting size(CoreSettings::SCRIPT_INDENT_SIZE, p_indent_size);
+	REQUIRE_EQ(decomp->decompile_buffer(bytecode), OK);
+	String decompiled = decomp->get_script_text();
+	if (r_recompiled_ok) {
+		auto recompiled = decomp->compile_code_string(decompiled);
+		*r_recompiled_ok = decomp->get_error_message().is_empty() && recompiled.size() > 0 && decomp->test_bytecode(recompiled, false) == GDScriptDecomp::BYTECODE_TEST_PASS;
+	}
+	return decompiled;
+}
+
+// Returns the leading whitespace of the first line that contains `p_needle`
+static String get_indent_of_line_containing(const String &p_text, const String &p_needle) {
+	for (const String &line : p_text.split("\n")) {
+		if (line.contains(p_needle)) {
+			return line.substr(0, line.length() - line.strip_edges(true, false).length());
+		}
+	}
+	return "<not found>";
+}
+
+TEST_CASE("[GDSDecomp][Bytecode][GDScript2.0][ConfigTest] Script/Indent settings change the decompiled indentation") {
+	static const String needle = "print(\"bar is 1\")";
+	static constexpr int revision = GDScriptDecompVersion::LATEST_GDSCRIPT_COMMIT;
+	bool recompiled_ok = false;
+
+	SUBCASE("Default (tabs)") {
+		CHECK_EQ(int(GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_TYPE)), 0);
+		CHECK_EQ(int(GDREConfig::get_singleton()->get_setting(CoreSettings::SCRIPT_INDENT_SIZE)), 4);
+		String text = decompile_with_indent(test_indent_current, revision, 0, 4, &recompiled_ok);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String("\t\t"));
+		CHECK_FALSE(text.contains("  "));
+		CHECK(recompiled_ok);
+	}
+	SUBCASE("Tabs ignore the indent size") {
+		String text = decompile_with_indent(test_indent_current, revision, 0, 2);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String("\t\t"));
+	}
+	SUBCASE("Spaces, size 4") {
+		String text = decompile_with_indent(test_indent_current, revision, 1, 4, &recompiled_ok);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String(" ").repeat(8));
+		CHECK_FALSE(text.contains("\t"));
+		CHECK(recompiled_ok);
+	}
+	SUBCASE("Spaces, size 2") {
+		String text = decompile_with_indent(test_indent_current, revision, 1, 2, &recompiled_ok);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String(" ").repeat(4));
+		CHECK_FALSE(text.contains("\t"));
+		CHECK(recompiled_ok);
+	}
+}
+
+TEST_CASE("[GDSDecomp][Bytecode][ConfigTest] Script/Indent settings change the decompiled indentation (GDScript 1.0)") {
+	static const String needle = "worldspawn_layers[i] = QodotWorldspawnLayer.new()";
+	static constexpr int revision = 0xa7aad78;
+
+	SUBCASE("Tabs") {
+		String text = decompile_with_indent(test_indent, revision, 0, 4);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String("\t\t\t\t"));
+	}
+	SUBCASE("Spaces, size 3") {
+		String text = decompile_with_indent(test_indent, revision, 1, 3);
+		CHECK_EQ(get_indent_of_line_containing(text, needle), String(" ").repeat(12));
+		CHECK_FALSE(text.contains("\t"));
+	}
 }
 
 TEST_CASE("[GDSDecomp][Bytecode][GDScript2.0] Test unique_id modulo operator") {

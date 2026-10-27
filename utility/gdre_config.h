@@ -49,6 +49,8 @@ class GDREConfig : public Object {
 
 	static void _init_default_settings();
 
+	static String config_path_override;
+
 	static String get_config_path();
 
 public:
@@ -62,10 +64,16 @@ public:
 
 	static GDREConfig *get_singleton();
 
+	// Redirects the config file used by load_config()/save_config(). Pass an empty string to restore the default path.
+	// Mainly intended for tests, so that they never touch the user's real config.
+	static void set_config_path_override(const String &p_path);
+
 	GDREConfig();
 	~GDREConfig();
 
 	void load_config();
+	// Resets every setting (including ephemeral ones) to its registered default. Does not read or write the config file.
+	void reset_all_settings(bool p_clear = false);
 	void save_config();
 	void set_setting(const String &p_setting, const Variant &p_value, bool p_force_ephemeral = false);
 	bool has_setting(const String &string) const;
