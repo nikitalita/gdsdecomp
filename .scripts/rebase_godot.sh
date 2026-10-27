@@ -43,6 +43,7 @@ BRANCHES_TO_MERGE=(
 	fix-clearcoat-gloss
 	gltf-node-weights
 	gltf-clear-mipmaps-before-dupe
+	fix-classdb-get-default-value
 )
 
 # set fail on error
