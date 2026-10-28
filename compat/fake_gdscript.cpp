@@ -5,13 +5,9 @@
 
 #include "compat/resource_loader_compat.h"
 #include "compat/variant_decoder_compat.h"
-#include "core/io/missing_resource.h"
 #include "core/object/class_db.h"
 #include "core/object/object.h"
 #include "core/string/ustring.h"
-#include "modules/gdscript/gdscript.h"
-#include "modules/gdscript/gdscript_tokenizer_buffer.h"
-#include "utility/resource_info.h"
 #include <utility/gdre_settings.h>
 
 #define FAKEGDSCRIPT_FAIL_COND_V_MSG(cond, val, msg) \
@@ -70,8 +66,7 @@ Error FakeGDScript::_reload_from_file() {
 }
 
 void FakeGDScript::reload_from_file() {
-	Error err = _reload_from_file();
-	FAKEGDSCRIPT_FAIL_COND_MSG(err != OK, "Error reloading script: " + script_path);
+	_reload_from_file();
 }
 
 Ref<Script> FakeGDScript::load_base_script() const {
@@ -131,6 +126,23 @@ PlaceHolderScriptInstance *FakeGDScript::placeholder_instance_create(Object *p_t
 	return si;
 }
 
+bool FakeGDScript::has_source_code() const {
+	if (!is_binary) {
+		return true; // empty source code is valid GDScript (treated as `extends RefCounted`)
+	}
+	return decomp.is_valid() && !binary_buffer.is_empty();
+}
+
+String FakeGDScript::get_source_code() const {
+	if (!is_binary) {
+		return source;
+	}
+
+	Error err = decomp->decompile_buffer(binary_buffer);
+	ERR_FAIL_COND_V_MSG(err != OK, "", "Error decompiling code: " + decomp->get_error_message());
+	return decomp->get_script_text();
+}
+
 void FakeGDScript::set_source_code(const String &p_code) {
 	is_binary = false;
 	source = p_code;
@@ -152,12 +164,11 @@ Error FakeGDScript::reload(bool p_keep_state) {
 
 	Error err = OK;
 	if (is_binary) {
-		err = decomp->decompile_buffer(binary_buffer);
-		if (err) {
+		auto result = decomp->test_bytecode(binary_buffer, false);
+		if (result != GDScriptDecomp::BytecodeTestResult::BYTECODE_TEST_PASS) {
 			error_message = "Error decompiling code: " + decomp->get_error_message();
-			ERR_FAIL_V_MSG(err, "Error decompiling code " + script_path + ": " + decomp->get_error_message());
+			ERR_FAIL_V_MSG(ERR_PARSE_ERROR, "Error decompiling code " + script_path + ": " + decomp->get_error_message());
 		}
-		source = decomp->get_script_text();
 	} else {
 		binary_buffer = decomp->compile_code_string(source);
 		if (binary_buffer.size() == 0) {
