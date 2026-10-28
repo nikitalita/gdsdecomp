@@ -1856,123 +1856,53 @@ static Error _write_to_str(void *ud, const String &p_string) {
 	return OK;
 }
 
-Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+template <bool is_pcfg, bool is_script, bool force_v3, bool after_4_4>
+static Error _write_v4(const Variant &p_variant, String &r_string, uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+	// scripts never pretty print; versions below 4.8 didn't have pretty printing
+	const bool pretty_print = !is_script && ver_minor >= 8;
+	return VarWriter<4, is_pcfg, is_script, force_v3, after_4_4>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
+}
+
+// is_pcfg: project.cfg variants are written differently than resource variants in Godot 2.x
+// is_script: script variants never pretty print
+template <bool is_pcfg, bool is_script>
+static Error _write_to_string_impl(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
 		case 0:
-			if (ver_minor == 0) {
-				ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
-			}
-			// else fall through
+			ERR_FAIL_COND_V_MSG(ver_minor == 0, ERR_INVALID_PARAMETER, "Invalid version");
+			[[fallthrough]];
 		case 1:
-		case 2: {
-			return VarWriter<2, false, true>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
-		case 3: {
-			return VarWriter<3, false, true>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
+		case 2:
+			return VarWriter<2, is_pcfg, is_script>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
+		case 3:
+			return VarWriter<3, is_pcfg, is_script>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
 		case 4: {
-			// script never pretty prints
-			static constexpr bool pretty_print = false;
-			if (ver_minor > 4) {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, true, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, false, true, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
-			} else {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, true, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, false, true, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
+			const bool after_4_4 = ver_minor > 4;
+			if (p_compat_4x_force_v3) {
+				return after_4_4
+						? _write_v4<is_pcfg, is_script, true, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+						: _write_v4<is_pcfg, is_script, true, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
 			}
-		} break;
-
+			return after_4_4
+					? _write_v4<is_pcfg, is_script, false, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+					: _write_v4<is_pcfg, is_script, false, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
+		}
 		default:
 			break;
 	}
 	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
+}
+
+Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+	return _write_to_string_impl<false, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
 
 // project.cfg variants are written differently than resource variants in Godot 2.x
 Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	r_string = String();
-	switch (ver_major) {
-		case 0:
-			if (ver_minor == 0) {
-				ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
-			}
-			// else fall through to the next case
-		case 1:
-		case 2: {
-			return VarWriter<2, true, false>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
-		case 3: {
-			return VarWriter<3, true, false>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
-		case 4: {
-			bool pretty_print = ver_minor >= 8 ? true : false;
-			if (ver_minor > 4) {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, true, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, true, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
-			} else {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, true, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, true, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
-			}
-		} break;
-		default:
-			break;
-	}
-	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
+	return _write_to_string_impl<true, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
+
 Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	r_string = String();
-	switch (ver_major) {
-		case 0:
-			if (ver_minor == 0) {
-				ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
-			}
-			// else fall through to the next case
-			[[fallthrough]];
-		case 1:
-		case 2: {
-			return VarWriter<2, false, false>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
-		case 3: {
-			return VarWriter<3, false, false>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
-		} break;
-
-		case 4: {
-			// verions below 4.8 didn't have pretty printing
-			bool pretty_print = ver_minor >= 8 ? true : false;
-			if (ver_minor > 4) {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, false, true, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, false, false, false, true>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
-			} else {
-				if (p_compat_4x_force_v3) {
-					return VarWriter<4, false, false, true, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				} else {
-					return VarWriter<4, false, false, false, false>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
-				}
-			}
-		} break;
-		default:
-			break;
-	}
-	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
+	return _write_to_string_impl<false, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
