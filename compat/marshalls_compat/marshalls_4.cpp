@@ -35,6 +35,8 @@
 #include "core/variant/array.h"
 #include "core/variant/container_type_validate.h"
 
+#include "compat/marshalls_compat/marshalls_common.inc"
+
 // Byte 0: `Variant::Type`, byte 1: unused, bytes 2 and 3: additional data.
 #define HEADER_TYPE_MASK 0xFF
 

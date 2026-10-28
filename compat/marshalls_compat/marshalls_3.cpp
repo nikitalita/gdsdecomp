@@ -1,11 +1,12 @@
 #include "marshalls_3.h"
-#include "compat/marshalls_compat/marshalls_common.h"
 
 #include "core/io/marshalls.h"
 #include "core/io/missing_resource.h"
 #include "core/object/class_db.h"
 #include "core/variant/array.h"
 #include "compat/resource_loader_compat.h"
+
+#include "compat/marshalls_compat/marshalls_common.inc"
 
 // Flags for the v2/v3 binary variant header.
 #define ENCODE_MASK 0xFF

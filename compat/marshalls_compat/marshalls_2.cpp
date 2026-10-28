@@ -2,11 +2,12 @@
 #include "compat/image_enum_compat.h"
 #include "compat/image_parser_v2.h"
 #include "compat/input_event_parser_v2.h"
-#include "compat/marshalls_compat/marshalls_common.h"
 #include "core/io/image.h"
 #include "core/io/marshalls.h"
 #include "core/object/class_db.h"
 #include "core/variant/array.h"
+
+#include "compat/marshalls_compat/marshalls_common.inc"
 
 // Flags for the v2/v3 binary variant header.
 #define ENCODE_MASK 0xFF

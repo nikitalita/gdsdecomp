@@ -1,9 +1,10 @@
 #pragma once
 
+// Intentionally not a header
+
 #include "core/error/error_list.h"
 #include "core/io/marshalls.h"
 #include "core/string/ustring.h"
-#include "core/variant/variant.h"
 
 // Helpers shared by the version-specific marshalls_N implementations.
 
@@ -11,7 +12,7 @@
 #define ERR_FAIL_ADD_OF(a, b, err) ERR_FAIL_COND_V(_S(b) < 0 || _S(a) < 0 || _S(a) > INT_MAX - _S(b), err)
 #define ERR_FAIL_MUL_OF(a, b, err) ERR_FAIL_COND_V(_S(a) < 0 || _S(b) <= 0 || _S(a) > INT_MAX / _S(b), err)
 
-static inline Error _decode_string(const uint8_t *&buf, int &len, int *r_len, String &r_string) {
+static Error _decode_string(const uint8_t *&buf, int &len, int *r_len, String &r_string) {
 	ERR_FAIL_COND_V(len < 4, ERR_INVALID_DATA);
 
 	int32_t strlen = decode_uint32(buf);
@@ -55,7 +56,7 @@ static inline Error _decode_string(const uint8_t *&buf, int &len, int *r_len, St
 	return OK;
 }
 
-static inline void _encode_string(const String &p_string, uint8_t *&buf, int &r_len) {
+static void _encode_string(const String &p_string, uint8_t *&buf, int &r_len) {
 	CharString utf8 = p_string.utf8();
 
 	if (buf) {
