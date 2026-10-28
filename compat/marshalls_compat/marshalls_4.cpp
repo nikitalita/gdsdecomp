@@ -1,17 +1,39 @@
+/**************************************************************************/
+/*  marshalls.cpp                                                         */
+/**************************************************************************/
+/*                         This file is part of:                          */
+/*                             GODOT ENGINE                               */
+/*                        https://godotengine.org                         */
+/**************************************************************************/
+/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
+/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
+/*                                                                        */
+/* Permission is hereby granted, free of charge, to any person obtaining  */
+/* a copy of this software and associated documentation files (the        */
+/* "Software"), to deal in the Software without restriction, including    */
+/* without limitation the rights to use, copy, modify, merge, publish,    */
+/* distribute, sublicense, and/or sell copies of the Software, and to     */
+/* permit persons to whom the Software is furnished to do so, subject to  */
+/* the following conditions:                                              */
+/*                                                                        */
+/* The above copyright notice and this permission notice shall be         */
+/* included in all copies or substantial portions of the Software.        */
+/*                                                                        */
+/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
+/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
+/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
+/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
+/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
+/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+/**************************************************************************/
+
 #include "marshalls_4.h"
-#include "compat/marshalls_compat/marshalls_common.h"
 #include "compat/resource_loader_compat.h"
 #include "core/io/marshalls.h"
 #include "core/object/class_db.h"
 #include "core/variant/array.h"
 #include "core/variant/container_type_validate.h"
-
-enum ContainerTypeKind {
-	CONTAINER_TYPE_KIND_NONE = 0b00,
-	CONTAINER_TYPE_KIND_BUILTIN = 0b01,
-	CONTAINER_TYPE_KIND_CLASS_NAME = 0b10,
-	CONTAINER_TYPE_KIND_SCRIPT = 0b11,
-};
 
 // Byte 0: `Variant::Type`, byte 1: unused, bytes 2 and 3: additional data.
 #define HEADER_TYPE_MASK 0xFF
@@ -35,20 +57,27 @@ enum ContainerTypeKind {
 #define HEADER_DATA_FIELD_TYPED_DICTIONARY_VALUE_MASK (0b11 << 18)
 #define HEADER_DATA_FIELD_TYPED_DICTIONARY_VALUE_SHIFT 18
 
+enum ContainerTypeKind {
+	CONTAINER_TYPE_KIND_NONE = 0b00,
+	CONTAINER_TYPE_KIND_BUILTIN = 0b01,
+	CONTAINER_TYPE_KIND_CLASS_NAME = 0b10,
+	CONTAINER_TYPE_KIND_SCRIPT = 0b11,
+};
+
 #define GET_CONTAINER_TYPE_KIND(m_header, m_field) \
 	((ContainerTypeKind)(((m_header) & HEADER_DATA_FIELD_##m_field##_MASK) >> HEADER_DATA_FIELD_##m_field##_SHIFT))
 
-static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, bool p_allow_objects, ContainerTypeKind p_type_kind, ContainerType &r_type) {
+static Error _decode_container_type(const uint8_t *&p_buffer, int &r_left, int *r_len, bool p_allow_objects, ContainerTypeKind p_type_kind, ContainerType &r_type) {
 	switch (p_type_kind) {
 		case CONTAINER_TYPE_KIND_NONE: {
 			return OK;
 		} break;
 		case CONTAINER_TYPE_KIND_BUILTIN: {
-			ERR_FAIL_COND_V(len < 4, ERR_INVALID_DATA);
+			ERR_FAIL_COND_V(r_left < 4, ERR_INVALID_DATA);
 
-			int32_t bt = decode_uint32(buf);
-			buf += 4;
-			len -= 4;
+			int32_t bt = decode_uint32(p_buffer);
+			p_buffer += 4;
+			r_left -= 4;
 			if (r_len) {
 				(*r_len) += 4;
 			}
@@ -62,10 +91,7 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 		} break;
 		case CONTAINER_TYPE_KIND_CLASS_NAME: {
 			String str;
-			Error err = _decode_string(buf, len, r_len, str);
-			if (err) {
-				return err;
-			}
+			RETURN_IF_ERROR(_decode_string(p_buffer, r_left, r_len, str));
 
 			r_type.variant_type = Variant::OBJECT;
 			if (p_allow_objects) {
@@ -77,10 +103,7 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 		} break;
 		case CONTAINER_TYPE_KIND_SCRIPT: {
 			String path;
-			Error err = _decode_string(buf, len, r_len, path);
-			if (err) {
-				return err;
-			}
+			RETURN_IF_ERROR(_decode_string(p_buffer, r_left, r_len, path));
 
 			r_type.variant_type = Variant::OBJECT;
 			if (p_allow_objects) {
@@ -171,10 +194,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 		} break;
 		case Variant::STRING: {
 			String str;
-			Error err = _decode_string(buf, len, r_len, str);
-			if (err) {
-				return err;
-			}
+			RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 			r_variant = str;
 
 		} break;
@@ -547,10 +567,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 		} break;
 		case Variant::STRING_NAME: {
 			String str;
-			Error err = _decode_string(buf, len, r_len, str);
-			if (err) {
-				return err;
-			}
+			RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 			r_variant = StringName(str);
 
 		} break;
@@ -584,10 +601,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 
 				for (uint32_t i = 0; i < total; i++) {
 					String str;
-					Error err = _decode_string(buf, len, r_len, str);
-					if (err) {
-						return err;
-					}
+					RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 
 					if (i < namecount) {
 						names.push_back(str);
@@ -635,18 +649,14 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 				ERR_FAIL_COND_V(!p_allow_objects, ERR_UNAUTHORIZED);
 
 				String str;
-				Error err = _decode_string(buf, len, r_len, str);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 
 				if (str.is_empty()) {
 					r_variant = (Object *)nullptr;
 				} else {
-					Ref<MissingResource> missing_resource;
 					Object *obj;
-
 					// COMPAT: use Converters for type
+					Ref<MissingResource> missing_resource;
 					auto converter = ResourceCompatLoader::get_converter_for_type(str, 4);
 					if (converter.is_valid()) {
 						missing_resource.instantiate();
@@ -657,8 +667,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 						ERR_FAIL_COND_V(!ClassDB::can_instantiate(str), ERR_INVALID_DATA);
 						obj = ClassDB::instantiate(str);
 					}
-					ERR_FAIL_COND_V(!obj, ERR_UNAVAILABLE);
-					ERR_FAIL_COND_V(len < 4, ERR_INVALID_DATA);
+					ERR_FAIL_NULL_V(obj, ERR_UNAVAILABLE);
 
 					// Avoid premature free `RefCounted`. This must be done before properties are initialized,
 					// since script functions (setters, implicit initializer) may be called. See GH-68666.
@@ -680,17 +689,11 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 
 					for (int i = 0; i < count; i++) {
 						str = String();
-						err = _decode_string(buf, len, r_len, str);
-						if (err) {
-							return err;
-						}
+						RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 
 						Variant value;
 						int used;
-						err = decode_variant_4(value, buf, len, &used, p_allow_objects, p_depth + 1);
-						if (err) {
-							return err;
-						}
+						RETURN_IF_ERROR(decode_variant_4(value, buf, len, &used, p_allow_objects, p_depth + 1));
 
 						buf += used;
 						len -= used;
@@ -711,7 +714,9 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 						}
 					}
 					if (converter.is_valid()) {
+						Error err;
 						Ref<Resource> res = converter->convert(missing_resource, ResourceInfo::LoadType::REAL_LOAD, 3, &err);
+						ERR_FAIL_COND_V_MSG(err != OK, err, "Error when trying to convert Resource.");
 						res->set_path_cache(missing_resource->get_path());
 						res->set_local_to_scene(missing_resource->is_local_to_scene());
 						res->set_scene_unique_id(missing_resource->get_scene_unique_id());
@@ -728,10 +733,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 		} break;
 		case Variant::SIGNAL: {
 			String name;
-			Error err = _decode_string(buf, len, r_len, name);
-			if (err) {
-				return err;
-			}
+			RETURN_IF_ERROR(_decode_string(buf, len, r_len, name));
 
 			ERR_FAIL_COND_V(len < 8, ERR_INVALID_DATA);
 			ObjectID id = ObjectID(decode_uint64(buf));
@@ -746,20 +748,14 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 
 			{
 				ContainerTypeKind key_type_kind = GET_CONTAINER_TYPE_KIND(header, TYPED_DICTIONARY_KEY);
-				Error err = _decode_container_type(buf, len, r_len, p_allow_objects, key_type_kind, key_type);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_decode_container_type(buf, len, r_len, p_allow_objects, key_type_kind, key_type));
 			}
 
 			ContainerType value_type;
 
 			{
 				ContainerTypeKind value_type_kind = GET_CONTAINER_TYPE_KIND(header, TYPED_DICTIONARY_VALUE);
-				Error err = _decode_container_type(buf, len, r_len, p_allow_objects, value_type_kind, value_type);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_decode_container_type(buf, len, r_len, p_allow_objects, value_type_kind, value_type));
 			}
 
 			ERR_FAIL_COND_V(len < 4, ERR_INVALID_DATA);
@@ -813,10 +809,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 
 			{
 				ContainerTypeKind type_kind = GET_CONTAINER_TYPE_KIND(header, TYPED_ARRAY);
-				Error err = _decode_container_type(buf, len, r_len, p_allow_objects, type_kind, type);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_decode_container_type(buf, len, r_len, p_allow_objects, type_kind, type));
 			}
 
 			ERR_FAIL_COND_V(len < 4, ERR_INVALID_DATA);
@@ -993,10 +986,7 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 
 			for (int32_t i = 0; i < count; i++) {
 				String str;
-				Error err = _decode_string(buf, len, r_len, str);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_decode_string(buf, len, r_len, str));
 
 				strings.push_back(str);
 			}
@@ -1240,36 +1230,36 @@ Error decode_variant_4(Variant &r_variant, const uint8_t *p_buffer, int p_len, i
 	return OK;
 }
 
-static void _encode_container_type_header(const ContainerType &p_type, uint32_t &header, uint32_t p_shift, bool p_full_objects) {
+static void _encode_container_type_header(const ContainerType &p_type, uint32_t &r_header, uint32_t p_shift, bool p_full_objects) {
 	if (p_type.variant_type != Variant::NIL) {
 		if (p_type.script.is_valid()) {
-			header |= (p_full_objects ? CONTAINER_TYPE_KIND_SCRIPT : CONTAINER_TYPE_KIND_CLASS_NAME) << p_shift;
+			r_header |= (p_full_objects ? CONTAINER_TYPE_KIND_SCRIPT : CONTAINER_TYPE_KIND_CLASS_NAME) << p_shift;
 		} else if (p_type.class_name != StringName()) {
-			header |= CONTAINER_TYPE_KIND_CLASS_NAME << p_shift;
+			r_header |= CONTAINER_TYPE_KIND_CLASS_NAME << p_shift;
 		} else {
-			// No need to check `p_full_objects` since `class_name` should be non-empty for `variant_type == Variant::OBJECT`.
-			header |= CONTAINER_TYPE_KIND_BUILTIN << p_shift;
+			// No need to check `p_full_objects` since `class_name` should be non-empty for `builtin_type == Variant::OBJECT`.
+			r_header |= CONTAINER_TYPE_KIND_BUILTIN << p_shift;
 		}
 	}
 }
 
-static Error _encode_container_type(const ContainerType &p_type, uint8_t *&buf, int &r_len, bool p_full_objects) {
+static Error _encode_container_type(const ContainerType &p_type, uint8_t *&p_buffer, int &r_len, bool p_full_objects) {
 	if (p_type.variant_type != Variant::NIL) {
 		if (p_type.script.is_valid()) {
 			if (p_full_objects) {
 				String path = p_type.script->get_path();
 				ERR_FAIL_COND_V_MSG(path.is_empty() || !path.begins_with("res://"), ERR_UNAVAILABLE, "Failed to encode a path to a custom script for a container type.");
-				_encode_string(path, buf, r_len);
+				_encode_string(path, p_buffer, r_len);
 			} else {
-				_encode_string(EncodedObjectAsID::get_class_static(), buf, r_len);
+				_encode_string(EncodedObjectAsID::get_class_static(), p_buffer, r_len);
 			}
 		} else if (p_type.class_name != StringName()) {
-			_encode_string(p_full_objects ? p_type.class_name : EncodedObjectAsID::get_class_static(), buf, r_len);
+			_encode_string(p_full_objects ? p_type.class_name : EncodedObjectAsID::get_class_static(), p_buffer, r_len);
 		} else {
-			// No need to check `p_full_objects` since `class_name` should be non-empty for `variant_type == Variant::OBJECT`.
-			if (buf) {
-				encode_uint32(p_type.variant_type, buf);
-				buf += 4;
+			// No need to check `p_full_objects` since `class_name` should be non-empty for `builtin_type == Variant::OBJECT`.
+			if (p_buffer) {
+				encode_uint32(p_type.variant_type, p_buffer);
+				p_buffer += 4;
 			}
 			r_len += 4;
 		}
@@ -1277,6 +1267,7 @@ static Error _encode_container_type(const ContainerType &p_type, uint8_t *&buf, 
 	return OK;
 }
 
+// COMPAT: for saving as double_precision and vice-versa
 static inline unsigned int _encode_real(real_t p_real, uint8_t *p_arr, bool p_real_t_is_double) {
 	if (p_real_t_is_double) {
 		return encode_double(p_real, p_arr);
@@ -1762,17 +1753,11 @@ Error encode_variant_4(const Variant &p_variant, uint8_t *r_buffer, int &r_len, 
 			const Dictionary dict = p_variant;
 
 			{
-				Error err = _encode_container_type(dict.get_key_type(), buf, r_len, p_full_objects);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_encode_container_type(dict.get_key_type(), buf, r_len, p_full_objects));
 			}
 
 			{
-				Error err = _encode_container_type(dict.get_value_type(), buf, r_len, p_full_objects);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_encode_container_type(dict.get_value_type(), buf, r_len, p_full_objects));
 			}
 
 			if (buf) {
@@ -1804,10 +1789,7 @@ Error encode_variant_4(const Variant &p_variant, uint8_t *r_buffer, int &r_len, 
 			const Array array = p_variant;
 
 			{
-				Error err = _encode_container_type(array.get_element_type(), buf, r_len, p_full_objects);
-				if (err) {
-					return err;
-				}
+				RETURN_IF_ERROR(_encode_container_type(array.get_element_type(), buf, r_len, p_full_objects));
 			}
 
 			if (buf) {
