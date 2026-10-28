@@ -1,8 +1,8 @@
+#if !GODOT_MONO_DECOMP_DISABLED
 #include "core/core_constants.h"
 #include "core/object/property_info.h"
 #include "core/templates/hash_map.h"
 #include "core/variant/variant.h"
-#include "test_common.h"
 #include "tests/test_macros.h"
 
 #include "../godot-mono-decomp/GodotMonoDecompNativeAOT/include/godot_mono_decomp.h"
@@ -266,3 +266,4 @@ TEST_CASE("[GDSDecomp][CSharp] PropertyUsageFlags values haven't changed") {
 }
 
 } // namespace TestCSharp
+#endif
