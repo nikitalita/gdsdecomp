@@ -147,6 +147,7 @@ common_sources = [
     "*.cpp",
     "bytecode/*.cpp",
     "compat/*.cpp",
+    "compat/marshalls_compat/*.cpp",
     "crypto/*.cpp",
     "exporters/*.cpp",
     "exporters/scene/*.cpp",
