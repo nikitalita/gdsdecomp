@@ -579,8 +579,9 @@ static Error _decode_container_type(const uint8_t *&buf, int &len, int *r_len, b
 
 			r_type.builtin_type = Variant::OBJECT;
 			if (p_allow_objects) {
-				ERR_FAIL_COND_V_MSG(path.is_empty() || !path.begins_with("res://") || !ResourceLoader::exists(path, "Script"), ERR_INVALID_DATA, vformat("Invalid script path \"%s\".", path));
-				r_type.script = ResourceLoader::load(path, "Script");
+				// COMPAT: use ResourceCompatLoader. (this is for security reasons)
+				ERR_FAIL_COND_V_MSG(path.is_empty() || !path.begins_with("res://") || !ResourceCompatLoader::exists(path), ERR_INVALID_DATA, vformat("Invalid script path \"%s\".", path));
+				r_type.script = ResourceCompatLoader::real_load(path, "Script");
 				ERR_FAIL_COND_V_MSG(r_type.script.is_null(), ERR_INVALID_DATA, vformat("Can't load script at path \"%s\".", path));
 				r_type.class_name = r_type.script->get_instance_base_type();
 			} else {
