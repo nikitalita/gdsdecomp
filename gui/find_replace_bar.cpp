@@ -21,6 +21,7 @@ void GDREFindReplaceBar::_notification(int p_what) {
 		// 	[[fallthrough]];
 		// }
 		case NOTIFICATION_READY: {
+			callable_mp(this, &GDREFindReplaceBar::_set_matches_custom_minimum_size).call_deferred();
 			find_prev->set_button_icon(GDREGuiIcons::get_icon(SNAME("MoveUp"), get_theme_default_base_scale()));
 			find_next->set_button_icon(GDREGuiIcons::get_icon(SNAME("MoveDown"), get_theme_default_base_scale()));
 			hide_button->set_button_icon(GDREGuiIcons::get_icon(SNAME("Close"), get_theme_default_base_scale()));
@@ -1025,8 +1026,6 @@ GDREFindReplaceBar::GDREFindReplaceBar() {
 	matches_label->set_focus_mode(FOCUS_ACCESSIBILITY);
 	matches_label->set_text("No matches");
 	matches_label->show();
-	// call deferred
-	callable_mp(this, &GDREFindReplaceBar::_set_matches_custom_minimum_size).call_deferred();
 
 	find_prev = memnew(Button);
 	find_prev->set_flat(true);
