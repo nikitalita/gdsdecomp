@@ -236,6 +236,17 @@ TEST_CASE("[GDSDecomp][ProjectLoading] Check opening encrypted PCKs") {
 	gdre::rimraf(tmp_pck_path);
 }
 
+static inline void test_custom_loading(const String &tmp_pck_path, const HashMap<String, String> &files) {
+	auto settings = GDRESettings::get_singleton();
+	REQUIRE(settings);
+	GDScriptLanguage::get_singleton()->init();
+	CHECK(ClassDB::class_exists(StringName("PackSourceCustom")));
+	String custom_pack_source_script_path = get_gdsdecomp_path().path_join("docs/gdre_custom_pack_source.gd");
+	CHECK(settings->add_custom_pack_source_script(custom_pack_source_script_path) == OK);
+	CHECK(settings->load_project({ tmp_pck_path }, false) == OK);
+	test_pck_files(files);
+}
+
 TEST_CASE("[GDSDecomp][ProjectLoading] Check opening PCK with custom pack source") {
 	REQUIRE(GDRESettings::get_singleton());
 	CHECK(gdre::ensure_dir(get_tmp_path()) == OK);
@@ -250,21 +261,41 @@ TEST_CASE("[GDSDecomp][ProjectLoading] Check opening PCK with custom pack source
 		{ "res://test.txt", tmp_test_file },
 		{ "res://project.binary", tmp_project_path }
 	};
-	CHECK(create_test_pck(tmp_pck_path, files) == OK);
-
-	auto settings = GDRESettings::get_singleton();
-	REQUIRE(settings);
-
-	GDScriptLanguage::get_singleton()->init();
-	CHECK(ClassDB::class_exists(StringName("PackSourceCustom")));
-	String custom_pack_source_script_path = get_gdsdecomp_path().path_join("docs/gdre_custom_pack_source.gd");
-	CHECK(settings->add_custom_pack_source_script(custom_pack_source_script_path) == OK);
-	CHECK(settings->load_project({ tmp_pck_path }, false) == OK);
-
-	test_pck_files(files);
-
-	CHECK(settings->unload_project() == OK);
-	settings->clear_custom_pack_source_script();
+	SUBCASE("Standard loading") {
+		CHECK(create_test_pck(tmp_pck_path, files) == OK);
+		test_custom_loading(tmp_pck_path, files);
+		CHECK(GDRESettings::get_singleton()->unload_project() == OK);
+		GDRESettings::get_singleton()->clear_custom_pack_source_script();
+	}
+	static const String key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+	SUBCASE("Encrypted loading") {
+		CHECK(create_test_pck(tmp_pck_path, files, key, true, true) == OK);
+		auto settings = GDRESettings::get_singleton();
+		REQUIRE(settings);
+		CHECK(settings->set_encryption_key_string(key) == OK);
+		test_custom_loading(tmp_pck_path, files);
+		Ref<FileAccessGDRE> fa = FileAccess::open("res://test.txt", FileAccess::READ);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_proxy_class_name() == "FileAccessEncrypted");
+		CHECK(GDRESettings::get_singleton()->unload_project() == OK);
+		GDRESettings::get_singleton()->clear_custom_pack_source_script();
+	}
+	SUBCASE("Encrypted loading with custom encryption") {
+		CHECK(create_test_pck(tmp_pck_path, files, key, true, true) == OK);
+		GDScriptLanguage::get_singleton()->init();
+		CHECK(ClassDB::class_exists(StringName("CustomDecryptor")));
+		String custom_encryption_script_path = get_gdsdecomp_path().path_join("docs/gdre_standard_encryption.gd");
+		auto settings = GDRESettings::get_singleton();
+		REQUIRE(settings);
+		CHECK(settings->set_custom_decryption_script(custom_encryption_script_path) == OK);
+		CHECK(settings->set_encryption_key_string(key) == OK);
+		test_custom_loading(tmp_pck_path, files);
+		Ref<FileAccessGDRE> fa = FileAccess::open("res://test.txt", FileAccess::READ);
+		REQUIRE(fa.is_valid());
+		CHECK(fa->get_proxy_class_name() == "FileAccessEncryptedCustom");
+		CHECK(GDRESettings::get_singleton()->unload_project() == OK);
+		GDRESettings::get_singleton()->clear_custom_pack_source_script();
+	}
 
 	gdre::rimraf(tmp_test_file);
 	gdre::rimraf(tmp_pck_path);
