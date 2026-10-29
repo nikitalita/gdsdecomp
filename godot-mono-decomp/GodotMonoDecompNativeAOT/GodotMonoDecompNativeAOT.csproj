@@ -13,9 +13,11 @@
     <PublishAot>true</PublishAot>
 	<PublishProfile>AOT</PublishProfile>
   </PropertyGroup>
-  <!-- force macos 11 compatibility -->
-  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('osx'))">
-	<AppleMinOSVersion>11.0</AppleMinOSVersion>
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('osx')) and $(RuntimeIdentifier.EndsWith('arm64'))">
+	<AppleMinOSVersion>13.0</AppleMinOSVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('osx')) and $(RuntimeIdentifier.EndsWith('x64'))">
+	<AppleMinOSVersion>12.0</AppleMinOSVersion>
   </PropertyGroup>
   <ItemGroup>
 	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('osx'))" />

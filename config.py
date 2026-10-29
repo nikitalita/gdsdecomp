@@ -61,13 +61,16 @@ def configure(env):
         print(f"Using shared Mono for {env['platform']} because static Mono is not supported for this platform")
         env["use_static_godot_mono_decomp"] = False
 
-    # hack to force the minimum macOS version to 10.15; it is currently hard-coded to 10.13
-    # TODO: remove this hack once the minimum macOS version is updated to 10.15
+    # hack to force the minimum macOS version to 12.0; it is currently hard-coded to 11.0 on x86_64 builds
+    # TODO: remove this hack once the minimum macOS version is updated to 12.0
     if env["platform"] == "macos" and env["arch"] == "x86_64":
-        min_version_flag = "-mmacosx-version-min=10.15"
+        min_version_flag = "-mmacosx-version-min=12.0"
+        # remove any existing `-mmacosx-version-min` flags first
+        for key in ("CPPFLAGS", "LINKFLAGS", "CCFLAGS", "ASFLAGS"):
+            env[key] = [flag for flag in env.get(key, []) if not str(flag).startswith("-mmacosx-version-min")]
         env.Append(CPPFLAGS=[min_version_flag])
         env.Append(LINKFLAGS=[min_version_flag])
-        env.Append(CXXFLAGS=[min_version_flag])
+        env.Append(CCFLAGS=[min_version_flag])
         env.Append(ASFLAGS=[min_version_flag])
 
 
