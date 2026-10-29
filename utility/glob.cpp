@@ -706,7 +706,7 @@ Vector<String> Glob::glob_list(const Vector<String> &pathnames, bool hidden) {
 	HashSet<String> result;
 	for (auto &pathname : pathnames) {
 		for (auto &match : _glob(pathname, false, false, hidden)) {
-			result.insert(std::move(match));
+			result.insert(match);
 		}
 	}
 	return gdre::hashset_to_vector(result);
@@ -716,7 +716,7 @@ Vector<String> Glob::rglob_list(const Vector<String> &pathnames, bool hidden) {
 	HashSet<String> result;
 	for (auto &pathname : pathnames) {
 		for (auto &match : _glob(pathname, true, false, hidden)) {
-			result.insert(std::move(match));
+			result.insert(match);
 		}
 	}
 	return gdre::hashset_to_vector(result);
