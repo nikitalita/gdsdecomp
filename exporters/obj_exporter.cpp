@@ -495,6 +495,7 @@ Vector<Ref<Mesh>> ObjExporter::load_meshes(const HashSet<String> &p_paths, int v
 	if (use_fake_meshes && p_for_scene_export) {
 		for (int i = 0; i < meshes.size(); i++) {
 			meshes.write[i] = FakeMesh::mesh_to_array_mesh(meshes[i]);
+			meshes.write[i]->set_path_cache(meshes[i]->get_path());
 			if (meshes[i].is_null()) {
 				ERR_FAIL_V_MSG(Vector<Ref<Mesh>>(), "Failed to convert mesh to array mesh: " + *p_paths.begin());
 			}

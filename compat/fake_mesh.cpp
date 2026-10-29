@@ -1479,30 +1479,30 @@ Ref<ArrayMesh> FakeMesh::mesh_to_array_mesh(const Ref<Mesh> &p_mesh) {
 	if (ret_mesh.is_valid()) {
 		return ret_mesh;
 	}
-	Ref<ImporterMesh> importer_mesh = ImporterMesh::from_mesh(p_mesh);
-
 	Ref<FakeMesh> fake_mesh = p_mesh;
 	if (fake_mesh.is_valid()) {
-		// Convert blend shape mode and names if any.
-		if (fake_mesh->get_blend_shape_count() > 0) {
-			importer_mesh->set_blend_shape_mode(fake_mesh->get_blend_shape_mode());
-		}
-		for (int32_t surface_i = 0; surface_i < p_mesh->get_surface_count(); surface_i++) {
-			String surface_name = fake_mesh->surface_get_name(surface_i);
-			if (!surface_name.is_empty()) {
-				importer_mesh->set_surface_name(surface_i, surface_name);
+		ret_mesh.instantiate();
+		static Vector<String> properties = { "_blend_shape_names", "_surfaces", "blend_shape_mode", "custom_aabb", "shadow_mesh" };
+		// _set_surfaces sets the mesh path in the rendering server, so we need to set it here too
+		ret_mesh->set_path_cache(p_mesh->get_path());
+		for (auto &property : properties) {
+			Variant value = p_mesh->get(property);
+			if (property == "shadow_mesh") {
+				value = FakeMesh::mesh_to_array_mesh(value);
 			}
+			ret_mesh->set(property, p_mesh->get(property));
 		}
+		ret_mesh->set_path_cache("");
+	} else {
+		Ref<ImporterMesh> importer_mesh = ImporterMesh::from_mesh(p_mesh);
+		ret_mesh = importer_mesh->get_mesh();
 	}
-	ret_mesh = importer_mesh->get_mesh();
 
 	// Merge metadata.
 	ret_mesh->merge_meta_from(*p_mesh);
 	ret_mesh->set_name(p_mesh->get_name());
 	ret_mesh->set_local_to_scene(p_mesh->is_local_to_scene());
 	ret_mesh->set_scene_unique_id(p_mesh->get_scene_unique_id());
-	ret_mesh->set_path_cache(p_mesh->get_path());
-
 	return ret_mesh;
 }
 
