@@ -1442,7 +1442,7 @@ Dictionary get_node_options(Node *p_node, Node *original_node = nullptr) {
 			node_options_dict["physics/body_type"] = body_type;
 			node_options_dict["physics/shape_type"] = shape_type;
 			if (physics_material_override.is_valid()) {
-				node_options_dict["physics/physics_material_override"] = physics_material_override;
+				node_options_dict["physics/physics_material_override"] = Variant((Object *)physics_material_override.ptr());
 			} else {
 				node_options_dict["physics/physics_material_override"] = Variant();
 			}
