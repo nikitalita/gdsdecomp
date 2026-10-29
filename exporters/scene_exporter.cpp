@@ -1666,18 +1666,26 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 		}
 		if (replace_shader_materials && mesh.is_valid()) {
 			if (Ref<ShaderMaterial> shader_mat_override = mesh_instance->get_material_override(); shader_mat_override.is_valid()) {
-				auto [base_material, used_textures_and_is_instance] = ShaderMaterialConverter::convert_shader_material_to_base_material(shader_mat_override, mesh_instance);
-				if (base_material.is_valid()) {
-					mesh_instance->set_material_override(base_material);
+				if (shader_material_to_base_material_map.has(shader_mat_override)) {
+					mesh_instance->set_material_override(shader_material_to_base_material_map[shader_mat_override]);
+				} else {
+					auto [base_material, used_textures_and_is_instance] = ShaderMaterialConverter::convert_shader_material_to_base_material(shader_mat_override, mesh_instance);
+					if (base_material.is_valid()) {
+						mesh_instance->set_material_override(base_material);
+					}
+					cache_material(shader_mat_override, base_material, used_textures_and_is_instance);
 				}
-				cache_material(shader_mat_override, base_material, used_textures_and_is_instance);
 			}
 			if (Ref<ShaderMaterial> shader_mat_overlay = mesh_instance->get_material_overlay(); shader_mat_overlay.is_valid()) {
-				auto [base_material, used_textures_and_is_instance] = ShaderMaterialConverter::convert_shader_material_to_base_material(shader_mat_overlay, mesh_instance);
-				if (base_material.is_valid()) {
-					mesh_instance->set_material_overlay(base_material);
+				if (shader_material_to_base_material_map.has(shader_mat_overlay)) {
+					mesh_instance->set_material_overlay(shader_material_to_base_material_map[shader_mat_overlay]);
+				} else {
+					auto [base_material, used_textures_and_is_instance] = ShaderMaterialConverter::convert_shader_material_to_base_material(shader_mat_overlay, mesh_instance);
+					if (base_material.is_valid()) {
+						mesh_instance->set_material_overlay(base_material);
+					}
+					cache_material(shader_mat_overlay, base_material, used_textures_and_is_instance);
 				}
-				cache_material(shader_mat_overlay, base_material, used_textures_and_is_instance);
 			}
 			for (int surface_i = 0; surface_i < mesh->get_surface_count(); surface_i++) {
 				Ref<ShaderMaterial> shader_material;
