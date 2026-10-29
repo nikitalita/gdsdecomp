@@ -605,21 +605,21 @@ public static class GodotStuff
 		void PlaceHandleAtPath(string path, TypeDefinitionHandle h)
 		{
 			path = _NormalizePath(path);
-			if (!godotClassHandles.Contains(h))
-			{
-				AddHandleToPath(path, h);
-				return;
-			}
 
 			while (true)
 			{
 				var existingHandles = fileMap.TryGetValue(path, out var hs) ? hs : [];
 				var existingGlobals = existingHandles.Where(godotClassHandles.Contains).ToList();
 
-				if (existingGlobals.Count == 0)
+				if (existingHandles.Count == 0 || existingGlobals.Count == 0)
 				{
 					AddHandleToPath(path, h);
 					return;
+				}
+				if (existingHandles.Count >= 1 && existingHandles.Any(other => module.Metadata.GetTypeDefinition(other).Namespace != module.Metadata.GetTypeDefinition(h).Namespace))
+				{
+					path = RelocateByPrefixingUnderscoreDirectory(path);
+					continue;
 				}
 
 				bool incomingIsCanonical = canonicalHandles.Contains(h);
