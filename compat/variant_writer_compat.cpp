@@ -863,8 +863,17 @@ static constexpr _ALWAYS_INLINE_ int64_t max_integer_str_len() {
 }
 } //namespace
 
-template <int ver_major, bool is_pcfg, bool is_script, bool p_compat = false, bool after_4_4 = false>
+enum VariantWriterMode {
+	MODE_NORMAL,
+	MODE_PCFG,
+	MODE_SCRIPT
+};
+
+template <int ver_major, VariantWriterMode mode, bool p_compat = false, bool after_4_4 = false>
 struct VarWriter {
+	static constexpr bool is_pcfg = mode == MODE_PCFG;
+	static constexpr bool is_script = mode == MODE_SCRIPT;
+	static constexpr bool is_normal = mode == MODE_NORMAL;
 	static constexpr bool use_inf_neg = !(ver_major <= 2 || (ver_major >= 4 && !p_compat && after_4_4));
 	static constexpr bool is_v2_pcfg = ver_major == 2 && is_pcfg;
 
@@ -1066,8 +1075,8 @@ struct VarWriter {
 
 }; // struct VariantWriterCompatInstance
 
-template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
-void VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud,
+template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
+void VarWriter<ver_major, mode, p_compat, after_4_4>::write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud,
 		VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	if (p_type.script.is_valid()) {
 		String resource_text;
@@ -1093,8 +1102,8 @@ void VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_contai
 	}
 }
 
-template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
-Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count) {
+template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
+Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count) {
 	switch (p_variant.get_type()) {
 		case Variant::NIL: {
 			p_store_string_func(p_store_string_ud, "null");
@@ -1236,7 +1245,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 		case Variant::NODE_PATH: {
 			String str = p_variant;
 			// In scripts, use the shorthand syntax.
-			if (is_script) {
+			if constexpr (is_script) {
 				str = "^\"" + str.c_escape() + "\"";
 			} else {
 				str = "NodePath(\"" + str.c_escape() + "\")";
@@ -1499,8 +1508,8 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 	return OK;
 } // VarWriter::write_compat_v4
 
-template <int ver_major, bool is_pcfg, bool is_script, bool p_compat, bool after_4_4>
-Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
+Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	// for v2 and v3...
 
 	static constexpr const char *array_start = is_v2_pcfg ? "[" : "[ ";
@@ -1621,7 +1630,7 @@ Error VarWriter<ver_major, is_pcfg, is_script, p_compat, after_4_4>::write_compa
 		case Variant::NODE_PATH: {
 			String str = p_variant;
 			// in code files, use the short form
-			if (is_script) {
+			if constexpr (is_script) {
 				str = "@\"" + str.c_escape() + "\"";
 			} else {
 				str = "NodePath(\"" + str.c_escape() + "\")";
@@ -1856,16 +1865,16 @@ static Error _write_to_str(void *ud, const String &p_string) {
 	return OK;
 }
 
-template <bool is_pcfg, bool is_script, bool force_v3, bool after_4_4>
-static Error _write_v4(const Variant &p_variant, String &r_string, uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+template <VariantWriterMode mode, bool force_v3, bool after_4_4>
+static inline Error _write_v4(const Variant &p_variant, String &r_string, uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	// scripts never pretty print; versions below 4.8 didn't have pretty printing
-	const bool pretty_print = !is_script && ver_minor >= 8;
-	return VarWriter<4, is_pcfg, is_script, force_v3, after_4_4>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
+	const bool pretty_print = mode != MODE_SCRIPT && ver_minor >= 8;
+	return VarWriter<4, mode, force_v3, after_4_4>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 }
 
 // is_pcfg: project.cfg variants are written differently than resource variants in Godot 2.x
 // is_script: script variants never pretty print
-template <bool is_pcfg, bool is_script>
+template <VariantWriterMode mode>
 static Error _write_to_string_impl(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
@@ -1874,19 +1883,19 @@ static Error _write_to_string_impl(const Variant &p_variant, String &r_string, c
 			[[fallthrough]];
 		case 1:
 		case 2:
-			return VarWriter<2, is_pcfg, is_script>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
+			return VarWriter<2, mode>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
 		case 3:
-			return VarWriter<3, is_pcfg, is_script>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
+			return VarWriter<3, mode>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
 		case 4: {
 			const bool after_4_4 = ver_minor > 4;
 			if (p_compat_4x_force_v3) {
 				return after_4_4
-						? _write_v4<is_pcfg, is_script, true, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
-						: _write_v4<is_pcfg, is_script, true, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
+						? _write_v4<mode, true, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+						: _write_v4<mode, true, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
 			}
 			return after_4_4
-					? _write_v4<is_pcfg, is_script, false, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
-					: _write_v4<is_pcfg, is_script, false, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
+					? _write_v4<mode, false, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+					: _write_v4<mode, false, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
 		}
 		default:
 			break;
@@ -1895,14 +1904,14 @@ static Error _write_to_string_impl(const Variant &p_variant, String &r_string, c
 }
 
 Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<false, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+	return _write_to_string_impl<MODE_SCRIPT>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
 
 // project.cfg variants are written differently than resource variants in Godot 2.x
 Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<true, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+	return _write_to_string_impl<MODE_PCFG>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
 
 Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<false, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+	return _write_to_string_impl<MODE_NORMAL>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
 }
