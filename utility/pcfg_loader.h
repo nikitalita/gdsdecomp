@@ -43,6 +43,7 @@ class ProjectConfigLoader : public RefCounted {
 	int config_version = 0;
 	uint32_t major = 0;
 	uint32_t minor = 0;
+	bool requires_double_precision_cached = false;
 
 protected:
 	static void _bind_methods();
@@ -102,6 +103,10 @@ protected:
 
 	Error _save_settings_text(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor);
 	Error _save_settings_binary(const String &p_file, const RBMap<String, List<String>> &props, const uint32_t ver_major, const uint32_t ver_minor, const CustomMap &p_custom = CustomMap(), const String &p_custom_features = String());
+
+	bool _requires_double_precision() const;
+
+	static constexpr const char *APP_FEATURES_SETTING_NAME = "application/config/features";
 
 public:
 	static constexpr int CURRENT_CONFIG_VERSION = 5;

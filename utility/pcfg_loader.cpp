@@ -4,6 +4,7 @@
 
 #include "core/io/file_access.h"
 #include "core/object/class_db.h"
+#include "core/variant/variant.h"
 #include "core/variant/variant_parser.h"
 #include "utility/file_access_buffer.h"
 #include "utility/gdre_settings.h"
@@ -94,7 +95,7 @@ int ProjectConfigLoader::_detect_ver_major_v3_or_v4(int loaded_as_ver_major) con
 
 	// these are all internal properties, so they're unlikely to be modifed with by the user directly
 	CHECK_PROP("application/config/tags", Variant::Type::PACKED_STRING_ARRAY);
-	CHECK_PROP("application/config/features", Variant::Type::PACKED_STRING_ARRAY);
+	CHECK_PROP(APP_FEATURES_SETTING_NAME, Variant::Type::PACKED_STRING_ARRAY);
 	CHECK_PROP("internationalization/locale/translation_remaps", Variant::Type::PACKED_STRING_ARRAY);
 	CHECK_PROP("internationalization/locale/translations", Variant::Type::PACKED_STRING_ARRAY);
 	CHECK_PROP("internationalization/locale/translations_pot_files", Variant::Type::PACKED_STRING_ARRAY);
@@ -124,7 +125,7 @@ int ProjectConfigLoader::_detect_ver_major_v3_or_v4(int loaded_as_ver_major) con
 	}
 
 	// last resort; this is written by default in v4, and if the project doesn't have it, it's definitely v3
-	if (props.has("application/config/features")) {
+	if (props.has(APP_FEATURES_SETTING_NAME)) {
 		return 4;
 	}
 
@@ -192,6 +193,7 @@ Error ProjectConfigLoader::load_cfb(const String path, uint32_t ver_major, uint3
 	major = ver_major;
 	minor = ver_minor;
 	loaded = true;
+	requires_double_precision_cached = _requires_double_precision();
 	return OK;
 }
 
@@ -266,6 +268,9 @@ Error ProjectConfigLoader::set_setting(String p_var, Variant value) {
 		props[p_var].variant = value;
 	} else {
 		props[p_var] = VariantContainer(value, last_builtin_order++, true);
+	}
+	if (p_var == APP_FEATURES_SETTING_NAME) {
+		requires_double_precision_cached = _requires_double_precision();
 	}
 	return OK;
 }
@@ -572,9 +577,14 @@ String ProjectConfigLoader::get_project_settings_as_string(const String &p_path)
 	return loader->get_as_text();
 }
 
-bool ProjectConfigLoader::requires_double_precision() const {
-	PackedStringArray features = get_setting("application/config/features", PackedStringArray());
+bool ProjectConfigLoader::_requires_double_precision() const {
+	PackedStringArray features = get_setting(APP_FEATURES_SETTING_NAME, PackedStringArray());
 	return features.has("Double Precision");
+}
+
+bool ProjectConfigLoader::requires_double_precision() const {
+	// `requires_double_precision()` is on hot paths and checking the feature array every time is very inefficient, so we cache this value
+	return requires_double_precision_cached;
 }
 
 ProjectConfigLoader::ProjectConfigLoader() {
