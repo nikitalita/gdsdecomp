@@ -155,7 +155,7 @@ During SCons configure, the module auto-applies the patches under `modules/gdsde
 
 ### Requirements
 
-[Our fork of godot](https://github.com/nikitalita/godot) @ branch `gdre-wb-7782e7e21e`
+[Our fork of godot](https://github.com/nikitalita/godot) @ branch `gdre-wb-5e5b0a3732`
 
 - Support for building on 3.x has been dropped and no new features are being pushed
   - Godot RE Tools still retains the ability to decompile 3.x and 2.x projects, however.

@@ -7,7 +7,10 @@ cd "$SCRIPT_PATH/../../.."
 git fetch --all
 git checkout master
 git pull
-
+if [ $? -ne 0 ]; then
+	echo "Error: Failed to pull master; stash your changes first"
+	exit 1
+fi
 HEAD=$(git rev-parse HEAD)
 SHORT_HASH=$(git rev-parse --short HEAD)
 NEW_BRANCH_NAME="gdre-wb-$SHORT_HASH"
@@ -44,6 +47,7 @@ BRANCHES_TO_MERGE=(
 	gltf-node-weights
 	gltf-clear-mipmaps-before-dupe
 	fix-classdb-get-default-value
+	ref-ensure-type-is-complete
 )
 
 # set fail on error
