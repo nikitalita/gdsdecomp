@@ -69,7 +69,8 @@ custom_minimum_size = Vector2(2.08165e-12, 36)
 layout_mode = 2
 placeholder_text = "<e.g. 000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F>"
 
-[node name="Label2" type="RichTextLabel" parent="SetEncryptionKeyWindow/VBoxContainer" unique_id=1547524909]
+[node name="CustomDecScriptLabel" type="RichTextLabel" parent="SetEncryptionKeyWindow/VBoxContainer" unique_id=1547524909]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(2.08165e-12, 2.08165e-12)
 layout_mode = 2
 tooltip_text = "Optional decryption script for games with custom encryption"
@@ -383,6 +384,7 @@ filters = PackedStringArray("*.gd;GDScript files")
 show_hidden_files = true
 use_native_dialog = true
 
+[connection signal="meta_clicked" from="SetEncryptionKeyWindow/VBoxContainer/CustomDecScriptLabel" to="." method="_on_uri_clicked"]
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer2/EncryptionScriptChooser" to="." method="_on_encryption_script_chooser_pressed"]
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer2/EncryptionScriptClear" to="." method="_on_encryption_script_clear_pressed"]
 [connection signal="pressed" from="SetEncryptionKeyWindow/VBoxContainer/HBoxContainer/CancelButton" to="." method="_on_setenc_key_cancel_pressed"]

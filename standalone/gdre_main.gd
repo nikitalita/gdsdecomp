@@ -1895,3 +1895,6 @@ func _on_encryption_script_clear_pressed() -> void:
 
 func _on_encryption_script_file_dialog_file_selected(path: String) -> void:
 	%EncryptionScriptPathText.text = path
+
+func _on_uri_clicked(meta: Variant) -> void:
+	OS.shell_open(meta)
