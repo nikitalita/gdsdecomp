@@ -5,13 +5,14 @@
 #include "core/os/os.h"
 #include "gdre_audio_stream_preview.h"
 #include "gui/gdre_window.h"
-#include "scene/gui/dialogs.h"
 #include "scene/gui/rich_text_label.h"
 #include "scene/main/node.h"
 #include "scene/main/scene_tree.h"
 #include "utility/gdre_logger.h"
 #include "utility/gdre_settings.h"
 #include "utility/gdre_version.gen.h"
+
+#include "gui/rich_text_dialogs.h"
 
 GodotREEditorStandalone *GodotREEditorStandalone::singleton = nullptr;
 
@@ -204,8 +205,8 @@ GodotREEditorStandalone::GodotREEditorStandalone() {
 	audio_stream_preview_generator_node = memnew(GDREAudioStreamPreviewGeneratorNode);
 	add_child(progress_dialog);
 	add_child(audio_stream_preview_generator_node);
-	confirmation_dialog = memnew(ConfirmationDialog);
-	error_dialog = memnew(AcceptDialog);
+	confirmation_dialog = memnew(ConfirmationDialogWithRichText);
+	error_dialog = memnew(ErrorDialogWithRichText);
 	set_process(true);
 }
 

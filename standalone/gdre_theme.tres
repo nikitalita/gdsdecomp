@@ -1591,6 +1591,7 @@ RichTextLabel/colors/font_color_shadow = Color(0, 0, 0, 0)
 RichTextLabel/constants/shadow_as_outline = 0
 RichTextLabel/constants/shadow_offset_x = 1
 RichTextLabel/constants/shadow_offset_y = 1
+RichTextLabel/constants/underline_alpha = 90
 RichTextLabel/styles/focus = SubResource("1395")
 RichTextLabel/styles/normal = SubResource("1362")
 SpinBox/icons/updown = SubResource("549")

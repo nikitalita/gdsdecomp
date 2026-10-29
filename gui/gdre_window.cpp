@@ -1,12 +1,59 @@
 #include "gdre_window.h"
-#include "gui/gdre_progress.h"
+
+#include "core/config/engine.h"
+#include "core/object/callable_mp.h"
+#include "core/object/class_db.h"
+#include "core/os/os.h"
 #include "scene/main/node.h"
 #include "scene/main/window.h"
 #include "servers/display/display_server.h"
+
+#include "gui/gdre_progress.h"
+#include "gui/rich_text_dialogs.h"
 #include "utility/gdre_settings.h"
 
-#include "core/config/engine.h"
-#include "core/object/class_db.h"
+static void _on_url_clicked(const Variant &p_url) {
+	OS::get_singleton()->shell_open(p_url);
+}
+
+static inline void remove_connections(Window *p_dialog) {
+	List<Object::Connection> all_connections;
+	p_dialog->get_signal_connection_list("confirmed", &all_connections);
+	p_dialog->get_signal_connection_list("canceled", &all_connections);
+	for (const auto &connection : all_connections) {
+		if (connection.flags & Object::CONNECT_ONE_SHOT) {
+			p_dialog->disconnect(connection.signal.get_name(), connection.callable);
+		}
+	}
+	if (ErrorDialogWithRichText *error_dialog_with_rich_text = Object::cast_to<ErrorDialogWithRichText>(p_dialog); error_dialog_with_rich_text) {
+		all_connections.clear();
+		error_dialog_with_rich_text->get_rich_text_label()->get_signal_connection_list("meta_clicked", &all_connections);
+		for (const auto &connection : all_connections) {
+			if (connection.flags & Object::CONNECT_ONE_SHOT) {
+				error_dialog_with_rich_text->get_rich_text_label()->disconnect(connection.signal.get_name(), connection.callable);
+			}
+		}
+	}
+}
+
+static inline void set_text(AcceptDialog *p_dialog, const String &p_message) {
+	if (ErrorDialogWithRichText *error_dialog_with_rich_text = Object::cast_to<ErrorDialogWithRichText>(p_dialog)) {
+		error_dialog_with_rich_text->set_rich_text(p_message);
+		if (p_message.find("[url") != -1) {
+			error_dialog_with_rich_text->get_rich_text_label()->connect("meta_clicked", callable_mp_static(&_on_url_clicked), Object::ConnectFlags::CONNECT_ONE_SHOT);
+		}
+	} else {
+		p_dialog->set_text(p_message);
+	}
+}
+
+static inline void set_cancel_button_text(AcceptDialog *p_dialog, const String &p_cancel_button_text) {
+	if (ConfirmationDialogWithRichText *confirmation_dialog = Object::cast_to<ConfirmationDialogWithRichText>(p_dialog)) {
+		confirmation_dialog->set_cancel_button_text(p_cancel_button_text);
+	} else if (ConfirmationDialog *confirmation_dialog = Object::cast_to<ConfirmationDialog>(p_dialog)) {
+		confirmation_dialog->set_cancel_button_text(p_cancel_button_text);
+	}
+}
 
 void GDREWindow::popup_box(Node *p_parent, Window *p_box, const String &p_message, const String &p_title, const Callable &p_confirm_callback, const Callable &p_cancel_callback, const String &p_ok_button_text, const String &p_cancel_button_text) {
 	if (p_parent && p_box->get_parent() != p_parent) {
@@ -15,29 +62,17 @@ void GDREWindow::popup_box(Node *p_parent, Window *p_box, const String &p_messag
 		} else {
 			p_parent->add_child(p_box);
 		}
-	}
-	ConfirmationDialog *confirmation_dialog = Object::cast_to<ConfirmationDialog>(p_box);
-	if (confirmation_dialog) {
-		confirmation_dialog->set_ok_button_text(p_ok_button_text);
-		confirmation_dialog->set_cancel_button_text(p_cancel_button_text);
-		confirmation_dialog->set_text(p_message);
-		confirmation_dialog->reset_size();
+	};
+	// remove the current connections
+	remove_connections(p_box);
+	AcceptDialog *accept_dialog = Object::cast_to<AcceptDialog>(p_box);
+	if (accept_dialog) {
+		accept_dialog->set_ok_button_text(p_ok_button_text);
+		set_cancel_button_text(accept_dialog, p_cancel_button_text);
+		set_text(accept_dialog, p_message);
+		accept_dialog->reset_size();
 	} else {
-		GDREAcceptDialogBase *gdre_accept_dialog = Object::cast_to<GDREAcceptDialogBase>(p_box);
-		if (gdre_accept_dialog) {
-			gdre_accept_dialog->set_ok_button_text(p_ok_button_text);
-			gdre_accept_dialog->set_text(p_message);
-			gdre_accept_dialog->reset_size();
-		} else {
-			AcceptDialog *accept_dialog = Object::cast_to<AcceptDialog>(p_box);
-			if (accept_dialog) {
-				accept_dialog->set_ok_button_text(p_ok_button_text);
-				accept_dialog->set_text(p_message);
-				accept_dialog->reset_size();
-			} else {
-				ERR_FAIL_MSG("Unknown dialog type");
-			}
-		}
+		ERR_FAIL_MSG("Unknown dialog type");
 	}
 	p_box->set_title(p_title);
 	if (!p_confirm_callback.is_null()) {
@@ -116,8 +151,6 @@ void GDREWindow::set_window_autoscaling(Window *p_window, Size2i p_min_size) {
 void GDREWindow::_notification(int p_what) {
 	if (p_what == NOTIFICATION_ENTER_TREE) {
 		GDREWindow::set_window_autoscaling(this, get_min_size());
-		GDREWindow::set_window_autoscaling(confirmation_dialog, confirmation_dialog->get_min_size());
-		GDREWindow::set_window_autoscaling(error_dialog, error_dialog->get_min_size());
 	}
 }
 
@@ -125,8 +158,8 @@ GDREWindow::GDREWindow() {
 	if (GDREProgressDialog::get_singleton()) {
 		GDREProgressDialog::get_singleton()->add_host_window(this);
 	}
-	confirmation_dialog = memnew(ConfirmationDialog);
-	error_dialog = memnew(AcceptDialog);
+	confirmation_dialog = memnew(ConfirmationDialogWithRichText);
+	error_dialog = memnew(ErrorDialogWithRichText);
 	add_child(confirmation_dialog);
 	add_child(error_dialog);
 }
@@ -149,8 +182,8 @@ GDREAcceptDialogBase::GDREAcceptDialogBase() {
 	if (GDREProgressDialog::get_singleton()) {
 		GDREProgressDialog::get_singleton()->add_host_window(this);
 	}
-	confirmation_dialog = memnew(ConfirmationDialog);
-	error_dialog = memnew(AcceptDialog);
+	confirmation_dialog = memnew(ConfirmationDialogWithRichText);
+	error_dialog = memnew(ErrorDialogWithRichText);
 	add_child(confirmation_dialog);
 	add_child(error_dialog);
 }
@@ -172,8 +205,6 @@ void GDREAcceptDialogBase::popup_error_box(const String &p_message, const String
 void GDREAcceptDialogBase::_notification(int p_what) {
 	if (p_what == NOTIFICATION_ENTER_TREE) {
 		GDREWindow::set_window_autoscaling(this, get_min_size());
-		GDREWindow::set_window_autoscaling(confirmation_dialog, confirmation_dialog->get_min_size());
-		GDREWindow::set_window_autoscaling(error_dialog, error_dialog->get_min_size());
 	}
 }
 
@@ -181,8 +212,8 @@ GDREConfirmationDialogBase::GDREConfirmationDialogBase() {
 	if (GDREProgressDialog::get_singleton()) {
 		GDREProgressDialog::get_singleton()->add_host_window(this);
 	}
-	confirmation_dialog = memnew(ConfirmationDialog);
-	error_dialog = memnew(AcceptDialog);
+	confirmation_dialog = memnew(ConfirmationDialogWithRichText);
+	error_dialog = memnew(ErrorDialogWithRichText);
 	add_child(confirmation_dialog);
 	add_child(error_dialog);
 }
@@ -196,8 +227,6 @@ GDREConfirmationDialogBase::~GDREConfirmationDialogBase() {
 void GDREConfirmationDialogBase::_notification(int p_what) {
 	if (p_what == NOTIFICATION_ENTER_TREE) {
 		GDREWindow::set_window_autoscaling(this, get_min_size());
-		GDREWindow::set_window_autoscaling(confirmation_dialog, confirmation_dialog->get_min_size());
-		GDREWindow::set_window_autoscaling(error_dialog, error_dialog->get_min_size());
 	}
 }
 

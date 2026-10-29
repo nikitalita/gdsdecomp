@@ -10,6 +10,8 @@ class GDREAudioStreamPreviewGeneratorNode;
 class AcceptDialog;
 class ConfirmationDialog;
 class RichTextLabel;
+class ErrorDialogWithRichText;
+class ConfirmationDialogWithRichText;
 
 class GodotREEditorStandalone : public Control {
 	GDCLASS(GodotREEditorStandalone, Control)
@@ -18,8 +20,8 @@ class GodotREEditorStandalone : public Control {
 	HBoxContainer *menu_hb = nullptr;
 	GDREProgressDialog *progress_dialog = nullptr;
 	GDREAudioStreamPreviewGeneratorNode *audio_stream_preview_generator_node = nullptr;
-	AcceptDialog *error_dialog = nullptr;
-	ConfirmationDialog *confirmation_dialog = nullptr;
+	ErrorDialogWithRichText *error_dialog = nullptr;
+	ConfirmationDialogWithRichText *confirmation_dialog = nullptr;
 	uint64_t last_log_message_time = 0;
 	StaticParallelQueue<String, 10240> log_message_buffer;
 

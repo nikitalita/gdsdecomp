@@ -5,11 +5,13 @@
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 
+class ErrorDialogWithRichText;
+class ConfirmationDialogWithRichText;
 class GDREWindow : public Window {
 	GDCLASS(GDREWindow, Window);
 
-	ConfirmationDialog *confirmation_dialog;
-	AcceptDialog *error_dialog;
+	ConfirmationDialogWithRichText *confirmation_dialog;
+	ErrorDialogWithRichText *error_dialog;
 	static const Callable void_func_callable;
 
 protected:
@@ -18,6 +20,7 @@ protected:
 	void _notification(int p_what);
 
 public:
+	static void _on_url_clicked(const Variant &p_url);
 	static Size2i get_safe_window_size(Size2i p_size);
 	static Rect2i get_safe_window_size_and_position(Size2i p_size, Vector2i p_position);
 	static void ensure_safe_size_and_position(Window *p_window);
@@ -33,8 +36,8 @@ public:
 
 class GDREAcceptDialogBase : public AcceptDialog {
 	GDCLASS(GDREAcceptDialogBase, AcceptDialog);
-	ConfirmationDialog *confirmation_dialog;
-	AcceptDialog *error_dialog;
+	ConfirmationDialogWithRichText *confirmation_dialog;
+	ErrorDialogWithRichText *error_dialog;
 
 protected:
 	static void _bind_methods();
@@ -52,8 +55,8 @@ public:
 class GDREConfirmationDialogBase : public ConfirmationDialog {
 	GDCLASS(GDREConfirmationDialogBase, ConfirmationDialog);
 
-	ConfirmationDialog *confirmation_dialog;
-	AcceptDialog *error_dialog;
+	ConfirmationDialogWithRichText *confirmation_dialog;
+	ErrorDialogWithRichText *error_dialog;
 
 protected:
 	static void _bind_methods();

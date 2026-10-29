@@ -12,6 +12,7 @@
 #include "gui/gdre_xml_highlighter.h"
 #include "gui/gui_icons.h"
 #include "gui/mesh_previewer.h"
+#include "gui/rich_text_dialogs.h"
 #include "gui/scene_previewer.h"
 #include "gui/texture_layered_previewer.h"
 #include "gui/texture_previewer.h"
@@ -24,6 +25,8 @@ void initialize_gdsdecomp_gui_submodule(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}
+	ClassDB::register_class<ErrorDialogWithRichText>();
+	ClassDB::register_class<ConfirmationDialogWithRichText>();
 	ClassDB::register_class<GDREWindow>();
 	ClassDB::register_class<GDREAcceptDialogBase>();
 	ClassDB::register_class<GDREConfirmationDialogBase>();
