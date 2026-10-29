@@ -310,6 +310,7 @@ visible = false
 
 [node name="TextToBinFileDialog" type="GDREFileDialog" parent="." unique_id=22111780]
 unique_name_in_owner = true
+group_recent = "convert_files"
 auto_translate_mode = 1
 title = "Open File(s)"
 ok_button_text = "Open"
@@ -321,6 +322,7 @@ use_native_dialog = true
 
 [node name="BinToTextFileDialog" type="GDREFileDialog" parent="." unique_id=157356456]
 unique_name_in_owner = true
+group_recent = "convert_files"
 title = "Open File(s)"
 ok_button_text = "Open"
 file_mode = 1
@@ -330,6 +332,7 @@ use_native_dialog = true
 
 [node name="TextureToPNGFileDialog" type="GDREFileDialog" parent="." unique_id=392200930]
 unique_name_in_owner = true
+group_recent = "convert_files"
 title = "Open File(s)"
 ok_button_text = "Open"
 file_mode = 1
@@ -340,6 +343,7 @@ use_native_dialog = true
 
 [node name="OggStreamToOGGFileDialog" type="GDREFileDialog" parent="." unique_id=219429950]
 unique_name_in_owner = true
+group_recent = "convert_files"
 title = "Open File(s)"
 ok_button_text = "Open"
 file_mode = 1
@@ -350,6 +354,7 @@ use_native_dialog = true
 
 [node name="MP3StreamToMP3FileDialog" type="GDREFileDialog" parent="." unique_id=984739678]
 unique_name_in_owner = true
+group_recent = "convert_files"
 auto_translate_mode = 1
 title = "Open File(s)"
 ok_button_text = "Open"
@@ -365,6 +370,7 @@ visible = false
 
 [node name="SampleToWAVFileDialog" type="GDREFileDialog" parent="." unique_id=1244434354]
 unique_name_in_owner = true
+group_recent = "convert_files"
 title = "Open File(s)"
 ok_button_text = "Open"
 file_mode = 1
@@ -382,6 +388,16 @@ display_mode = 1
 access = 2
 filters = PackedStringArray("*.gd;GDScript files")
 show_hidden_files = true
+use_native_dialog = true
+
+[node name="RecoverProjectFileDialog" type="GDREFileDialog" parent="."]
+unique_name_in_owner = true
+group_recent = "recover_project"
+title = "Open File(s)"
+ok_button_text = "Open"
+file_mode = 1
+access = 2
+filters = PackedStringArray("*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.zip,*.pck,*.apk,*.xapk,*.app;Supported files")
 use_native_dialog = true
 
 [connection signal="meta_clicked" from="SetEncryptionKeyWindow/VBoxContainer/CustomDecScriptLabel" to="." method="_on_uri_clicked"]
@@ -403,3 +419,5 @@ use_native_dialog = true
 [connection signal="files_selected" from="MP3StreamToMP3FileDialog" to="." method="_on_mp_3_stream_to_mp_3_file_dialog_files_selected"]
 [connection signal="files_selected" from="SampleToWAVFileDialog" to="." method="_on_sample_file_dialog_files_selected"]
 [connection signal="file_selected" from="EncryptionScriptFileDialog" to="." method="_on_encryption_script_file_dialog_file_selected"]
+[connection signal="files_selected" from="RecoverProjectFileDialog" to="." method="_on_recover_project_files_selected"]
+[connection signal="dir_selected" from="RecoverProjectFileDialog" to="." method="_on_recover_project_dir_selected"]

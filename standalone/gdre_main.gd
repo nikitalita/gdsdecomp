@@ -8,8 +8,7 @@ var CONFIG_PATH = "user://gdre_settings.cfg"
 @onready var RECOVERY_DIALOG: GDRERecoverDialog = %GdreRecover
 @onready var NEW_PCK_DIALOG: GDRENewPck = %GdreNewPck
 @onready var PATCH_PCK_DIALOG: GDREPatchPCK = %GdrePatchPck
-var _file_dialog: Window = null
-var last_dir: String = ""
+@onready var RECOVER_FILE_DIALOG: GDREFileDialog = %RecoverProjectFileDialog
 var REAL_ROOT_WINDOW = null
 var ret_code = 0
 # TODO: This is a hack to have the CLI mode work correctly; CLI parsing needs overhauling
@@ -76,6 +75,7 @@ func _on_re_editor_standalone_dropped_files(files: PackedStringArray):
 	var new_files = []
 	for file in files:
 		new_files.append(dequote(file))
+	RECOVER_FILE_DIALOG.add_last_opened_selection(new_files)
 	_on_recover_project_files_selected(new_files)
 
 
@@ -187,20 +187,8 @@ func extract_and_recover(files_to_extract: PackedStringArray, output_dir: String
 	#hide_win()
 	%GdreExportReport.show_win()
 
-var _last_paths = PackedStringArray()
-
-func _retry_recover():
-	var paths = _last_paths
-	_last_paths = PackedStringArray()
-	_on_recover_project_files_selected(paths)
-
 func close_recover_file_dialog():
-	if _file_dialog:
-		last_dir = _file_dialog.current_dir
-		_file_dialog.hide()
-		# _file_dialog.set_transient(false)
-		# _file_dialog.set_exclusive(false)
-
+	RECOVER_FILE_DIALOG.hide()
 
 func launch_recovery_window(paths: PackedStringArray):
 	var err = RECOVERY_DIALOG.add_project(paths)
@@ -253,30 +241,13 @@ func open_setenc_window():
 
 
 func setup_file_dialog():
-	# pop open a file dialog
-	_file_dialog = FileDialog.new()
-	_file_dialog.set_use_native_dialog(true)
-	# This is currently broken in Godot, so we use the native dialogs
-	#var prev_size = _file_dialog.size
-	#_file_dialog.min_size = _file_dialog.size
-	#d_viewport.content_scale_factor = 2.0
-	_file_dialog.set_access(FileDialog.ACCESS_FILESYSTEM)
-	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILES #FileDialog.FILE_MODE_OPEN_FILE
-	#_file_dialog.filters = ["*"]
-	_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal,*.zip,*.pck,*.apk,*.xapk,*.app;Supported files"]
-	#_file_dialog.filters = ["*.exe,*.bin,*.32,*.64,*.x86_64,*.x86,*.arm64,*.universal;Self contained executable files", "*.pck;PCK files", "*.apk;APK files", "*;All files"]
-	## TODO: remove this
-	_file_dialog.current_dir = GDRESettings.get_home_dir()
-	_file_dialog.connect("files_selected", self._on_recover_project_files_selected)
-	_file_dialog.connect("dir_selected", self._on_recover_project_dir_selected)
-	get_tree().get_root().add_child.call_deferred(_file_dialog)
+	# The recover file dialog is defined in the scene (RecoverProjectFileDialog); it remembers
+	# its last directory itself. Only fall back to the home dir if nothing is remembered.
+	if RECOVER_FILE_DIALOG.get_last_opened_dir() == "":
+		RECOVER_FILE_DIALOG.current_dir = GDRESettings.get_home_dir()
 
 func open_recover_file_dialog():
-	if last_dir != "":
-		_file_dialog.current_dir = last_dir
-	else:
-		_file_dialog.current_dir = GDRESettings.get_home_dir()
-	open_subwindow(_file_dialog)
+	open_subwindow(RECOVER_FILE_DIALOG)
 
 func open_new_pck_dialog():
 	launch_new_pck_window()
