@@ -45,6 +45,24 @@ enum ResourcesMenuID {
 	SAMPLE_TO_WAV,
 }
 
+func get_pck_error_message(error_msg: String, gui: bool) -> String:
+	var ret = error_msg
+	var has_suspect_magic = error_msg.contains("PCK has suspect magic")
+	# print("UNVARNISHED_ERROR: " + error_msg)
+	if error_msg.to_lower().contains("encrypt"):
+		ret = "Incorrect encryption key. Please set the correct key and try again."
+		if has_suspect_magic:
+			ret = "Either the encryption key is incorrect or the encryption scheme has been modified by the developers.\nPlease see the documentation on %s for more information%s"
+			if gui:
+				ret = ret % ["[url=https://github.com/GDRETools/gdsdecomp/blob/master/docs/custom_decryptors.md]custom decryptors[/url]", "."]
+			else:
+				ret = ret % ["custom decryptors", ": https://github.com/GDRETools/gdsdecomp/blob/master/docs/custom_decryptors.md"]
+	elif has_suspect_magic:
+		# TODO: write documentation on custom pack sources
+		# ret = "The PCK format may have been modified by the developers. Please see the documentation on %s for more information%s"
+		pass
+	return ret
+
 func dequote(arg):
 	if arg.begins_with("\"") and arg.ends_with("\""):
 		return arg.substr(1, arg.length() - 2)
@@ -187,9 +205,7 @@ func close_recover_file_dialog():
 func launch_recovery_window(paths: PackedStringArray):
 	var err = RECOVERY_DIALOG.add_project(paths)
 	if err != OK:
-		var error_msg = GDRESettings.get_recent_error_string()
-		if error_msg.to_lower().contains("encrypt"):
-			error_msg = "Incorrect encryption key. Please set the correct key and try again."
+		var error_msg = get_pck_error_message(GDRESettings.get_recent_error_string(), true)
 		popup_error_box("Failed to open " + str(GDRECommon.get_files_for_paths(paths)) + ":\n" + error_msg, "Error")
 		return
 
@@ -878,9 +894,7 @@ func recovery(  input_files:PackedStringArray,
 
 	err = GDRESettings.load_project(input_files, extract_only, csharp_assembly)
 	if (err != OK):
-		var error_msg = GDRESettings.get_recent_error_string()
-		if error_msg.to_lower().contains("encrypt"):
-			error_msg = "Incorrect encryption key. Please set the correct key and try again."
+		var error_msg = get_pck_error_message(GDRESettings.get_recent_error_string(), false)
 		print("\nError: Failed to open " + str(GDRECommon.get_files_for_paths(input_files)) + ":\n" + error_msg)
 		return 1
 
