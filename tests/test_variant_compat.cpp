@@ -46,13 +46,22 @@ static inline Dictionary build_dictionary(Variant key, Variant item, Targs... Fa
 	return d;
 }
 
+// TODO: Most of these tests were written with single-precision real_t in mind; we should update them to use double-precision when we support it.
+static inline Error write_to_string(const Variant &variant, String &r_string, int ver_major, int ver_minor = 0, VariantWriterCompat::EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat = false) {
+	return VariantWriterCompat::write_to_string(variant, r_string, true, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat);
+}
+
+static inline Error write_to_string_pcfg(const Variant &variant, String &r_string, int ver_major, int ver_minor = 0, VariantWriterCompat::EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat = false) {
+	return VariantWriterCompat::write_to_string_pcfg(variant, r_string, true, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat);
+}
+
 void expect_variant_write_match(const Variant &variant, const String &expected_str, int ver_major, int ver_minor, bool is_pcfg, bool p_compat = false) {
 	String variant_str;
 	if (is_pcfg) {
-		VariantWriterCompat::write_to_string_pcfg(variant, variant_str, ver_major);
+		write_to_string_pcfg(variant, variant_str, ver_major);
 	} else {
 		int ver_minor = ver_major == GODOT_VERSION_MAJOR ? GODOT_VERSION_MINOR : 0;
-		VariantWriterCompat::write_to_string(variant, variant_str, ver_major, ver_minor, nullptr, nullptr, p_compat);
+		write_to_string(variant, variant_str, ver_major, ver_minor, nullptr, nullptr, p_compat);
 	}
 	CHECK(variant_str == expected_str);
 }
@@ -115,7 +124,7 @@ void _ALWAYS_INLINE_ test_variant_write_v2(const String &name, const T &p_val, c
 	// we need to use a macro here to get the name of the type, as we cannot use typeid(T).name() in a constexpr context
 	SUBCASE(vformat("%s write_to_string v2", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 2);
+		Error error = write_to_string(p_val, compat_ret, 2, 0, nullptr, nullptr, false);
 		CHECK(error == OK);
 		if (expected_v2.size() > 0) {
 			CHECK(compat_ret.size() == expected_v2.size());
@@ -133,7 +142,7 @@ void _ALWAYS_INLINE_ test_variant_write_v3(const String &name, const T &p_val, c
 	// we need to use a macro here to get the name of the type, as we cannot use typeid(T).name() in a constexpr context
 	SUBCASE(vformat("%s write_to_string v3", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, 3);
+		Error error = write_to_string(p_val, compat_ret, 3);
 		CHECK(error == OK);
 		if (expected_v3.size() > 0) {
 			CHECK(compat_ret.size() == expected_v3.size());
@@ -150,7 +159,7 @@ template <class T>
 void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, bool no_encode_decode = false) {
 	SUBCASE(vformat("%s write_to_string v4 compat", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, true);
+		Error error = write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, true);
 		CHECK(error == OK);
 		String gd_ret;
 		error = VariantWriter::write_to_string(p_val, gd_ret, true, nullptr, nullptr, true);
@@ -164,7 +173,7 @@ void _ALWAYS_INLINE_ test_variant_write_v4(const String &name, const T &p_val, b
 	}
 	SUBCASE(vformat("%s write_to_string v4 no compat", name).utf8().get_data()) {
 		String compat_ret;
-		Error error = VariantWriterCompat::write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, false);
+		Error error = write_to_string(p_val, compat_ret, GODOT_VERSION_MAJOR, GODOT_VERSION_MINOR, nullptr, nullptr, false);
 		CHECK(error == OK);
 		String gd_ret;
 		error = VariantWriter::write_to_string(p_val, gd_ret, true, nullptr, nullptr, false);
@@ -258,7 +267,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Vector<uint8_t> EXTRA_LARGE") {
 	large_arr.resize(large_array_size);
 	memset(large_arr.ptrw(), 255, large_array_size);
 	String thing;
-	Error err = VariantWriterCompat::write_to_string(large_arr, thing, 4, nullptr, nullptr, true);
+	Error err = write_to_string(large_arr, thing, 4, nullptr, nullptr, true);
 	CHECK(err == OK);
 	CHECK(thing.begins_with("PackedByteArray(255"));
 	CHECK(thing.ends_with("255)"));
@@ -738,9 +747,9 @@ Ref<Image> create_simple_grayscale_image() {
 void expect_image_write_match(const Ref<Image> &img, const String &expected_str, int ver_major, bool is_pcfg) {
 	String img_str;
 	if (is_pcfg) {
-		VariantWriterCompat::write_to_string_pcfg(img, img_str, ver_major);
+		write_to_string_pcfg(img, img_str, ver_major);
 	} else {
-		VariantWriterCompat::write_to_string(img, img_str, ver_major);
+		write_to_string(img, img_str, ver_major);
 	}
 	CHECK(img_str == expected_str);
 }
@@ -959,7 +968,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
 	SUBCASE("Roundtrip Test - Write then Parse") {
 		Ref<Image> original_img = create_simple_rgba_image();
 		String written_str;
-		VariantWriterCompat::write_to_string(original_img, written_str, 2);
+		write_to_string(original_img, written_str, 2);
 
 		Ref<Image> parsed_img = parse_and_get_image(written_str);
 
@@ -992,13 +1001,13 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Object") {
 TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser integer") {
 	int64_t a32 = 2147483648; // 2^31, so out of bounds for 32-bit signed int [-2^31, +2^31-1].
 	String a32_str;
-	VariantWriterCompat::write_to_string(a32, a32_str, 4);
+	write_to_string(a32, a32_str, 4);
 
 	CHECK_MESSAGE(a32_str != "-2147483648", "Should not wrap around");
 
 	int64_t b64 = 9223372036854775807; // 2^63-1, upper bound for signed 64-bit int.
 	String b64_str;
-	VariantWriterCompat::write_to_string(b64, b64_str, 4);
+	write_to_string(b64, b64_str, 4);
 
 	CHECK_MESSAGE(b64_str == "9223372036854775807", "Should not wrap around.");
 
@@ -1032,7 +1041,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Variant::FLOAT") {
 	// This is the maximum non-infinity double-precision float.
 	double a64 = 179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.0;
 	String a64_str;
-	VariantWriterCompat::write_to_string(a64, a64_str, 4);
+	write_to_string(a64, a64_str, 4);
 
 	CHECK_MESSAGE(a64_str == "1.7976931348623157e+308", "Writes in scientific notation.");
 	CHECK_MESSAGE(a64_str != "inf", "Should not overflow.");
@@ -1066,7 +1075,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Vector2") {
 	// Variant::VECTOR2 and Vector2 can be either 32-bit or 64-bit depending on the precision level of real_t.
 	{
 		Vector2 vec2 = Vector2(1.2, 3.4);
-		VariantWriterCompat::write_to_string(vec2, vec2_str, 4);
+		VariantWriterCompat::write_to_string(vec2, vec2_str, !REQUIRES_DOUBLE_PRECISION, 4);
 		// Reminder: "1.2" and "3.4" are not exactly those decimal numbers. They are the closest float to them.
 		CHECK_MESSAGE(vec2_str == "Vector2(1.2, 3.4)", "Should write with enough digits to ensure parsing back is exact.");
 		VariantParser::StreamString stream;
@@ -1077,7 +1086,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Vector2") {
 	// Check with big numbers and small numbers.
 	{
 		Vector2 vec2 = Vector2(1.234567898765432123456789e30, 1.234567898765432123456789e-10);
-		VariantWriterCompat::write_to_string(vec2, vec2_str, 4);
+		VariantWriterCompat::write_to_string(vec2, vec2_str, !REQUIRES_DOUBLE_PRECISION, 4);
 #ifdef REAL_T_IS_DOUBLE
 		CHECK_MESSAGE(vec2_str == "Vector2(1.2345678987654322e+30, 1.2345678987654322e-10)", "Should write with enough digits to ensure parsing back is exact.");
 #else
@@ -1093,7 +1102,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser Vector2") {
 TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser array") {
 	Array a = build_array(1, String("hello"), build_array(Variant()));
 	String a_str;
-	VariantWriterCompat::write_to_string(a, a_str, 4);
+	write_to_string(a, a_str, 4);
 
 	CHECK_EQ(a_str, "[1, \"hello\", [null]]");
 
@@ -1119,7 +1128,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer recursive array") {
 	// Writer should it recursion limit while visiting the array
 	ERR_PRINT_OFF;
 	String a_str;
-	VariantWriterCompat::write_to_string(a, a_str, 4);
+	write_to_string(a, a_str, 4);
 	ERR_PRINT_ON;
 
 	// Nested recursive
@@ -1131,7 +1140,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer recursive array") {
 	// Writer should it recursion limit while visiting the array
 	ERR_PRINT_OFF;
 	String a1_str;
-	VariantWriterCompat::write_to_string(a1, a1_str, 4);
+	write_to_string(a1, a1_str, 4);
 	ERR_PRINT_ON;
 
 	// Break the recursivity otherwise Dictionary tearndown will leak memory
@@ -1144,7 +1153,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser dictionary") {
 	// d = {{1: 2}: 3, 4: "hello", 5: {null: []}}
 	Dictionary d = build_dictionary(build_dictionary(1, 2), 3, 4, String("hello"), 5, build_dictionary(Variant(), build_array()));
 	String d_str;
-	VariantWriterCompat::write_to_string(d, d_str, 4);
+	write_to_string(d, d_str, 4);
 
 	CHECK_EQ(d_str, "{\n4: \"hello\",\n5: {\nnull: []\n},\n{\n1: 2\n}: 3\n}");
 
@@ -1162,7 +1171,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer and parser dictionary") {
 TEST_CASE("[GDSDecomp][VariantCompat] Writer key sorting") {
 	Dictionary d = build_dictionary(StringName("C"), 3, "A", 1, StringName("B"), 2, "D", 4);
 	String d_str;
-	VariantWriterCompat::write_to_string(d, d_str, 4);
+	write_to_string(d, d_str, 4);
 
 	CHECK_EQ(d_str, "{\n\"A\": 1,\n&\"B\": 2,\n&\"C\": 3,\n\"D\": 4\n}");
 }
@@ -1178,7 +1187,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer recursive dictionary") {
 	// Writer should it recursion limit while visiting the dictionary
 	ERR_PRINT_OFF;
 	String d_str;
-	VariantWriterCompat::write_to_string(d, d_str, 4);
+	write_to_string(d, d_str, 4);
 	ERR_PRINT_ON;
 
 	// Nested recursive
@@ -1190,7 +1199,7 @@ TEST_CASE("[GDSDecomp][VariantCompat] Writer recursive dictionary") {
 	// Writer should it recursion limit while visiting the dictionary
 	ERR_PRINT_OFF;
 	String d1_str;
-	VariantWriterCompat::write_to_string(d1, d1_str, 4);
+	write_to_string(d1, d1_str, 4);
 	ERR_PRINT_ON;
 
 	// Break the recursivity otherwise Dictionary tearndown will leak memory

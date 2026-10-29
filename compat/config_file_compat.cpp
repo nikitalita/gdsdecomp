@@ -208,6 +208,7 @@ Error ConfigFileCompat::save_encrypted_pass(const String &p_path, const String &
 
 Error ConfigFileCompat::_internal_save(Ref<FileAccess> file, int ver_major, int ver_minor) {
 	bool first = true;
+	bool force_single_precision = !GDRESettings::get_singleton()->requires_double_precision();
 	for (const KeyValue<String, HashMap<String, Variant>> &E : values) {
 		if (first) {
 			first = false;
@@ -224,7 +225,7 @@ Error ConfigFileCompat::_internal_save(Ref<FileAccess> file, int ver_major, int 
 				val = Variant();
 			}
 			String vstr;
-			VariantWriterCompat::write_to_string(val, vstr, ver_major, ver_minor, nullptr, nullptr, true);
+			VariantWriterCompat::write_to_string(val, vstr, force_single_precision, ver_major, ver_minor, nullptr, nullptr, true);
 			file->store_string(F.key.property_name_encode() + "=" + vstr + "\n");
 		}
 	}

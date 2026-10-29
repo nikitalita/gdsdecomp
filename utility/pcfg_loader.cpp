@@ -447,6 +447,7 @@ Error ProjectConfigLoader::_save_settings_text(const String &p_file, const RBMap
 Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file, const RBMap<String, List<String>> &proops, uint32_t ver_major, uint32_t ver_minor) {
 	int text_config_version = get_config_version_for_version(ver_major, ver_minor);
 
+	bool force_single_precision = !requires_double_precision();
 	if (text_config_version > 2) {
 		file->store_line("; Engine configuration file.");
 		file->store_line("; It's best edited using the editor UI and not directly,");
@@ -478,7 +479,7 @@ Error ProjectConfigLoader::_save_settings_text_file(const Ref<FileAccess> &file,
 			value = props[key].variant;
 
 			String vstr;
-			VariantWriterCompat::write_to_string_pcfg(value, vstr, ver_major, ver_minor);
+			VariantWriterCompat::write_to_string_pcfg(value, vstr, force_single_precision, ver_major, ver_minor);
 			file->store_string(F->get().property_name_encode() + "=" + vstr + "\n");
 		}
 	}

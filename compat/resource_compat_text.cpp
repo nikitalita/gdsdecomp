@@ -2507,7 +2507,7 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 				}
 
 				String vars;
-				VariantWriterCompat::write_to_string(value, vars, ver_major, ver_minor, _write_resources, this, use_compat);
+				VariantWriterCompat::write_to_string(value, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
 				f->store_string(name.property_name_encode() + " = " + vars + "\n");
 			}
 		}
@@ -2589,14 +2589,14 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			if (!instance_placeholder.is_empty()) {
 				String vars;
 				f->store_string(" instance_placeholder=");
-				VariantWriterCompat::write_to_string(instance_placeholder, vars, ver_major, ver_minor, _write_resources, this, use_compat);
+				VariantWriterCompat::write_to_string(instance_placeholder, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
 				f->store_string(vars);
 			}
 
 			if (instance.is_valid()) {
 				String vars;
 				f->store_string(" instance=");
-				VariantWriterCompat::write_to_string(instance, vars, ver_major, ver_minor, _write_resources, this, use_compat);
+				VariantWriterCompat::write_to_string(instance, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
 				f->store_string(vars);
 			}
 
@@ -2608,7 +2608,7 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 
 			for (int j = 0; j < state->get_node_property_count(i); j++) {
 				String vars;
-				VariantWriterCompat::write_to_string(state->get_node_property_value(i, j), vars, ver_major, ver_minor, _write_resources, this, use_compat);
+				VariantWriterCompat::write_to_string(state->get_node_property_value(i, j), vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
 
 				f->store_string(String(state->get_node_property_name(i, j)).property_name_encode() + " = " + vars + "\n");
 			}
@@ -2656,7 +2656,7 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 			f->store_string(connstr);
 			if (binds.size()) {
 				String vars;
-				VariantWriterCompat::write_to_string(binds, vars, ver_major, ver_minor, _write_resources, this, use_compat);
+				VariantWriterCompat::write_to_string(binds, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
 				f->store_string(" binds= " + vars);
 			}
 
@@ -3002,6 +3002,9 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 		using_uids = compat->using_uids;
 		using_named_scene_ids = compat->using_named_scene_ids;
 		Ref<ResourceImportMetadatav2> imd = compat->v2metadata;
+		if (GDRESettings::get_singleton()->requires_double_precision() || (orig_format == "binary" && compat->get_using_real_t_double())) {
+			force_single_real_t = false;
+		}
 		set_format = set_format || !(orig_format != "text" || format_version > ResourceLoaderCompatText::FORMAT_VERSION || format_version <= 0);
 		if (!set_format) {
 			if (orig_format == "binary" && (format_version == 6 || (ver_major == 4 && ver_minor >= 3))) {
@@ -3036,6 +3039,7 @@ Error ResourceFormatSaverCompatTextInstance::set_save_settings(const Ref<Resourc
 			}
 		}
 	} else {
+		force_single_real_t = !GDRESettings::get_singleton()->requires_double_precision();
 		if (!set_format) {
 			if (GDRESettings::get_singleton()->is_pack_loaded()) {
 				WARN_PRINT("Non-loaded resource and did not set version info, using default for pack.");

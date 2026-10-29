@@ -1147,6 +1147,7 @@ String encode_cfg_to_text(const Ref<ConfigFileCompat> &cf, int ver_major, int ve
 	StringBuilder sb;
 	bool first = true;
 	static const String null_replacement = String("\"") + ImportInfo::NULL_REPLACEMENT + "\"";
+	bool force_single_precision = !GDRESettings::get_singleton()->requires_double_precision();
 	for (const String &section : cf->get_sections()) {
 		if (first) {
 			first = false;
@@ -1171,11 +1172,11 @@ String encode_cfg_to_text(const Ref<ConfigFileCompat> &cf, int ver_major, int ve
 				for (size_t i = 0; i < keys.size(); i++) {
 					const Variant &E = keys[i];
 					temp_vstr.clear();
-					VariantWriterCompat::write_to_string(E, temp_vstr, ver_major, ver_minor);
+					VariantWriterCompat::write_to_string(E, temp_vstr, force_single_precision, ver_major, ver_minor);
 					vstr += temp_vstr;
 					vstr += ": ";
 					temp_vstr.clear();
-					VariantWriterCompat::write_to_string(dict[E], temp_vstr, ver_major, ver_minor);
+					VariantWriterCompat::write_to_string(dict[E], temp_vstr, force_single_precision, ver_major, ver_minor);
 					vstr += temp_vstr;
 					if (i < keys.size() - 1) {
 						vstr += ", ";
@@ -1183,7 +1184,7 @@ String encode_cfg_to_text(const Ref<ConfigFileCompat> &cf, int ver_major, int ve
 				}
 				vstr += "}";
 			} else {
-				VariantWriterCompat::write_to_string(value, vstr, ver_major, ver_minor);
+				VariantWriterCompat::write_to_string(value, vstr, force_single_precision, ver_major, ver_minor);
 			}
 			// ConfigFile interprets setting a key to null as erasing the key, so we have to use a special value that'll get replaced when saving.
 			if (vstr == null_replacement) {

@@ -168,11 +168,10 @@ Error ObjExporter::_write_meshes_to_obj(const Vector<Ref<Mesh>> &p_meshes, const
 	String mtl_path = p_path.get_basename() + ".mtl";
 
 	bool force_single_precision = true;
-	if (GDRESettings::get_singleton()->is_pack_loaded()) {
-		force_single_precision = !GDRESettings::get_singleton()->requires_double_precision();
-	} else {
-		auto res_info = ResourceInfo::get_info_from_resource(p_meshes[0]);
-		force_single_precision = !(res_info.is_valid() && res_info->using_real_t_double);
+	if (GDRESettings::get_singleton()->requires_double_precision()) {
+		force_single_precision = false;
+	} else if (auto res_info = ResourceInfo::get_info_from_resource(p_meshes[0]); res_info.is_valid() && res_info->resource_format == "binary") {
+		force_single_precision = !res_info->get_using_real_t_double();
 	}
 
 	// Build global triplet list and face indices

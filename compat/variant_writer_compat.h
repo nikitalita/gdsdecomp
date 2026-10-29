@@ -28,7 +28,7 @@ public:
 	typedef Error (*StoreStringFunc)(void *ud, const String &p_string);
 	typedef String (*EncodeResourceFunc)(void *ud, const Ref<Resource> &p_resource);
 
-	static Error write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
-	static Error write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
-	static Error write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
+	static Error write_to_string(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
+	static Error write_to_string_pcfg(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
+	static Error write_to_string_script(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor = 0, EncodeResourceFunc p_encode_res_func = nullptr, void *p_encode_res_ud = nullptr, bool p_compat_4x_force_v3 = true);
 };

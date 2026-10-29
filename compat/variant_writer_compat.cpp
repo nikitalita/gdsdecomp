@@ -869,7 +869,7 @@ enum VariantWriterMode {
 	MODE_SCRIPT
 };
 
-template <int ver_major, VariantWriterMode mode, bool p_compat = false, bool after_4_4 = false>
+template <int ver_major, VariantWriterMode mode, bool force_single_real_t, bool p_compat = false, bool after_4_4 = false>
 struct VarWriter {
 	static constexpr bool is_pcfg = mode == MODE_PCFG;
 	static constexpr bool is_script = mode == MODE_SCRIPT;
@@ -931,6 +931,20 @@ struct VarWriter {
 		return _rtosfix(p_value);
 	}
 
+	// for math types that can be affected by force_single_real_t
+#if REAL_T_IS_DOUBLE
+	static _ALWAYS_INLINE_ String rtosfix_real_t(real_t p_value) {
+		if constexpr (force_single_real_t) {
+			return _rtosfix((float)p_value);
+		}
+		return _rtosfix(p_value);
+	}
+#else
+	static _ALWAYS_INLINE_ String rtosfix_real_t(real_t p_value) {
+		return _rtosfix(p_value);
+	}
+#endif
+
 #define MAKE_WRITE_PACKED_ELEMENT(type, str)                             \
 	static _ALWAYS_INLINE_ String _make_element_string(const type &el) { \
 		return str;                                                      \
@@ -942,10 +956,10 @@ struct VarWriter {
 	MAKE_WRITE_PACKED_ELEMENT(float, _rtosfix(el));
 	MAKE_WRITE_PACKED_ELEMENT(double, _rtosfix(el));
 	MAKE_WRITE_PACKED_ELEMENT(String, "\"" + el.c_escape() + "\"");
-	MAKE_WRITE_PACKED_ELEMENT(Vector2, rtosfix(el.x) + ", " + rtosfix(el.y));
-	MAKE_WRITE_PACKED_ELEMENT(Vector3, rtosfix(el.x) + ", " + rtosfix(el.y) + ", " + rtosfix(el.z));
-	MAKE_WRITE_PACKED_ELEMENT(Vector4, rtosfix(el.x) + ", " + rtosfix(el.y) + ", " + rtosfix(el.z) + ", " + rtosfix(el.w));
-	MAKE_WRITE_PACKED_ELEMENT(Color, rtosfix(el.r) + ", " + rtosfix(el.g) + ", " + rtosfix(el.b) + ", " + rtosfix(el.a));
+	MAKE_WRITE_PACKED_ELEMENT(Vector2, rtosfix_real_t(el.x) + ", " + rtosfix_real_t(el.y));
+	MAKE_WRITE_PACKED_ELEMENT(Vector3, rtosfix_real_t(el.x) + ", " + rtosfix_real_t(el.y) + ", " + rtosfix_real_t(el.z));
+	MAKE_WRITE_PACKED_ELEMENT(Vector4, rtosfix_real_t(el.x) + ", " + rtosfix_real_t(el.y) + ", " + rtosfix_real_t(el.z) + ", " + rtosfix_real_t(el.w));
+	MAKE_WRITE_PACKED_ELEMENT(Color, rtosfix(el.r) + ", " + rtosfix(el.g) + ", " + rtosfix(el.b) + ", " + rtosfix(el.a)); // always 32-bit float
 
 #undef MAKE_WRITE_PACKED_ELEMENT
 
@@ -1075,8 +1089,8 @@ struct VarWriter {
 
 }; // struct VariantWriterCompatInstance
 
-template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
-void VarWriter<ver_major, mode, p_compat, after_4_4>::write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud,
+template <int ver_major, VariantWriterMode mode, bool force_single_real_t, bool p_compat, bool after_4_4>
+void VarWriter<ver_major, mode, force_single_real_t, p_compat, after_4_4>::write_container_type(const ContainerType &p_type, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud,
 		VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	if (p_type.script.is_valid()) {
 		String resource_text;
@@ -1102,8 +1116,8 @@ void VarWriter<ver_major, mode, p_compat, after_4_4>::write_container_type(const
 	}
 }
 
-template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
-Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count) {
+template <int ver_major, VariantWriterMode mode, bool force_single_real_t, bool p_compat, bool after_4_4>
+Error VarWriter<ver_major, mode, force_single_real_t, p_compat, after_4_4>::write_compat_v4(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_pretty_print, int p_recursion_count) {
 	switch (p_variant.get_type()) {
 		case Variant::NIL: {
 			p_store_string_func(p_store_string_ud, "null");
@@ -1130,7 +1144,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 		// Math types.
 		case Variant::VECTOR2: {
 			Vector2 v = p_variant;
-			p_store_string_func(p_store_string_ud, "Vector2(" + rtosfix(v.x) + ", " + rtosfix(v.y) + ")");
+			p_store_string_func(p_store_string_ud, "Vector2(" + rtosfix_real_t(v.x) + ", " + rtosfix_real_t(v.y) + ")");
 		} break;
 		case Variant::VECTOR2I: {
 			Vector2i v = p_variant;
@@ -1138,7 +1152,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 		} break;
 		case Variant::RECT2: {
 			Rect2 aabb = p_variant;
-			p_store_string_func(p_store_string_ud, "Rect2(" + rtosfix(aabb.position.x) + ", " + rtosfix(aabb.position.y) + ", " + rtosfix(aabb.size.x) + ", " + rtosfix(aabb.size.y) + ")");
+			p_store_string_func(p_store_string_ud, "Rect2(" + rtosfix_real_t(aabb.position.x) + ", " + rtosfix_real_t(aabb.position.y) + ", " + rtosfix_real_t(aabb.size.x) + ", " + rtosfix_real_t(aabb.size.y) + ")");
 		} break;
 		case Variant::RECT2I: {
 			Rect2i aabb = p_variant;
@@ -1146,7 +1160,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 		} break;
 		case Variant::VECTOR3: {
 			Vector3 v = p_variant;
-			p_store_string_func(p_store_string_ud, "Vector3(" + rtosfix(v.x) + ", " + rtosfix(v.y) + ", " + rtosfix(v.z) + ")");
+			p_store_string_func(p_store_string_ud, "Vector3(" + rtosfix_real_t(v.x) + ", " + rtosfix_real_t(v.y) + ", " + rtosfix_real_t(v.z) + ")");
 		} break;
 		case Variant::VECTOR3I: {
 			Vector3i v = p_variant;
@@ -1154,7 +1168,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 		} break;
 		case Variant::VECTOR4: {
 			Vector4 v = p_variant;
-			p_store_string_func(p_store_string_ud, "Vector4(" + rtosfix(v.x) + ", " + rtosfix(v.y) + ", " + rtosfix(v.z) + ", " + rtosfix(v.w) + ")");
+			p_store_string_func(p_store_string_ud, "Vector4(" + rtosfix_real_t(v.x) + ", " + rtosfix_real_t(v.y) + ", " + rtosfix_real_t(v.z) + ", " + rtosfix_real_t(v.w) + ")");
 		} break;
 		case Variant::VECTOR4I: {
 			Vector4i v = p_variant;
@@ -1162,15 +1176,15 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 		} break;
 		case Variant::PLANE: {
 			Plane p = p_variant;
-			p_store_string_func(p_store_string_ud, "Plane(" + rtosfix(p.normal.x) + ", " + rtosfix(p.normal.y) + ", " + rtosfix(p.normal.z) + ", " + rtosfix(p.d) + ")");
+			p_store_string_func(p_store_string_ud, "Plane(" + rtosfix_real_t(p.normal.x) + ", " + rtosfix_real_t(p.normal.y) + ", " + rtosfix_real_t(p.normal.z) + ", " + rtosfix_real_t(p.d) + ")");
 		} break;
 		case Variant::AABB: {
 			AABB aabb = p_variant;
-			p_store_string_func(p_store_string_ud, "AABB(" + rtosfix(aabb.position.x) + ", " + rtosfix(aabb.position.y) + ", " + rtosfix(aabb.position.z) + ", " + rtosfix(aabb.size.x) + ", " + rtosfix(aabb.size.y) + ", " + rtosfix(aabb.size.z) + ")");
+			p_store_string_func(p_store_string_ud, "AABB(" + rtosfix_real_t(aabb.position.x) + ", " + rtosfix_real_t(aabb.position.y) + ", " + rtosfix_real_t(aabb.position.z) + ", " + rtosfix_real_t(aabb.size.x) + ", " + rtosfix_real_t(aabb.size.y) + ", " + rtosfix_real_t(aabb.size.z) + ")");
 		} break;
 		case Variant::QUATERNION: {
 			Quaternion quaternion = p_variant;
-			p_store_string_func(p_store_string_ud, "Quaternion(" + rtosfix(quaternion.x) + ", " + rtosfix(quaternion.y) + ", " + rtosfix(quaternion.z) + ", " + rtosfix(quaternion.w) + ")");
+			p_store_string_func(p_store_string_ud, "Quaternion(" + rtosfix_real_t(quaternion.x) + ", " + rtosfix_real_t(quaternion.y) + ", " + rtosfix_real_t(quaternion.z) + ", " + rtosfix_real_t(quaternion.w) + ")");
 		} break;
 		case Variant::TRANSFORM2D: {
 			String s = "Transform2D(";
@@ -1180,7 +1194,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.columns[i][j]);
+					s += rtosfix_real_t(m3.columns[i][j]);
 				}
 			}
 
@@ -1194,7 +1208,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.rows[i][j]);
+					s += rtosfix_real_t(m3.rows[i][j]);
 				}
 			}
 
@@ -1209,11 +1223,11 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.rows[i][j]);
+					s += rtosfix_real_t(m3.rows[i][j]);
 				}
 			}
 
-			s = s + ", " + rtosfix(t.origin.x) + ", " + rtosfix(t.origin.y) + ", " + rtosfix(t.origin.z);
+			s = s + ", " + rtosfix_real_t(t.origin.x) + ", " + rtosfix_real_t(t.origin.y) + ", " + rtosfix_real_t(t.origin.z);
 
 			p_store_string_func(p_store_string_ud, s + ")");
 		} break;
@@ -1225,7 +1239,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(t.columns[i][j]);
+					s += rtosfix_real_t(t.columns[i][j]);
 				}
 			}
 
@@ -1508,8 +1522,8 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v4(const Var
 	return OK;
 } // VarWriter::write_compat_v4
 
-template <int ver_major, VariantWriterMode mode, bool p_compat, bool after_4_4>
-Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
+template <int ver_major, VariantWriterMode mode, bool force_single_real_t, bool p_compat, bool after_4_4>
+Error VarWriter<ver_major, mode, force_single_real_t, p_compat, after_4_4>::write_compat_v2_v3(const Variant &p_variant, VariantWriterCompat::StoreStringFunc p_store_string_func, void *p_store_string_ud, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	// for v2 and v3...
 
 	static constexpr const char *array_start = is_v2_pcfg ? "[" : "[ ";
@@ -1543,16 +1557,16 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const 
 		} break;
 		case Variant::VECTOR2: {
 			Vector2 v = p_variant;
-			p_store_string_func(p_store_string_ud, vector2_start + rtosfix(v.x) + ", " + rtosfix(v.y) + vector2_end);
+			p_store_string_func(p_store_string_ud, vector2_start + rtosfix_real_t(v.x) + ", " + rtosfix_real_t(v.y) + vector2_end);
 		} break;
 		case Variant::RECT2: {
 			Rect2 aabb = p_variant;
-			p_store_string_func(p_store_string_ud, "Rect2( " + rtosfix(aabb.position.x) + ", " + rtosfix(aabb.position.y) + ", " + rtosfix(aabb.size.x) + ", " + rtosfix(aabb.size.y) + " )");
+			p_store_string_func(p_store_string_ud, "Rect2( " + rtosfix_real_t(aabb.position.x) + ", " + rtosfix_real_t(aabb.position.y) + ", " + rtosfix_real_t(aabb.size.x) + ", " + rtosfix_real_t(aabb.size.y) + " )");
 
 		} break;
 		case Variant::VECTOR3: {
 			Vector3 v = p_variant;
-			p_store_string_func(p_store_string_ud, vector3_start + rtosfix(v.x) + ", " + rtosfix(v.y) + ", " + rtosfix(v.z) + vector3_end);
+			p_store_string_func(p_store_string_ud, vector3_start + rtosfix_real_t(v.x) + ", " + rtosfix_real_t(v.y) + ", " + rtosfix_real_t(v.z) + vector3_end);
 		} break;
 		case Variant::TRANSFORM2D: { // v2 Matrix32
 			String s = ver_major == 2 ? "Matrix32( " : "Transform2D( ";
@@ -1562,7 +1576,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const 
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.columns[i][j]);
+					s += rtosfix_real_t(m3.columns[i][j]);
 				}
 			}
 
@@ -1571,17 +1585,17 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const 
 		} break;
 		case Variant::PLANE: {
 			Plane p = p_variant;
-			p_store_string_func(p_store_string_ud, "Plane( " + rtosfix(p.normal.x) + ", " + rtosfix(p.normal.y) + ", " + rtosfix(p.normal.z) + ", " + rtosfix(p.d) + " )");
+			p_store_string_func(p_store_string_ud, "Plane( " + rtosfix_real_t(p.normal.x) + ", " + rtosfix_real_t(p.normal.y) + ", " + rtosfix_real_t(p.normal.z) + ", " + rtosfix_real_t(p.d) + " )");
 
 		} break;
 		case Variant::AABB: { // _AABB in v2
 			AABB aabb = p_variant;
-			p_store_string_func(p_store_string_ud, "AABB( " + rtosfix(aabb.position.x) + ", " + rtosfix(aabb.position.y) + ", " + rtosfix(aabb.position.z) + ", " + rtosfix(aabb.size.x) + ", " + rtosfix(aabb.size.y) + ", " + rtosfix(aabb.size.z) + " )");
+			p_store_string_func(p_store_string_ud, "AABB( " + rtosfix_real_t(aabb.position.x) + ", " + rtosfix_real_t(aabb.position.y) + ", " + rtosfix_real_t(aabb.position.z) + ", " + rtosfix_real_t(aabb.size.x) + ", " + rtosfix_real_t(aabb.size.y) + ", " + rtosfix_real_t(aabb.size.z) + " )");
 
 		} break;
 		case Variant::QUATERNION: { // QUAT in v2 and v3
 			Quaternion quat = p_variant;
-			p_store_string_func(p_store_string_ud, "Quat( " + rtosfix(quat.x) + ", " + rtosfix(quat.y) + ", " + rtosfix(quat.z) + ", " + rtosfix(quat.w) + " )");
+			p_store_string_func(p_store_string_ud, "Quat( " + rtosfix_real_t(quat.x) + ", " + rtosfix_real_t(quat.y) + ", " + rtosfix_real_t(quat.z) + ", " + rtosfix_real_t(quat.w) + " )");
 
 		} break;
 
@@ -1594,7 +1608,7 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const 
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.rows[i][j]);
+					s += rtosfix_real_t(m3.rows[i][j]);
 				}
 			}
 
@@ -1610,11 +1624,11 @@ Error VarWriter<ver_major, mode, p_compat, after_4_4>::write_compat_v2_v3(const 
 					if (i != 0 || j != 0) {
 						s += ", ";
 					}
-					s += rtosfix(m3.rows[i][j]);
+					s += rtosfix_real_t(m3.rows[i][j]);
 				}
 			}
 
-			s = s + ", " + rtosfix(t.origin.x) + ", " + rtosfix(t.origin.y) + ", " + rtosfix(t.origin.z);
+			s = s + ", " + rtosfix_real_t(t.origin.x) + ", " + rtosfix_real_t(t.origin.y) + ", " + rtosfix_real_t(t.origin.z);
 
 			p_store_string_func(p_store_string_ud, s + " )");
 		} break;
@@ -1865,16 +1879,16 @@ static Error _write_to_str(void *ud, const String &p_string) {
 	return OK;
 }
 
-template <VariantWriterMode mode, bool force_v3, bool after_4_4>
+template <VariantWriterMode mode, bool force_single_real_t, bool force_v3, bool after_4_4>
 static inline Error _write_v4(const Variant &p_variant, String &r_string, uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud) {
 	// scripts never pretty print; versions below 4.8 didn't have pretty printing
 	const bool pretty_print = mode != MODE_SCRIPT && ver_minor >= 8;
-	return VarWriter<4, mode, force_v3, after_4_4>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
+	return VarWriter<4, mode, force_single_real_t, force_v3, after_4_4>::write_compat_v4(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud, pretty_print, 0);
 }
 
 // is_pcfg: project.cfg variants are written differently than resource variants in Godot 2.x
 // is_script: script variants never pretty print
-template <VariantWriterMode mode>
+template <VariantWriterMode mode, bool force_single_real_t>
 static Error _write_to_string_impl(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, VariantWriterCompat::EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
 	r_string = String();
 	switch (ver_major) {
@@ -1882,20 +1896,21 @@ static Error _write_to_string_impl(const Variant &p_variant, String &r_string, c
 			ERR_FAIL_COND_V_MSG(ver_minor == 0, ERR_INVALID_PARAMETER, "Invalid version");
 			[[fallthrough]];
 		case 1:
+		// versions < 4 did not have double precision, so force single real_t
 		case 2:
-			return VarWriter<2, mode>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
+			return VarWriter<2, mode, true>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
 		case 3:
-			return VarWriter<3, mode>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
+			return VarWriter<3, mode, true>::write_compat_v2_v3(p_variant, _write_to_str, &r_string, p_encode_res_func, p_encode_res_ud);
 		case 4: {
 			const bool after_4_4 = ver_minor > 4;
 			if (p_compat_4x_force_v3) {
 				return after_4_4
-						? _write_v4<mode, true, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
-						: _write_v4<mode, true, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
+						? _write_v4<mode, force_single_real_t, true, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+						: _write_v4<mode, force_single_real_t, true, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
 			}
 			return after_4_4
-					? _write_v4<mode, false, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
-					: _write_v4<mode, false, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
+					? _write_v4<mode, force_single_real_t, false, true>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud)
+					: _write_v4<mode, force_single_real_t, false, false>(p_variant, r_string, ver_minor, p_encode_res_func, p_encode_res_ud);
 		}
 		default:
 			break;
@@ -1903,15 +1918,33 @@ static Error _write_to_string_impl(const Variant &p_variant, String &r_string, c
 	ERR_FAIL_V_MSG(ERR_INVALID_PARAMETER, "Invalid version");
 }
 
-Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<MODE_SCRIPT>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+Error VariantWriterCompat::write_to_string_script(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+#ifdef REAL_T_IS_DOUBLE
+	return p_force_single_real_t
+			? _write_to_string_impl<MODE_SCRIPT, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3)
+			: _write_to_string_impl<MODE_SCRIPT, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#else
+	return _write_to_string_impl<MODE_SCRIPT, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#endif
 }
 
 // project.cfg variants are written differently than resource variants in Godot 2.x
-Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<MODE_PCFG>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+Error VariantWriterCompat::write_to_string_pcfg(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+#ifdef REAL_T_IS_DOUBLE
+	return p_force_single_real_t
+			? _write_to_string_impl<MODE_PCFG, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3)
+			: _write_to_string_impl<MODE_PCFG, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#else
+	return _write_to_string_impl<MODE_PCFG, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#endif
 }
 
-Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
-	return _write_to_string_impl<MODE_NORMAL>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+Error VariantWriterCompat::write_to_string(const Variant &p_variant, String &r_string, bool p_force_single_real_t, const uint32_t ver_major, const uint32_t ver_minor, EncodeResourceFunc p_encode_res_func, void *p_encode_res_ud, bool p_compat_4x_force_v3) {
+#ifdef REAL_T_IS_DOUBLE
+	return p_force_single_real_t
+			? _write_to_string_impl<MODE_NORMAL, true>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3)
+			: _write_to_string_impl<MODE_NORMAL, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#else
+	return _write_to_string_impl<MODE_NORMAL, false>(p_variant, r_string, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat_4x_force_v3);
+#endif
 }

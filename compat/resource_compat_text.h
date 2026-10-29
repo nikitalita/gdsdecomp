@@ -213,6 +213,7 @@ class ResourceFormatSaverCompatTextInstance {
 	int format_version;
 	uint32_t ver_major;
 	uint32_t ver_minor;
+	bool force_single_real_t = true;
 
 	struct NonPersistentKey { //for resource properties generated on the fly
 		Ref<Resource> base;

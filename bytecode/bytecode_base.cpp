@@ -171,7 +171,31 @@ String GDScriptDecomp::get_constant_string(const Variant &var) {
 		}
 		return constString;
 	}
-	Error err = VariantWriterCompat::write_to_string_script(var, constString, get_variant_ver_major());
+	// this will never be relevant for scripts, as types that use `real_t` (Vector2, Vector3, etc.) are never written as variants to the bytecode, they're written as a series of tokens for the constructor
+	static constexpr bool force_single_precision = false;
+#if DEBUG_ENABLED
+	switch (var.get_type()) {
+		case Variant::VECTOR2:
+		case Variant::VECTOR3:
+		case Variant::VECTOR4:
+		case Variant::QUATERNION:
+		case Variant::PLANE:
+		case Variant::RECT2:
+		case Variant::TRANSFORM2D:
+		case Variant::AABB:
+		case Variant::BASIS:
+		case Variant::PROJECTION:
+		case Variant::PACKED_VECTOR2_ARRAY:
+		case Variant::PACKED_VECTOR3_ARRAY:
+		case Variant::PACKED_VECTOR4_ARRAY:
+			// If this somehow asserts, report it please.
+			ERR_PRINT("We assumed too much about the variant type, please report this.");
+			DEV_ASSERT(false);
+		default:
+			break;
+	}
+#endif
+	Error err = VariantWriterCompat::write_to_string_script(var, constString, force_single_precision, get_variant_ver_major());
 	GDSDECOMP_FAIL_COND_V_MSG(err, "", "Error when trying to encode Variant.");
 	return constString;
 }
