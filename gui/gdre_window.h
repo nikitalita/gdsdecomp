@@ -1,7 +1,6 @@
 #pragma once
 
 #include "scene/gui/dialogs.h"
-#include "scene/gui/file_dialog.h"
 #include "scene/main/scene_tree.h"
 #include "scene/main/window.h"
 
@@ -68,11 +67,4 @@ public:
 
 	GDREConfirmationDialogBase();
 	~GDREConfirmationDialogBase();
-};
-
-class GDREFileDialog : public FileDialog {
-	GDCLASS(GDREFileDialog, FileDialog);
-
-protected:
-	void _notification(int p_what);
 };

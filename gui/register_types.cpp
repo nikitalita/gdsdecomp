@@ -7,6 +7,7 @@
 #include "gui/find_replace_bar.h"
 #include "gui/gdre_audio_stream_preview.h"
 #include "gui/gdre_color_channel_selector.h"
+#include "gui/gdre_file_dialog.h"
 #include "gui/gdre_standalone.h"
 #include "gui/gdre_window.h"
 #include "gui/gdre_xml_highlighter.h"
