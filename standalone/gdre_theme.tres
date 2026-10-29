@@ -437,8 +437,6 @@ image = SubResource("Image_1dhk2")
 
 [sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_qm34x"]
 
-[sub_resource type="StyleBoxEmpty" id="1395"]
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0mbvf"]
 content_margin_left = 6.0
 content_margin_top = 4.0
@@ -974,6 +972,8 @@ content_margin_right = 2.0
 content_margin_bottom = 1.0
 texture = SubResource("529")
 region_rect = Rect2(0, 0, 16, 16)
+
+[sub_resource type="StyleBoxEmpty" id="1395"]
 
 [sub_resource type="Image" id="Image_c0mi8"]
 data = {
