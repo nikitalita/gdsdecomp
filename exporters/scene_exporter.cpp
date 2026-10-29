@@ -28,6 +28,7 @@
 #include "scene/resources/3d/mesh_library.h"
 #include "scene/resources/3d/sphere_shape_3d.h"
 #include "scene/resources/bone_map.h"
+#include "scene/resources/physics_material.h"
 #include "scene/resources/surface_tool.h"
 #include "scene/resources/texture.h"
 #include "scene/shader_material_converter.h"
