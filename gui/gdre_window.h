@@ -20,7 +20,6 @@ protected:
 	void _notification(int p_what);
 
 public:
-	static void _on_url_clicked(const Variant &p_url);
 	static Size2i get_safe_window_size(Size2i p_size);
 	static Rect2i get_safe_window_size_and_position(Size2i p_size, Vector2i p_position);
 	static void ensure_safe_size_and_position(Window *p_window);
