@@ -3,7 +3,6 @@
 #include "scene/resources/audio/audio_stream_wav.h"
 
 Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
-	String name = get_resource_name(res, ver_major);
 	AudioStreamWAV::LoopMode loop_mode = (AudioStreamWAV::LoopMode) int(res->get("loop_format"));
 	// int loop_begin, loop_end, mix_rate, data_bytes = 0;
 	int loop_begin = res->get("loop_begin");
@@ -46,7 +45,6 @@ Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, Re
 	// }
 	// create a new sample
 	Ref<AudioStreamWAV> sample = memnew(AudioStreamWAV);
-	sample->set_name(name);
 	sample->set_data(data);
 	sample->set_format(format);
 	sample->set_loop_mode(loop_mode);
@@ -54,9 +52,7 @@ Ref<Resource> SampleConverterCompat::convert(const Ref<MissingResource> &res, Re
 	sample->set_loop_begin(loop_begin);
 	sample->set_loop_end(loop_end);
 	sample->set_mix_rate(mix_rate);
-	auto info = ResourceInfo::get_info_from_resource(res);
-	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
-	info->set_on_resource(sample);
+	merge_meta_and_resource_only_props(sample, res);
 	return sample;
 }
 

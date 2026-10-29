@@ -156,7 +156,7 @@ Ref<Resource> FakeScriptConverterCompat::convert(const Ref<MissingResource> &res
 		}
 	}
 	// ResourceFormatGDScriptLoader::_set_resource_info(resource_info, path);
-	resource_info->set_on_resource(fake_script);
+	merge_meta_and_resource_only_props(fake_script, res);
 	return fake_script;
 }
 

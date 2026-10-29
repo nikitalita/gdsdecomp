@@ -1499,10 +1499,7 @@ Ref<ArrayMesh> FakeMesh::mesh_to_array_mesh(const Ref<Mesh> &p_mesh) {
 	}
 
 	// Merge metadata.
-	ret_mesh->merge_meta_from(*p_mesh);
-	ret_mesh->set_name(p_mesh->get_name());
-	ret_mesh->set_local_to_scene(p_mesh->is_local_to_scene());
-	ret_mesh->set_scene_unique_id(p_mesh->get_scene_unique_id());
+	ResourceCompatConverter::merge_meta_and_resource_only_props(ret_mesh, p_mesh);
 	return ret_mesh;
 }
 
@@ -1527,8 +1524,7 @@ Ref<FakeMesh> FakeMesh::create_from_missing_resource(const Ref<MissingResource> 
 		}
 	}
 	mesh->set_path_cache(p_mr->get_path());
-	mesh->set_local_to_scene(p_mr->is_local_to_scene());
-	mesh->set_scene_unique_id(p_mr->get_scene_unique_id());
+	ResourceCompatConverter::merge_meta_and_resource_only_props(mesh, p_mr);
 	return mesh;
 }
 

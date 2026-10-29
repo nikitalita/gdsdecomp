@@ -794,22 +794,19 @@ Error ResourceCompatLoader::save_custom(const Ref<Resource> &p_resource, const S
 	return saver.save_custom(p_resource, path, ver_format, ver_major, ver_minor);
 }
 
-String ResourceCompatConverter::get_resource_name(const Ref<MissingResource> &res, int ver_major) {
-	String name;
-	Variant n = ver_major < 3 ? res->get("resource/name") : res->get("resource_name");
-	if (n.get_type() == Variant::STRING) {
-		name = n;
+String ResourceCompatConverter::get_resource_name(const Ref<Resource> &p_res, int ver_major) {
+	ERR_FAIL_COND_V_MSG(p_res.is_null(), "", "Resource is null");
+	Ref<MissingResource> res = p_res;
+	if (res.is_null()) {
+		return p_res->get_name();
 	}
-	if (ver_major == 0) {
-		n = res->get("resource_name");
+	if (ver_major < 3) {
+		Variant n = res->get("resource/name");
 		if (n.get_type() == Variant::STRING) {
-			name = n;
+			return n;
 		}
 	}
-	if (name.is_empty()) {
-		name = res->get_name();
-	}
-	return name;
+	return res->get_name();
 }
 
 Error ResourceCompatLoader::save_custom_to_file(const Ref<Resource> &p_resource, const String &p_path, Ref<FileAccess> &p_f, int ver_major, int ver_minor, uint32_t p_flags) {
@@ -953,7 +950,10 @@ Ref<Resource> ResourceCompatConverter::set_real_from_missing_resource(Ref<Missin
 			Ref<MissingResource> m_res = mr->get(property.name);
 			const String &set_prop = prop_map.has(property.name) ? prop_map[property.name] : property.name;
 			if (m_res.is_valid()) {
-				res->set(set_prop, get_real_from_missing_resource(m_res, load_type));
+				Ref<Resource> new_res = get_real_from_missing_resource(m_res, load_type);
+				ERR_CONTINUE(new_res.is_null());
+				new_res->set_path_cache(m_res->get_path());
+				res->set(set_prop, new_res);
 			} else {
 				res->set(set_prop, mr->get(property.name));
 			}

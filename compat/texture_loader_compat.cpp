@@ -794,7 +794,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
 		auto compressed_texture = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
-		info->set_on_resource(compressed_texture);
+		merge_meta_and_resource_only_props(texture, res);
 		return compressed_texture;
 	}
 	if (p_type == ResourceInfo::GLTF_LOAD || p_type == ResourceInfo::REAL_LOAD) {
@@ -802,6 +802,7 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	}
 	ERR_FAIL_COND_V_MSG(texture.is_null(), res, "Failed to load texture " + load_path);
 	Ref<ResourceInfo> existing_dict = ResourceInfo::get_info_from_resource(texture);
+	merge_meta_and_resource_only_props(texture, res);
 	if (existing_dict.is_valid()) {
 		existing_dict = merge_resource_info(existing_dict, info, flags);
 		existing_dict->set_on_resource(texture);
@@ -1214,6 +1215,7 @@ Ref<Resource> ImageTextureConverterCompat::convert(const Ref<MissingResource> &r
 	}
 	texture = TextureLoaderCompat::create_image_texture(res->get_path(), p_type, tw, th, tw_custom, th_custom, mipmaps, image);
 	TextureLoaderCompat::TextureVersionType t = (ver_major >= 4 ? TextureLoaderCompat::FORMAT_V4_COMPRESSED_TEXTURE2D : (ver_major == 3 ? TextureLoaderCompat::FORMAT_V3_IMAGE_TEXTURE : TextureLoaderCompat::FORMAT_V2_IMAGE_TEXTURE));
+	merge_meta_and_resource_only_props(texture, res);
 	auto new_info = TextureLoaderCompat::_get_resource_info(res->get_path(), t);
 	if (info.is_valid()) {
 		new_info = merge_resource_info(new_info, info, flags);
@@ -1230,7 +1232,6 @@ bool ImageConverterCompat::handles_type(const String &p_type, int ver_major) con
 }
 
 Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error) {
-	String name;
 	Ref<Image> image;
 	auto info = ResourceInfo::get_info_from_resource(res);
 	ERR_FAIL_COND_V_MSG(!info.is_valid(), res, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
@@ -1239,7 +1240,6 @@ Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, Res
 		WARN_PRINT("ImageConverterCompat: Unsupported type: " + type);
 		return res;
 	}
-	name = get_resource_name(res, ver_major);
 	Dictionary data = res->get("data");
 	int tw = data.get("width", 0);
 	int th = data.get("height", 0);
@@ -1252,10 +1252,7 @@ Ref<Resource> ImageConverterCompat::convert(const Ref<MissingResource> &res, Res
 	bool mipmaps = data.get("mipmaps", false);
 	Vector<uint8_t> img_data = data.get("data", Vector<uint8_t>());
 	image = Image::create_from_data(tw, th, mipmaps, fmt_enum, img_data);
-	image->set_name(name);
-	if (info.is_valid()) {
-		info->set_on_resource(image);
-	}
+	merge_meta_and_resource_only_props(image, res);
 	return image;
 }
 
@@ -1423,6 +1420,7 @@ Ref<Resource> LargeTextureConverterCompat::convert(const Ref<MissingResource> &r
 	}
 
 	texture = ResourceFormatLoaderCompatTextureLayered::_set_tex(res->get_path(), p_type, whole_size.x, whole_size.y, images.size(), RSE::TEXTURE_LAYERED_2D_ARRAY, false, images);
+	merge_meta_and_resource_only_props(texture, res);
 	auto new_info = TextureLoaderCompat::_get_resource_info(res->get_path(), TextureLoaderCompat::FORMAT_V2_LARGE_TEXTURE);
 	new_info->extra["offsets"] = offsets;
 	new_info->extra["whole_size"] = whole_size;

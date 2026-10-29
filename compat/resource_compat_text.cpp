@@ -3167,12 +3167,8 @@ Ref<PackedScene> _ensure_resource_is_packed_scene(const Ref<Resource> &p_resourc
 			if (!bundle.is_empty()) {
 				r_packed_scene->set("_bundled", bundle);
 			}
-			r_packed_scene->set_script(p_resource->get_script());
-			r_packed_scene->set_local_to_scene(p_resource->is_local_to_scene());
+			ResourceCompatConverter::merge_meta_and_resource_only_props(r_packed_scene, p_resource);
 			r_packed_scene->set_path_cache(p_resource->get_path());
-			r_packed_scene->set_name(p_resource->get_name());
-			r_packed_scene->set_scene_unique_id(p_resource->get_scene_unique_id());
-			r_packed_scene->merge_meta_from(p_resource.ptr());
 		}
 	}
 	return r_packed_scene;

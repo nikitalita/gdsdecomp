@@ -12,6 +12,7 @@
 #include "servers/rendering/shader_preprocessor.h"
 #include "servers/rendering/shader_types.h"
 
+#include "compat/resource_loader_compat.h"
 #include "utility/common.h"
 #include "utility/gdre_settings.h"
 #include "utility/task_manager.h"
@@ -340,10 +341,8 @@ Ref<Texture2D> get_texture_2d(const Variant &val, const ShaderMaterialConverter:
 		if (img.is_valid()) {
 			Ref<ImageTexture> img_tex = memnew(ImageTexture);
 			img_tex->create_from_image(img);
-			img_tex->set_name(tex->get_name());
+			ResourceCompatConverter::merge_meta_and_resource_only_props(img_tex, tex);
 			img_tex->set_path_cache(tex->get_path());
-			img_tex->set_local_to_scene(tex->is_local_to_scene());
-			img_tex->merge_meta_from(tex.ptr());
 			tex2d = img_tex;
 		}
 	}
@@ -499,10 +498,8 @@ HashMap<String, Variant> set_params_from_render_mode(const Vector<StringName> &r
 }
 
 static inline void copy_resource_props(const Ref<ShaderMaterial> &p_shader_material, Ref<BaseMaterial3D> &p_base_material) {
-	p_base_material->set_name(p_shader_material->get_name());
-	p_base_material->set_local_to_scene(p_shader_material->is_local_to_scene());
 	p_base_material->set_path_cache(p_shader_material->get_path());
-	p_base_material->merge_meta_from(p_shader_material.ptr());
+	ResourceCompatConverter::merge_meta_and_resource_only_props(p_base_material, p_shader_material);
 }
 
 Pair<Ref<BaseMaterial3D>, Pair<bool, bool>> ShaderMaterialConverter::convert_shader_material_to_base_material(Ref<ShaderMaterial> p_shader_material, Node *p_parent) {

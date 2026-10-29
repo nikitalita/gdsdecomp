@@ -689,7 +689,7 @@ Ref<Resource> TranslationConverterCompat::convert(const Ref<MissingResource> &re
 	if (locale != Variant()) {
 		ote->set("locale", locale);
 	}
-	ote->merge_meta_from(res.ptr());
+	ResourceCompatConverter::merge_meta_and_resource_only_props(ote, res);
 	return ote;
 }
 

@@ -3256,12 +3256,8 @@ Ref<PackedScene> _ensure_resource_is_packed_scene(const Ref<Resource> &p_resourc
 			if (!bundle.is_empty()) {
 				r_packed_scene->set("_bundled", bundle);
 			}
-			r_packed_scene->set_script(p_resource->get_script());
-			r_packed_scene->set_local_to_scene(p_resource->is_local_to_scene());
 			r_packed_scene->set_path_cache(p_resource->get_path());
-			r_packed_scene->set_name(p_resource->get_name());
-			r_packed_scene->set_scene_unique_id(p_resource->get_scene_unique_id());
-			r_packed_scene->merge_meta_from(p_resource.ptr());
+			ResourceCompatConverter::merge_meta_and_resource_only_props(r_packed_scene, p_resource);
 		}
 	}
 	return r_packed_scene;
@@ -3908,7 +3904,9 @@ HashMap<StringName, Node *> _find_reference_nodes_for_animation_library(const Re
 			StringName property_name = state->get_node_property_name(anim_node_index, i);
 			Variant property_value = state->get_node_property_value(anim_node_index, i);
 			if (Ref<Resource> res = property_value; res.is_valid()) {
-				property_value = ResourceCompatConverter::get_real_from_missing_resource(res, ResourceInfo::LoadType::REAL_LOAD, HashMap<String, String>());
+				Ref<Resource> new_res = ResourceCompatConverter::get_real_from_missing_resource(res, ResourceInfo::LoadType::REAL_LOAD, HashMap<String, String>());
+				new_res->set_path_cache(res->get_path());
+				property_value = new_res;
 			}
 			node->set(property_name, property_value);
 		}

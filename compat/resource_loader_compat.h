@@ -217,7 +217,7 @@ class ResourceCompatConverter : public RefCounted {
 	GDCLASS(ResourceCompatConverter, RefCounted);
 
 public:
-	static String get_resource_name(const Ref<MissingResource> &res, int ver_major);
+	static String get_resource_name(const Ref<Resource> &res, int ver_major = 0);
 	virtual Ref<Resource> convert(const Ref<MissingResource> &res, ResourceInfo::LoadType p_type, int ver_major, Error *r_error = nullptr) = 0;
 	virtual bool handles_type(const String &p_type, int ver_major) const = 0;
 	virtual bool has_convert_back() const { return false; }
@@ -228,6 +228,14 @@ public:
 	static Ref<Resource> get_real_from_missing_resource(Ref<MissingResource> mr, ResourceInfo::LoadType load_type, const HashMap<String, String> &prop_map = {});
 	static Ref<Resource> set_real_from_missing_resource(Ref<MissingResource> mr, Ref<Resource> res, ResourceInfo::LoadType load_type, const HashMap<String, String> &prop_map = {});
 	static bool is_external_resource(Ref<MissingResource> mr);
+	// merges the meta and sets all the `Resource`-only properties from the old resource to the new resource (excepting `path`)
+	static inline void merge_meta_and_resource_only_props(const Ref<Resource> &p_new, const Ref<Resource> &p_old) {
+		p_new->merge_meta_from(p_old.ptr());
+		p_new->set_local_to_scene(p_old->is_local_to_scene());
+		p_new->set_scene_unique_id(p_old->get_scene_unique_id());
+		p_new->set_name(ResourceCompatConverter::get_resource_name(p_old));
+		p_new->set_script(p_old->get_script());
+	}
 };
 
 namespace CoreBind {

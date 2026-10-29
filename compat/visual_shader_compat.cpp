@@ -35,7 +35,7 @@ Ref<Resource> VisualShaderConverterCompat::convert(const Ref<MissingResource> &r
 		ERR_FAIL_V_MSG(nullptr, "Failed to get code from VisualShader");
 	}
 	visual_shader->_finish_load(res_format_type, 2);
-	visual_shader->merge_meta_from(res.ptr());
+	ResourceCompatConverter::merge_meta_and_resource_only_props(visual_shader, res);
 	return visual_shader;
 }
 
@@ -83,6 +83,9 @@ Ref<Resource> VisualShaderNodeCustomConverterCompat::convert(const Ref<MissingRe
 	}
 	visual_shader_node_custom->set_local_to_scene(res->is_local_to_scene());
 	visual_shader_node_custom->set_scene_unique_id(res->get_scene_unique_id());
+	visual_shader_node_custom->set_name(ResourceCompatConverter::get_resource_name(res));
+	visual_shader_node_custom->merge_meta_from(res.ptr());
+	// intentionally not calling ResourceCompatConverter::merge_meta_and_resource_only_props because we don't want to set the script
 
 	return visual_shader_node_custom;
 }
