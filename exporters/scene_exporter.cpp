@@ -1972,7 +1972,7 @@ Node *GLBExporterInstance::_set_stuff_from_instanced_scene(Node *root) {
 	}
 	if (replaced_node_names.size() > 0) {
 		auto thingy = String(", ").join(replaced_node_names);
-		print_line(vformat("%s: replaced nodes with mesh instances: %s", scene_name, thingy));
+		print_verbose(vformat("%s: replaced nodes with mesh instances: %s", scene_name, thingy));
 		if (GDREConfig::get_singleton()->get_setting("Exporter/Scene/GLTF/debug_copies", false)) {
 			auto new_dest = "res://.tscn_manip/" + report->get_import_info()->get_export_dest().trim_prefix("res://.assets/").trim_prefix("res://").get_basename() + ".tscn";
 			auto new_dest_path = output_dir.path_join(new_dest.replace_first("res://", ""));
