@@ -36,6 +36,8 @@ void ExportReport::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_download_task_id"), &ExportReport::get_download_task_id);
 	ClassDB::bind_method(D_METHOD("set_test_error", "test_error"), &ExportReport::set_test_error);
 	ClassDB::bind_method(D_METHOD("get_test_error"), &ExportReport::get_test_error);
+	ClassDB::bind_method(D_METHOD("set_export_time_ms", "export_time_ms"), &ExportReport::set_export_time_ms);
+	ClassDB::bind_method(D_METHOD("get_export_time_ms"), &ExportReport::get_export_time_ms);
 	ClassDB::bind_method(D_METHOD("append_test_error_messages", "test_error_messages"), &ExportReport::append_test_error_messages);
 	ClassDB::bind_method(D_METHOD("clear_test_error_messages"), &ExportReport::clear_test_error_messages);
 	ClassDB::bind_method(D_METHOD("set_test_error_messages", "test_error_messages"), &ExportReport::set_test_error_messages);
@@ -55,6 +57,7 @@ void ExportReport::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "extra_info"), "set_extra_info", "get_extra_info");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "download_task_id"), "set_download_task_id", "get_download_task_id");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "test_error"), "set_test_error", "get_test_error");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "export_time_ms"), "set_export_time_ms", "get_export_time_ms");
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_STRING_ARRAY, "test_error_messages"), "set_test_error_messages", "get_test_error_messages");
 }
 
@@ -102,6 +105,9 @@ Dictionary ExportReport::to_json() const {
 	if (test_error != OK) {
 		ret["test_error"] = test_error;
 	}
+	if (export_time_ms > 0) {
+		ret["export_time_ms"] = export_time_ms;
+	}
 	if (!test_error_messages.is_empty()) {
 		ret["test_error_messages"] = test_error_messages;
 	}
@@ -127,6 +133,7 @@ Ref<ExportReport> ExportReport::from_json(const Dictionary &p_json) {
 	report->loss_type = p_json.get("loss_type", ImportInfo::LossType::LOSSLESS);
 	report->rewrote_metadata = p_json.get("rewrote_metadata", NOT_DIRTY);
 	report->test_error = p_json.get("test_error", OK);
+	report->export_time_ms = p_json.get("export_time_ms", 0);
 	report->test_error_messages = p_json.get("test_error_messages", Vector<String>());
 	return report;
 }
@@ -178,6 +185,9 @@ bool ExportReport::is_equal_to(const Ref<ExportReport> &p_export_report) const {
 		return import_info->is_equal_to(p_export_report->import_info);
 	}
 	if (test_error != p_export_report->test_error) {
+		return false;
+	}
+	if (export_time_ms != p_export_report->export_time_ms) {
 		return false;
 	}
 	if (test_error_messages != p_export_report->test_error_messages) {

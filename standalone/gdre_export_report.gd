@@ -173,6 +173,8 @@ func add_notes(notes: Dictionary):
 	var note_root = NOTE_TREE.create_item(null)
 	for key in notes.keys():
 		var note_dict = notes[key]
+		if note_dict.get("no_gui", false):
+			continue
 		var header_item = NOTE_TREE.create_item(note_root)
 		header_item.set_text(0, note_dict["title"])
 		var message_item = NOTE_TREE.create_item(header_item)

@@ -749,10 +749,13 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 	}
 
 	tokens[i].report = Exporter::export_resource(output_dir, tokens[i].iinfo);
-	if (tokens[i].report.is_valid() && tokens[i].report->get_error() == OK) {
+	if (tokens[i].report->get_error() == OK) {
+		int64_t start_time = OS::get_singleton()->get_ticks_msec();
 		Error err = Exporter::recreate_missing_variants(output_dir, tokens[i].iinfo);
-		if (err && err != ERR_UNAVAILABLE) {
-			// ignore it for now
+		if (err != ERR_UNAVAILABLE) {
+			// ignore errors for now, just add the time taken to the report
+			int64_t end_time = OS::get_singleton()->get_ticks_msec();
+			tokens[i].report->set_export_time_ms(tokens[i].report->get_export_time_ms() + (end_time - start_time));
 		}
 	}
 	rewrite_metadata(tokens[i]);
@@ -2073,6 +2076,34 @@ Dictionary ImportExporterReport::get_session_notes() {
 		notes["headless_warning"] = headless_warning;
 	}
 
+	if (auto long_running_exports = _get_long_running_exports(); !long_running_exports.is_empty()) {
+		Vector<String> non_gui;
+		Vector<String> details;
+		bool ask_to_report = false;
+		static const HashSet<String> KNOWN_LONG_RUNNING_EXPORTERS = { GDExtensionExporter::EXPORTER_NAME, SceneExporter::EXPORTER_NAME };
+		static const int64_t KNOWN_LONG_RUNNING_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+		for (auto &report : long_running_exports) {
+			String detail = vformat("%-40s (%ds)", report->get_source_path(), report->get_export_time_ms() / 1000);
+			if (!KNOWN_LONG_RUNNING_EXPORTERS.has(report->get_exporter()) || report->get_export_time_ms() > KNOWN_LONG_RUNNING_THRESHOLD_MS) {
+				ask_to_report = true;
+			} else {
+				// don't show this in the GUI export report
+				non_gui.push_back(detail);
+				continue;
+			}
+
+			details.push_back(detail);
+		}
+		Dictionary long_running_exports_dict;
+		long_running_exports_dict["title"] = "Long Running Exports";
+		long_running_exports_dict["message"] = vformat("The following exports took an unusually long time to complete.%s",
+				ask_to_report ? " \n(Please report this bug!)" : "");
+		long_running_exports_dict["details"] = details;
+		long_running_exports_dict["log_only_details"] = non_gui;
+		long_running_exports_dict["no_gui"] = details.size() == 0;
+		notes["long_running_exports"] = long_running_exports_dict;
+	}
+
 	return notes;
 }
 
@@ -2387,6 +2418,7 @@ String ImportExporterReport::get_session_notes_string() {
 		report += title + ":" + String("\n");
 		report += message + String("\n");
 		PackedStringArray details = note["details"];
+		details.append_array(note.get("log_only_details", PackedStringArray()));
 		for (int j = 0; j < details.size(); j++) {
 			report += " - " + details[j] + String("\n");
 		}
@@ -2426,6 +2458,22 @@ TypedArray<ExportReport> ImportExporterReport::get_failed() const {
 
 TypedArray<ExportReport> ImportExporterReport::get_not_converted() const {
 	return vector_to_typed_array(not_converted);
+}
+
+Vector<Ref<ExportReport>> ImportExporterReport::_get_long_running_exports() const {
+	Vector<Ref<ExportReport>> vec;
+	// TODO: make this configurable and more flexible
+	for (auto &report : success) {
+		if (report->get_export_time_ms() > LONG_RUNNING_THRESHOLD_MS) {
+			vec.push_back(report);
+		}
+	}
+	for (auto &report : failed) {
+		if (report->get_export_time_ms() > LONG_RUNNING_THRESHOLD_MS) {
+			vec.push_back(report);
+		}
+	}
+	return vec;
 }
 
 Vector<Ref<ExportReport>> ImportExporterReport::_get_lossy_imports() const {

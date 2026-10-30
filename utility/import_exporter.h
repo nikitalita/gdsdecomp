@@ -17,6 +17,8 @@ struct ProcessRunnerStruct;
 class ImportExporterReport : public RefCounted {
 	GDCLASS(ImportExporterReport, RefCounted)
 	friend class ImportExporter;
+
+	constexpr static const int64_t LONG_RUNNING_THRESHOLD_MS = 30000;
 	bool had_encryption_error = false;
 	bool mono_detected = false;
 	bool godotsteam_detected = false;
@@ -68,6 +70,7 @@ public:
 	Vector<String> get_decompiled_scripts();
 	Vector<String> get_failed_scripts();
 	String get_translation_export_message();
+	Vector<Ref<ExportReport>> _get_long_running_exports() const;
 	Vector<Ref<ExportReport>> _get_lossy_imports() const;
 	Vector<Ref<ExportReport>> _get_rewrote_metadata() const;
 	Vector<Ref<ExportReport>> _get_failed_rewrite_md() const;

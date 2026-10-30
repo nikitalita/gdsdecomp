@@ -193,10 +193,18 @@ Ref<ExportReport> Exporter::export_resource(const String &output_dir, Ref<Import
 		report->set_error(ERR_UNAVAILABLE);
 		return report;
 	}
+	int64_t start_time = OS::get_singleton()->get_ticks_msec();
 	auto report = exporter->export_resource(output_dir, import_infos);
 	if (report.is_valid() && report->get_exporter().is_empty()) {
 		report->set_exporter(exporter->get_name());
+	} else if (!report.is_valid()) {
+		// Exporters must always return a report
+		ERR_PRINT(vformat("Exporter %s did not return a report!!! For: %s", exporter->get_name(), import_infos->get_path()));
+		report = Ref<ExportReport>(memnew(ExportReport(import_infos, exporter->get_name())));
+		report->set_error(FAILED);
 	}
+	int64_t end_time = OS::get_singleton()->get_ticks_msec();
+	report->set_export_time_ms(end_time - start_time);
 	return report;
 }
 

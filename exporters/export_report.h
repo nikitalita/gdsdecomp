@@ -1,6 +1,5 @@
 #pragma once
 #include "core/object/ref_counted.h"
-#include "core/variant/binder_common.h"
 
 #include "utility/import_info.h"
 #include "utility/task_manager.h"
@@ -34,6 +33,7 @@ private:
 	ImportInfo::LossType loss_type = ImportInfo::LossType::LOSSLESS;
 	MetadataStatus rewrote_metadata = NOT_DIRTY;
 	Error test_error = OK;
+	int64_t export_time_ms = 0;
 	Vector<String> test_error_messages;
 
 protected:
@@ -99,6 +99,9 @@ public:
 
 	void set_test_error(Error p_test_error) { test_error = p_test_error; }
 	Error get_test_error() const { return test_error; }
+
+	void set_export_time_ms(int64_t p_export_time_ms) { export_time_ms = p_export_time_ms; }
+	int64_t get_export_time_ms() const { return export_time_ms; }
 
 	void append_test_error_messages(const Vector<String> &p_test_error_messages) { test_error_messages.append_array(p_test_error_messages); }
 	void clear_test_error_messages() { test_error_messages.clear(); }
