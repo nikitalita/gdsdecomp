@@ -176,7 +176,7 @@ bool TaskManager::BaseTemplateTaskData::_wait_after_cancel() {
 	return false;
 }
 
-bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_no_progress) {
+bool TaskManager::BaseTemplateTaskData::wait_for_completion() {
 	bool is_main_thread = Thread::is_main_thread();
 	_aborted = false;
 	if (is_canceled()) {
@@ -214,9 +214,9 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 			WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
 		}
 #endif
-		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
-		auto last_progress = get_current_task_step_value();
-		bool printed_warning = false;
+		[[maybe_unused]] uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
+		[[maybe_unused]] auto last_progress = get_current_task_step_value();
+		[[maybe_unused]] bool printed_warning = false;
 		[[maybe_unused]] uint64_t last_reported_mem_usage_ms = 0;
 		while (!is_done()) {
 #if 0
@@ -225,6 +225,7 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 				last_reported_mem_usage_ms = OS::get_singleton()->get_ticks_msec();
 			}
 #endif
+#if 0
 			if (timeout_s_no_progress != 0) {
 				auto curr_progress = get_current_task_step_value();
 				auto curr_time = OS::get_singleton()->get_ticks_msec();
@@ -244,6 +245,7 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion(uint64_t timeout_s_n
 					}
 				}
 			}
+#endif
 			wait_update_progress(is_main_thread);
 			if (is_canceled()) {
 				break;
@@ -491,7 +493,7 @@ bool TaskManager::BaseSingleTaskData::auto_close_progress_bar() {
 	return cb_struct->auto_close_progress_bar();
 }
 
-Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t timeout_s_no_progress) {
+Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
 	if (p_group_id == -1) {
 		return ERR_INVALID_PARAMETER;
 	}
@@ -512,7 +514,7 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t t
 		} else if (already_waiting) {
 			return ERR_ALREADY_IN_USE;
 		}
-		if (task->wait_for_completion(timeout_s_no_progress)) {
+		if (task->wait_for_completion()) {
 			if (task->is_timed_out()) {
 				err = ERR_TIMEOUT;
 			} else {

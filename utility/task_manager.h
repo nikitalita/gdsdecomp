@@ -191,7 +191,7 @@ public:
 		bool is_timed_out() const;
 		bool _is_aborted() const;
 
-		virtual bool wait_for_completion(uint64_t timeout_s_no_progress = 0);
+		virtual bool wait_for_completion();
 
 		virtual ~BaseTemplateTaskData();
 	};
@@ -579,7 +579,7 @@ public:
 	DownloadTaskID add_fake_download_task(const String &p_download_url, const String &p_save_path);
 	DownloadTaskID add_download_task(const String &p_download_url, const String &p_save_path, bool silent = false, bool write_sha256 = false);
 	Error wait_for_download_task_completion(DownloadTaskID p_task_id);
-	Error wait_for_task_completion(TaskManagerID p_task_id, uint64_t timeout_s_no_progress = 0);
+	Error wait_for_task_completion(TaskManagerID p_task_id);
 	bool is_current_task_completed(TaskManagerID p_task_id) const;
 	bool is_current_task_canceled();
 	bool is_current_task_timed_out();
