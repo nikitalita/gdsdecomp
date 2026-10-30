@@ -1,14 +1,16 @@
 #pragma once
 
+#include "core/os/mutex.h"
 #include "core/templates/hash_map.h"
 #include "core/variant/typed_array.h"
 #include "scene/gui/file_dialog.h"
 
 // A FileDialog that remembers the last directory and the last selections made with it.
 //
-// State is persisted to a ConfigFile in the GDRE user path. If `group_recent` is set, every dialog with the
-// same group shares one config file; otherwise the config file is derived from the dialog's node path.
-// Because the node path is only valid inside the tree, the config is loaded on NOTIFICATION_READY.
+// State is persisted to a ConfigFile in the GDRE user path. Every dialog with the same `group_recent` shares
+// one config file; dialogs with no group set all share one common group.
+// `group_recent` is applied from the scene after construction, so the config is loaded on NOTIFICATION_READY.
+// The shared state (recent_cache and the config files) is guarded by recent_mutex.
 class GDREFileDialog : public FileDialog {
 	GDCLASS(GDREFileDialog, FileDialog);
 
@@ -22,8 +24,9 @@ private:
 		Vector<Vector<String>> last_opened_files;
 	};
 
-	// Shared between all dialogs, keyed by config path.
+	// Shared between all dialogs, keyed by config path. Guarded by recent_mutex.
 	static HashMap<String, RecentState> recent_cache;
+	static Mutex recent_mutex;
 
 	String group_recent;
 	String last_dir;
@@ -58,7 +61,7 @@ public:
 	void set_group_recent(const String &p_group);
 	String get_group_recent() const;
 
-	// Resolved path of the config file for this dialog (empty until inside the tree, unless group_recent is set).
+	// Resolved path of the config file for this dialog (the common group's file if group_recent is unset).
 	String get_config_path() const;
 	Error load_recent_state();
 	Error save_recent_state();

@@ -15,8 +15,12 @@ static constexpr const char *RECENT_SECTION = "recent";
 static constexpr const char *RECENT_KEY_DIR = "last_dir";
 static constexpr const char *RECENT_KEY_FILES = "last_files";
 static constexpr const char *RECENT_CONFIG_DIR = "file_dialog_recents";
+// Group used by every dialog that has no `group_recent` set. The leading underscore keeps it from colliding with a named group.
+static constexpr const char *COMMON_GROUP_NAME = "_common";
 
 HashMap<String, GDREFileDialog::RecentState> GDREFileDialog::recent_cache;
+// Declared after recent_cache so it is destroyed first.
+Mutex GDREFileDialog::recent_mutex;
 
 static bool _selections_equal(const Vector<String> &p_a, const Vector<String> &p_b) {
 	if (p_a.size() != p_b.size()) {
@@ -56,37 +60,32 @@ String GDREFileDialog::_get_config_name() const {
 	if (!group_recent.is_empty()) {
 		name = group_recent.validate_filename();
 	}
-	if (name.is_empty() && is_inside_tree()) {
-		name = String(get_path()).trim_prefix("/").replace("/", "__").validate_filename();
-	}
-	return name;
+	// No (usable) group set: use the common group shared by all ungrouped dialogs.
+	return name.is_empty() ? String(COMMON_GROUP_NAME) : name;
 }
 
 String GDREFileDialog::get_config_path() const {
-	String name = _get_config_name();
-	if (name.is_empty()) {
-		return String();
-	}
-	return GDRESettings::get_gdre_user_path().path_join(RECENT_CONFIG_DIR).path_join(name + ".cfg");
+	return GDRESettings::get_gdre_user_path().path_join(RECENT_CONFIG_DIR).path_join(_get_config_name() + ".cfg");
 }
 
 Error GDREFileDialog::load_recent_state() {
 	config_loaded = false;
-	const String path = get_config_path();
-	ERR_FAIL_COND_V_MSG(path.is_empty(), ERR_UNCONFIGURED, "GDREFileDialog: cannot resolve config path before the dialog is in the tree.");
-
 	if (!_should_persist()) {
 		// Keep whatever is in memory, but don't touch the disk.
 		config_loaded = true;
 		return OK;
 	}
+	const String path = get_config_path();
 	Error err = OK;
 
-	if (const RecentState *cached = recent_cache.getptr(path)) {
-		last_dir = cached->last_dir;
-		last_opened_files = cached->last_opened_files;
-		config_loaded = true;
-		return OK;
+	{
+		MutexLock lock(recent_mutex);
+		if (const RecentState *cached = recent_cache.getptr(path)) {
+			last_dir = cached->last_dir;
+			last_opened_files = cached->last_opened_files;
+			config_loaded = true;
+			return OK;
+		}
 	}
 
 	RecentState state;
@@ -113,7 +112,10 @@ Error GDREFileDialog::load_recent_state() {
 	}
 	last_dir = state.last_dir;
 	last_opened_files = state.last_opened_files;
-	recent_cache[path] = state;
+	{
+		MutexLock lock(recent_mutex);
+		recent_cache[path] = state;
+	}
 	config_loaded = true;
 	return err;
 }
@@ -123,8 +125,9 @@ Error GDREFileDialog::save_recent_state() {
 		return OK;
 	}
 	const String path = get_config_path();
-	ERR_FAIL_COND_V(path.is_empty(), ERR_UNCONFIGURED);
 
+	// Held across the cache update and the file write so concurrent saves can't interleave.
+	MutexLock lock(recent_mutex);
 	RecentState &state = recent_cache[path];
 	state.last_dir = last_dir;
 	state.last_opened_files = last_opened_files;
@@ -160,10 +163,15 @@ void GDREFileDialog::_refresh_from_cache() {
 		return;
 	}
 	// Another dialog in the same group may have changed the state since we last looked.
-	if (const RecentState *cached = recent_cache.getptr(get_config_path())) {
-		last_dir = cached->last_dir;
-		last_opened_files = cached->last_opened_files;
+	{
+		const String path = get_config_path();
+		MutexLock lock(recent_mutex);
+		if (const RecentState *cached = recent_cache.getptr(path)) {
+			last_dir = cached->last_dir;
+			last_opened_files = cached->last_opened_files;
+		}
 	}
+	// Outside the lock: this touches the dialog UI and the filesystem, not the shared state.
 	_apply_last_dir();
 }
 
@@ -198,8 +206,7 @@ void GDREFileDialog::_on_dir_selected(const String &p_dir) {
 	if (p_dir.is_empty()) {
 		return;
 	}
-	Vector<String> files;
-	files.push_back(p_dir);
+	Vector<String> files = { p_dir };
 	_record_selection(files, p_dir);
 }
 
@@ -308,7 +315,7 @@ void GDREFileDialog::_notification(int p_what) {
 			GDREWindow::set_window_autoscaling(this, get_min_size());
 		} break;
 		case NOTIFICATION_READY: {
-			// The node path (and group_recent, set by the scene) is only reliable now, so load the config here.
+			// group_recent is applied from the scene after construction, so load the config here rather than in the constructor.
 			load_recent_state();
 			_apply_last_dir();
 		} break;
