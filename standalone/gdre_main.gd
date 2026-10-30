@@ -303,16 +303,14 @@ func _setup_recent_menu(p_popup: PopupMenu):
 ## [/home/foo/thing.pck, /home/foo/second.pck] -> "thing.pck, second.pck (/home/foo)".
 
 const FILE_TOO_LONG_LENGTH_CAP = 80
-static func ensure_string_is_short(string: String, length_cap: int = FILE_TOO_LONG_LENGTH_CAP, at_end: bool = true) -> String:
+static func ensure_string_is_short(string: String, length_cap: int = FILE_TOO_LONG_LENGTH_CAP, substring_from_end: bool = true) -> String:
 	if string.length() > length_cap:
-		# if there's a home path in it
 		var home_dir = GDRESettings.get_home_dir()
 		if string.simplify_path().begins_with(home_dir):
-			string = string.trim_prefix(home_dir)
+			string = "~/" + string.trim_prefix(home_dir)
 	if string.length() > length_cap:
 		# substring at the END and add `...` to the beginning
-		if at_end:
-			# if there's a
+		if substring_from_end:
 			var substr = string.substr(string.length() - length_cap)
 			# if there's a / in it and it's not at the beginning, trim from the beginning to that
 			var slash_idx = substr.find("/")
@@ -320,7 +318,10 @@ static func ensure_string_is_short(string: String, length_cap: int = FILE_TOO_LO
 				substr = substr.substr(slash_idx)
 			return "..." + substr
 		else:
-			return string.substr(0, length_cap) + "..."
+			var substr = string.substr(0, length_cap) + "..."
+			if string.ends_with(")"):
+				substr += ")"
+			return substr
 	return string
 
 static func format_recent_entry(paths: PackedStringArray) -> String:
@@ -342,7 +343,7 @@ static func format_recent_entry(paths: PackedStringArray) -> String:
 	if common.length() > FILE_TOO_LONG_LENGTH_CAP:
 		common = ensure_string_is_short(common)
 	var string = "%s (%s)" % [", ".join(names), common]
-	return ensure_string_is_short(string, 250, false)
+	return ensure_string_is_short(string, 200, false)
 
 func _populate_recent_menu():
 	if not _recent_menu:
