@@ -49,12 +49,19 @@ TaskManager::~TaskManager() {
 	singleton = nullptr;
 }
 
+static inline String get_thread_name(int p_thread_index, const String &p_task_name = "") {
+	if (!p_task_name.is_empty()) {
+		return vformat("GDRETask %d (%d) %s", p_thread_index, Thread::get_caller_id(), p_task_name);
+	}
+	return vformat("GDRETask %d (%d)", p_thread_index, Thread::get_caller_id());
+}
+
 void TaskManager::_set_thread_name_task(uint32_t i, void *p_userdata) {
 	// delaying here to ensure all the threads are started
 	OS::get_singleton()->delay_usec(10000);
 	int thread_index = named_pool->get_thread_index();
 	thread_index_to_thread_id[thread_index] = Thread::get_caller_id();
-	Thread::set_name(vformat("GDRETask %d (%d)", thread_index, Thread::get_caller_id()));
+	Thread::set_name(get_thread_name(thread_index));
 }
 
 TaskManager *TaskManager::get_singleton() {
@@ -339,6 +346,9 @@ bool TaskManager::BaseGroupTaskData::_do_one_iteration(bool p_no_memory_check) {
 
 void TaskManager::BaseGroupTaskData::task_callback(void *_unused) {
 	TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+#if DEBUG_ENABLED
+	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index(), task));
+#endif
 	bool no_memory_check = tasks == 1;
 	while (true) {
 		if (_do_one_iteration(no_memory_check)) {
@@ -346,6 +356,9 @@ void TaskManager::BaseGroupTaskData::task_callback(void *_unused) {
 		}
 	}
 	TaskManager::get_singleton()->set_thread_task_id(-1);
+#if DEBUG_ENABLED
+	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index()));
+#endif
 	tasks_quit++;
 }
 
