@@ -777,14 +777,14 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			case G_TK_CONSTANT: {
 				if (bytecode_version >= GDSCRIPT_2_0_VERSION && token.literal.get_type() == Variant::Type::STRING && check_new_line(i + 1)) {
 					auto &next_token = tokens[i + 1];
-					auto next_line = next_token.type == G_TK_NEWLINE ? next_token.start_line - 1 : next_token.start_line;
+					auto next_line = next_token.type == G_TK_NEWLINE ? next_token.start_line - 1 : next_token.end_line;
 					if (token.start_line != next_line) {
 						String str = tokens[i].literal.operator String().c_escape_multiline();
 						int num_newlines = str.count("\n");
 						int num_lines = next_line - token.start_line;
 						if (num_newlines == num_lines && num_lines > 2) {
 							line += "\"\"\"" + str + "\"\"\"";
-							prev_line = next_token.end_line;
+							prev_line = next_line;
 							prev_token = G_TK_CONSTANT;
 							continue;
 						}
