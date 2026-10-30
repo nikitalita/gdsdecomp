@@ -402,6 +402,9 @@ Ref<FileAccess> open_encrypted_v3_from_file(Ref<FileAccess> p_path, int p_mode, 
 Ref<FileAccess> open_encrypted_v3_from_file_password(Ref<FileAccess> p_path, int p_mode, const String &p_password);
 Vector<String> filter_error_backtraces(const Vector<String> &p_error_messages);
 Vector<String> get_files_for_paths(const Vector<String> &p_paths);
+// Returns the deepest directory containing all of the paths (no trailing slash, "/" or "C:/" for a bare root),
+// or an empty string if there is none. Each path is treated as a file/bundle, so a single path returns its parent dir.
+String get_common_dir(const Vector<String> &p_paths);
 String get_java_path();
 int get_java_version();
 bool is_macho_binary(const String &p_path);

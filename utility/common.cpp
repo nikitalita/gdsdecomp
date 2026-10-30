@@ -1043,6 +1043,67 @@ Vector<String> gdre::get_files_for_paths(const Vector<String> &p_paths) {
 	return ret;
 }
 
+String gdre::get_common_dir(const Vector<String> &p_paths) {
+	Vector<String> common_parts;
+	bool have_common = false;
+	for (const String &path : p_paths) {
+		if (path.is_empty()) {
+			continue;
+		}
+		String norm = path.simplify_path();
+		// Strip trailing slashes (e.g. "Foo.app/"), but keep a bare root ("/" or "C:/").
+		while (norm.length() > 1 && norm.ends_with("/") && !norm.ends_with(":/")) {
+			norm = norm.substr(0, norm.length() - 1);
+		}
+		String base = norm.get_base_dir();
+
+		// Split into segments, keeping empty ones so that a leading "/" is represented by an empty first segment.
+		Vector<String> parts;
+		if (base == "/") {
+			parts.push_back("");
+		} else if (base.length() > 0 && base.ends_with(":/") && base.find("/") == base.length() - 1) {
+			// Drive root, e.g. "C:/"
+			parts.push_back(base.substr(0, base.length() - 1));
+		} else if (!base.is_empty()) {
+			parts = base.split("/", true);
+		}
+
+		if (!have_common) {
+			common_parts = parts;
+			have_common = true;
+		} else {
+			int n = 0;
+			while (n < common_parts.size() && n < parts.size() && common_parts[n] == parts[n]) {
+				n++;
+			}
+			common_parts.resize(n);
+		}
+		if (common_parts.is_empty()) {
+			return String();
+		}
+	}
+	if (common_parts.is_empty()) {
+		return String();
+	}
+	if (common_parts.size() == 1) {
+		if (common_parts[0].is_empty()) {
+			return "/";
+		}
+		if (common_parts[0].ends_with(":")) {
+			return common_parts[0] + "/";
+		}
+		return common_parts[0];
+	}
+	String ret;
+	for (int i = 0; i < common_parts.size(); i++) {
+		if (i > 0) {
+			ret += "/";
+		}
+		ret += common_parts[i];
+	}
+	return ret;
+}
+
 String gdre::get_java_path() {
 	if (!OS::get_singleton()->has_environment("JAVA_HOME")) {
 		return "";
@@ -1223,6 +1284,7 @@ void GDRECommon::_bind_methods() {
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("open_encrypted_v3_from_file_password", "file", "mode", "password"), &gdre::open_encrypted_v3_from_file_password);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("filter_error_backtraces", "error_messages"), &gdre::filter_error_backtraces);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_files_for_paths", "paths"), &gdre::get_files_for_paths);
+	ClassDB::bind_static_method("GDRECommon", D_METHOD("get_common_dir", "paths"), &gdre::get_common_dir);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("rimraf", "path"), &gdre::rimraf);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("is_fs_path", "path"), &gdre::is_fs_path);
 	ClassDB::bind_static_method("GDRECommon", D_METHOD("path_to_uri", "path"), &gdre::path_to_uri);

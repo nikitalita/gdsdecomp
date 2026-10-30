@@ -31,8 +31,13 @@ enum REToolsMenuID {
 	ABOUT,
 	REPORT_BUG,
 	QUIT,
-	SETTINGS = 7
+	SETTINGS = 7,
+	RECENT = 8
 }
+
+# Number of entries shown in the "Open Recent" submenu (the file dialog stores more).
+const MAX_RECENT_MENU_ITEMS = 10
+var _recent_menu: PopupMenu = null
 
 enum ResourcesMenuID {
 	BIN_TO_TXT,
@@ -280,6 +285,95 @@ func _on_REToolsMenu_item_selected(id):
 			OS.shell_open("https://github.com/GDRETools/gdsdecomp/issues/new?assignees=&labels=bug&template=bug_report.yml&sys_info=" + GDRESettings.get_sys_info_string())
 		REToolsMenuID.QUIT:  # Quit
 			get_tree().quit()
+
+## Creates the "Open Recent" submenu and puts it directly under "Recover Project...".
+func _setup_recent_menu(p_popup: PopupMenu):
+	_recent_menu = PopupMenu.new()
+	_recent_menu.name = "RecentProjectsMenu"
+	# These are file paths, don't run them through translation
+	_recent_menu.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	p_popup.add_submenu_node_item("Open Recent", _recent_menu, REToolsMenuID.RECENT)
+	var idx = p_popup.item_count - 1
+	p_popup.set_item_icon(idx, p_popup.get_item_icon(0))
+	p_popup.set_item_index(idx, 1)
+	_recent_menu.connect("id_pressed", self._on_recent_project_selected)
+
+## Formats a recent entry for display.
+## A single path is shown in full. Several paths are collapsed to their common directory, e.g.
+## [/home/foo/thing.pck, /home/foo/second.pck] -> "thing.pck, second.pck (/home/foo)".
+
+const FILE_TOO_LONG_LENGTH_CAP = 80
+static func ensure_string_is_short(string: String, length_cap: int = FILE_TOO_LONG_LENGTH_CAP, at_end: bool = true) -> String:
+	if string.length() > length_cap:
+		# if there's a home path in it
+		var home_dir = GDRESettings.get_home_dir()
+		if string.simplify_path().begins_with(home_dir):
+			string = string.trim_prefix(home_dir)
+	if string.length() > length_cap:
+		# substring at the END and add `...` to the beginning
+		if at_end:
+			# if there's a
+			var substr = string.substr(string.length() - length_cap)
+			# if there's a / in it and it's not at the beginning, trim from the beginning to that
+			var slash_idx = substr.find("/")
+			if slash_idx != -1 and slash_idx != 0:
+				substr = substr.substr(slash_idx)
+			return "..." + substr
+		else:
+			return string.substr(0, length_cap) + "..."
+	return string
+
+static func format_recent_entry(paths: PackedStringArray) -> String:
+	if paths.size() == 0:
+		return ""
+	var names = PackedStringArray()
+	var common: String = ""
+	if paths.size() == 1:
+		common = paths[0].get_base_dir()
+		names = [paths[0].get_file()]
+	else:
+		common = GDRECommon.get_common_dir(paths)
+		if common.is_empty() or common == "/" or (common.length() <= 3 and common.ends_with(":/") and common.find("/") == common.length() - 1):
+			for path in paths:
+				names.append(ensure_string_is_short(path))
+		else:
+			for path in paths:
+				names.append(ensure_string_is_short(path.simplify_path().trim_prefix(common).trim_prefix("/")))
+	if common.length() > FILE_TOO_LONG_LENGTH_CAP:
+		common = ensure_string_is_short(common)
+	var string = "%s (%s)" % [", ".join(names), common]
+	return ensure_string_is_short(string, 250, false)
+
+func _populate_recent_menu():
+	if not _recent_menu:
+		return
+	_recent_menu.clear(false)
+	var recents = RECOVER_FILE_DIALOG.get_last_opened_files()
+	var count = mini(recents.size(), MAX_RECENT_MENU_ITEMS)
+	for i in count:
+		var paths: PackedStringArray = recents[i]
+		_recent_menu.add_item(format_recent_entry(paths), i)
+		var idx = _recent_menu.item_count - 1
+		_recent_menu.set_item_metadata(idx, paths)
+		_recent_menu.set_item_tooltip(idx, "\n".join(paths))
+	if count == 0:
+		_recent_menu.add_item("(No recent projects)", 0)
+		_recent_menu.set_item_disabled(0, true)
+
+# Connected to REToolsMenu.about_to_popup in the scene.
+func _menubutton_about_to_popup():
+	_populate_recent_menu()
+
+func _on_recent_project_selected(id: int):
+	var idx = _recent_menu.get_item_index(id)
+	if idx < 0:
+		return
+	var paths: PackedStringArray = _recent_menu.get_item_metadata(idx)
+	if paths.is_empty():
+		return
+	# Move this entry to the front of the history
+	RECOVER_FILE_DIALOG.add_last_opened_selection(paths)
+	_on_recover_project_files_selected(paths)
 
 func _on_ResourcesMenu_item_selected(index):
 	match index:
@@ -576,6 +670,7 @@ func _ready():
 	REAL_ROOT_WINDOW = get_window()
 	var popup_menu_gdremenu: PopupMenu = $MenuContainer/REToolsMenu.get_popup()
 	popup_menu_gdremenu.connect("id_pressed", self._on_REToolsMenu_item_selected)
+	_setup_recent_menu(popup_menu_gdremenu)
 	$MenuContainer/PCKMenu.get_popup().connect("id_pressed", self._on_PCKMenu_item_selected)
 	$MenuContainer/GDScriptMenu.get_popup().connect("id_pressed", self._on_GDScriptMenu_item_selected)
 	$MenuContainer/ResourcesMenu.get_popup().connect("id_pressed", self._on_ResourcesMenu_item_selected)
