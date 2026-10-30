@@ -153,6 +153,11 @@ public:
 	};
 
 	class BaseTemplateTaskData {
+	private:
+		bool task_stalled = false;
+
+		Vector<String> get_current_task_work_indices_descriptions();
+
 	protected:
 		bool not_in_main_queue = false;
 		bool canceled = false;
@@ -166,10 +171,15 @@ public:
 
 		virtual void wait_for_task_completion_internal() = 0;
 		virtual void start_internal() = 0;
+		virtual String get_task_name() const = 0;
 		virtual void cancel_internal() {}
 		bool _wait_after_cancel();
 		String _get_task_description();
 		bool wait_update_progress(bool p_force_refresh = false);
+		virtual Vector<int> get_current_task_work_indices() { return Vector<int>(); }
+		virtual String get_description_for_element_index(int p_index) { return ""; }
+		virtual bool is_group_task() const { return false; }
+		virtual bool has_indeterminate_task_steps() const { return false; }
 
 	public:
 		std::atomic<bool> is_waiting = false;
@@ -212,12 +222,17 @@ public:
 		bool started_current_thread = false;
 		bool done = false;
 		int progress_start = 0;
+		LocalVector<std::atomic<int64_t>> current_work_indices;
 
 	protected:
 		virtual String get_current_task_step_description_internal(int p_index) = 0;
 		virtual void call_instance_method_internal(int p_work_index) = 0;
-		bool _do_one_iteration(bool p_no_memory_check = false);
+		bool _do_one_iteration(bool p_no_memory_check, int task_index);
 		void task_callback(void *_unused);
+		Vector<int> get_current_task_work_indices() override;
+		String get_description_for_element_index(int p_index) override;
+		bool is_group_task() const override { return true; }
+		String get_task_name() const override;
 
 	public:
 		BaseGroupTaskData(
@@ -297,7 +312,9 @@ public:
 		virtual void run_with_userdata() = 0;
 
 		virtual void wait_for_task_completion_internal() override;
+		virtual String get_task_name() const override;
 		virtual void cancel_internal() override;
+		virtual bool has_indeterminate_task_steps() const override;
 
 	public:
 		BaseSingleTaskData(
@@ -360,6 +377,7 @@ public:
 
 	protected:
 		virtual void wait_for_task_completion_internal() override;
+		virtual String get_task_name() const override;
 
 	public:
 		bool fake = false;

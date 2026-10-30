@@ -128,7 +128,29 @@ String TaskManager::BaseTemplateTaskData::_get_task_description() {
 	if (is_canceled()) {
 		return "Cancelling...";
 	}
+	if (task_stalled) {
+		if (is_group_task()) {
+			auto descriptions = get_current_task_work_indices_descriptions();
+			return vformat("Stalled (%d): %s", descriptions.size(), String(",").join(descriptions));
+		} else {
+			return "Stalled: " + get_current_task_step_description();
+		}
+	}
 	return get_current_task_step_description();
+}
+
+Vector<String> TaskManager::BaseTemplateTaskData::get_current_task_work_indices_descriptions() {
+	Vector<String> work_indices_descriptions;
+	auto work_indices = get_current_task_work_indices();
+	for (int i = 0; i < work_indices.size(); i++) {
+		if (work_indices[i] != -1) {
+			String description = get_description_for_element_index(work_indices[i]);
+			if (!description.is_empty()) {
+				work_indices_descriptions.push_back(description);
+			}
+		}
+	}
+	return work_indices_descriptions;
 }
 
 // returns true if the task was cancelled before completion
@@ -214,10 +236,12 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion() {
 			WARN_PRINT("Waiting for group task completion on non-main thread, progress will not be updated!");
 		}
 #endif
-		[[maybe_unused]] uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
-		[[maybe_unused]] auto last_progress = get_current_task_step_value();
-		[[maybe_unused]] bool printed_warning = false;
+		constexpr uint64_t DEFAULT_NO_PROGRESS_WARNING_THRESHOLD_MS = 20000;
+		uint64_t no_progress_threshold_ms = DEFAULT_NO_PROGRESS_WARNING_THRESHOLD_MS;
+		uint64_t last_progress_made = OS::get_singleton()->get_ticks_msec();
+		auto last_progress = get_current_task_step_value();
 		[[maybe_unused]] uint64_t last_reported_mem_usage_ms = 0;
+		bool can_determine_stall = !has_indeterminate_task_steps();
 		while (!is_done()) {
 #if 0
 			if (OS::get_singleton()->get_ticks_msec() - last_reported_mem_usage_ms > 1000) {
@@ -225,27 +249,33 @@ bool TaskManager::BaseTemplateTaskData::wait_for_completion() {
 				last_reported_mem_usage_ms = OS::get_singleton()->get_ticks_msec();
 			}
 #endif
-#if 0
-			if (timeout_s_no_progress != 0) {
+			if (can_determine_stall) {
 				auto curr_progress = get_current_task_step_value();
 				auto curr_time = OS::get_singleton()->get_ticks_msec();
 				if (curr_progress != last_progress) {
 					last_progress_made = curr_time;
 					last_progress = curr_progress;
+					if (task_stalled) {
+						task_stalled = false;
+						if (progress.is_valid()) {
+							progress->set_progress_length(false);
+						}
+					}
 				} else {
-					auto delta = curr_time - last_progress_made;
-					if (!printed_warning && delta > (timeout_s_no_progress - 5) * 1000) {
-						print_line("Task is taking an unusually long time to complete, cancelling in 5 seconds...");
-						printed_warning = true;
-					} else if (delta > timeout_s_no_progress * 1000) {
-						ERR_PRINT("Task is taking too long to complete, cancelling...");
-						timed_out = true;
-						cancel();
-						break;
+					if (!task_stalled && curr_time - last_progress_made > no_progress_threshold_ms) {
+						print_line(vformat("\n*** Task '%s' is taking an unusually long time to complete...", get_task_name().strip_edges().trim_prefix("...")));
+						if (is_group_task()) {
+							print_line(vformat("*** Waiting on the following work items:\n\t%s\n", String("\n\t").join(get_current_task_work_indices_descriptions())));
+						}
+						task_stalled = true;
+						if (progress.is_valid()) {
+							progress->set_progress_length(true);
+						}
+						// set the threshold to half of the default for future stalls
+						no_progress_threshold_ms = DEFAULT_NO_PROGRESS_WARNING_THRESHOLD_MS / 2;
 					}
 				}
 			}
-#endif
 			wait_update_progress(is_main_thread);
 			if (is_canceled()) {
 				break;
@@ -286,16 +316,21 @@ TaskManager::BaseGroupTaskData::BaseGroupTaskData(
 	if (tasks > elements) { // Don't spin up more threads than we need
 		tasks = elements;
 	}
+	if (p_runs_current_thread) {
+		tasks = 1;
+	}
 	progress_enabled = p_progress_enabled;
 	progress = p_progress;
 	runs_current_thread = p_runs_current_thread;
+	// Always resize current work indices to the maximum number of threads and set all to -1
+	current_work_indices.resize(MAX(tasks, TaskManager::get_max_thread_count()));
+	for (int i = 0; i < tasks; i++) {
+		current_work_indices[i] = -1;
+	}
 }
 
 String TaskManager::BaseGroupTaskData::get_current_task_step_description() {
-	if (elements == 0) {
-		return "<UNKNOWN>";
-	}
-	return get_current_task_step_description_internal(last_completed < elements ? (int)last_completed : elements - 1);
+	return get_description_for_element_index((int)last_completed);
 }
 
 void TaskManager::BaseGroupTaskData::start_internal() {
@@ -312,7 +347,7 @@ void TaskManager::BaseGroupTaskData::start_internal() {
 	}
 }
 
-bool TaskManager::BaseGroupTaskData::_do_one_iteration(bool p_no_memory_check) {
+bool TaskManager::BaseGroupTaskData::_do_one_iteration(bool p_no_memory_check, int task_thread_index) {
 	// if we're using too much memory, wait until it goes down
 	if (unlikely(!p_no_memory_check && is_memory_usage_too_high() && !canceled)) {
 		tasks_busy_waiting++;
@@ -330,7 +365,7 @@ bool TaskManager::BaseGroupTaskData::_do_one_iteration(bool p_no_memory_check) {
 	}
 
 	int64_t work_index = current_work_index++;
-
+	current_work_indices[task_thread_index] = work_index;
 	if (work_index >= elements) {
 		return true;
 	}
@@ -348,18 +383,23 @@ bool TaskManager::BaseGroupTaskData::_do_one_iteration(bool p_no_memory_check) {
 
 void TaskManager::BaseGroupTaskData::task_callback(void *_unused) {
 	TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+	int thread_index = TaskManager::get_thread_pool()->get_thread_index();
+	if (thread_index <= -1) {
+		thread_index = 0;
+	}
 #if DEBUG_ENABLED
-	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index(), task));
+	Thread::set_name(get_thread_name(thread_index, task));
 #endif
 	bool no_memory_check = tasks == 1;
 	while (true) {
-		if (_do_one_iteration(no_memory_check)) {
+		if (_do_one_iteration(no_memory_check, thread_index)) {
 			break;
 		}
 	}
+	current_work_indices[thread_index] = -1;
 	TaskManager::get_singleton()->set_thread_task_id(-1);
 #if DEBUG_ENABLED
-	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index()));
+	Thread::set_name(get_thread_name(thread_index));
 #endif
 	tasks_quit++;
 }
@@ -385,7 +425,7 @@ void TaskManager::BaseGroupTaskData::run_on_current_thread() {
 	TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
 	uint64_t last_progress_upd = OS::get_singleton()->get_ticks_usec();
 	for (int i = 0; i < elements; i++) {
-		if (_do_one_iteration(true) || OS::get_singleton()->get_ticks_usec() - last_progress_upd > 50000) {
+		if (_do_one_iteration(true, 0) || OS::get_singleton()->get_ticks_usec() - last_progress_upd > 50000) {
 			if (update_progress()) {
 				break;
 			}
@@ -401,6 +441,29 @@ void TaskManager::BaseGroupTaskData::wait_for_task_completion_internal() {
 			TaskManager::get_thread_pool()->wait_for_task_completion(task_id);
 		}
 	}
+}
+
+Vector<int> TaskManager::BaseGroupTaskData::get_current_task_work_indices() {
+	Vector<int> work_indices;
+	work_indices.resize(current_work_indices.size());
+	for (int i = 0; i < current_work_indices.size(); i++) {
+		work_indices.write[i] = (int)current_work_indices[i].load();
+	}
+	return work_indices;
+}
+
+String TaskManager::BaseGroupTaskData::get_description_for_element_index(int p_index) {
+	if (unlikely(elements == 0)) {
+		return "<UNKNOWN>";
+	}
+	if (unlikely(p_index >= elements || p_index < 0)) {
+		p_index = elements - 1;
+	}
+	return get_current_task_step_description_internal(p_index);
+}
+
+String TaskManager::BaseGroupTaskData::get_task_name() const {
+	return task;
 }
 
 TaskManager::BaseSingleTaskData::BaseSingleTaskData(
@@ -433,6 +496,14 @@ void TaskManager::BaseSingleTaskData::wait_for_task_completion_internal() {
 
 void TaskManager::BaseSingleTaskData::cancel_internal() {
 	cb_struct->cancel();
+}
+
+bool TaskManager::BaseSingleTaskData::has_indeterminate_task_steps() const {
+	return progress_step_count == -1;
+}
+
+String TaskManager::BaseSingleTaskData::get_task_name() const {
+	return description;
 }
 
 void TaskManager::BaseSingleTaskData::run_internal(void *p_data) {
@@ -673,6 +744,10 @@ void TaskManager::DownloadTaskData::wait_for_task_completion_internal() {
 	while (!is_done()) {
 		OS::get_singleton()->delay_usec(10000);
 	}
+}
+
+String TaskManager::DownloadTaskData::get_task_name() const {
+	return vformat("Downloading %s (%s)", download_url.get_file(), String::humanize_size(size));
 }
 
 bool TaskManager::DownloadTaskData::is_done() const {

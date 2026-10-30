@@ -416,14 +416,19 @@ bool GDREProgressDialog::task_step(const String &p_task, const String &p_state, 
 }
 
 void GDREProgressDialog::task_set_length(const String &p_task, bool p_indeterminate, int p_new_amount) {
+	bool update = false;
 	bool exists = tasks.modify_if(p_task, [&](TaskMap::value_type &t) {
-		t.second.set_indeterminate(p_indeterminate);
-		if (p_new_amount != -1) {
+		if (t.second.indeterminate != p_indeterminate) {
+			t.second.set_indeterminate(p_indeterminate);
+			update = true;
+		}
+		if (p_new_amount != -1 && t.second.steps != p_new_amount) {
 			t.second.set_length(p_new_amount);
+			update = true;
 		}
 	});
 	ERR_FAIL_COND_MSG(!exists, "Task '" + p_task + "' does not exist.");
-	if (is_safe_to_redraw()) {
+	if (update && is_safe_to_redraw()) {
 		main_thread_update();
 	}
 }
