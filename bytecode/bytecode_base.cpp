@@ -722,6 +722,7 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 		return p_token == G_TK_NEWLINE || p_token == G_TK_DEDENT || p_token == G_TK_INDENT;
 	};
 
+	bool start_node_path = false;
 	auto ensure_space_func = [&]() {
 		if (!line.ends_with(" ") && !is_token_newline_or_indent(prev_token)) {
 			line += " ";
@@ -737,6 +738,16 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			line += " ";
 		}
 	});
+
+	auto token_is_id_or_const_string = [&](int idx) {
+		if (idx < 0 || idx >= tokens.size()) {
+			return false;
+		}
+		return tokens[idx].type == G_TK_IDENTIFIER || (tokens[idx].type == G_TK_CONSTANT && tokens[idx].literal.get_type() == Variant::Type::STRING);
+	};
+
+	// only 3.0-dev5 and newer have the $ node path identifiers
+	bool has_dollar_token = get_local_token_val(G_TK_DOLLAR) != -1;
 
 	for (int i = 0; i < tokens.size(); i++) {
 		const Token &token = tokens[i];
@@ -843,8 +854,16 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 				line += "* ";
 			} break;
 			case G_TK_OP_DIV: {
-				ensure_space_func();
-				line += "/ ";
+				if (start_node_path && (!token_is_id_or_const_string(i - 1) || !token_is_id_or_const_string(i + 1))) {
+					start_node_path = false;
+				}
+				if (!start_node_path) {
+					ensure_space_func();
+				}
+				line += "/";
+				if (!start_node_path) {
+					ensure_ending_space_func(i);
+				}
 			} break;
 			case G_TK_OP_MOD: {
 				ensure_space_func();
@@ -852,6 +871,9 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 				// if the previous token was a constant or an identifier, this is a modulo operation, add a space
 				if (prev_token == G_TK_CONSTANT || prev_token == G_TK_IDENTIFIER || prev_token == G_TK_PARENTHESIS_CLOSE) {
 					ensure_ending_space_func(i);
+				} else if (bytecode_version >= GDSCRIPT_2_0_VERSION && token_is_id_or_const_string(i + 1)) { // (Only 4.x and above)
+					// otherwise it's the start of a node path with a unique name (or the end of one)
+					start_node_path = !start_node_path;
 				}
 			} break;
 			case G_TK_OP_SHIFT_LEFT: {
@@ -1094,6 +1116,9 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			} break;
 			case G_TK_DOLLAR: {
 				line += "$";
+				if (has_dollar_token) {
+					start_node_path = true;
+				}
 			} break;
 			case G_TK_FORWARD_ARROW: {
 				ensure_space_func();
@@ -1212,6 +1237,19 @@ Error GDScriptDecomp::decompile_buffer(Vector<uint8_t> p_buffer) {
 			}
 		}
 		prev_token = curr_token;
+		if (start_node_path) {
+			switch (curr_token) {
+				case G_TK_CONSTANT:
+				case G_TK_IDENTIFIER:
+				case G_TK_OP_MOD:
+				case G_TK_OP_DIV:
+				case G_TK_DOLLAR:
+					break;
+				default:
+					start_node_path = false;
+					break;
+			}
+		}
 	}
 
 	if (!line.is_empty() || (is_token_newline_or_indent(prev_token) && bytecode_version < GDSCRIPT_2_0_VERSION && indent > 0)) {
