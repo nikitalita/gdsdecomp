@@ -793,9 +793,9 @@ Ref<Resource> ResourceConverterTexture2D::convert(const Ref<MissingResource> &re
 	int flags = res->get("flags");
 	String load_path = res->get("load_path");
 	if (res->get("load_path").get_type() == Variant::NIL) {
-		auto compressed_texture = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
+		texture = Ref<CompressedTexture2D>(memnew(CompressedTexture2D));
 		merge_meta_and_resource_only_props(texture, res);
-		return compressed_texture;
+		return texture;
 	}
 	if (p_type == ResourceInfo::GLTF_LOAD || p_type == ResourceInfo::REAL_LOAD) {
 		texture = ResourceCompatLoader::custom_load(load_path, type, p_type, r_error, false, ResourceFormatLoader::CACHE_MODE_IGNORE);
