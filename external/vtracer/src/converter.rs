@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::{fs::File, io::Write};
 
@@ -178,6 +178,18 @@ fn split_disconnected_pixels(cluster: &Cluster, view: &ClustersView<'_>) -> Vec<
 }
 
 
+#[inline]
+fn remove_indices_from_vec<T>(vec: &mut Vec<T>, indices_to_remove: &HashSet<usize>) {
+	if !indices_to_remove.is_empty() {
+		let mut pos = 0usize;
+		vec.retain(|_| {
+			let keep = !indices_to_remove.contains(&pos);
+			pos += 1;
+			keep
+		});
+	}
+}
+
 fn remove_pixels_from_lower_layers(p_clusters: &Clusters) -> Vec<Cluster>{
     let view = p_clusters.view();
     let mut pixel_alpha_map = HashMap::new();
@@ -190,16 +202,20 @@ fn remove_pixels_from_lower_layers(p_clusters: &Clusters) -> Vec<Cluster>{
     };
     for &i in clusters_output.iter() {
         let mut cluster = view.get_cluster(i).clone();
-        let indices = cluster.indices.clone();
-        let indices_size = indices.len();
-        let mut actual_colors = Vec::new();
-        for (i, index) in indices.iter().rev().enumerate() {
+        let indices_size = cluster.indices.len();
+        // visioncortex's Color doesn't implement Hash, so dedupe via a packed key.
+        // The Vec keeps first-seen order so output stays deterministic.
+        let mut actual_colors: Vec<Color> = Vec::new();
+        let mut seen_colors: HashSet<u32> = HashSet::new();
+		let mut to_remove = HashSet::new();
+        for (i, index) in cluster.indices.iter().rev().enumerate() {
             let pix_idx = *index;
             let real_i = indices_size - i - 1;
             if !pixel_alpha_map.contains_key(&pix_idx) {
 				// the color of the pixel in the original raster image, not the color of the cluster
                 let pixel = image.get_pixel_at(pix_idx as usize);
-                if !actual_colors.contains(&pixel) {
+                let key = u32::from_le_bytes([pixel.r, pixel.g, pixel.b, pixel.a]);
+                if seen_colors.insert(key) {
                     actual_colors.push(pixel);
                 }
                 pixel_alpha_map.insert(pix_idx, pixel.a);
@@ -207,10 +223,14 @@ fn remove_pixels_from_lower_layers(p_clusters: &Clusters) -> Vec<Cluster>{
                 // Unless the pixel above this one is completely opaque, remove it
                 // (This check prevents tiny cracks in the svg between pixels)
                 if pixel_alpha_map.get(&pix_idx).unwrap() != &255 {
-                    cluster.indices.remove(real_i);
+					to_remove.insert(real_i);
                 }
             }
         }
+		// to_remove holds positions within cluster.indices (not the pixel index values stored in it),
+		// so retain by position rather than by element value.
+		remove_indices_from_vec(&mut cluster.indices, &to_remove);
+		to_remove.clear();
         // ensure correct colors
         if actual_colors.len() == 1 && (actual_colors[0] != cluster.residue_sum.average()) {
             let actual_color = actual_colors[0];
@@ -225,9 +245,11 @@ fn remove_pixels_from_lower_layers(p_clusters: &Clusters) -> Vec<Cluster>{
                 let mut new_cluster = cluster.clone();
                 for (i, index) in cluster.indices.clone().into_iter().enumerate().rev() {
                     if pixel_alpha_map.contains_key(&index) && image.get_pixel_at(index as usize) != color {
-                        new_cluster.indices.remove(i);
+                        to_remove.insert(i);
                     }
                 }
+				remove_indices_from_vec(&mut new_cluster.indices, &to_remove);
+				to_remove.clear();
                 new_cluster.residue_sum.r = color.r as u32 * new_cluster.indices.len() as u32;
                 new_cluster.residue_sum.g = color.g as u32 * new_cluster.indices.len() as u32;
                 new_cluster.residue_sum.b = color.b as u32 * new_cluster.indices.len() as u32;
