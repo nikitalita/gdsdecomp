@@ -153,7 +153,8 @@ void GodotREEditorStandalone::_notification(int p_notification) {
 	if (p_notification == NOTIFICATION_READY) {
 		RichTextLabel *log_window = get_log_window();
 		if (log_window) {
-			log_window->set_threaded(true);
+			// TODO: Disabling threading in log window for now, getting segfaults when using it
+			log_window->set_threaded(false);
 		}
 		if (get_parent_window()) {
 			get_parent_window()->call_deferred("add_child", error_dialog);
