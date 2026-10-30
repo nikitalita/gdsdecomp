@@ -281,11 +281,10 @@ public:
 		}
 	};
 
-	template <typename U>
-	class TaskData : public BaseTemplateTaskData {
+	class BaseSingleTaskData : public BaseTemplateTaskData {
+	protected:
 		TaskManagerID task_manager_id;
 		std::shared_ptr<TaskRunnerStruct> cb_struct;
-		U userdata;
 		String description;
 		bool can_cancel = false;
 		bool high_priority = false;
@@ -293,17 +292,43 @@ public:
 		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
 		int progress_step_count = -1;
 
+		// Hooks implemented by the templated subclass
+		virtual WorkerThreadPool::TaskID add_to_thread_pool() = 0;
+		virtual void run_with_userdata() = 0;
+
+		virtual void wait_for_task_completion_internal() override;
+		virtual void cancel_internal() override;
+
+	public:
+		BaseSingleTaskData(
+				TaskManagerID p_task_manager_id,
+				std::shared_ptr<TaskRunnerStruct> task_cancelled_callback,
+				const String &p_description,
+				int progress_steps = -1,
+				bool p_can_cancel = false,
+				bool p_high_priority = false,
+				bool p_progress_enabled = true,
+				bool p_runs_current_thread = false);
+
+		void run_internal(void *p_data);
+		virtual void run_on_current_thread() override;
+		virtual int get_current_task_step_value() override;
+		virtual String get_current_task_step_description() override;
+		virtual bool is_done() const override;
+		void start_internal() override;
+		virtual bool auto_close_progress_bar() override;
+	};
+
+	template <typename U>
+	class TaskData : public BaseSingleTaskData {
+		U userdata;
+
 	protected:
-		virtual void wait_for_task_completion_internal() override {
-			if (!runs_current_thread) {
-				ERR_FAIL_COND_MSG(task_id == -1, "Task not started");
-				TaskManager::get_thread_pool()->wait_for_task_completion(task_id);
-			} else {
-				run_on_current_thread();
-			}
+		virtual WorkerThreadPool::TaskID add_to_thread_pool() override {
+			return TaskManager::get_thread_pool()->add_template_task(this, &TaskData::run_internal, userdata, high_priority, description);
 		}
-		virtual void cancel_internal() override {
-			cb_struct->cancel();
+		virtual void run_with_userdata() override {
+			run_internal(userdata);
 		}
 
 	public:
@@ -317,63 +342,8 @@ public:
 				bool p_high_priority = false,
 				bool p_progress_enabled = true,
 				bool p_runs_current_thread = false) :
-				task_manager_id(p_task_manager_id),
-				cb_struct(task_cancelled_callback),
-				userdata(p_userdata),
-				description(p_description),
-				can_cancel(p_can_cancel),
-				high_priority(p_high_priority),
-				progress_step_count(progress_steps) {
-			progress_enabled = p_progress_enabled;
-			runs_current_thread = p_runs_current_thread;
-		}
-
-		void run_internal(void *p_data) {
-			if (canceled || done) {
-				return;
-			}
-			TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
-			cb_struct->run(p_data);
-			TaskManager::get_singleton()->set_thread_task_id(-1);
-			done = true;
-		}
-		virtual void run_on_current_thread() override {
-			run_internal(userdata);
-		}
-		virtual int get_current_task_step_value() override {
-			return cb_struct->get_current_task_step_value();
-		}
-		virtual String get_current_task_step_description() override {
-			return cb_struct->get_current_task_step_description();
-		}
-		virtual bool is_done() const override {
-			return done;
-		}
-		void start_internal() override {
-			if (task_id != -1 || done || canceled) {
-				return;
-			}
-			if (!cb_struct->pre_run()) {
-				done = true;
-				ERR_FAIL_MSG("Failed to pre-run task: " + description);
-			}
-			if (runs_current_thread) {
-				// random group id
-				task_id = abs(rand());
-			} else {
-				task_id = TaskManager::get_thread_pool()->add_template_task(this, &TaskData::run_internal, userdata, high_priority, description);
-			}
-			if (progress_enabled && progress.is_null()) {
-				progress = EditorProgressGDDC::create(nullptr, description + itos(task_id), description, progress_step_count, can_cancel);
-				if (progress_step_count == -1) {
-					progress->set_progress_length(true);
-				}
-			}
-		}
-
-		virtual bool auto_close_progress_bar() override {
-			return cb_struct->auto_close_progress_bar();
-		}
+				BaseSingleTaskData(p_task_manager_id, task_cancelled_callback, p_description, progress_steps, p_can_cancel, p_high_priority, p_progress_enabled, p_runs_current_thread),
+				userdata(p_userdata) {}
 	};
 
 	class DownloadTaskData : public BaseTemplateTaskData {

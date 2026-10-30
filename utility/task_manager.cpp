@@ -401,6 +401,90 @@ void TaskManager::BaseGroupTaskData::wait_for_task_completion_internal() {
 	}
 }
 
+TaskManager::BaseSingleTaskData::BaseSingleTaskData(
+		TaskManagerID p_task_manager_id,
+		std::shared_ptr<TaskRunnerStruct> task_runner_struct,
+		const String &p_description,
+		int progress_steps,
+		bool p_can_cancel,
+		bool p_high_priority,
+		bool p_progress_enabled,
+		bool p_runs_current_thread) :
+		task_manager_id(p_task_manager_id),
+		cb_struct(task_runner_struct),
+		description(p_description),
+		can_cancel(p_can_cancel),
+		high_priority(p_high_priority),
+		progress_step_count(progress_steps) {
+	progress_enabled = p_progress_enabled;
+	runs_current_thread = p_runs_current_thread;
+}
+
+void TaskManager::BaseSingleTaskData::wait_for_task_completion_internal() {
+	if (!runs_current_thread) {
+		ERR_FAIL_COND_MSG(task_id == -1, "Task not started");
+		TaskManager::get_thread_pool()->wait_for_task_completion(task_id);
+	} else {
+		run_on_current_thread();
+	}
+}
+
+void TaskManager::BaseSingleTaskData::cancel_internal() {
+	cb_struct->cancel();
+}
+
+void TaskManager::BaseSingleTaskData::run_internal(void *p_data) {
+	if (canceled || done) {
+		return;
+	}
+	TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+	cb_struct->run(p_data);
+	TaskManager::get_singleton()->set_thread_task_id(-1);
+	done = true;
+}
+
+void TaskManager::BaseSingleTaskData::run_on_current_thread() {
+	run_with_userdata();
+}
+
+int TaskManager::BaseSingleTaskData::get_current_task_step_value() {
+	return cb_struct->get_current_task_step_value();
+}
+
+String TaskManager::BaseSingleTaskData::get_current_task_step_description() {
+	return cb_struct->get_current_task_step_description();
+}
+
+bool TaskManager::BaseSingleTaskData::is_done() const {
+	return done;
+}
+
+void TaskManager::BaseSingleTaskData::start_internal() {
+	if (task_id != -1 || done || canceled) {
+		return;
+	}
+	if (!cb_struct->pre_run()) {
+		done = true;
+		ERR_FAIL_MSG("Failed to pre-run task: " + description);
+	}
+	if (runs_current_thread) {
+		// random group id
+		task_id = abs(rand());
+	} else {
+		task_id = add_to_thread_pool();
+	}
+	if (progress_enabled && progress.is_null()) {
+		progress = EditorProgressGDDC::create(nullptr, description + itos(task_id), description, progress_step_count, can_cancel);
+		if (progress_step_count == -1) {
+			progress->set_progress_length(true);
+		}
+	}
+}
+
+bool TaskManager::BaseSingleTaskData::auto_close_progress_bar() {
+	return cb_struct->auto_close_progress_bar();
+}
+
 Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id, uint64_t timeout_s_no_progress) {
 	if (p_group_id == -1) {
 		return ERR_INVALID_PARAMETER;
