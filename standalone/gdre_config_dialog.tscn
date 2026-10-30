@@ -214,6 +214,7 @@ text = "OK"
 unique_name_in_owner = true
 access = 2
 use_native_dialog = true
+group_recent = "config_dialog"
 
 [connection signal="close_requested" from="." to="." method="_close_requested"]
 [connection signal="canceled" from="ConfirmClose" to="." method="_on_confirm_close_canceled"]

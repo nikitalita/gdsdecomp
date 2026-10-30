@@ -197,13 +197,18 @@ func add_reset_button_to_toggle_button(setting: GDREConfigSetting, button: Butto
 	hbox.add_child(reset_button)
 
 
-func open_file_picker(is_dir: bool, callback: Callable):
+func open_file_picker(is_dir: bool, callback: Callable, current_value: String = ""):
 	if is_dir:
 		%FileDialog.dir_selected.connect(callback, CONNECT_ONE_SHOT)
 		%FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_DIR
+		if not current_value.is_empty():
+			%FileDialog.current_dir = current_value
 	else:
 		%FileDialog.file_selected.connect(callback, CONNECT_ONE_SHOT)
 		%FileDialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		if not current_value.is_empty():
+			%FileDialog.current_dir = current_value.get_base_dir()
+			%FileDialog.current_file = current_value
 	%FileDialog.popup_centered()
 
 func create_setting_button(setting: GDREConfigSetting) -> Control:
@@ -225,7 +230,7 @@ func create_setting_button(setting: GDREConfigSetting) -> Control:
 		var extra_label: Label = make_button_label(value_text)
 		extra_label.name = &"ValueLabel"
 		control = make_button_hbox(setting, button, make_button_label(setting.get_brief_description()), extra_label)
-		button.pressed.connect(open_file_picker.bind(setting.is_dirpicker(), func(path: String): setting_callback(setting, path, control)))
+		button.pressed.connect(open_file_picker.bind(setting.is_dirpicker(), func(path: String): setting_callback(setting, path, control), value))
 	elif setting.has_special_value():
 		button = OptionButton.new()
 		var items = setting.get_list_of_possible_values()
