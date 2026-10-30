@@ -438,7 +438,13 @@ void TaskManager::BaseSingleTaskData::run_internal(void *p_data) {
 		return;
 	}
 	TaskManager::get_singleton()->set_thread_task_id(task_manager_id);
+#ifdef DEBUG_ENABLED
+	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index(), description));
+#endif
 	cb_struct->run(p_data);
+#ifdef DEBUG_ENABLED
+	Thread::set_name(get_thread_name(TaskManager::get_thread_pool()->get_thread_index()));
+#endif
 	TaskManager::get_singleton()->set_thread_task_id(-1);
 	done = true;
 }
