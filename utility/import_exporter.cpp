@@ -963,8 +963,7 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	report->output_dir = output_dir;
 	ERR_FAIL_COND_V_MSG(gdre::ensure_dir(output_dir) != OK, ERR_FILE_CANT_WRITE, "Failed to create output directory " + output_dir);
 	Error err = OK;
-	// TODO: make this use "copy"
-	Array _files = get_settings()->get_import_files();
+	Array _files = get_settings()->get_import_files(true);
 	if (_files.size() == 0) {
 		WARN_PRINT("No import files found!");
 		return OK;
