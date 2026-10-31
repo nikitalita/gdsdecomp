@@ -115,6 +115,7 @@ class ImportExporter : public RefCounted {
 	friend FileInfoComparator;
 
 	struct ExportToken {
+		String export_dest; // so that the description function doesn't access any other member variables
 		Ref<ImportInfo> iinfo;
 		Ref<ExportReport> report;
 		bool supports_multithread;

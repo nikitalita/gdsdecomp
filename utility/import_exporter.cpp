@@ -767,7 +767,7 @@ void ImportExporter::_do_export(uint32_t i, ExportToken *tokens) {
 }
 
 String ImportExporter::get_export_token_description(uint32_t i, ExportToken *tokens) {
-	return tokens[i].iinfo.is_valid() ? tokens[i].iinfo->get_path() : "";
+	return tokens[i].export_dest;
 }
 
 // This is to preserve feature tags when running the project in the editor
@@ -1079,6 +1079,8 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 	Vector<ExportToken> scene_tokens;
 	HashMap<String, Vector<Ref<ImportInfo>>> export_dest_to_iinfo;
 	HashSet<String> dupes;
+	non_high_priority_tokens.reserve(export_files_count);
+	tokens.reserve(export_files_count);
 	bool force_single_threaded = GDREConfig::get_singleton()->get_setting(CoreSettings::FORCE_SINGLE_THREADED, false);
 	for (int i = 0; i < _files.size(); i++) {
 		Ref<ImportInfo> iinfo = _files[i];
@@ -1106,28 +1108,28 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 		}
 		// ***** Set export destination *****
 		// This is a Godot asset that was imported outside of project directory
-		if (!iinfo->get_source_file().begins_with("res://")) {
+		String export_dest = iinfo->get_source_file();
+		if (!export_dest.begins_with("res://")) {
 			if (get_ver_major() <= 2) {
 				// import_md_path is the resource path in v2
-				auto src = iinfo->get_source_file().simplify_path();
+				auto src = export_dest.simplify_path();
 				if (!src.is_empty() && src.is_relative_path() && !src.begins_with("..")) {
 					// just tack on "res://"
-					iinfo->set_export_dest(String("res://").path_join(src));
+					export_dest = (String("res://").path_join(src));
 				} else {
-					iinfo->set_export_dest(String("res://.assets").path_join(iinfo->get_import_md_path().get_base_dir().path_join(iinfo->get_source_file().get_file()).replace("res://", "")));
+					export_dest = (String("res://.assets").path_join(iinfo->get_import_md_path().get_base_dir().path_join(export_dest.get_file()).replace("res://", "")));
 				}
 			} else {
 				// import_md_path is the .import/.remap path in v3-v4
 				// If the source_file path was not actually in the project structure, save it elsewhere
 				if (iinfo->get_source_file().find(iinfo->get_export_dest().replace("res://", "")) == -1) {
-					iinfo->set_export_dest(iinfo->get_export_dest().replace("res://", "res://.assets"));
+					export_dest = (iinfo->get_export_dest().replace("res://", "res://.assets"));
 				} else {
-					iinfo->set_export_dest(iinfo->get_import_md_path().get_basename());
+					export_dest = (iinfo->get_import_md_path().get_basename());
 				}
 			}
-		} else {
-			iinfo->set_export_dest(iinfo->get_source_file());
 		}
+		iinfo->set_export_dest(export_dest);
 		if (iinfo->get_ver_major() <= 2 && !iinfo->is_import() && !iinfo->is_auto_converted()) {
 			// filter out v2 binary non-imports
 			String ext = iinfo->get_path().get_extension().to_lower();
@@ -1151,26 +1153,27 @@ Error ImportExporter::export_imports(const String &p_out_dir, const Vector<Strin
 			}
 			supports_multithreading = false;
 		}
+		auto token = ExportToken{ export_dest, iinfo, nullptr, supports_multithreading };
 		if (supports_multithreading) {
 			if (is_scene) {
-				scene_tokens.push_back({ iinfo, nullptr, supports_multithreading });
+				scene_tokens.push_back(token);
 			} else if (is_high_priority) {
-				tokens.insert(0, { iinfo, nullptr, supports_multithreading });
+				tokens.insert(0, token);
 			} else {
-				non_high_priority_tokens.push_back({ iinfo, nullptr, supports_multithreading });
+				non_high_priority_tokens.push_back(token);
 			}
 		} else {
 			if (is_high_priority) {
-				non_multithreaded_tokens.insert(0, { iinfo, nullptr, supports_multithreading });
+				non_multithreaded_tokens.insert(0, token);
 			} else {
-				non_multithreaded_tokens.push_back({ iinfo, nullptr, supports_multithreading });
+				non_multithreaded_tokens.push_back(token);
 			}
 		}
-		if (export_dest_to_iinfo.has(iinfo->get_export_dest())) {
-			export_dest_to_iinfo[iinfo->get_export_dest()].push_back(iinfo);
-			dupes.insert(iinfo->get_export_dest());
+		if (export_dest_to_iinfo.has(export_dest)) {
+			export_dest_to_iinfo[export_dest].push_back(iinfo);
+			dupes.insert(export_dest);
 		} else {
-			export_dest_to_iinfo.insert(iinfo->get_export_dest(), Vector<Ref<ImportInfo>>({ iinfo }));
+			export_dest_to_iinfo.insert(export_dest, Vector<Ref<ImportInfo>>({ iinfo }));
 		}
 	}
 	// Shuffle the vector to prevent situations where a bunch of large resources are exported at once and exhausts the memory
