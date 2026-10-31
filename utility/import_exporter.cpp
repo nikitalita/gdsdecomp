@@ -2080,7 +2080,7 @@ Dictionary ImportExporterReport::get_session_notes() {
 		Vector<String> non_gui;
 		Vector<String> details;
 		bool ask_to_report = false;
-		static const HashSet<String> KNOWN_LONG_RUNNING_EXPORTERS = { GDExtensionExporter::EXPORTER_NAME, SceneExporter::EXPORTER_NAME };
+		static const HashSet<String> KNOWN_LONG_RUNNING_EXPORTERS = { TranslationExporter::EXPORTER_NAME, GDExtensionExporter::EXPORTER_NAME, SceneExporter::EXPORTER_NAME };
 		static const int64_t KNOWN_LONG_RUNNING_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 		for (auto &report : long_running_exports) {
 			String detail = vformat("%-40s (%ds)", report->get_source_path(), report->get_export_time_ms() / 1000);
