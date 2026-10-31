@@ -4,6 +4,7 @@
 #include "core/templates/hash_map.h"
 #include "core/variant/variant.h"
 #include "tests/test_macros.h"
+#include <algorithm>
 
 #include "../godot-mono-decomp/GodotMonoDecompNativeAOT/include/godot_mono_decomp.h"
 

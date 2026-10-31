@@ -55,13 +55,13 @@ static inline Error write_to_string_pcfg(const Variant &variant, String &r_strin
 	return VariantWriterCompat::write_to_string_pcfg(variant, r_string, true, ver_major, ver_minor, p_encode_res_func, p_encode_res_ud, p_compat);
 }
 
-void expect_variant_write_match(const Variant &variant, const String &expected_str, int ver_major, int ver_minor, bool is_pcfg, bool p_compat = false) {
+void expect_variant_write_match(const Variant &variant, const String &expected_str, int p_ver_major, int p_ver_minor, bool is_pcfg, bool p_compat = false) {
 	String variant_str;
 	if (is_pcfg) {
-		write_to_string_pcfg(variant, variant_str, ver_major);
+		write_to_string_pcfg(variant, variant_str, p_ver_major);
 	} else {
-		int ver_minor = ver_major == GODOT_VERSION_MAJOR ? GODOT_VERSION_MINOR : 0;
-		write_to_string(variant, variant_str, ver_major, ver_minor, nullptr, nullptr, p_compat);
+		int ver_minor = p_ver_major == GODOT_VERSION_MAJOR ? GODOT_VERSION_MINOR : 0;
+		write_to_string(variant, variant_str, p_ver_major, ver_minor, nullptr, nullptr, p_compat);
 	}
 	CHECK(variant_str == expected_str);
 }
@@ -905,11 +905,11 @@ TEST_CASE("[GDSDecomp][VariantCompat] v2 images") {
 
 			String data_str;
 			auto data = img->get_data();
-			for (int i = 0; i < data.size(); i++) {
-				if (i > 0) {
+			for (int j = 0; j < data.size(); j++) {
+				if (j > 0) {
 					data_str += ", ";
 				}
-				data_str += itos(data[i]);
+				data_str += itos(data[j]);
 			}
 			String pcfg_data_str = String::hex_encode_buffer(data.ptr(), data.size()).to_upper();
 
