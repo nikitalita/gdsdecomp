@@ -31,7 +31,7 @@ TaskManager::TaskManager() :
 	thread_index_to_thread_id.resize(thread_count);
 	thread_index_to_task_ids.resize(thread_count);
 	for (int i = 0; i < thread_count; i++) {
-		thread_index_to_thread_id[i] = -1;
+		thread_index_to_thread_id[i] = INT_MAX;
 		thread_index_to_task_ids[i] = -1;
 	}
 	Pair<int, std::atomic<int>> total_thread_count_and_already_started;

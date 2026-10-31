@@ -41,7 +41,7 @@ Error OggStrExporter::get_data_from_ogg_stream(const String &real_src, const Ref
 	auto playback = packet_sequence->instantiate_playback();
 	ogg_packet *pkt;
 	ogg_stream_state os_en;
-	uint32_t id = real_src.hash();
+	int id = static_cast<int>(real_src.hash());
 	ogg_stream_init(&os_en, id);
 
 	int64_t page_cursor = 0;
