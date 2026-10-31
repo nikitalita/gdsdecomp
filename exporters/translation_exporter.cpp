@@ -166,6 +166,16 @@ static constexpr _ALWAYS_INLINE_ bool map_has(const ParallelFlatHashMap<K, V> &m
 	return map.contains(key);
 }
 
+template <typename T>
+static constexpr _ALWAYS_INLINE_ bool set_has(const ParallelFlatHashSet<T> &set, const T &key) {
+	return set.contains(key);
+}
+
+template <typename T>
+static constexpr _ALWAYS_INLINE_ bool set_has(const HashSet<T> &set, const T &key) {
+	return set.has(key);
+}
+
 bool map_has_str(const ParallelFlatHashMap<String, String> &map, const String &key) {
 	return map.contains(key);
 }
@@ -179,8 +189,17 @@ bool all_messages_at_index_are_blank(const Vector<Vector<String>> &translation_m
 	return true;
 }
 
-static const HashSet<CharString> FALLBACK_PUNCTUATION_STRS = { CharString("_"), CharString(".") };
-static const HashSet<char32_t> FALLBACK_PUNCTUATION = { '_', '.' };
+template <typename T>
+HashSet<T> to_hashset(const ParallelFlatHashSet<T> &set) {
+	HashSet<T> ret;
+	for (const auto &E : set) {
+		ret.insert(E);
+	}
+	return ret;
+}
+
+static const ParallelFlatHashSet<CharString> FALLBACK_PUNCTUATION_STRS = { CharString("_"), CharString(".") };
+static const ParallelFlatHashSet<char32_t> FALLBACK_PUNCTUATION = { '_', '.' };
 struct KeyWorker {
 	static constexpr uint64_t MAX_STAGE_TIME = 30 * 1000ULL;
 
@@ -252,8 +271,8 @@ struct KeyWorker {
 	size_t max_keys_before_done_setting_key_stats = 0;
 	bool done_setting_key_stats = false;
 	HashMap<char32_t, int64_t> punctuation_counts;
-	HashSet<char32_t> punctuation;
-	HashSet<CharString> punctuation_str;
+	ParallelFlatHashSet<char32_t> punctuation; // TODO: re-valuate this, this may come with a performance penalty
+	ParallelFlatHashSet<CharString> punctuation_str; // TODO: re-valuate this, this may come with a performance penalty
 
 	std::atomic<size_t> keys_that_are_all_upper = 0;
 	std::atomic<size_t> keys_that_are_all_lower = 0;
@@ -315,15 +334,15 @@ struct KeyWorker {
 		return str;
 	}
 
-	const HashSet<CharString> &get_punctuation_strs() const {
-		if (punctuation_str.is_empty()) {
+	const ParallelFlatHashSet<CharString> &get_punctuation_strs() const {
+		if (punctuation_str.empty()) {
 			return FALLBACK_PUNCTUATION_STRS;
 		}
 		return punctuation_str;
 	}
 
-	const HashSet<char32_t> &get_punctuation() const {
-		if (punctuation.is_empty()) {
+	const ParallelFlatHashSet<char32_t> &get_punctuation() const {
+		if (punctuation.empty()) {
 			return FALLBACK_PUNCTUATION;
 		}
 		return punctuation;
@@ -395,6 +414,7 @@ struct KeyWorker {
 		get_common_prefix_suffix(already_found_common_prefixes, already_found_common_suffixes);
 		skipped_prefixes = gdre::vector_to_hashset(already_found_common_prefixes);
 		skipped_suffixes = gdre::vector_to_hashset(already_found_common_suffixes);
+		auto punctuation = to_hashset(get_punctuation());
 		auto inc_counts = [&](HashMap<String, int> &counts, const String &part) {
 			if (part.is_empty()) {
 				return;
@@ -410,7 +430,7 @@ struct KeyWorker {
 			if (res_s.is_empty()) {
 				continue;
 			}
-			auto parts = gdre::split_multichar(res_s, get_punctuation(), false, 0);
+			auto parts = gdre::split_multichar(res_s, punctuation, false, 0);
 			String prefix = parts.size() > 0 ? parts[0] : "";
 			inc_counts(prefix_counts, prefix);
 			for (int i = 1; i < parts.size() - 1; i++) {
@@ -418,7 +438,7 @@ struct KeyWorker {
 				int part_start_idx = prefix.length();
 				while (part_start_idx < res_s.length()) {
 					auto chr = res_s[part_start_idx];
-					if (get_punctuation().has(chr)) {
+					if (set_has(get_punctuation(), chr)) {
 						prefix += chr;
 					} else {
 						break;
@@ -428,7 +448,7 @@ struct KeyWorker {
 				prefix += part;
 				inc_counts(prefix_counts, prefix);
 			}
-			auto suffix_parts = gdre::split_multichar(res_s, get_punctuation(), false, 0);
+			auto suffix_parts = gdre::split_multichar(res_s, punctuation, false, 0);
 			String suffix = suffix_parts.size() > 0 ? suffix_parts[suffix_parts.size() - 1] : "";
 			inc_counts(suffix_counts, suffix);
 			// check if the suffix ends with a number
@@ -441,7 +461,7 @@ struct KeyWorker {
 				// strip the trailing numbers
 				while (suffix.length() > 0) {
 					last_char = suffix[suffix.length() - 1];
-					if ((last_char >= '0' && last_char <= '9') || (get_punctuation().has(last_char))) {
+					if ((last_char >= '0' && last_char <= '9') || (set_has(get_punctuation(), last_char))) {
 						suffix = suffix.substr(0, suffix.length() - 1);
 						end_pad++;
 					} else {
@@ -456,7 +476,7 @@ struct KeyWorker {
 				int part_end_idx = res_s.length() - (suffix.length() + end_pad) - 1;
 				while (part_end_idx > 0) {
 					auto chr = res_s[part_end_idx];
-					if (get_punctuation().has(chr)) {
+					if (set_has(get_punctuation(), chr)) {
 						suffix = chr + suffix;
 					} else {
 						break;
@@ -937,7 +957,7 @@ struct KeyWorker {
 	bool has_nonspace_and_std_punctuation(const String &s) {
 		for (int i = 0; i < s.length(); i++) {
 			char32_t c = s.ptr()[i];
-			if (c != ' ' && !get_punctuation().has(c) && ALL_PUNCTUATION.has(c)) {
+			if (c != ' ' && !set_has(get_punctuation(), c) && ALL_PUNCTUATION.has(c)) {
 				return true;
 			}
 		}
@@ -953,7 +973,7 @@ struct KeyWorker {
 		}
 
 		// if (filter_punctuation) {
-		if (!punctuation.is_empty() && has_nonspace_and_std_punctuation(res_s)) {
+		if (!punctuation.empty() && has_nonspace_and_std_punctuation(res_s)) {
 			return true;
 		}
 		// contains any whitespace
@@ -998,7 +1018,7 @@ struct KeyWorker {
 		String ret;
 		for (int i = 0; i < s.length(); i++) {
 			char32_t c = s.ptr()[i];
-			if (get_punctuation().has(c) || !REMOVABLE_PUNCTUATION.has(c)) {
+			if (set_has(get_punctuation(), c) || !REMOVABLE_PUNCTUATION.has(c)) {
 				ret += c;
 			}
 		}
@@ -1019,7 +1039,7 @@ struct KeyWorker {
 			String new_msg_str;
 			for (int i = 0; i < msg_str.length(); i++) {
 				char32_t p = msg_str.ptr()[i];
-				if (get_punctuation().has(p) || !ALL_PUNCTUATION.has(p)) {
+				if (set_has(get_punctuation(), p) || !ALL_PUNCTUATION.has(p)) {
 					new_msg_str += String::chr(p);
 				} else if (i != 0 && msg_str.ptr()[i - 1] != ' ') { // no consecutive spaces
 					new_msg_str += " ";
