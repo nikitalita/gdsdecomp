@@ -96,6 +96,49 @@ def cmake_builder(external_dir, source_dir, build_dir, libs, check_output_fn, co
         raise
 
 
+def get_dotnet_arch(env_arch):
+    if env_arch == "arm64":
+        return "arm64"
+    elif env_arch == "x86_64":
+        return "x64"
+    else:
+        raise Exception(f"Unsupported architecture: {env_arch}")
+
+
+def get_build_arch(dotnet_arch):
+    if dotnet_arch == "arm64":
+        return "arm64"
+    elif dotnet_arch == "x64":
+        return "x86_64"
+    else:
+        raise Exception(f"Unsupported architecture: {dotnet_arch}")
+
+
+def get_godot_mono_triplet(target_platform, target_arch):
+    if target_platform == "macos":
+        platform_part = "osx"
+        arch_part = "arm64" if target_arch == "arm64" else "x64"
+    elif target_platform == "linuxbsd":
+        platform_part = "linux"
+        arch_part = "arm64" if target_arch == "arm64" else "x64"
+    elif target_platform == "windows":
+        platform_part = "win"
+        arch_part = "arm64" if target_arch == "arm64" else "x64"
+    elif target_platform == "android":
+        platform_part = "linux-bionic"
+        arch_part = "arm64" if target_arch == "arm64" else "x64"
+    elif target_platform == "web":
+        platform_part = "browser"
+        arch_part = "wasm"
+    else:
+        raise Exception(f"Unsupported platform: {target_platform}")
+    return f"{platform_part}-{arch_part}"
+
+
+def get_dotnet_variant_name(dev_build):
+    return "Debug" if dev_build else "Release"
+
+
 def append_cpppaths(build_env, paths):
     for include_path in paths:
         build_env.Append(CPPPATH=[include_path])
