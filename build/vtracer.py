@@ -95,6 +95,26 @@ channel = "{channel}"
         toolchain_file.write(text)
 
 
+def get_vtracer_sanitizers(build_env) -> list[str]:
+    sanitizers = []
+    if build_env.get("use_asan", False):
+        sanitizers.append("address")
+    if build_env.get("use_lsan", False):
+        sanitizers.append("leak")
+    if build_env.get("use_tsan", False):
+        sanitizers.append("thread")
+    if build_env.get("use_msan", False):
+        sanitizers.append("memory")
+    return sanitizers
+
+
+def get_vtracer_target_dir(build_env, vtracer_build_dir):
+    sanitizers = get_vtracer_sanitizers(build_env)
+    if sanitizers:
+        return os.path.join(vtracer_build_dir, f"san-{'-'.join(sanitizers)}")
+    return vtracer_build_dir
+
+
 def get_vtracer_libs(build_env, vtracer_libs):
     lib_prefix = "" if build_env.msvc else "lib"
     lib_suffix = ".lib" if build_env.msvc else ".a"
@@ -104,13 +124,29 @@ def get_vtracer_libs(build_env, vtracer_libs):
 def get_vtracer_lib_dir(build_env, vtracer_build_dir):
     rust_target = get_cargo_target(build_env)
     variant_dir = "debug" if is_dev_build(build_env) else "release"
-    return os.path.join(vtracer_build_dir, rust_target, variant_dir)
+    target_dir = get_vtracer_target_dir(build_env, vtracer_build_dir)
+    return os.path.join(target_dir, rust_target, variant_dir)
 
 
 def get_vtracer_lib_paths(build_env, vtracer_build_dir, vtracer_libs):
     build_dir = get_vtracer_lib_dir(build_env, vtracer_build_dir)
     lib_paths = [os.path.join(build_dir, lib) for lib in get_vtracer_libs(build_env, vtracer_libs)]
     return lib_paths
+
+
+def _has_rust_std_src(cargo_env) -> bool:
+    try:
+        sysroot = check_output(["rustc", "--print", "sysroot"], env=cargo_env).decode("utf-8").strip()
+        std_src_dir = os.path.join(sysroot, "lib", "rustlib", "src", "rust", "library")
+        if os.path.isdir(std_src_dir):
+            return True
+        if shutil.which("rustup", path=cargo_env.get("PATH")):
+            print("Installing rust-src component via rustup for sanitizer build-std...")
+            check_output(["rustup", "component", "add", "rust-src"], env=cargo_env)
+            return os.path.isdir(std_src_dir)
+    except Exception as exc:
+        print(f"Warning: could not verify/install rust-src for -Zbuild-std: {exc}")
+    return False
 
 
 def cargo_builder(
@@ -137,7 +173,7 @@ def cargo_builder(
     if build_env["platform"] == "android":
         write_cargo_config_toml_file(build_env, module_dir, vtracer_prefix)
     write_cargo_toolchain_toml_file(build_env, module_dir, vtracer_prefix)
-    cargo_env["CARGO_TARGET_DIR"] = build_dir
+    cargo_env["CARGO_TARGET_DIR"] = get_vtracer_target_dir(build_env, build_dir)
     cargo_env["CBINDGEN_TARGET_DIR"] = cbindgen_dir
 
     if build_env["platform"] == "web":
@@ -148,6 +184,17 @@ def cargo_builder(
             "-Clink_arg=--no-entry -Zlink-native-libraries=no"
         )
         cargo_cmd.append("-Zbuild-std=std,panic_abort")
+
+    sanitizers = get_vtracer_sanitizers(build_env)
+    if sanitizers:
+        cargo_env["RUSTC_BOOTSTRAP"] = "1"
+        san_flags = [f"-Zsanitizer={','.join(sanitizers)}"]
+        if build_env.get("use_msan", False):
+            san_flags.append("-Zsanitizer-memory-track-origins")
+        existing_rustflags = cargo_env.get("RUSTFLAGS", "").strip()
+        cargo_env["RUSTFLAGS"] = (existing_rustflags + " " + " ".join(san_flags)).strip()
+        if build_env["platform"] != "web" and _has_rust_std_src(cargo_env):
+            cargo_cmd.append("-Zbuild-std")
 
     print("CARGO CMD", cargo_cmd)
     output = check_output(cargo_cmd, cwd=source_dir, env=cargo_env)
