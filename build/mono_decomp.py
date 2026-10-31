@@ -58,7 +58,9 @@ def get_godot_mono_decomp_lib_dir(godot_mono_decomp_dir, target_platform, target
                 target_framework = line.split(">")[1].split("<")[0].strip()
                 break
 
-    return os.path.join(godot_mono_decomp_dir, "bin", get_dotnet_variant_name(dev_build), target_framework, triplet, "publish")
+    return os.path.join(
+        godot_mono_decomp_dir, "bin", get_dotnet_variant_name(dev_build), target_framework, triplet, "publish"
+    )
 
 
 def get_godot_mono_decomp_lib_paths(build_env, godot_mono_decomp_dir, libs, mono_native_lib_type):
@@ -139,7 +141,9 @@ def godot_mono_builder(
     runtime_sdk_archives=None,
 ):
     print("GODOT MONO DECOMP BUILD: ", [str(s) for s in target])
-    libs = get_godot_mono_decomp_lib_paths(build_env, godot_mono_decomp_dir, godot_mono_decomp_libs, mono_native_lib_type)
+    libs = get_godot_mono_decomp_lib_paths(
+        build_env, godot_mono_decomp_dir, godot_mono_decomp_libs, mono_native_lib_type
+    )
     dev_build = is_dev_build(build_env)
     build_variant = get_dotnet_variant_name(dev_build)
     print("BUILD VARIANT ", build_variant)
@@ -263,6 +267,7 @@ def build_godot_mono_decomp(
     module_obj,
 ):
     from SCons.Defaults import Copy
+
     module_dir: str = get_module_dir(env)
     build_dir: str = get_build_dir(env)
     godot_mono_decomp_parent: str = GODOT_MONO_DECOMP_PARENT
@@ -299,6 +304,7 @@ def build_godot_mono_decomp(
         "wrapper\\",
         "register_types.cpp",
         "register_types.h",
+        "tsan_sigaction_wrapper.cpp",
     ]
 
     all_libs: list[str] = [] + libs
@@ -363,7 +369,9 @@ def build_godot_mono_decomp(
                     dbg_lib = lib + ".dbg"
                     copied_dbg_lib = copied_lib + ".dbg"
                     all_libs.append(dbg_lib)
-                    copy_commands.append(env_gdsdecomp.CommandNoCache(copied_dbg_lib, dbg_lib, Copy("$TARGET", "$SOURCE")))
+                    copy_commands.append(
+                        env_gdsdecomp.CommandNoCache(copied_dbg_lib, dbg_lib, Copy("$TARGET", "$SOURCE"))
+                    )
 
     godot_mono_decomp_obj = [env_gdsdecomp.godotMonoDecompBuilder(all_libs, mono_sources)]
     env_gdsdecomp.Alias("GodotMonoDecomp", godot_mono_decomp_obj)
@@ -394,6 +402,17 @@ def build_godot_mono_decomp(
     if env["platform"] == "linuxbsd" and mono_native_lib_type == "Shared":
         env.Append(LINKFLAGS=["-z", "origin"])
         env.Append(RPATH=env.Literal("\\$$ORIGIN"))
+
+    if env.get("use_tsan", False) and env["platform"] == "linuxbsd":
+        if env["linker"] != "gold":
+            env.Append(LINKFLAGS=["-Wl,--export-dynamic-symbol=sigaction"])
+            env_gdsdecomp.Append(LINKFLAGS=["-Wl,--export-dynamic-symbol=sigaction"])
+        else:
+            env.Append(LINKFLAGS=["-rdynamic"])
+            env_gdsdecomp.Append(LINKFLAGS=["-rdynamic"])
+        env_tsan_sigaction = env_gdsdecomp.Clone()
+        env_tsan_sigaction.Append(CCFLAGS=["-fno-sanitize=thread"])
+        env_tsan_sigaction.add_source_files(module_obj, "godot-mono-decomp/handlers/tsan_sigaction_wrapper.cpp")
 
     if mono_native_lib_type == "Static":
         # TODO: Keep static-linking path intact until dotnet static issues are resolved.
