@@ -130,6 +130,14 @@ def get_dotnet_publish_cmd(build_env, mono_native_lib_type, target_arch, godot_m
         "-r",
         mono_triplet,
     ]
+    if build_env["use_asan"]:
+        dotnet_publish_cmd += ["-p:PublishProfile=WithASAN"]
+    if build_env["use_lsan"]:
+        dotnet_publish_cmd += ["-p:PublishProfile=WithLSAN"]
+    if build_env["use_tsan"]:
+        dotnet_publish_cmd += ["-p:PublishProfile=WithTSAN"]
+    if build_env["use_msan"]:
+        dotnet_publish_cmd += ["-p:PublishProfile=WithMSAN"]
     if build_env["platform"] == "android" or mono_native_lib_type == "Static":
         dotnet_publish_cmd += ["-p:DisableUnsupportedError=true", "-p:PublishAotUsingRuntimePack=true"]
     if mono_native_lib_type == "Static":
