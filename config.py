@@ -81,6 +81,7 @@ def get_opts(platform):
         BoolVariable("disable_godot_mono_decomp", "Disable Godot Mono Decompilation", False),
         BoolVariable("disable_gifski", "Disable Gifski", False),
         BoolVariable("ignore_godot_branch_check", "Ignore Godot branch check", False),
+        ("dotnet_runtime_dir", "Path to dotnet/runtime checkout for sanitizer builds", ""),
     ]
     if not (platform == "android" or platform == "macos"):
         opts.append(BoolVariable("use_static_godot_mono_decomp", "Build Godot Mono Decomp library as static", False))

@@ -54,3 +54,35 @@ def get_vtracer_build_dir(env):
 
 def get_godot_mono_decomp_dir(env):
     return os.path.join(get_module_dir(env), GODOT_MONO_DECOMP_PREFIX)
+
+
+def get_dotnet_runtime_dir(env):
+    custom_dir = env.get("dotnet_runtime_dir", "")
+    if custom_dir:
+        return os.path.abspath(custom_dir)
+    return os.path.join(get_external_dir(env), "dotnet-runtime")
+
+
+def get_dotnet_runtime_sdk_archive(env, tag, triplet, sanitizers):
+    return os.path.join(get_external_dir(env), f"dotnet-runtime-sdk-{tag}-{triplet}-{sanitizers}.tar.gz")
+
+
+def get_dotnet_runtime_sdk_dir(env, tag, triplet, sanitizers):
+    return os.path.join(get_external_dir(env), "dotnet-runtime-sdk", f"{tag}-{triplet}-{sanitizers}")
+
+
+
+def get_dotnet_runtime_dir(env):
+    custom_dir = env.get("dotnet_runtime_dir", "")
+    if custom_dir:
+        return os.path.abspath(str(custom_dir))
+    return os.path.join(get_external_dir(env), "dotnet-runtime")
+
+
+def get_dotnet_runtime_sdk_archive(env, tag: str, triplet: str, sanitizers: str):
+    return os.path.join(get_external_dir(env), f"dotnet-runtime-sdk-{tag}-{triplet}-{sanitizers}.tar.gz")
+
+
+def get_dotnet_runtime_sdk_dir(env, tag: str, triplet: str, sanitizers: str):
+    return os.path.join(get_external_dir(env), "dotnet-runtime-sdk", f"{tag}-{triplet}-{sanitizers}")
+
