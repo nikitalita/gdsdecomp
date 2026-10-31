@@ -220,7 +220,7 @@ public:
 		std::atomic<int64_t> tasks_quit = 0;
 		Vector<WorkerThreadPool::TaskID> task_ids;
 		bool started_current_thread = false;
-		bool done = false;
+		std::atomic<bool> done = false;
 		int progress_start = 0;
 		LocalVector<std::atomic<int64_t>> current_work_indices;
 

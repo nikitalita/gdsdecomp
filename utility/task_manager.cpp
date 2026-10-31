@@ -1,5 +1,6 @@
 #include "task_manager.h"
 
+#include "core/error/error_list.h"
 #include "core/io/file_access.h"
 
 #include "gui/gdre_progress.h"
@@ -33,10 +34,12 @@ TaskManager::TaskManager() :
 		thread_index_to_thread_id[i] = -1;
 		thread_index_to_task_ids[i] = -1;
 	}
+	Pair<int, std::atomic<int>> total_thread_count_and_already_started;
+	total_thread_count_and_already_started.first = thread_count;
 	auto task_id = named_pool->add_template_group_task(
 			this,
 			&TaskManager::_set_thread_name_task,
-			nullptr,
+			&total_thread_count_and_already_started,
 			thread_count,
 			thread_count,
 			true,
@@ -50,18 +53,41 @@ TaskManager::~TaskManager() {
 }
 
 static inline String get_thread_name(int p_thread_index, const String &p_task_name = "") {
+#if LINUXBSD_ENABLED // pthreads only allow 16 chars
+	String ret = vformat("GDRE %d", p_thread_index);
+	if (!p_task_name.is_empty()) {
+		if (p_task_name.contains("ImportExporter::export_imports")) {
+			ret = ret + " -export"; // 16 chars including null terminator
+		} else {
+			ret = ret + " -task"; // 16 chars including null terminator
+		}
+	}
+	return ret.substr(0, 15); // left(15) to ensure the string is 16 chars long including the null terminator
+#else
 	if (!p_task_name.is_empty()) {
 		return vformat("GDRETask %d (%d) %s", p_thread_index, Thread::get_caller_id(), p_task_name);
 	}
 	return vformat("GDRETask %d (%d)", p_thread_index, Thread::get_caller_id());
+#endif
 }
 
 void TaskManager::_set_thread_name_task(uint32_t i, void *p_userdata) {
-	// delaying here to ensure all the threads are started
-	OS::get_singleton()->delay_usec(10000);
+	auto pair = reinterpret_cast<Pair<int, std::atomic<int>> *>(p_userdata);
+	int thread_count = pair->first;
+	int started = pair->second.fetch_add(1);
+	while (started < thread_count) {
+		// delaying here to ensure all the threads are started
+		OS::get_singleton()->delay_usec(100);
+		started = pair->second.load();
+	}
 	int thread_index = named_pool->get_thread_index();
 	thread_index_to_thread_id[thread_index] = Thread::get_caller_id();
-	Thread::set_name(get_thread_name(thread_index));
+	String name = get_thread_name(thread_index);
+	Error err = Thread::set_name(name);
+	if (err != OK) {
+		print_verbose(vformat("Failed to set thread name %s: %s", name, error_names[err]));
+	}
+	print_verbose(vformat("Thread %s started", name));
 }
 
 TaskManager *TaskManager::get_singleton() {
@@ -965,11 +991,11 @@ void TaskManager::DownloadQueueThread::worker_main_loop() {
 }
 
 void TaskManager::DownloadQueueThread::thread_func(void *p_userdata) {
-	Thread::set_name("DownloadQueueThread");
+	Thread::set_name("GDRE DL Queue");
 	((DownloadQueueThread *)p_userdata)->main_loop();
 }
 void TaskManager::DownloadQueueThread::worker_thread_func(void *p_userdata) {
-	Thread::set_name("DownloadWorkerThread");
+	Thread::set_name("GDRE DL Worker");
 	((DownloadQueueThread *)p_userdata)->worker_main_loop();
 }
 TaskManager::DownloadQueueThread::DownloadQueueThread() {
