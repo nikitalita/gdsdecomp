@@ -27,8 +27,6 @@ def get_runtime_sanitizers(build_env) -> list[str]:
     sanitizers = []
     if build_env.get("use_asan", False):
         sanitizers.append("address")
-    if build_env.get("use_ubsan", False):
-        sanitizers.append("undefined")
     return sanitizers
 
 
