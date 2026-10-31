@@ -303,7 +303,7 @@ public:
 		String description;
 		bool can_cancel = false;
 		bool high_priority = false;
-		bool done = false;
+		std::atomic<bool> done = false;
 		WorkerThreadPool::TaskID task_id = WorkerThreadPool::TaskID(-1);
 		int progress_step_count = -1;
 
@@ -373,7 +373,7 @@ public:
 		bool silent = false;
 		float download_progress = 0.0f;
 		Error download_error = OK;
-		bool done = false;
+		std::atomic<bool> done = false;
 
 	protected:
 		virtual void wait_for_task_completion_internal() override;
