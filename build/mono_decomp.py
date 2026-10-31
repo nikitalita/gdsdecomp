@@ -360,6 +360,11 @@ def build_godot_mono_decomp(
                     lib = lib.replace(".lib", ".dll")
                     copied_lib = copied_lib.replace(".lib", ".dll")
                 copy_commands.append(env_gdsdecomp.CommandNoCache(copied_lib, lib, Copy("$TARGET", "$SOURCE")))
+                if env["platform"] == "linuxbsd" and is_dev_build(env):
+                    dbg_lib = lib + ".dbg"
+                    copied_dbg_lib = copied_lib + ".dbg"
+                    all_libs.append(dbg_lib)
+                    copy_commands.append(env_gdsdecomp.CommandNoCache(copied_dbg_lib, dbg_lib, Copy("$TARGET", "$SOURCE")))
 
     godot_mono_decomp_obj = [env_gdsdecomp.godotMonoDecompBuilder(all_libs, mono_sources)]
     env_gdsdecomp.Alias("GodotMonoDecomp", godot_mono_decomp_obj)

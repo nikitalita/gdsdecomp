@@ -20,6 +20,8 @@
 	<AppleMinOSVersion>12.0</AppleMinOSVersion>
   </PropertyGroup>
   <ItemGroup>
+  <!-- TODO: make sure this does not break on macos -->
+	<DirectPInvoke Include="libc" Condition="!$(RuntimeIdentifier.StartsWith('win'))" />
 	<CustomLinkerArg Include="-install_name @rpath/$(AssemblyName).dylib" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('osx'))" />
 	<CustomLinkerArg Include="-Wl,-soname,$(AssemblyName).so" Condition="'$(NativeLib.ToLower())' == 'shared' and $(RuntimeIdentifier.StartsWith('linux-bionic'))" />
   </ItemGroup>
