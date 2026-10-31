@@ -63,6 +63,17 @@ Error: Godot repository is not on expected '{GODOT_MAIN_SYNC_REF}' branch, pleas
 
 
 env_gdsdecomp = env_modules.Clone()
+# if sanitizers are set, we need to set the CPPDEFINES for the gdsdecomp module
+if env.get("use_ubsan"):
+    env_gdsdecomp.Append(CPPDEFINES=["UBSAN_ENABLED"])
+if env.get("use_asan"):
+    env_gdsdecomp.Append(CPPDEFINES=["ASAN_ENABLED"])
+if env.get("use_tsan"):
+    env_gdsdecomp.Append(CPPDEFINES=["TSAN_ENABLED"])
+if env.get("use_lsan"):
+    env_gdsdecomp.Append(CPPDEFINES=["LSAN_ENABLED"])
+if env.get("use_msan"):
+    env_gdsdecomp.Append(CPPDEFINES=["MSAN_ENABLED"])
 
 # spirv-interop
 spirv_interop_obj = []

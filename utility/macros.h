@@ -32,3 +32,9 @@ struct has_same_signature : std::is_same<T, U> {};
 // with the same pointed-to type
 template <class T, class C1, class C2>
 struct has_same_signature<T C1::*, T C2::*> : std::true_type {};
+
+#if defined(UBSAN_ENABLED) && (defined(__clang__) || defined(__GNUC__))
+#define GDRE_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize("undefined", "vptr")))
+#else
+#define GDRE_NO_SANITIZE_UNDEFINED
+#endif

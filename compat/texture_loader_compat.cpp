@@ -831,6 +831,7 @@ String ResourceFormatLoaderCompatTexture2D::get_resource_type(const String &p_pa
 	return type;
 }
 
+GDRE_NO_SANITIZE_UNDEFINED
 Ref<CompressedTexture2D> ResourceFormatLoaderCompatTexture2D::_set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int tw_custom, int th_custom, uint32_t flags, Ref<Image> image) {
 	Ref<CompressedTexture2D> texture;
 	Ref<OverrideTexture2D> override_texture;
@@ -989,6 +990,7 @@ void normalize_image_formats(const Vector<Ref<Image>> &images) {
 	}
 }
 
+GDRE_NO_SANITIZE_UNDEFINED
 Ref<CompressedTexture3D> ResourceFormatLoaderCompatTexture3D::_set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int td, bool mipmaps, const Vector<Ref<Image>> &images) {
 	Ref<CompressedTexture3D> texture;
 	Ref<OverrideTexture3D> override_texture;
@@ -1074,6 +1076,7 @@ String ResourceFormatLoaderCompatTextureLayered::get_resource_type(const String 
 	return type;
 }
 
+GDRE_NO_SANITIZE_UNDEFINED
 Ref<CompressedTextureLayered> ResourceFormatLoaderCompatTextureLayered::_set_tex(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int td, int type, bool mipmaps, const Vector<Ref<Image>> &images) {
 	Ref<CompressedTextureLayered> texture;
 	if (p_type != ResourceInfo::LoadType::REAL_LOAD) {
@@ -1283,6 +1286,7 @@ public:
 };
 static_assert(sizeof(fakeimagetex) == sizeof(ImageTexture), "fakeimagetex must be the same size as ImageTexture");
 
+GDRE_NO_SANITIZE_UNDEFINED
 Ref<ImageTexture> TextureLoaderCompat::create_image_texture(const String &p_path, ResourceInfo::LoadType p_type, int tw, int th, int tw_custom, int th_custom, bool mipmaps, Ref<Image> image) {
 	Ref<ImageTexture> texture;
 	Ref<OverrideImageTexture> override_texture;
