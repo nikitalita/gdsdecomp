@@ -36,6 +36,7 @@
 #include "core/io/missing_resource.h"
 #include "core/object/class_db.h"
 #include "scene/property_utils.h"
+#include "scene/resources/packed_scene.h"
 
 #include "compat/variant_writer_compat.h"
 #include "core/version_generated.gen.h"
@@ -45,6 +46,10 @@
 
 void ResourceLoaderCompatText::_printerr() {
 	ERR_PRINT(vformat("%s:%d - Parse Error: %s.", res_path, lines, error_text));
+}
+
+String ResourceLoaderCompatText::_get_error_string() {
+	return vformat("%s:%d - Parse Error: %s.", res_path, lines, error_text);
 }
 
 inline ResourceUID::ID get_uid_for_ext_resource(const Ref<Resource> &p_resource) {
@@ -172,6 +177,7 @@ Error ResourceLoaderCompatText::_parse_ext_resource(VariantParser::Stream *p_str
 		Ref<ResourceLoader::LoadToken> &load_token = ext_resources[id].load_token;
 
 		if (load_token.is_valid()) { // If not valid, it's OK since then we know this load accepts broken dependencies.
+			// COMPAT
 			Ref<Resource> res = finish_ext_load(load_token, &err);
 			if (res.is_null()) {
 				ERR_FAIL_COND_V_MSG(!is_real_load(), ERR_FILE_MISSING_DEPENDENCIES, "WE SHOULD NEVER GET HERE!!!!!!!!!!!!!!!!!!!!!!!!! : [ext_resource] referenced non-existent resource at: " + path);
@@ -213,18 +219,7 @@ Error ResourceLoaderCompatText::_parse_ext_resource(VariantParser::Stream *p_str
 	return err;
 }
 
-Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::ResourceParser &parser) {
-	Ref<PackedScene> packed_scene;
-	if (is_real_load()) {
-		packed_scene = ResourceLoader::get_resource_ref_override(local_path);
-	}
-	if (packed_scene.is_null()) {
-		packed_scene.instantiate();
-	}
-#if ENABLE_3_X_SCENE_LOADING
-	packed_scene->_start_load(SNAME("text"), format_version);
-#endif
-
+Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(const Ref<PackedScene> &p_current_scene, VariantParser::ResourceParser &p_parser) {
 	while (true) {
 		if (next_tag.name == "node") {
 			int parent = -1;
@@ -235,20 +230,24 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			int index = -1;
 			int unique_id = Node::UNIQUE_SCENE_ID_UNASSIGNED;
 
-			//int base_scene=-1;
-
 			if (next_tag.fields.has("name")) {
-				name = packed_scene->get_state()->add_name(next_tag.fields["name"]);
+				name = p_current_scene->get_state()->add_name(next_tag.fields["name"]);
+			} else {
+				error = ERR_FILE_CORRUPT;
+				error_text = "Missing 'name' field from node tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			if (next_tag.fields.has("parent")) {
 				NodePath np = next_tag.fields["parent"];
+				np.prepend_period();
 				PackedInt32Array np_id;
 				if (next_tag.fields.has("parent_id_path")) {
 					packed_scene_version = 3;
+					packed_scene_version = 3;
 					np_id = next_tag.fields["parent_id_path"];
 				}
-				parent = packed_scene->get_state()->add_node_path(np, np_id);
+				parent = p_current_scene->get_state()->add_node_path(np, np_id);
 			}
 			if (next_tag.fields.has("unique_id")) {
 				packed_scene_version = 3;
@@ -256,7 +255,7 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			}
 
 			if (next_tag.fields.has("type")) {
-				type = packed_scene->get_state()->add_name(next_tag.fields["type"]);
+				type = p_current_scene->get_state()->add_name(next_tag.fields["type"]);
 			} else {
 				type = SceneState::TYPE_INSTANTIATED; //no type? assume this was instantiated
 			}
@@ -271,10 +270,10 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			}
 
 			if (next_tag.fields.has("instance")) {
-				instance = packed_scene->get_state()->add_value(next_tag.fields["instance"]);
+				instance = p_current_scene->get_state()->add_value(next_tag.fields["instance"]);
 
-				if (packed_scene->get_state()->get_node_count() == 0 && parent == -1) {
-					packed_scene->get_state()->set_base_scene(instance);
+				if (p_current_scene->get_state()->get_node_count() == 0 && parent == -1) {
+					p_current_scene->get_state()->set_base_scene(instance);
 					instance = -1;
 				}
 			}
@@ -282,13 +281,12 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			if (next_tag.fields.has("instance_placeholder")) {
 				String path = next_tag.fields["instance_placeholder"];
 
-				int path_v = packed_scene->get_state()->add_value(path);
+				int path_v = p_current_scene->get_state()->add_value(path);
 
-				if (packed_scene->get_state()->get_node_count() == 0) {
+				if (p_current_scene->get_state()->get_node_count() == 0) {
 					error = ERR_FILE_CORRUPT;
-					error_text = "Instance Placeholder can't be used for inheritance.";
-					_printerr();
-					return Ref<PackedScene>();
+					error_text = "Instance Placeholder can't be used for inheritance";
+					ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 				}
 
 				instance = path_v | SceneState::FLAG_INSTANCE_IS_PLACEHOLDER;
@@ -297,10 +295,9 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 			if (next_tag.fields.has("owner")) {
 				PackedInt32Array np_id;
 				if (next_tag.fields.has("owner_uid_path")) {
-					packed_scene_version = 3;
 					np_id = next_tag.fields["owner_uid_path"];
 				}
-				owner = packed_scene->get_state()->add_node_path(next_tag.fields["owner"], np_id);
+				owner = p_current_scene->get_state()->add_node_path(next_tag.fields["owner"], np_id);
 			} else {
 				if (parent != -1 && !(type == SceneState::TYPE_INSTANTIATED && instance == -1)) {
 					owner = 0; //if no owner, owner is root
@@ -311,12 +308,12 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 				index = next_tag.fields["index"];
 			}
 
-			int node_id = packed_scene->get_state()->add_node(parent, owner, type, name, instance, index, unique_id);
+			int node_id = p_current_scene->get_state()->add_node(parent, owner, type, name, instance, index, unique_id);
 
 			if (next_tag.fields.has("groups")) {
 				Array groups = next_tag.fields["groups"];
 				for (const Variant &group : groups) {
-					packed_scene->get_state()->add_node_group(node_id, packed_scene->get_state()->add_name(group));
+					p_current_scene->get_state()->add_node_group(node_id, p_current_scene->get_state()->add_name(group));
 				}
 			}
 
@@ -324,28 +321,25 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 				String assign;
 				Variant value;
 
-				error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &parser);
+				// COMPAT
+				error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &p_parser);
 
-				if (error) {
-					if (error == ERR_FILE_MISSING_DEPENDENCIES) {
-						// Resource loading error, just skip it.
-					} else if (error != ERR_FILE_EOF) {
-						ERR_PRINT(vformat("Parse Error: %s. [Resource file %s:%d]", error_names[error], res_path, lines));
-						return Ref<PackedScene>();
-					} else {
-						error = OK;
-#if ENABLE_3_X_SCENE_LOADING
-						packed_scene->_finish_load("text", format_version);
-#endif
-						return packed_scene;
-					}
+				// ERR_FILE_MISSING_DEPENDENCIES = Resource loading error, just skip it.
+				if (error && error != ERR_FILE_MISSING_DEPENDENCIES) {
+					ERR_FAIL_COND_V_MSG(
+							error != ERR_FILE_EOF,
+							Ref<PackedScene>(),
+							vformat("Parse Error: %s. [Resource file %s:%d]", error_names[error], res_path, lines));
+
+					error = OK;
+					return p_current_scene;
 				}
 
 				if (!assign.is_empty()) {
 					StringName assign_name = assign;
-					int nameidx = packed_scene->get_state()->add_name(assign_name);
-					int valueidx = packed_scene->get_state()->add_value(value);
-					packed_scene->get_state()->add_node_property(node_id, nameidx, valueidx, path_properties.has(assign_name));
+					int nameidx = p_current_scene->get_state()->add_name(assign_name);
+					int valueidx = p_current_scene->get_state()->add_value(value);
+					p_current_scene->get_state()->add_node_property(node_id, nameidx, valueidx, path_properties.has(assign_name));
 					//it's assignment
 				} else if (!next_tag.name.is_empty()) {
 					break;
@@ -354,26 +348,26 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 		} else if (next_tag.name == "connection") {
 			if (!next_tag.fields.has("from")) {
 				error = ERR_FILE_CORRUPT;
-				error_text = "missing 'from' field from connection tag";
-				return Ref<PackedScene>();
+				error_text = "Missing 'from' field from connection tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			if (!next_tag.fields.has("to")) {
 				error = ERR_FILE_CORRUPT;
-				error_text = "missing 'to' field from connection tag";
-				return Ref<PackedScene>();
+				error_text = "Missing 'to' field from connection tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			if (!next_tag.fields.has("signal")) {
 				error = ERR_FILE_CORRUPT;
-				error_text = "missing 'signal' field from connection tag";
-				return Ref<PackedScene>();
+				error_text = "Missing 'signal' field from connection tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			if (!next_tag.fields.has("method")) {
 				error = ERR_FILE_CORRUPT;
-				error_text = "missing 'method' field from connection tag";
-				return Ref<PackedScene>();
+				error_text = "Missing 'method' field from connection tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			NodePath from = next_tag.fields["from"];
@@ -411,62 +405,52 @@ Ref<PackedScene> ResourceLoaderCompatText::_parse_node_tag(VariantParser::Resour
 
 			Vector<int> bind_ints;
 			for (const Variant &bind : binds) {
-				bind_ints.push_back(packed_scene->get_state()->add_value(bind));
+				bind_ints.push_back(p_current_scene->get_state()->add_value(bind));
 			}
 
-			packed_scene->get_state()->add_connection(
-					packed_scene->get_state()->add_node_path(from.simplified(), from_id),
-					packed_scene->get_state()->add_node_path(to.simplified(), to_id),
-					packed_scene->get_state()->add_name(signal),
-					packed_scene->get_state()->add_name(method),
+			p_current_scene->get_state()->add_connection(
+					p_current_scene->get_state()->add_node_path(from.simplified(), from_id),
+					p_current_scene->get_state()->add_node_path(to.simplified(), to_id),
+					p_current_scene->get_state()->add_name(signal),
+					p_current_scene->get_state()->add_name(method),
 					flags,
 					unbinds,
 					bind_ints);
 
-			error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &parser);
+			// COMPAT
+			error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &p_parser);
 
 			if (error) {
-				if (error != ERR_FILE_EOF) {
-					_printerr();
-					return Ref<PackedScene>();
-				} else {
-					error = OK;
-#if ENABLE_3_X_SCENE_LOADING
-					packed_scene->_finish_load("text", format_version);
-#endif
-					return packed_scene;
-				}
+				ERR_FAIL_COND_V_MSG(error != ERR_FILE_EOF, Ref<PackedScene>(), _get_error_string());
+				error = OK;
+				return p_current_scene;
 			}
 		} else if (next_tag.name == "editable") {
 			if (!next_tag.fields.has("path")) {
 				error = ERR_FILE_CORRUPT;
-				error_text = "missing 'path' field from editable tag";
-				_printerr();
-				return Ref<PackedScene>();
+				error_text = "Missing 'path' field from editable tag";
+				ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 			}
 
 			NodePath path = next_tag.fields["path"];
 
-			packed_scene->get_state()->add_editable_instance(path.simplified());
+			p_current_scene->get_state()->add_editable_instance(path.simplified());
 
-			error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &parser);
+			// COMPAT
+			error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &p_parser);
 
 			if (error) {
-				if (error != ERR_FILE_EOF) {
-					_printerr();
-					return Ref<PackedScene>();
-				} else {
-					error = OK;
-#if ENABLE_3_X_SCENE_LOADING
-					packed_scene->_finish_load("text", format_version);
-#endif
-					return packed_scene;
-				}
+				ERR_FAIL_COND_V_MSG(error != ERR_FILE_EOF, Ref<PackedScene>(), _get_error_string());
+				error = OK;
+				return packed_scene;
 			}
+			// If it's a nested packed scene, and there's a resource after, we return without errors.
+		} else if (p_current_scene != packed_scene && (next_tag.name == "sub_resource" || next_tag.name == "resource")) {
+			return p_current_scene;
 		} else {
 			error = ERR_FILE_CORRUPT;
-			_printerr();
-			return Ref<PackedScene>();
+			error_text = vformat("Unknown tag '%s' in file", next_tag.name);
+			ERR_FAIL_V_MSG(Ref<PackedScene>(), _get_error_string());
 		}
 	}
 }
@@ -544,7 +528,7 @@ Error ResourceLoaderCompatText::load() {
 		if (next_tag.fields.has("uid")) {
 			String uidt = next_tag.fields["uid"];
 			uid = ResourceUID::get_singleton()->text_to_id(uidt);
-			// UID Stuff
+			// START COMPAT: UID Stuff
 			// clang-format off
 			if (is_real_load()){
 			if (uid != ResourceUID::INVALID_ID && ResourceUID::get_singleton()->has_id(uid)) {
@@ -562,6 +546,7 @@ Error ResourceLoaderCompatText::load() {
 			}
 			}
 			// clang-format on
+			// END COMPAT: UID Stuff
 		}
 
 		if (!path.contains("://") && path.is_relative_path()) {
@@ -590,6 +575,7 @@ Error ResourceLoaderCompatText::load() {
 			}
 		}
 
+		// COMPAT
 		error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &rp);
 
 		if (error) {
@@ -653,6 +639,7 @@ Error ResourceLoaderCompatText::load() {
 			}
 		}
 
+		// START COMPAT
 		bool not_cached = false;
 		bool fake_script = false;
 		Ref<MissingResource> missing_resource = nullptr;
@@ -667,6 +654,7 @@ Error ResourceLoaderCompatText::load() {
 			}
 			not_cached = true;
 		});
+		// END COMPAT
 
 		if (load_type == ResourceInfo::FAKE_LOAD) {
 			init_missing_internal_resource(false);
@@ -675,6 +663,7 @@ Error ResourceLoaderCompatText::load() {
 		}
 		if (res.is_null()) { //not reuse
 			Ref<Resource> cache = ResourceCache::get_ref(path);
+			// COMPAT
 			if (converter.is_valid() && (!cache.is_valid() || cache_mode == ResourceFormatLoader::CACHE_MODE_IGNORE)) {
 				// We pass a missing resource to the converter, so it can set the properties correctly.
 				init_missing_internal_resource(true);
@@ -740,9 +729,11 @@ Error ResourceLoaderCompatText::load() {
 			// will have path and scene unique id set after conversion
 		}
 
+		// START COMPAT: 3.x scene loading compatibility functions
 #if ENABLE_3_X_SCENE_LOADING
 		res->_start_load(SNAME("text"), format_version);
 #endif
+		// END COMPAT: 3.x scene loading compatibility functions
 
 		Dictionary missing_resource_properties;
 
@@ -750,6 +741,7 @@ Error ResourceLoaderCompatText::load() {
 			String assign;
 			Variant value;
 
+			// COMPAT
 			error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp);
 
 			if (error) {
@@ -799,9 +791,11 @@ Error ResourceLoaderCompatText::load() {
 					}
 
 					if (set_valid) {
+						// START COMPAT: 2.x and below: resource name property was `resource/name`
 						if (missing_resource.is_null() && ver_major <= 2 && assign == "resource/name") {
 							assign = "resource_name";
 						}
+						// END COMPAT
 						bool valid = false;
 						res->set(assign, value, &valid);
 						if (!valid) {
@@ -820,6 +814,10 @@ Error ResourceLoaderCompatText::load() {
 				}
 				//it's assignment
 			} else if (!next_tag.name.is_empty()) {
+				if (type == "PackedScene" && next_tag.name == "node") {
+					res = _parse_node_tag(res, rp);
+				}
+
 				error = OK;
 				break;
 			} else {
@@ -832,6 +830,7 @@ Error ResourceLoaderCompatText::load() {
 
 		if (missing_resource.is_valid()) {
 			missing_resource->set_recording_properties(false);
+			// START COMPAT: resource conversion
 			if (converter.is_valid()) {
 				Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(missing_resource);
 				ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_UNAVAILABLE, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
@@ -857,6 +856,7 @@ Error ResourceLoaderCompatText::load() {
 					WARN_PRINT("Conversion failed for resource: " + path);
 				}
 			}
+			// END COMPAT: resource conversion
 		}
 
 		if (!missing_resource_properties.is_empty()) {
@@ -870,19 +870,24 @@ Error ResourceLoaderCompatText::load() {
 #endif
 	}
 
+	if (is_scene) {
+		// COMPAT
+		// clang-format off
+		if (is_real_load()) {
+		packed_scene = ResourceLoader::get_resource_ref_override(local_path);
+		}
+		// clang-format on
+		if (packed_scene.is_null()) {
+			packed_scene.instantiate();
+		}
+	}
+
 	// main resource parsing (if it is a resource)
 	while (true) {
 		if (next_tag.name != "resource") {
 			break;
 		}
-
-		if (is_scene) {
-			error_text += "found the 'resource' tag on a scene file!";
-			_printerr();
-			error = ERR_FILE_CORRUPT;
-			return error;
-		}
-
+		// START COMPAT
 		bool fake_script = false;
 		Ref<MissingResource> missing_resource = nullptr;
 		Ref<ResourceCompatConverter> converter;
@@ -895,62 +900,75 @@ Error ResourceLoaderCompatText::load() {
 				fake_script = true;
 			}
 		});
-		if (is_real_load()) {
-			resource = ResourceLoader::get_resource_ref_override(local_path);
-		}
-		if (resource.is_null()) {
+		// END COMPAT
+		if (!is_scene) {
+			// COMPAT
 			// clang-format off
 			if (is_real_load()) {
-			Ref<Resource> cache = ResourceCache::get_ref(local_path);
-			if (cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE && cache.is_valid() && cache->get_class() == res_type) {
-				cache->reset_state();
-				resource = cache;
-			}
+			resource = ResourceLoader::get_resource_ref_override(local_path);
 			}
 			// clang-format on
-			if (load_type == ResourceInfo::FAKE_LOAD) {
-				init_missing_main_resource(false);
-			} else if (resource.is_null()) {
-				converter = ResourceCompatLoader::get_converter_for_type(res_type, ver_major);
-				if (converter.is_valid()) {
-					init_missing_main_resource(true);
-				} // else, we will create a new resource
-			}
+			if (resource.is_null()) {
+				// START COMPAT: Only load cached sub-resources if we're doing a real load
+				// clang-format off
+				if (is_real_load()) {
+				// END COMPAT
+				Ref<Resource> cache = ResourceCache::get_ref(local_path);
+				if (cache_mode == ResourceFormatLoader::CACHE_MODE_REPLACE && cache.is_valid() && cache->get_class() == res_type) {
+					cache->reset_state();
+					resource = cache;
+				}
+				// START COMPAT
+				} // is_real_load()
+				// clang-format on
+				// START COMPAT: initialize a missing main resource if we're doing a fake load or we have a compatible converter for the type
+				if (load_type == ResourceInfo::FAKE_LOAD) {
+					init_missing_main_resource(false);
+				} else if (resource.is_null()) {
+					converter = ResourceCompatLoader::get_converter_for_type(res_type, ver_major);
+					if (converter.is_valid()) {
+						init_missing_main_resource(true);
+					} // else, we will create a new resource
+				}
+				// END COMPAT
 
-			if (!resource.is_valid()) {
-				Ref<Resource> res;
-				Object *obj = ClassDB::class_exists(res_type) || !ClassDB::get_compatibility_class(res_type).is_empty() ? ClassDB::instantiate(res_type) : nullptr;
-				if (!obj) {
-					if (ResourceLoader::is_creating_missing_resources_if_class_unavailable_enabled()) {
-						res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid);
-						obj = res.ptr();
-						if (obj->get_class() == "MissingResource") {
-							missing_resource = Object::cast_to<MissingResource>(obj);
-							missing_resource->set_original_class(res_type);
-							missing_resource->set_recording_properties(true);
+				if (!resource.is_valid()) {
+					Ref<Resource> res;
+					Object *obj = ClassDB::class_exists(res_type) || !ClassDB::get_compatibility_class(res_type).is_empty() ? ClassDB::instantiate(res_type) : nullptr;
+					if (!obj) {
+						if (ResourceLoader::is_creating_missing_resources_if_class_unavailable_enabled()) {
+							res = CompatFormatLoader::create_missing_main_resource(local_path, res_type, res_uid);
+							obj = res.ptr();
+							if (obj->get_class() == "MissingResource") {
+								missing_resource = Object::cast_to<MissingResource>(obj);
+								missing_resource->set_original_class(res_type);
+								missing_resource->set_recording_properties(true);
+							}
+						} else {
+							error_text += "Can't create sub resource of type: " + res_type;
+							_printerr();
+							error = ERR_FILE_CORRUPT;
+							return error;
 						}
-					} else {
-						error_text += "Can't create sub resource of type: " + res_type;
+					}
+
+					Resource *r = Object::cast_to<Resource>(obj);
+					if (!r) {
+						error_text += "Can't create sub resource of type, because not a resource: " + res_type;
 						_printerr();
 						error = ERR_FILE_CORRUPT;
 						return error;
 					}
-				}
 
-				Resource *r = Object::cast_to<Resource>(obj);
-				if (!r) {
-					error_text += "Can't create sub resource of type, because not a resource: " + res_type;
-					_printerr();
-					error = ERR_FILE_CORRUPT;
-					return error;
+					resource = Ref<Resource>(r);
 				}
-
-				resource = Ref<Resource>(r);
 			}
 		}
 
 #if ENABLE_3_X_SCENE_LOADING
-		resource->_start_load(SNAME("text"), format_version);
+		if (!is_scene) {
+			resource->_start_load(SNAME("text"), format_version);
+		}
 #endif
 
 		Dictionary missing_resource_properties;
@@ -960,11 +978,21 @@ Error ResourceLoaderCompatText::load() {
 			String assign;
 			Variant value;
 
+			// COMPAT
 			error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp);
 
+			bool empty_assign = assign.is_empty();
 			if (error) {
-				if (error != ERR_FILE_EOF) {
-					_printerr();
+				if (error == ERR_FILE_EOF) {
+					if (is_scene) {
+						error_text = "Scene files need to have at least one node. None was found.";
+						error = ERR_FILE_CORRUPT;
+						ERR_PRINT(_get_error_string());
+						return error;
+					}
+
+				} else {
+					ERR_PRINT(_get_error_string());
 					return error;
 				}
 				// EOF, Done parsing.
@@ -980,7 +1008,7 @@ Error ResourceLoaderCompatText::load() {
 				break;
 			}
 
-			if (!assign.is_empty()) {
+			if (!empty_assign) {
 				bool set_valid = true;
 
 				if (value.get_type() == Variant::OBJECT && (!fake_script && missing_resource == nullptr) && ResourceLoader::is_creating_missing_resources_if_class_unavailable_enabled()) {
@@ -1021,11 +1049,17 @@ Error ResourceLoaderCompatText::load() {
 				}
 
 				if (set_valid) {
+					// START COMPAT
 					if (missing_resource.is_null() && ver_major <= 2 && assign == "resource/name") {
 						assign = "resource_name";
 					}
 					bool valid = false;
-					resource->set(assign, value, &valid);
+					if (is_scene) {
+						packed_scene->set(assign, value, &valid);
+					} else {
+						resource->set(assign, value, &valid);
+					}
+
 					if (!valid) {
 						if (!CompatFormatLoader::try_force_set_property(resource, assign, value)) {
 							missing_resource_properties[assign] = value;
@@ -1038,9 +1072,10 @@ Error ResourceLoaderCompatText::load() {
 							valid = true;
 						}
 					}
+					// END COMPAT
 				}
 				//it's assignment
-			} else if (!next_tag.name.is_empty()) {
+			} else if (!is_scene && !next_tag.name.is_empty()) {
 				error = ERR_FILE_CORRUPT;
 				error_text = "Extra tag found when parsing main resource file";
 				_printerr();
@@ -1058,6 +1093,7 @@ Error ResourceLoaderCompatText::load() {
 
 		if (missing_resource.is_valid()) {
 			missing_resource->set_recording_properties(false);
+			// START COMPAT
 			if (converter.is_valid()) {
 				Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(missing_resource);
 				ERR_FAIL_COND_V_MSG(!compat.is_valid(), ERR_UNAVAILABLE, "Missing resource has no compat metadata??????????? This should have been set by the missing resource instance function(s)!!!!!!!!");
@@ -1081,20 +1117,30 @@ Error ResourceLoaderCompatText::load() {
 					WARN_PRINT("Conversion failed for resource: " + res_path);
 				}
 			}
+			// END COMPAT
 		}
 
 		if (!missing_resource_properties.is_empty()) {
-			resource->set_meta(META_MISSING_RESOURCES, missing_resource_properties);
+			if (is_scene) {
+				packed_scene->set_meta(META_MISSING_RESOURCES, missing_resource_properties);
+			} else {
+				resource->set_meta(META_MISSING_RESOURCES, missing_resource_properties);
+			}
 		}
-		set_compat_meta(resource);
 
+		// START COMPAT
+		if (!is_scene) {
+			set_compat_meta(resource);
 #if ENABLE_3_X_SCENE_LOADING
-		resource->_finish_load("text", format_version);
+			resource->_finish_load("text", format_version);
 #endif
+		}
+		// END COMPAT
 
-		error = OK;
-
-		return error;
+		if (!is_scene) {
+			error = OK;
+			return error;
+		}
 	}
 	// end main resource parsing
 
@@ -1108,11 +1154,22 @@ Error ResourceLoaderCompatText::load() {
 			return error;
 		}
 
-		Ref<PackedScene> packed_scene = _parse_node_tag(rp);
+		// START COMPAT
+#if ENABLE_3_X_SCENE_LOADING
+		packed_scene->_start_load(SNAME("text"), format_version);
+#endif
+		// END COMPAT
+
+		packed_scene = _parse_node_tag(packed_scene, rp);
 
 		if (!packed_scene.is_valid()) {
 			return error;
 		}
+
+		// COMPAT
+#if ENABLE_3_X_SCENE_LOADING
+		packed_scene->_finish_load(SNAME("text"), format_version);
+#endif
 
 		error = OK;
 		//get it here
@@ -1210,6 +1267,7 @@ void ResourceLoaderCompatText::get_dependencies(Ref<FileAccess> p_f, List<String
 
 		p_dependencies->push_back(path);
 
+		// COMPAT
 		Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &rp);
 
 		if (err) {
@@ -1235,6 +1293,7 @@ Error ResourceLoaderCompatText::rename_dependencies(Ref<FileAccess> p_f, const S
 	uint64_t tag_end = f->get_position();
 
 	while (true) {
+		// COMPAT
 		Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &rp);
 
 		if (err != OK) {
@@ -1382,6 +1441,7 @@ void ResourceLoaderCompatText::open(Ref<FileAccess> p_f, bool p_skip_first_tag) 
 	resource_current = 0;
 
 	VariantParser::Tag tag;
+	// COMPAT
 	Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, tag);
 
 	if (err) {
@@ -1490,6 +1550,7 @@ void ResourceLoaderCompatText::open(Ref<FileAccess> p_f, bool p_skip_first_tag) 
 	}
 
 	if (!p_skip_first_tag) {
+		// COMPAT
 		err = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &rp);
 
 		if (err) {
@@ -1520,6 +1581,7 @@ Error ResourceLoaderCompatText::get_classes_used(HashSet<StringName> *r_classes)
 	rp_new.userdata = &dummy_read;
 
 	while (next_tag.name == "ext_resource") {
+		// COMPAT
 		error = VariantParserCompat::parse_tag(&stream, lines, error_text, next_tag, &rp_new);
 
 		if (error) {
@@ -1547,6 +1609,7 @@ Error ResourceLoaderCompatText::get_classes_used(HashSet<StringName> *r_classes)
 			String assign;
 			Variant value;
 
+			// COMPAT
 			error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp_new);
 
 			if (error) {
@@ -1590,6 +1653,7 @@ Error ResourceLoaderCompatText::get_classes_used(HashSet<StringName> *r_classes)
 			String assign;
 			Variant value;
 
+			// COMPAT
 			error = VariantParserCompat::parse_tag_assign_eof(&stream, lines, error_text, next_tag, assign, value, &rp_new);
 
 			if (error) {
@@ -1631,6 +1695,7 @@ String ResourceLoaderCompatText::recognize_script_class(Ref<FileAccess> p_f) {
 	ignore_resource_parsing = true;
 
 	VariantParser::Tag tag;
+	// COMPAT
 	Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, tag);
 
 	if (err) {
@@ -1669,6 +1734,7 @@ String ResourceLoaderCompatText::recognize(Ref<FileAccess> p_f) {
 	ignore_resource_parsing = true;
 
 	VariantParser::Tag tag;
+	// COMPAT
 	Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, tag);
 
 	if (err) {
@@ -1713,6 +1779,7 @@ ResourceUID::ID ResourceLoaderCompatText::get_uid(Ref<FileAccess> p_f) {
 	ignore_resource_parsing = true;
 
 	VariantParser::Tag tag;
+	// COMPAT
 	Error err = VariantParserCompat::parse_tag(&stream, lines, error_text, tag);
 
 	if (err) {
@@ -1986,6 +2053,7 @@ String ResourceFormatSaverCompatTextInstance::_write_resource(const Ref<Resource
 #endif
 }
 
+// COMPAT
 String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resource> res, int ext_resources_size) {
 	Ref<ResourceInfo> compat = ResourceInfo::get_info_from_resource(res);
 	String id;
@@ -2007,6 +2075,7 @@ String ResourceFormatSaverCompatTextInstance::get_id_for_ext_resource(Ref<Resour
 	return id;
 }
 
+// COMPAT
 void ResourceFormatSaverCompatTextInstance::ensure_ids_are_unique() {
 	HashSet<String> ids;
 	bool needs_renumbering = false;
@@ -2049,6 +2118,7 @@ void ResourceFormatSaverCompatTextInstance::_find_resources(const Variant &p_var
 
 				// Use a numeric ID as a base, because they are sorted in natural order before saving.
 				// This increases the chances of thread loading to fetch them first.
+				// COMPAT: use our own function for this
 #if 0
 				String id = itos(external_resources.size() + 1) + "_" + Resource::generate_scene_unique_id();
 #endif
@@ -2148,8 +2218,180 @@ static String _resource_get_class(Ref<Resource> p_resource) {
 	if (missing_resource.is_valid()) {
 		return missing_resource->get_original_class();
 	} else {
+		// TODO: make this use `resource_get_class` in CompatFormatLoader instead
+		// COMPAT
 		return p_resource->get_save_class();
 	}
+}
+
+void ResourceFormatSaverCompatTextInstance::_parse_nodes(const Ref<PackedScene> &curr_scene, const Ref<FileAccess> &p_file) {
+	// If this is a scene, save nodes and connections!
+	Ref<SceneState> state = curr_scene->get_state();
+	for (int i = 0; i < state->get_node_count(); i++) {
+		StringName type = state->get_node_type(i);
+		StringName name = state->get_node_name(i);
+		int index = state->get_node_index(i);
+		int unique_id = state->get_node_unique_id(i);
+		NodePath parent_path = state->get_node_path(i, true);
+		PackedInt32Array parent_id_path = state->get_node_parent_id_path(i);
+		PackedInt32Array owner_id_path = state->get_node_owner_id_path(i);
+		NodePath owner = state->get_node_owner_path(i);
+		Ref<PackedScene> instance = state->get_node_instance(i);
+		String instance_placeholder = state->get_node_instance_placeholder(i);
+		Vector<StringName> groups = state->get_node_groups(i);
+		Vector<String> deferred_node_paths = state->get_node_deferred_nodepath_properties(i);
+
+		String header = "[node";
+		header += " name=\"" + String(name).c_escape() + "\"";
+		if (type != StringName()) {
+			header += " type=\"" + String(type) + "\"";
+		}
+		if (parent_path != NodePath()) {
+			header += " parent=\"" + String(parent_path.simplified()).c_escape() + "\"";
+			if (parent_id_path.size()) {
+				header += " parent_id_path=" + Variant(parent_id_path).get_construct_string();
+			}
+		}
+
+		if (owner != NodePath() && owner != NodePath(".")) {
+			header += " owner=\"" + String(owner.simplified()).c_escape() + "\"";
+			if (owner_id_path.size()) {
+				header += " owner_uid_path=" + Variant(owner_id_path).get_construct_string();
+			}
+		}
+		if (index >= 0) {
+			header += " index=\"" + itos(index) + "\"";
+		}
+
+		if (unique_id != Node::UNIQUE_SCENE_ID_UNASSIGNED) {
+			header += " unique_id=" + itos(unique_id) + "";
+		}
+
+		// COMPAT: Only write node_paths if we're at least version 3 (i.e. Godot 4.0 and above)
+		// clang-format off
+		if (format_version >= 3) {
+		if (deferred_node_paths.size()) {
+			header += " node_paths=" + Variant(deferred_node_paths).get_construct_string();
+		}
+		}
+		DEV_ASSERT(format_version >= 3 || deferred_node_paths.size() == 0);
+		// clang-format on
+
+		if (groups.size()) {
+			// Write all groups on the same line as they're part of a section header.
+			// This improves readability while not impacting VCS friendliness too much,
+			// since it's rare to have more than 5 groups assigned to a single node.
+			groups.sort_custom<StringName::AlphCompare>();
+			String sgroups = " groups=[";
+			for (int j = 0; j < groups.size(); j++) {
+				sgroups += "\"" + String(groups[j]).c_escape() + "\"";
+				if (j < groups.size() - 1) {
+					sgroups += ", ";
+				}
+			}
+			sgroups += "]";
+			header += sgroups;
+		}
+
+		p_file->store_string(header);
+
+		if (!instance_placeholder.is_empty()) {
+			String vars;
+			p_file->store_string(" instance_placeholder=");
+			// COMPAT
+			VariantWriterCompat::write_to_string(instance_placeholder, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
+			p_file->store_string(vars);
+		}
+
+		if (instance.is_valid()) {
+			String vars;
+			p_file->store_string(" instance=");
+			// COMPAT
+			VariantWriterCompat::write_to_string(instance, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
+			p_file->store_string(vars);
+		}
+
+		p_file->store_line("]");
+
+		// COMPAT: Godot 3.0 and below wrote an extra empty line after a node tag if there were properties to save
+		if (format_version <= 2 && state->get_node_property_count(i) > 0) {
+			p_file->store_line("");
+		}
+
+		for (int j = 0; j < state->get_node_property_count(i); j++) {
+			String vars;
+			// COMPAT
+			VariantWriterCompat::write_to_string(state->get_node_property_value(i, j), vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
+
+			p_file->store_string(String(state->get_node_property_name(i, j)).property_name_encode() + " = " + vars + "\n");
+		}
+
+		if (i < state->get_node_count() - 1) {
+			p_file->store_line(String());
+		}
+	}
+
+	for (int i = 0; i < state->get_connection_count(); i++) {
+		if (i == 0) {
+			p_file->store_line("");
+		}
+
+		String connstr = "[connection";
+		connstr += " signal=\"" + String(state->get_connection_signal(i)).c_escape() + "\"";
+		connstr += " from=\"" + String(state->get_connection_source(i).simplified()).c_escape() + "\"";
+		connstr += " to=\"" + String(state->get_connection_target(i).simplified()).c_escape() + "\"";
+		connstr += " method=\"" + String(state->get_connection_method(i)).c_escape() + "\"";
+		int flags = state->get_connection_flags(i);
+		if (flags != Object::CONNECT_PERSIST) {
+			connstr += " flags=" + itos(flags);
+		}
+
+		{
+			PackedInt32Array from_idp = state->get_connection_source_id_path(i);
+			if (from_idp.size()) {
+				connstr += " from_uid_path=" + Variant(from_idp).get_construct_string();
+			}
+		}
+
+		{
+			PackedInt32Array to_idp = state->get_connection_target_id_path(i);
+			if (to_idp.size()) {
+				connstr += " to_uid_path=" + Variant(to_idp).get_construct_string();
+			}
+		}
+
+		int unbinds = state->get_connection_unbinds(i);
+		if (unbinds > 0) {
+			connstr += " unbinds=" + itos(unbinds);
+		}
+
+		Array binds = state->get_connection_binds(i);
+		p_file->store_string(connstr);
+		if (binds.size()) {
+			String vars;
+			VariantWriter::write_to_string(binds, vars, true, _write_resources, this, use_compat);
+			p_file->store_string(" binds= " + vars);
+		}
+
+		p_file->store_line("]");
+	}
+
+	Vector<NodePath> editable_instances = state->get_editable_instances();
+	for (int i = 0; i < editable_instances.size(); i++) {
+		if (i == 0) {
+			p_file->store_line("");
+		}
+		p_file->store_line("[editable path=\"" + editable_instances[i].operator String().c_escape() + "\"]");
+	}
+}
+
+// TODO: move these to a utils file
+static inline bool is_below_version(int ref_major, int ref_minor, int target_major, int target_minor) {
+	return target_major < ref_major || (target_major == ref_major && target_minor < ref_minor);
+}
+
+static inline bool is_at_least_version(int ref_major, int ref_minor, int target_major, int target_minor) {
+	return target_major > ref_major || (target_major == ref_major && target_minor >= ref_minor);
 }
 
 Error ResourceFormatSaverCompatTextInstance::save(const String &p_path, const Ref<Resource> &p_resource, uint32_t p_flags) {
@@ -2370,12 +2612,14 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	for (List<Ref<Resource>>::Element *E = saved_resources.front(); E; E = E->next()) {
 		Ref<Resource> res = E->get();
 		if (E->next() && res->is_built_in()) {
+			// START COMPAT
 			if (format_version < 3) {
 				auto scene_id = res->get_scene_unique_id();
 				if (scene_id.is_empty() || used_unique_ids.has(scene_id) || !scene_id.is_valid_int()) {
 					res->set_scene_unique_id("");
 				}
 			}
+			// END COMPAT
 			if (!res->get_scene_unique_id().is_empty()) {
 				if (used_unique_ids.has(res->get_scene_unique_id())) {
 					res->set_scene_unique_id(""); // Repeated.
@@ -2386,18 +2630,22 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 		}
 	}
 
+	bool first_meta = true;
+	bool has_nested_scene = false;
 	for (List<Ref<Resource>>::Element *E = saved_resources.front(); E; E = E->next()) {
 		Ref<Resource> res = E->get();
 		ERR_CONTINUE(!resource_set.has(res));
 		bool main = (E->next() == nullptr);
 
-		if (main && packed_scene.is_valid()) {
-			break; // Save as a scene.
+		// COMPAT: Don't serialize metadata for scenes before 4.8
+		if (main && packed_scene.is_valid() && is_below_version(4, 8, ver_major, ver_minor)) {
+			break;
 		}
 
-		if (main) {
+		bool is_scene = res->is_class("PackedScene");
+		if (main && !is_scene) {
 			f->store_line("[resource]");
-		} else {
+		} else if (!main) {
 			String line = "[sub_resource ";
 			if (res->get_scene_unique_id().is_empty()) {
 				int last_id = used_unique_ids.size();
@@ -2451,18 +2699,31 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 		// COMPAT: if the script property isn't at the top, resources that are script instances will have their script properties stripped upon loading in the editor.
 		CompatFormatLoader::move_script_property_to_top(&property_list);
 		for (const PropertyInfo &pi : property_list) {
-			if (skip_editor && pi.name.begins_with("__editor")) {
-				continue;
-			}
-			if (pi.name == META_PROPERTY_MISSING_RESOURCES) {
-				continue;
-			}
-			if (pi.name == META_PROPERTY_COMPAT_DATA) {
+			String name = pi.name;
+			if (skip_editor && name.begins_with("__editor")) {
 				continue;
 			}
 
+			if (name == META_PROPERTY_MISSING_RESOURCES) {
+				continue;
+			}
+
+			if (is_scene && name == "_bundled") {
+				// COMPAT: 4.8+ added the ability to bundle scenes within scenes as node tags
+				// clang-format off
+				if (is_at_least_version(4, 8, ver_major, ver_minor)) {
+				continue;
+				}
+				// clang-format on
+			}
+
+			// START COMPAT
+			if (name == META_PROPERTY_COMPAT_DATA) {
+				continue;
+			}
+			// END COMPAT
+
 			if (pi.usage & PROPERTY_USAGE_STORAGE || missing_resource_properties.has(pi.name)) {
-				String name = pi.name;
 				Variant value;
 				if (pi.usage & PROPERTY_USAGE_RESOURCE_NOT_PERSISTENT) {
 					NonPersistentKey npk;
@@ -2483,8 +2744,11 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 					}
 				}
 
+				// COMPAT: We don't want to lookup the default value for script properties unless we're the same version
 				bool should_lookup_default_value = !is_missing_resource && ver_major == GODOT_VERSION_MAJOR && ver_minor == GODOT_VERSION_MINOR;
+
 				bool is_script = name == CoreStringName(script);
+				// COMPAT
 				Variant default_value = !should_lookup_default_value || is_script ? Variant() : PropertyUtils::get_property_default_value(res.ptr(), name);
 
 				// Except for the default "Resource" properties
@@ -2502,14 +2766,40 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 					continue;
 				}
 
+				// COMPAT: 2.x and below used "resource/name" for the resource_name property
 				if (ver_major <= 2 && name == "resource_name" && !is_missing_resource) {
 					name = "resource/name";
 				}
 
 				String vars;
 				VariantWriterCompat::write_to_string(value, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
+
+				// This is here to avoid a change in all old scenes that didn't have have metadata support
+				// The scenes only need to have a resource tag if they have metadata
+				if (is_scene && main && first_meta) {
+					f->store_line("[resource]");
+					first_meta = false;
+				}
 				f->store_string(name.property_name_encode() + " = " + vars + "\n");
 			}
+		}
+
+		// COMPAT: Don't save the nested scene as node tags if we're below 4.8
+		if (!main && is_scene && is_below_version(4, 8, ver_major, ver_minor)) {
+			if (E->next()) {
+				f->store_line(String());
+			}
+			continue;
+		}
+
+		if (!main && is_scene && res.is_valid()) {
+			_parse_nodes(res, f);
+			has_nested_scene = true;
+		}
+
+		if (is_scene && main && first_meta && has_nested_scene) {
+			f->store_line("[resource]");
+			first_meta = false;
 		}
 
 		if (E->next()) {
@@ -2518,158 +2808,7 @@ Error ResourceFormatSaverCompatTextInstance::save_to_file(const Ref<FileAccess> 
 	}
 
 	if (packed_scene.is_valid()) {
-		// If this is a scene, save nodes and connections!
-		Ref<SceneState> state = packed_scene->get_state();
-		for (int i = 0; i < state->get_node_count(); i++) {
-			StringName type = state->get_node_type(i);
-			StringName name = state->get_node_name(i);
-			int index = state->get_node_index(i);
-			int unique_id = state->get_node_unique_id(i);
-			NodePath parent_path = state->get_node_path(i, true);
-			PackedInt32Array parent_id_path = state->get_node_parent_id_path(i);
-			PackedInt32Array owner_id_path = state->get_node_owner_id_path(i);
-			NodePath owner = state->get_node_owner_path(i);
-			Ref<PackedScene> instance = state->get_node_instance(i);
-			String instance_placeholder = state->get_node_instance_placeholder(i);
-			Vector<StringName> groups = state->get_node_groups(i);
-			Vector<String> deferred_node_paths = state->get_node_deferred_nodepath_properties(i);
-
-			String header = "[node";
-			header += " name=\"" + String(name).c_escape() + "\"";
-			if (type != StringName()) {
-				header += " type=\"" + String(type) + "\"";
-			}
-			if (parent_path != NodePath()) {
-				header += " parent=\"" + String(parent_path.simplified()).c_escape() + "\"";
-				if (parent_id_path.size()) {
-					header += " parent_id_path=" + Variant(parent_id_path).get_construct_string();
-				}
-			}
-
-			if (owner != NodePath() && owner != NodePath(".")) {
-				header += " owner=\"" + String(owner.simplified()).c_escape() + "\"";
-				if (owner_id_path.size()) {
-					header += " owner_uid_path=" + Variant(owner_id_path).get_construct_string();
-				}
-			}
-			if (index >= 0) {
-				header += " index=\"" + itos(index) + "\"";
-			}
-
-			if (unique_id != Node::UNIQUE_SCENE_ID_UNASSIGNED) {
-				header += " unique_id=" + itos(unique_id) + "";
-			}
-
-			// clang-format off
-			if (format_version >= 3) {
-			if (deferred_node_paths.size()) {
-				header += " node_paths=" + Variant(deferred_node_paths).get_construct_string();
-			}
-			}
-			// clang-format on
-
-			if (groups.size()) {
-				// Write all groups on the same line as they're part of a section header.
-				// This improves readability while not impacting VCS friendliness too much,
-				// since it's rare to have more than 5 groups assigned to a single node.
-				groups.sort_custom<StringName::AlphCompare>();
-				String sgroups = " groups=[";
-				for (int j = 0; j < groups.size(); j++) {
-					sgroups += "\"" + String(groups[j]).c_escape() + "\"";
-					if (j < groups.size() - 1) {
-						sgroups += ", ";
-					}
-				}
-				sgroups += "]";
-				header += sgroups;
-			}
-
-			f->store_string(header);
-
-			if (!instance_placeholder.is_empty()) {
-				String vars;
-				f->store_string(" instance_placeholder=");
-				VariantWriterCompat::write_to_string(instance_placeholder, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
-				f->store_string(vars);
-			}
-
-			if (instance.is_valid()) {
-				String vars;
-				f->store_string(" instance=");
-				VariantWriterCompat::write_to_string(instance, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
-				f->store_string(vars);
-			}
-
-			f->store_line("]");
-			// COMPAT: Godot 3.0 and below wrote an extra empty line after a node tag if there were properties to save
-			if (format_version <= 2 && state->get_node_property_count(i) > 0) {
-				f->store_line("");
-			}
-
-			for (int j = 0; j < state->get_node_property_count(i); j++) {
-				String vars;
-				VariantWriterCompat::write_to_string(state->get_node_property_value(i, j), vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
-
-				f->store_string(String(state->get_node_property_name(i, j)).property_name_encode() + " = " + vars + "\n");
-			}
-
-			if (i < state->get_node_count() - 1) {
-				f->store_line(String());
-			}
-		}
-
-		for (int i = 0; i < state->get_connection_count(); i++) {
-			if (i == 0) {
-				f->store_line("");
-			}
-
-			String connstr = "[connection";
-			connstr += " signal=\"" + String(state->get_connection_signal(i)).c_escape() + "\"";
-			connstr += " from=\"" + String(state->get_connection_source(i).simplified()).c_escape() + "\"";
-			connstr += " to=\"" + String(state->get_connection_target(i).simplified()).c_escape() + "\"";
-			connstr += " method=\"" + String(state->get_connection_method(i)).c_escape() + "\"";
-			int flags = state->get_connection_flags(i);
-			if (flags != Object::CONNECT_PERSIST) {
-				connstr += " flags=" + itos(flags);
-			}
-
-			{
-				PackedInt32Array from_idp = state->get_connection_source_id_path(i);
-				if (from_idp.size()) {
-					connstr += " from_uid_path=" + Variant(from_idp).get_construct_string();
-				}
-			}
-
-			{
-				PackedInt32Array to_idp = state->get_connection_target_id_path(i);
-				if (to_idp.size()) {
-					connstr += " to_uid_path=" + Variant(to_idp).get_construct_string();
-				}
-			}
-
-			int unbinds = state->get_connection_unbinds(i);
-			if (unbinds > 0) {
-				connstr += " unbinds=" + itos(unbinds);
-			}
-
-			Array binds = state->get_connection_binds(i);
-			f->store_string(connstr);
-			if (binds.size()) {
-				String vars;
-				VariantWriterCompat::write_to_string(binds, vars, force_single_real_t, ver_major, ver_minor, _write_resources, this, use_compat);
-				f->store_string(" binds= " + vars);
-			}
-
-			f->store_line("]");
-		}
-
-		Vector<NodePath> editable_instances = state->get_editable_instances();
-		for (int i = 0; i < editable_instances.size(); i++) {
-			if (i == 0) {
-				f->store_line("");
-			}
-			f->store_line("[editable path=\"" + editable_instances[i].operator String().c_escape() + "\"]");
-		}
+		_parse_nodes(packed_scene, f);
 	}
 
 	if (f->get_error() != OK && f->get_error() != ERR_FILE_EOF) {
@@ -2974,6 +3113,7 @@ Ref<ResourceInfo> ResourceFormatLoaderCompatText::get_resource_info(const String
 
 // "Resource(...)" parsing
 Error ResourceLoaderCompatText::_parse_resource(VariantParser::Stream *p_stream, Ref<Resource> &r_res, int &line, String &r_err_str) {
+	// COMPAT
 	return VariantParserCompat::_default_parse_resource(p_stream, r_res, line, r_err_str, load_type, use_sub_threads, cache_mode);
 }
 
