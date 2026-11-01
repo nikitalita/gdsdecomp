@@ -601,10 +601,7 @@ Error TaskManager::wait_for_task_completion(TaskManagerID p_group_id) {
 		bool already_waiting = false;
 		bool found = group_id_to_description.modify_if(p_group_id, [&](auto &v) {
 			task = v.second;
-			already_waiting = task->is_waiting;
-			if (!already_waiting) {
-				task->is_waiting = true;
-			}
+			task->is_waiting.compare_exchange_strong(already_waiting, true);
 		});
 		if (!task || !found) {
 			return ERR_INVALID_PARAMETER;
