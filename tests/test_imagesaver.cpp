@@ -98,6 +98,21 @@ TEST_CASE("[GDSDecomp][ImageSaver] Test saving images") {
 	}
 }
 
+// If this test fails, it likely means we need to update the monkey-patching in config.py to account for new modules/settings.
+TEST_CASE("[GDSDecomp][ImageSaver] Image can decompress all formats") {
+	static const Vector<String> formats = { "astc", "bptc", "etc2", "s3tc" };
+	for (const String &format : formats) {
+		SUBCASE(vformat("Image can decompress %s", format).utf8().get_data()) {
+#if TOOLS_ENABLED
+			static constexpr const char *message = "Image can't decompress %s on editor build somehow?!";
+#else
+			static constexpr const char *message = "Image can't decompress %s, we probably need to update the monkey-patching in config.py to account for new modules/settings.";
+#endif
+			CHECK_MESSAGE(Image::can_decompress(format) == true, vformat(message, format).utf8().get_data());
+		}
+	}
+}
+
 TEST_CASE("[GDSDecomp][ImageSaver] Test saving images with compression") {
 	String temp_dir = get_tmp_path().path_join("image_saver");
 	gdre::rimraf(temp_dir);
@@ -122,9 +137,15 @@ TEST_CASE("[GDSDecomp][ImageSaver] Test saving images with compression") {
 		Image::FORMAT_ETC2_RA_AS_RG, // ETC2 RGBA with a RA-RG swizzle for normal maps.
 		Image::FORMAT_DXT5_RA_AS_RG, // BC3 with a RA-RG swizzle for normal maps.
 		Image::FORMAT_ASTC_4x4,
-		Image::FORMAT_ASTC_4x4_HDR,
+		Image::FORMAT_ASTC_6x6,
 		Image::FORMAT_ASTC_8x8,
+
+	// a null HDR ASTC image decompresses to a half-float image full of NaNs, which UBSAN hates
+#ifndef UBSAN_ENABLED
+		Image::FORMAT_ASTC_4x4_HDR,
+		Image::FORMAT_ASTC_6x6_HDR,
 		Image::FORMAT_ASTC_8x8_HDR,
+#endif
 	};
 	for (const auto &p_format : compress_modes) {
 		String ext = Image::format_names[p_format];
