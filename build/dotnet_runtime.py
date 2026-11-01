@@ -6,7 +6,7 @@ import subprocess
 import tarfile
 from subprocess import STDOUT, check_output
 
-from .common import get_cmd_env, get_godot_mono_triplet
+from .common import get_cmd_env, get_godot_mono_triplet, get_host_platform
 from .paths import (
     GODOT_MONO_DECOMP_PARENT,
     get_dotnet_runtime_dir,
@@ -39,7 +39,7 @@ def get_host_dotnet_arch() -> str:
 
 def resolve_dotnet_runtime_tag(godot_mono_decomp_parent_dir: str, cmd_env=None) -> str:
     global_json_path = os.path.join(godot_mono_decomp_parent_dir, "global.json")
-    sdk_version = "10.0.0"
+    sdk_version = "10.0.14"
     if os.path.exists(global_json_path):
         with open(global_json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -94,6 +94,11 @@ def _get_runtime_artifact_paths(runtime_dir: str, target_platform: str, target_a
     return ilc_dir, aotsdk_dir, native_dir, sanitizers_targets
 
 
+def _get_sanitizer_stamp_path(runtime_dir: str, triplet: str) -> str:
+    # One stamp per triplet, so building one arch doesn't invalidate another arch's stamp.
+    return os.path.join(runtime_dir, "artifacts", f".sanitizer_stamp_{triplet}")
+
+
 def _runtime_artifacts_exist(runtime_dir: str, target_platform: str, target_arch: str, expected_stamp: str) -> bool:
     ilc_dir, aotsdk_dir, native_dir, sanitizers_targets = _get_runtime_artifact_paths(
         runtime_dir, target_platform, target_arch
@@ -101,7 +106,7 @@ def _runtime_artifacts_exist(runtime_dir: str, target_platform: str, target_arch
     ilc_exe = "ilc.exe" if platform.system().lower().startswith("win") else "ilc"
     lib_ext = ".lib" if target_platform == "windows" else ".a"
     lib_prefix = "" if target_platform == "windows" else "lib"
-    stamp_file = os.path.join(runtime_dir, "artifacts", ".sanitizer_stamp")
+    stamp_file = _get_sanitizer_stamp_path(runtime_dir, get_godot_mono_triplet(target_platform, target_arch))
     if not os.path.exists(stamp_file):
         return False
     try:
@@ -187,11 +192,16 @@ def ensure_sanitized_dotnet_runtime(build_env, target_arch: str, tag: str, runti
             arch_part,
             "-fsanitize",
             sanitizers_str,
-            "/p:NuGetAudit=false",
         ]
+
+        this_arch = get_host_dotnet_arch()
+        # `macos` always requires the --cross flag for some reason
+        if this_arch != arch_part or get_host_platform() != build_env["platform"] or build_env["platform"] == "macos":
+            build_cmd.append("--cross")
+        build_cmd.append("/p:NuGetAudit=false")  # to prevent warnings about packages causing the build to fail
         print("BUILDING SANITIZED DOTNET RUNTIME:", " ".join(build_cmd))
         subprocess.run(build_cmd, cwd=runtime_dir, check=True, env=cmd_env)
-        stamp_file = os.path.join(runtime_dir, "artifacts", ".sanitizer_stamp")
+        stamp_file = _get_sanitizer_stamp_path(runtime_dir, triplet)
         os.makedirs(os.path.dirname(stamp_file), exist_ok=True)
         with open(stamp_file, "w", encoding="utf-8") as f:
             f.write(expected_stamp)
@@ -255,6 +265,9 @@ def setup_dotnet_runtime_sanitizer_builders(env, env_gdsdecomp, mono_native_lib_
     if mono_native_lib_type == "Shared" and env["platform"] == "macos":
         target_archs.append("x86_64" if env["arch"] == "arm64" else "arm64")
 
+    # All archs are built from the same dotnet-runtime checkout (shared `artifacts/`, `.dotnet`, NuGet caches),
+    # so the builds are not safe to run concurrently. Chain them so scons builds them one at a time.
+    previous_archive_node = None
     for arch in target_archs:
         triplet = get_godot_mono_triplet(env["platform"], arch)
         archive_path = get_dotnet_runtime_sdk_archive(env, runtime_tag, triplet, sanitizers_key)
@@ -278,6 +291,10 @@ def setup_dotnet_runtime_sanitizer_builders(env, env_gdsdecomp, mono_native_lib_
             action=env_gdsdecomp.Run(_make_runtime_action(arch)),
         )
         runtime_archive_node = getattr(env_gdsdecomp, builder_name)(archive_path, [global_json_rel])
+        if previous_archive_node is not None:
+            # Order-only: don't start this build until the previous one has finished.
+            env_gdsdecomp.Requires(runtime_archive_node, previous_archive_node)
+        previous_archive_node = runtime_archive_node
         runtime_archive_nodes.extend(runtime_archive_node)
 
     return runtime_sdk_archives, runtime_archive_nodes

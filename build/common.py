@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 import platform
 from typing import Any
 
@@ -147,3 +148,18 @@ def append_cpppaths(build_env, paths):
 def add_source_groups(build_env, module_obj, source_globs):
     for source_glob in source_globs:
         build_env.add_source_files(module_obj, source_glob)
+
+
+def get_host_platform() -> str:
+    host_platform = "windows"
+    if (
+        sys.platform.startswith("linux")
+        or sys.platform.startswith("dragonfly")
+        or sys.platform.startswith("freebsd")
+        or sys.platform.startswith("netbsd")
+        or sys.platform.startswith("openbsd")
+    ):
+        host_platform = "linuxbsd"
+    elif sys.platform == "darwin":
+        host_platform = "macos"
+    return host_platform
