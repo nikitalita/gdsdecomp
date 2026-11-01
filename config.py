@@ -92,7 +92,13 @@ def get_opts(platform):
             "Optional path to dotnet/runtime checkout for ASAN-enabled builds; if not provided, a checkout will be cloned from the official repository. (requires use of `use_asan` and `build_dotnet_runtime_with_asan`)",
             "",
         ),
+        BoolVariable(
+            "build_vtracer_with_asan",
+            "Build the vtracer Rust crate with address sanitizers when `use_asan` is enabled. Disabled by default since rustc's ASan instrumentation much match the host machine's used LLVM.",
+            False,
+        ),
     ]
+
     if not (platform == "android" or platform == "macos"):
         opts.append(BoolVariable("use_static_godot_mono_decomp", "Build Godot Mono Decomp library as static", False))
     return opts

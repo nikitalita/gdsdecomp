@@ -97,7 +97,10 @@ channel = "{channel}"
 
 def get_vtracer_sanitizers(build_env) -> list[str]:
     sanitizers = []
-    if build_env.get("use_asan", False):
+    # Building the vtracer with ASAN is more trouble than it's worth; if the host machine's installed LLVM does not match
+    # the LLVM used by the Rust compiler, the ASAN runtime will not be able to find the correct symbols.
+    # Only use it if the user explicitly enables it.
+    if build_env.get("use_asan", False) and build_env.get("build_vtracer_with_asan", False):
         sanitizers.append("address")
     if build_env.get("use_lsan", False):
         sanitizers.append("leak")
