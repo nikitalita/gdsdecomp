@@ -17,8 +17,8 @@ SPIRV_HEADERS_THIRDPARTY_DIR = "#thirdparty/spirv-headers/include/spirv/unified1
 WEBP_THIRDPARTY_DIR = "#thirdparty/libwebp/"
 THORSVG_THIRDPARTY_DIR = "#thirdparty/thorsvg/"
 UNSIGNED_HASH_DIR = "#modules/gdsdecomp/external/unsigned-hash-cpp"
-UNSIGNED_HASH_INCLUDE_DIR = f'{UNSIGNED_HASH_DIR}/include'
-UNSIGNED_HASH_SRC_DIR = f'{UNSIGNED_HASH_DIR}/src'
+UNSIGNED_HASH_INCLUDE_DIR = f"{UNSIGNED_HASH_DIR}/include"
+UNSIGNED_HASH_SRC_DIR = f"{UNSIGNED_HASH_DIR}/src"
 MODULE_INCLUDE_DIR = "#modules/gdsdecomp/"
 VTRACER_INCLUDE_DIR = "#modules/gdsdecomp/external/vtracer/include"
 GODOT_MONO_DECOMP_INCLUDE_DIR = "#modules/gdsdecomp/godot-mono-decomp/GodotMonoDecompNativeAOT/include"
@@ -56,8 +56,8 @@ def get_godot_mono_decomp_dir(env):
     return os.path.join(get_module_dir(env), GODOT_MONO_DECOMP_PREFIX)
 
 
-def get_dotnet_runtime_dir(env):
-    custom_dir = env.get("dotnet_runtime_dir", "")
+def get_dotnet_runtime_repo_dir(env):
+    custom_dir = env.get("dotnet_runtime_repo_dir", "")
     if custom_dir:
         return os.path.abspath(custom_dir)
     return os.path.join(get_external_dir(env), "dotnet-runtime")
@@ -69,20 +69,3 @@ def get_dotnet_runtime_sdk_archive(env, tag, triplet, sanitizers):
 
 def get_dotnet_runtime_sdk_dir(env, tag, triplet, sanitizers):
     return os.path.join(get_external_dir(env), "dotnet-runtime-sdk", f"{tag}-{triplet}-{sanitizers}")
-
-
-
-def get_dotnet_runtime_dir(env):
-    custom_dir = env.get("dotnet_runtime_dir", "")
-    if custom_dir:
-        return os.path.abspath(str(custom_dir))
-    return os.path.join(get_external_dir(env), "dotnet-runtime")
-
-
-def get_dotnet_runtime_sdk_archive(env, tag: str, triplet: str, sanitizers: str):
-    return os.path.join(get_external_dir(env), f"dotnet-runtime-sdk-{tag}-{triplet}-{sanitizers}.tar.gz")
-
-
-def get_dotnet_runtime_sdk_dir(env, tag: str, triplet: str, sanitizers: str):
-    return os.path.join(get_external_dir(env), "dotnet-runtime-sdk", f"{tag}-{triplet}-{sanitizers}")
-

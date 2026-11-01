@@ -18,6 +18,7 @@ from .dotnet_runtime import (
     get_runtime_sanitizers,
     has_any_sanitizer,
     setup_dotnet_runtime_sanitizer_builders,
+    should_build_dotnet_runtime,
 )
 from .paths import (
     GODOT_MONO_DECOMP_LIBS,
@@ -116,11 +117,12 @@ def get_dotnet_publish_cmd(build_env, mono_native_lib_type, target_arch, godot_m
             dotnet_publish_cmd += ["-p:UseMSAN=true"]
         if build_env.get("use_ubsan", False):
             dotnet_publish_cmd += ["-p:UseUBSAN=true"]
-        runtime_sanitizers = get_runtime_sanitizers(build_env)
-        if runtime_sanitizers:
-            dotnet_publish_cmd += [f"-p:EnableNativeSanitizers={','.join(runtime_sanitizers)}"]
-        if runtime_sdk_dir:
-            dotnet_publish_cmd += [f"-p:DotNetRuntimeSdkDir={runtime_sdk_dir}"]
+        if should_build_dotnet_runtime(build_env):
+            runtime_sanitizers = get_runtime_sanitizers(build_env)
+            if runtime_sanitizers:
+                dotnet_publish_cmd += [f"-p:EnableNativeSanitizers={','.join(runtime_sanitizers)}"]
+            if runtime_sdk_dir:
+                dotnet_publish_cmd += [f"-p:DotNetRuntimeSdkDir={runtime_sdk_dir}"]
     if build_env["platform"] == "android" or mono_native_lib_type == "Static":
         dotnet_publish_cmd += ["-p:DisableUnsupportedError=true", "-p:PublishAotUsingRuntimePack=true"]
     if mono_native_lib_type == "Static":

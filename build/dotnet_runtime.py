@@ -9,9 +9,10 @@ from subprocess import STDOUT, check_output
 from .common import get_cmd_env, get_godot_mono_triplet, get_host_platform
 from .paths import (
     GODOT_MONO_DECOMP_PARENT,
-    get_dotnet_runtime_dir,
+    get_dotnet_runtime_repo_dir,
     get_dotnet_runtime_sdk_archive,
     get_dotnet_runtime_sdk_dir,
+    get_external_dir,
     get_module_dir,
 )
 
@@ -28,6 +29,11 @@ def get_runtime_sanitizers(build_env) -> list[str]:
     if build_env.get("use_asan", False):
         sanitizers.append("address")
     return sanitizers
+
+
+def should_build_dotnet_runtime(build_env) -> bool:
+    """Whether to build a custom sanitizer-enabled dotnet/runtime (opt-in via `build_dotnet_runtime_with_asan=yes`)."""
+    return bool(build_env.get("build_dotnet_runtime_with_asan", False)) and bool(get_runtime_sanitizers(build_env))
 
 
 def get_host_dotnet_arch() -> str:
@@ -127,7 +133,9 @@ def _runtime_artifacts_exist(runtime_dir: str, target_platform: str, target_arch
 
 
 def ensure_sanitized_dotnet_runtime(build_env, target_arch: str, tag: str, runtime_sanitizers: list[str]) -> str:
-    runtime_dir = get_dotnet_runtime_dir(build_env)
+    runtime_dir = get_dotnet_runtime_repo_dir(build_env)
+    if not runtime_dir:
+        runtime_dir = os.path.join(get_external_dir(build_env), "dotnet-runtime")
     cmd_env = get_cmd_env(build_env)
     triplet = get_godot_mono_triplet(build_env["platform"], target_arch)
     _, arch_part = triplet.split("-", 1)
@@ -249,11 +257,11 @@ def extract_dotnet_runtime_sdk_archive(archive_path: str, sdk_dir: str) -> str:
 
 
 def setup_dotnet_runtime_sanitizer_builders(env, env_gdsdecomp, mono_native_lib_type: str):
-    runtime_sanitizers = get_runtime_sanitizers(env)
     runtime_sdk_archives = {}
     runtime_archive_nodes = []
-    if not runtime_sanitizers:
+    if not should_build_dotnet_runtime(env):
         return runtime_sdk_archives, runtime_archive_nodes
+    runtime_sanitizers = get_runtime_sanitizers(env)
 
     module_dir = get_module_dir(env)
     godot_mono_decomp_parent_dir = os.path.join(module_dir, GODOT_MONO_DECOMP_PARENT)
