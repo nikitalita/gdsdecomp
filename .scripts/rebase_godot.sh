@@ -47,8 +47,16 @@ BRANCHES_TO_MERGE=(
 	gltf-node-weights
 	gltf-clear-mipmaps-before-dupe
 	fix-classdb-get-default-value
-	ref-ensure-type-is-complete
+	fix-ubsan-clang-20
+	fix-MDCommandBuffer-commit
+	fix-rendering-shader-container-from-bytes
+	fix-image-constructor
+	fix-broken-double-checked-lock-in-object
+	fix-misalignment-gdscript
+	ubsan-uint-fixes
+	tsan-fix-nvidia-dlvsym-hack
 )
+# TODO: remove the tsan-fix once https://github.com/godotengine/godot/pull/120992 is merged and working
 
 # set fail on error
 for branch in "${BRANCHES_TO_MERGE[@]}"; do
@@ -68,7 +76,7 @@ else
     sed_in_place() { sed -i "$@"; }
 fi
 
-# git push nikitalita $NEW_BRANCH_NAME --set-upstream
+git push nikitalita $NEW_BRANCH_NAME --set-upstream
 
 # change the branch name in .github/workflows/all_builds.yml and the README.md
 sed_in_place "s/GODOT_MAIN_SYNC_REF: .*/GODOT_MAIN_SYNC_REF: $NEW_BRANCH_NAME/" "$GDRE_PATH/.github/workflows/all_builds.yml"
