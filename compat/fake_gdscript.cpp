@@ -164,11 +164,13 @@ Error FakeGDScript::reload(bool p_keep_state) {
 
 	Error err = OK;
 	if (is_binary) {
+#if 0 // disabling this, as this can cause issues with forcing the bytecode revision
 		auto result = decomp->test_bytecode(binary_buffer, false);
 		if (result != GDScriptDecomp::BytecodeTestResult::BYTECODE_TEST_PASS) {
 			error_message = "Error decompiling code: " + decomp->get_error_message();
 			ERR_FAIL_V_MSG(ERR_PARSE_ERROR, "Error decompiling code " + script_path + ": " + decomp->get_error_message());
 		}
+#endif
 	} else {
 		binary_buffer = decomp->compile_code_string(source);
 		if (binary_buffer.size() == 0) {
